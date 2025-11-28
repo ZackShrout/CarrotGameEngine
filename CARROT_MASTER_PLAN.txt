@@ -1,0 +1,218 @@
+CARROT GAME ENGINE – MASTER PLAN
+by BunnySoft
+Version 1.0 – November 27, 2025
+
+This document is the single source of truth for the entire project.
+
+PROJECT NAME
+- Engine: Carrot Game Engine
+- Namespace: carrot
+- Company: BunnySoft
+- Repository root folder: CarrotGameEngine/
+
+CORE PHILOSOPHY
+- High-performance, native, cross-platform desktop engine (Windows • Linux • macOS)
+- Zero external runtime dependencies after bootstrap (no SDL, no GLFW after month 2)
+- Write once in modern C++23, ship everywhere
+- 2D / 3D / Octopath-style hybrid from day 1
+- Hot-reloading of shaders & assets baked in from the start
+- Future-proof for native Metal, DX11/DX12, and optional scripting (Lua, Python, C#, etc.) with zero overhead today
+
+TARGET PLATFORMS & APIs (2025 → 2030 roadmap)
+- Platforms - Windows, Linux, macOS
+- Windowing - Win32, Xcb + Wayland, Cocoa
+- Primary Graphics API (Years 1–2) - Vulkan, Vulkan, Vulkan via MoltenVK
+- Future Graphics APIs - DX11 → DX12 (optional), Vulkan, Native Metal (year 3+)
+
+BUILD SYSTEM
+- Premake5 (Lua-based) – single premake5.lua generates native projects for:
+    - Visual Studio 2022/2025 (Windows)
+    - GNU Make (Linux and macOS)
+- No CMake ever
+
+CODE STYLE (non-negotiable)
+File & Folder Naming
+- Headers: `.h`
+- Source: `.cpp`
+- Folders under `src/`: UpperCamelCase (Engine/, Renderer/, ECS/, etc.)
+- Source files: UpperCamelCase (Window.h / Window.cpp, Entity.h / Entity.cpp)
+Naming Conventions
+- All user-defined types (struct, class, enum class, typedef, using): `snake_case_t`
+- Functions, variables, parameters, namespaces: `snake_case`
+- Private/protected member variables: `_snake_case`
+- Member functions: `snake_case`
+- Compile-time constants / static globals: `k_max_entities`, `g_frames_in_flight`
+- Macros (rare, screaming case only when unavoidable): `CARROT_ENABLE_TRACY`
+Core Language Style
+- Uniform/bracket initialization everywhere: `int32_t frame_count{0}; float delta_time{0.f};`
+- Float literals always suffixed: `0.f`, `1.f`, `3.14159f`
+- `auto` only when:
+  - iterating containers: `for (const auto& entity : entities)`
+  - the type name is unreasonably long and obvious from context
+  - never used to hide pointer/reference levels
+- Single-statement `if` / `for` / `while` → no braces
+    if (is_valid) return true;
+        for (uint32_t i{ 0 }; i < count; ++i) do_thing(i);
+- Multi-statement blocks always braced and newline-aligned (Allman style)
+- constexpr, const, noexcept, [[nodiscard]], [[nodiscard("reason")]] applied aggressively wherever legal
+- goto forbidden except the classic “goto cleanup” pattern in functions with multiple early returns and manual resource cleanup (we will have a few of these early on before RAII is complete)
+Type Discipline
+- Prefer struct over class
+- Use class only when private sections + inheritance are actually required
+- Free functions in namespaces strongly preferred over member functions when behaviour is not tied to internal state
+Struct / Class Layout Order (exact)
+struct foo
+{
+public:     // public interface first
+    // public methods
+    // public data (rare, only if truly POD)
+
+protected:  // (only if used)
+    // protected methods
+    // protected data
+
+private:    // everything else
+    // private methods
+    // private data
+};
+Namespaces
+- All engine code lives under namespace carrot { ... }
+- Sub-namespaces preferred over deep type names (carrot::rhi, carrot::ecs, etc.)
+- Anonymous namespaces used heavily in .cpp files for file-local symbols
+- Never using namespace in headers
+- using declarations allowed in .cpp files after the anonymous namespace when it is safe and improves readability
+Other Mandatory Rules
+- Pointers and references stick to the type: int32_t* ptr, float& value (East-const style forbidden)
+- Include guards: #pragma once
+- Forward declarations preferred over unnecessary includes in headers
+- Every public-facing function that cannot fail gets [[nodiscard]]
+- Every function that does not allocate or throw gets noexcept when possible
+- Zero raw new/delete after bootstrap phase – we will use our own allocators
+- All engine subsystems are modules with explicit init() / shutdown() (enables hot-reload later)
+Example of Perfect Carrot Style
+#pragma once
+
+#include <cstdint>
+
+namespace carrot::ecs {
+
+using entity_id = uint32_t;
+
+struct transform_component
+{
+public:
+    void set_position(float x, float y, float z) noexcept;
+    [[nodiscard]] bool is_static() const noexcept { return _is_static; }
+
+private:
+    float    _position[3]{ 0.f, 0.f, 0.f };
+    float    _rotation[4]{ 0.f, 0.f, 0.f, 1.f };
+    float    _scale[3]{ 1.f, 1.f, 1.f };
+    bool     _is_static{ false };
+};
+
+} // namespace carrot::ecs
+
+REPOSITORY LAYOUT
+CarrotGameEngine/
+├── premake5.lua
+├── CODING_STANDARDS.md
+├── build/                       ← generated, gitignore
+├── bin/                         ← generated, gitignore
+├── obj/                         ← generated, gitignore
+├── src/
+│   ├── Engine/
+│   │   ├── Core/
+│   │   │   ├── Module.h
+│   │   │   ├── Engine.h/.cpp
+│   │   │   └── Platform/
+│   │   │       ├── Win32/
+│   │   │       ├── Xcb/
+│   │   │       ├── Wayland/
+│   │   │       └── Cocoa/
+│   │   ├── Window/
+│   │   │   ├── Window.h/.cpp
+│   │   │   └── PlatformWindow.h (internal)
+│   │   ├── Input/
+│   │   ├── RHI/
+│   │   │   ├── RHIDevice.h
+│   │   │   ├── RHISwapchain.h
+│   │   │   ├── RHICommandBuffer.h
+│   │   │   └── Backends/
+│   │   │       └── Vulkan/        ← only backend for first 1–2 years
+│   │   ├── Renderer/
+│   │   ├── ECS/                   ← custom archetype + sparse-set implementation
+│   │   ├── Asset/
+│   │   │   ├── AssetRegistry.h
+│   │   │   ├── AssetLoader.h
+│   │   │   └── HotReload/
+│   │   └── HotReload/
+│   └── Game/                      ← sandbox or actual game code
+├── deps/                          ← git submodules
+│   ├── glm
+│   ├── vulkan-hpp
+│   ├── miniaudio
+│   ├── stb
+│   ├── spdlog
+│   ├── tracy
+│   └── glslang (for shader compilation)
+├── shaders/                       ← all written in GLSL → compiled to SPIR-V
+└── tools/
+
+GRAPHICS & SHADER STRATEGY
+- All shaders written once in GLSL
+- Build-time compilation with glslangValidator → SPIR-V
+- SPIR-V is the canonical format
+- Hot-reload watches .spv files
+- Vulkan consumes SPIR-V natively
+- MoltenVK consumes SPIR-V natively
+- Future native Metal → SPIRV-Cross at build time
+- Future DX → SPIRV-Cross or direct HLSL path
+
+RHI ABSTRACTION (the part that saves us in 2029)
+- Renderer speaks only to pure-virtual RHI interfaces.
+- Only one implementation exists for the first two years (Vulkan).
+- Adding Metal or D3D12 later is literally “write new backend files”.
+
+ECS IMPLEMENTATION
+- Custom from-scratch
+- Archetype + sparse-set storage (Unity DOTS / Bevy / Flecs style)
+- Edge tables, archetype graph, structural change awareness
+- Zero virtual dispatch in hot paths
+
+HOT-RELOADING (baked in from day 1)
+- File watcher on shaders, textures, models
+- Asset registry with UUID → pointer mapping
+- Reload callbacks
+- Architecture supports code hot-reloading (DLL/so/dylib swap) later with zero current cost
+
+EDITOR & SCRIPTING FUTURE-PROOFING (zero cost today)
+- All systems take World* or explicit parameters
+- Game layer completely decoupled behind game::init/update/shutdown or GameInstance interface
+- Adding Lua / Python / C# / etc. later requires zero engine changes
+
+DEVELOPMENT ENVIRONMENTS
+- OS - Ubuntu LTS, Windows, macOS
+- IDE - VS Code + clangd, Visual Studio 2022/2025, VS Code + clangd
+- Premake action - premake5 gmake2, premake5 vs2022, premake5 gmake2
+- Initial windowing backend - Wayland (then Xcb fallback), Win32, Cocoa
+
+MILESTONES (2025 → 2027)
+- Time, Goal
+- Month 0–1, Window + Vulkan context + colored triangle on all 3 OSes
+- Month 2, Basic ECS + textured quad rendering from components
+- Month 3, Shader + texture hot-reloading fully working
+- Month 4–6, Sprite system, camera, basic 2D + 3D pipelines, asset importers
+- Month 7–12, Audio, input abstraction, simple physics, first complete mini-game
+- Year 2, Polish, profiling, first public tech demo or small commercial title
+- Year 3+, Native Metal backend, DX12 backend, editor beginnings
+
+DEPENDENCIES (all header-only or static, no runtime DLLs required after bootstrap)
+- glm
+- vulkan-hpp
+- miniaudio
+- stb_* suite
+- spdlog
+- tracy profiler (optional)
+- glslang (build-time only)
+

@@ -1,0 +1,8 @@
+build/
+bin/
+obj/
+*.xcworkspace
+*.xcodeproj
+.DS_Store
+Makefile
+*.make

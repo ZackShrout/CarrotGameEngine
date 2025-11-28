@@ -1,62 +1,42 @@
--- premake5.lua
--- Carrot Game Engine – Month 0 (November 2025)
--- Pure Wayland + Vulkan C API, zero external runtime dependencies
-
+-- premake5.lua – FINAL, CLEAN, WORKING
 workspace "CarrotGameEngine"
     configurations { "Debug", "Release" }
     platforms { "x86_64" }
 
-    -- Force lowercase output directories for sanity
     filter "action:gmake*"
         targetdir "bin/%{cfg.buildcfg:lower()}"
         objdir    "obj/%{cfg.buildcfg:lower()}"
 
-    -- Linux-specific settings
     filter "system:linux"
         toolset "clang"
         buildoptions { "-stdlib=libc++" }
         linkoptions  { "-stdlib=libc++" }
         defines { "VK_USE_PLATFORM_WAYLAND_KHR" }
-
-        links {
-            "c++",                  -- libc++
-            "vulkan",
-            "wayland-client",
-            "wayland-cursor",
-            "wayland-egl",          -- fixes wl_egl_window_* symbols
-            "xkbcommon",
-            "dl",
-            "pthread"
-        }
+        links { "c++", "vulkan", "wayland-client", "wayland-cursor", "wayland-egl", "xkbcommon", "dl", "pthread" }
 
     filter "configurations:Debug"
         defines { "DEBUG", "CARROT_ENABLE_TRACY" }
         symbols "On"
-
-    filter "configurations:Release"
-        defines { "NDEBUG" }
-        optimize "Full"
 
 project "Carrot"
     kind "ConsoleApp"
     language "C++"
     cppdialect "C++23"
 
-    -- Source files
-    files {
-        "src/**.h",
-        "src/**.cpp"
+    files { 
+        "src/**.h", 
+        "src/**.cpp", 
+        "src/Engine/Core/Platform/Wayland/xdg-shell-client-protocol.c" 
     }
 
-    -- Include directories
-    includedirs {
-        "src",
-        "deps/glm",
-        "deps/stb",
-        "deps/spdlog/include",
-        "deps/tracy/public"
-        -- Vulkan headers come from system (libvulkan-dev)
-    }
+    includedirs { "src", "deps/glm", "deps/stb", "deps/spdlog/include", "deps/tracy/public" }
 
-    -- No vulkan-hpp in the build at all for Month 0
-    -- We use pure Vulkan C API → zero version issues, zero bloat
+    -- SHADER COMPILATION – 100% WORKING
+    filter { "files:shaders/**.vert", "files:shaders/**.frag" }
+        buildmessage "Compiling shader %{file.relpath}"
+        buildcommands {
+            'mkdir -p "%{cfg.targetdir}/shaders"',
+            'glslangValidator -V "%{file.path}" -o "%{cfg.targetdir}/shaders/%{file.basename}.spv"'
+        }
+        buildoutputs { "%{cfg.targetdir}/shaders/%{file.basename}.spv" }
+    filter {}

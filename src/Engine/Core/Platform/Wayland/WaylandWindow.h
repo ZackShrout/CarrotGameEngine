@@ -1,12 +1,10 @@
 #pragma once
-
 #include <cstdint>
+#include <wayland-client.h>
 
-struct wl_display;
-struct wl_registry;
-struct wl_compositor;
-struct wl_surface;
-struct wl_egl_window;
+struct xdg_wm_base;
+struct xdg_surface;
+struct xdg_toplevel;
 
 namespace carrot::platform {
 
@@ -16,25 +14,23 @@ public:
     explicit wayland_window(uint32_t width, uint32_t height, const char* title) noexcept;
     ~wayland_window() noexcept;
 
-    [[nodiscard]] bool should_close() const noexcept;
     void poll_events() noexcept;
+    [[nodiscard]] bool should_close() const noexcept { return _should_close; }
 
-    // Vulkan WSI
     [[nodiscard]] wl_display* get_wl_display() const noexcept { return _display; }
     [[nodiscard]] wl_surface* get_wl_surface() const noexcept { return _surface; }
 
-    // Needed by the static listener callback
-    void handle_registry_global(wl_registry* registry,
-                                uint32_t name,
-                                const char* interface,
-                                uint32_t version) noexcept;
+    // These two are only for the registry callback
+    void set_compositor(wl_compositor* c)   noexcept { _compositor = c; }
+    void set_xdg_wm_base(xdg_wm_base* base) noexcept { _xdg_wm_base = base; }
 
 private:
-    wl_display*    _display{ nullptr };
-    wl_registry*   _registry{ nullptr };
-    wl_compositor* _compositor{ nullptr };
-    wl_surface*    _surface{ nullptr };
-    wl_egl_window* _native_window{ nullptr };
+    wl_display*      _display{ nullptr };
+    wl_compositor*   _compositor{ nullptr };
+    wl_surface*      _surface{ nullptr };
+    xdg_wm_base*     _xdg_wm_base{ nullptr };
+    xdg_surface*     _xdg_surface{ nullptr };
+    xdg_toplevel*    _xdg_toplevel{ nullptr };
 
     bool _should_close{ false };
 };

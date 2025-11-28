@@ -211,21 +211,20 @@ DEVELOPMENT ENVIRONMENTS
 - Initial windowing backend - Wayland (then Xcb fallback), Win32, Cocoa
 
 MILESTONES (2025 → 2027)
-- Time, Goal
-- Month 0–1, Window + Vulkan context + colored triangle on all 3 OSes
-- Month 2, Basic ECS + textured quad rendering from components
-- Month 3, Shader + texture hot-reloading fully working
-- Month 4–6, Sprite system, camera, basic 2D + 3D pipelines, asset importers
-- Month 7–12, Audio, input abstraction, simple physics, first complete mini-game
-- Year 2, Polish, profiling, first public tech demo or small commercial title
-- Year 3+, Native Metal backend, DX12 backend, editor beginnings
+- Month 0–1  → Window + Vulkan C context + colored triangle on all 3 OSes
+- Month 2    → Basic ECS + textured quad rendering from components
+- Month 3    → Shader + texture hot-reloading fully working
+- Month 4–6  → Sprite system, camera, basic 2D + 3D pipelines, asset importers
+- Month 7–12 → Audio, input abstraction, simple physics, first complete mini-game
+- Year 2     → Polish, profiling, first public tech demo or small commercial title
+- Year 3+    → Native Metal backend, DX12 backend, editor beginnings
 
 DEPENDENCIES (all header-only or static, no runtime DLLs required after bootstrap)
 - glm
-- vulkan-hpp
+- vulkan.h (system headers – libvulkan-dev)
 - miniaudio
 - stb_* suite
 - spdlog
 - tracy profiler (optional)
 - glslang (build-time only)
-
+- vulkan-hpp → REMOVED from build, kept only as reference for future RAII ideas

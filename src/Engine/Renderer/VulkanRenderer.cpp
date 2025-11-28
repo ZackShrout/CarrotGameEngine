@@ -1,7 +1,3 @@
-// src/Engine/Renderer/VulkanRenderer.cpp
-// Fully compliant with CARROT_MASTER_PLAN.txt and CODING_STANDARDS.md
-// November 28, 2025 — Month 1 Day 1
-
 #include "Engine/Renderer/VulkanRenderer.h"
 #include "Engine/RHI/VulkanContext.h"
 #include "Engine/Window/Window.h"

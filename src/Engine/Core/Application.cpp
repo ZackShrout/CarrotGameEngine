@@ -2,6 +2,7 @@
 
 #include <Engine/Window/Window.h>
 #include <Engine/Renderer/VulkanRenderer.h>
+#include <Engine/HotReload/ShaderWatcher.h>
 
 #include <chrono>
 
@@ -29,10 +30,15 @@ void application_t::init()
 {
     window::create_primary_window(1280, 720, "Carrot Engine – Month 1");
     vulkan_renderer_t::init();
+    hot_reload::shader_watcher_t::init([](const std::string& spv_path)
+    {
+        vulkan_renderer_t::reload_pipeline();
+    });
 }
 
 void application_t::shutdown()
 {
+    hot_reload::shader_watcher_t::shutdown();
     vulkan_renderer_t::shutdown();
     window::destroy_primary_window();
 }
@@ -48,6 +54,7 @@ void application_t::run()
     while (!_should_quit && !main_window.should_close())
     {
         window::poll_events();
+        hot_reload::shader_watcher_t::poll();
         tick();
 
         vulkan_renderer_t::begin_frame();

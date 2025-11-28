@@ -159,6 +159,19 @@ CarrotGameEngine/
 ├── shaders/                       ← all written in GLSL → compiled to SPIR-V
 └── tools/
 
+GRAPHICS & RHI STRATEGY
+- All Vulkan calls use the official C API (vulkan.h / vulkan_wayland.h etc.)
+- vulkan-hpp is kept in deps/ for future reference only → NEVER linked in Year 1–2
+- We write our own lightweight, hot-reload-friendly RAII wrappers under namespace carrot::rhi
+    → Better than vulkan-hpp because:
+        • Zero version-lock hell
+        • Explicit control over lifetime and hot-reload semantics
+        • Same wrapper interface works for future Metal/DX12 backends
+        • Tiny binary size, zero external runtime deps
+- RHI interface is pure-virtual from day 1 (carrot::rhi::Device, Swapchain, CommandBuffer, etc.)
+- Only one concrete implementation exists for the first 2–3 years: Vulkan C API backend
+- Adding native Metal or DX12 later = write new backend files only, no engine changes
+
 GRAPHICS & SHADER STRATEGY
 - All shaders written once in GLSL
 - Build-time compilation with glslangValidator → SPIR-V

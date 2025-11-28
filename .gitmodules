@@ -1,3 +1,6 @@
 [submodule "deps/vulkan-hpp"]
 	path = deps/vulkan-hpp
 	url = https://github.com/KhronosGroup/Vulkan-Hpp.git
+[submodule "deps/stb"]
+	path = deps/stb
+	url = https://github.com/nothings/stb.git

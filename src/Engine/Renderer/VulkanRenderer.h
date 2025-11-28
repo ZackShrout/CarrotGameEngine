@@ -19,7 +19,11 @@ public:
     static void render_frame();   // temporary triangle, will be replaced later
     static void end_frame();
 
-    static void reload_pipeline();  // for hot-reload later today
+    static void reload_pipeline();
+
+    static void render_debug_overlay() noexcept;
+
+    [[nodiscard]] static VkCommandBuffer get_current_command_buffer() noexcept { return _command_buffers[_current_frame]; }
 
 private:
     static void create_pipeline();

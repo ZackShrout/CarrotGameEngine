@@ -26,6 +26,8 @@ static uint32_t find_queue_family(VkPhysicalDevice phys, VkSurfaceKHR surface, V
     return ~0u;
 }
 
+vulkan_context_t* vulkan_context_t::_instance{ nullptr };
+
 void vulkan_context_t::init(VkInstance inst, VkSurfaceKHR surf)
 {
     instance = inst;
@@ -56,6 +58,13 @@ void vulkan_context_t::init(VkInstance inst, VkSurfaceKHR surf)
     vkCreateDevice(physical_device, &device_info, nullptr, &device);
     vkGetDeviceQueue(device, graphics_family, 0, &graphics_queue);
     present_queue = graphics_queue;
+
+    VkCommandPoolCreateInfo pool_info{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
+    pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    pool_info.queueFamilyIndex = graphics_family;
+    vkCreateCommandPool(device, &pool_info, nullptr, &command_pool);
+
+    _instance = this;
 }
 
 void vulkan_context_t::create_swapchain(uint32_t width, uint32_t height)
@@ -105,6 +114,28 @@ void vulkan_context_t::create_swapchain(uint32_t width, uint32_t height)
     swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
 }
 
+void vulkan_context_t::create_buffer(VkDeviceSize size, VkBufferUsageFlags usage,
+                                     VkMemoryPropertyFlags properties,
+                                     VkBuffer& buffer, VkDeviceMemory& memory) const noexcept
+{
+    VkBufferCreateInfo buffer_info{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+    buffer_info.size = size;
+    buffer_info.usage = usage;
+    buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    vkCreateBuffer(device, &buffer_info, nullptr, &buffer);
+
+    VkMemoryRequirements mem_req;
+    vkGetBufferMemoryRequirements(device, buffer, &mem_req);
+
+    VkMemoryAllocateInfo alloc_info{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
+    alloc_info.allocationSize = mem_req.size;
+    alloc_info.memoryTypeIndex = find_memory_type(mem_req.memoryTypeBits, properties);
+
+    vkAllocateMemory(device, &alloc_info, nullptr, &memory);
+    vkBindBufferMemory(device, buffer, memory, 0);
+}
+
 void vulkan_context_t::cleanup()
 {
     for (uint32_t i = 0; i < image_count; ++i)
@@ -112,7 +143,55 @@ void vulkan_context_t::cleanup()
     delete[] swapchain_images;
     delete[] swapchain_views;
     if (swapchain) vkDestroySwapchainKHR(device, swapchain, nullptr);
+    if (command_pool) vkDestroyCommandPool(device, command_pool, nullptr);
     if (device) vkDestroyDevice(device, nullptr);
+
+    _instance = nullptr;
+}
+
+uint32_t vulkan_context_t::find_memory_type(uint32_t type_filter, VkMemoryPropertyFlags properties) const noexcept
+{
+    VkPhysicalDeviceMemoryProperties mem_props;
+    vkGetPhysicalDeviceMemoryProperties(physical_device, &mem_props);
+
+    for (uint32_t i = 0; i < mem_props.memoryTypeCount; ++i) {
+        if ((type_filter & (1u << i)) && (mem_props.memoryTypes[i].propertyFlags & properties) == properties) {
+            return i;
+        }
+    }
+    fprintf(stderr, "[Vulkan] Failed to find suitable memory type!\n");
+    return 0;
+}
+
+VkCommandBuffer vulkan_context_t::begin_one_time_commands() const noexcept
+{
+    VkCommandBufferAllocateInfo alloc_info{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
+    alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    alloc_info.commandPool = command_pool;
+    alloc_info.commandBufferCount = 1;
+
+    VkCommandBuffer cmd;
+    vkAllocateCommandBuffers(device, &alloc_info, &cmd);
+
+    VkCommandBufferBeginInfo begin_info{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+    begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    vkBeginCommandBuffer(cmd, &begin_info);
+
+    return cmd;
+}
+
+void vulkan_context_t::end_one_time_commands(VkCommandBuffer cmd) const noexcept
+{
+    vkEndCommandBuffer(cmd);
+
+    VkSubmitInfo submit{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
+    submit.commandBufferCount = 1;
+    submit.pCommandBuffers = &cmd;
+
+    vkQueueSubmit(graphics_queue, 1, &submit, VK_NULL_HANDLE);
+    vkQueueWaitIdle(graphics_queue);
+
+    vkFreeCommandBuffers(device, command_pool, 1, &cmd);
 }
 
 } // namespace carrot::rhi

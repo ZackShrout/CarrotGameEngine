@@ -39,6 +39,8 @@ private:
     uint32_t _frame_counter{ 0 };
     float    _fps_timer{ 0.f };
     uint32_t _current_fps{ 0 };
+
+    bool        _debug_overlay_initialized{ false };
 };
 
 } // namespace carrot

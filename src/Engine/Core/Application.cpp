@@ -3,6 +3,7 @@
 #include <Engine/Window/Window.h>
 #include <Engine/Renderer/VulkanRenderer.h>
 #include <Engine/HotReload/ShaderWatcher.h>
+#include <Engine/Debug/DebugOverlay.h>
 
 #include <chrono>
 
@@ -38,6 +39,7 @@ void application_t::init()
 
 void application_t::shutdown()
 {
+    debug::shutdown();
     hot_reload::shader_watcher_t::shutdown();
     vulkan_renderer_t::shutdown();
     window::destroy_primary_window();
@@ -59,6 +61,14 @@ void application_t::run()
 
         vulkan_renderer_t::begin_frame();
         vulkan_renderer_t::render_frame();   // temporary — just our spinning triangle for now
+
+        // Initialize debug overlay AFTER first swapchain image exists
+        if (!_debug_overlay_initialized)
+        {
+            debug::init();
+            _debug_overlay_initialized = true;
+        }
+
         vulkan_renderer_t::end_frame();
     }
 }
@@ -74,12 +84,16 @@ void application_t::tick()
 
     _fps_timer += _delta_time;
     ++_frame_counter;
-    if (_fps_timer >= 1.f)
+
+    if (_fps_timer >= 1.0f)
     {
         _current_fps = _frame_counter;
         _frame_counter = 0;
-        _fps_timer -= 1.f;
+        _fps_timer -= 1.0f;
     }
+
+    debug::text(20.f, 30.f,  "FPS: %u", _current_fps);
+    debug::text(20.f, 65.f, "Frame: %.3f ms", _delta_time * 1000.f);
 }
 
 } // namespace carrot

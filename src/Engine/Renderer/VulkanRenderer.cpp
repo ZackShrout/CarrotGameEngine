@@ -1,6 +1,8 @@
 #include "Engine/Renderer/VulkanRenderer.h"
 #include "Engine/RHI/VulkanContext.h"
 #include "Engine/Window/Window.h"
+#include "Engine/Utils/ShaderUtils.h"
+#include "Engine/Debug/DebugOverlay.h"
 
 #include <cstdio>
 #include <vector>
@@ -11,23 +13,6 @@ namespace carrot {
 namespace {
 
 constexpr uint32_t k_max_frames_in_flight{ 2 };
-
-std::vector<uint32_t> load_spv(const char* filename) noexcept
-{
-    FILE* f = fopen(filename, "rb");
-    if (!f) {
-        fprintf(stderr, "ERROR: Cannot open shader %s\n", filename);
-        return {};
-    }
-    fseek(f, 0, SEEK_END);
-    long size = ftell(f);
-    fseek(f, 0, SEEK_SET);
-
-    std::vector<uint32_t> buffer((size + 3) / 4);
-    fread(buffer.data(), 1, size, f);
-    fclose(f);
-    return buffer;
-}
 
 } // anonymous namespace
 
@@ -90,6 +75,13 @@ void vulkan_renderer_t::init()
     _ctx->create_swapchain(1280, 720);
 
     create_pipeline();
+
+    // Create shared command pool ONCE — used by renderer AND debug overlay
+    VkCommandPoolCreateInfo pool_info{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
+    pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    pool_info.queueFamilyIndex = _ctx->graphics_family;
+    vkCreateCommandPool(_ctx->device, &pool_info, nullptr, &_ctx->command_pool);
+
     recreate_swapchain_dependent_resources();
 }
 
@@ -120,7 +112,7 @@ void vulkan_renderer_t::shutdown()
 
 void vulkan_renderer_t::create_pipeline()
 {
-    auto vert_spv = load_spv("bin/debug/shaders/triangle.spv");
+    auto vert_spv = load_spv("bin/debug/shaders/triangle.vert.spv");
     auto frag_spv = load_spv("bin/debug/shaders/triangle.frag.spv");
 
     VkShaderModule vert_module{ VK_NULL_HANDLE };
@@ -166,6 +158,9 @@ void vulkan_renderer_t::create_pipeline()
     rp_info.subpassCount = 1;
     rp_info.pSubpasses = &subpass;
     vkCreateRenderPass(_ctx->device, &rp_info, nullptr, &_render_pass);
+
+    // Share the render pass with the debug overlay
+    carrot::rhi::vulkan_context_t::get()->render_pass = _render_pass;
 
     // ── Graphics Pipeline ───────────────────────────────────────
     VkPipelineShaderStageCreateInfo stages[2]{
@@ -226,6 +221,11 @@ void vulkan_renderer_t::destroy_pipeline()
     if (_graphics_pipeline) vkDestroyPipeline(_ctx->device, _graphics_pipeline, nullptr);
     if (_pipeline_layout) vkDestroyPipelineLayout(_ctx->device, _pipeline_layout, nullptr);
     if (_render_pass) vkDestroyRenderPass(_ctx->device, _render_pass, nullptr);
+    if (_ctx->command_pool)
+    { 
+        vkDestroyCommandPool(_ctx->device, _ctx->command_pool, nullptr);
+        _ctx->command_pool = VK_NULL_HANDLE;
+    }
 
     _graphics_pipeline = VK_NULL_HANDLE;
     _pipeline_layout = VK_NULL_HANDLE;
@@ -254,16 +254,10 @@ void vulkan_renderer_t::recreate_swapchain_dependent_resources()
         vkCreateFramebuffer(_ctx->device, &fb_info, nullptr, &_swapchain_framebuffers[i]);
     }
 
-    // Command pool & buffers
-    if (_command_pool) vkDestroyCommandPool(_ctx->device, _command_pool, nullptr);
-    VkCommandPoolCreateInfo pool_info{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
-    pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    pool_info.queueFamilyIndex = _ctx->graphics_family;
-    vkCreateCommandPool(_ctx->device, &pool_info, nullptr, &_command_pool);
-
+    // Only recreate command buffers — pool stays alive
     _command_buffers.resize(k_max_frames_in_flight);
     VkCommandBufferAllocateInfo alloc_info{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
-    alloc_info.commandPool = _command_pool;
+    alloc_info.commandPool = _ctx->command_pool;  // ← use the shared one from context
     alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     alloc_info.commandBufferCount = k_max_frames_in_flight;
     vkAllocateCommandBuffers(_ctx->device, &alloc_info, _command_buffers.data());
@@ -333,12 +327,18 @@ void vulkan_renderer_t::begin_frame()
 void vulkan_renderer_t::render_frame()
 {
     vkCmdDraw(_command_buffers[_current_frame], 3, 1, 0, 0);
+
+    // Debug overlay — always last in the render pass
+    // ← ONLY RENDER DEBUG OVERLAY AFTER IT'S INITIALIZED
+    if (carrot::debug::is_initialized()) carrot::debug::render();
+
     vkCmdEndRenderPass(_command_buffers[_current_frame]);
-    vkEndCommandBuffer(_command_buffers[_current_frame]);
 }
 
 void vulkan_renderer_t::end_frame()
 {
+    vkEndCommandBuffer(_command_buffers[_current_frame]);
+    
     VkPipelineStageFlags wait_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
     VkSubmitInfo submit{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
@@ -370,6 +370,12 @@ void vulkan_renderer_t::reload_pipeline()
     vkDeviceWaitIdle(_ctx->device);
     destroy_pipeline();
     create_pipeline();
+}
+
+void vulkan_renderer_t::render_debug_overlay() noexcept
+{
+    // This is called from inside the render pass (after triangle, before EndRenderPass)
+    carrot::debug::render();
 }
 
 } // namespace carrot

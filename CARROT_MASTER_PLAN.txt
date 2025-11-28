@@ -182,11 +182,6 @@ GRAPHICS & SHADER STRATEGY
 - Future native Metal → SPIRV-Cross at build time
 - Future DX → SPIRV-Cross or direct HLSL path
 
-RHI ABSTRACTION (the part that saves us in 2029)
-- Renderer speaks only to pure-virtual RHI interfaces.
-- Only one implementation exists for the first two years (Vulkan).
-- Adding Metal or D3D12 later is literally “write new backend files”.
-
 ECS IMPLEMENTATION
 - Custom from-scratch
 - Archetype + sparse-set storage (Unity DOTS / Bevy / Flecs style)

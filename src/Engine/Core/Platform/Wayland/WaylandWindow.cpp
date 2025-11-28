@@ -28,7 +28,7 @@ const xdg_toplevel_listener xdg_toplevel_listener{
 void registry_global(void* data, wl_registry* registry, uint32_t name,
                      const char* interface, uint32_t) noexcept
 {
-    auto* win = static_cast<wayland_window*>(data);
+    auto* win = static_cast<wayland_window_t*>(data);
 
     if (std::strcmp(interface, wl_compositor_interface.name) == 0) {
         win->set_compositor(static_cast<wl_compositor*>(
@@ -50,7 +50,7 @@ const wl_registry_listener registry_listener{
 
 } // anonymous
 
-wayland_window::wayland_window(uint32_t width, uint32_t height, const char* title) noexcept
+wayland_window_t::wayland_window_t(uint32_t width, uint32_t height, const char* title) noexcept
 {
     _display = wl_display_connect(nullptr);
     if (!_display) return;
@@ -73,7 +73,7 @@ wayland_window::wayland_window(uint32_t width, uint32_t height, const char* titl
     wl_display_roundtrip(_display);
 }
 
-wayland_window::~wayland_window() noexcept
+wayland_window_t::~wayland_window_t() noexcept
 {
     if (_xdg_toplevel) xdg_toplevel_destroy(_xdg_toplevel);
     if (_xdg_surface) xdg_surface_destroy(_xdg_surface);
@@ -82,7 +82,7 @@ wayland_window::~wayland_window() noexcept
     if (_display) wl_display_disconnect(_display);
 }
 
-void wayland_window::poll_events() noexcept
+void wayland_window_t::poll_events() noexcept
 {
     wl_display_dispatch_pending(_display);
 }

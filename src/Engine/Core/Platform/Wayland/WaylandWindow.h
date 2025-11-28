@@ -8,11 +8,11 @@ struct xdg_toplevel;
 
 namespace carrot::platform {
 
-struct wayland_window
+struct wayland_window_t
 {
 public:
-    explicit wayland_window(uint32_t width, uint32_t height, const char* title) noexcept;
-    ~wayland_window() noexcept;
+    explicit wayland_window_t(uint32_t width, uint32_t height, const char* title) noexcept;
+    ~wayland_window_t() noexcept;
 
     void poll_events() noexcept;
     [[nodiscard]] bool should_close() const noexcept { return _should_close; }

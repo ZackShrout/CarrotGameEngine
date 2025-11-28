@@ -4,7 +4,7 @@
 
 namespace carrot::rhi {
 
-struct vulkan_context
+struct vulkan_context_t
 {
     VkInstance       instance{ VK_NULL_HANDLE };
     VkPhysicalDevice physical_device{ VK_NULL_HANDLE };

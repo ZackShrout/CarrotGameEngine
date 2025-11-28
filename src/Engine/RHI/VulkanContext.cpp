@@ -26,7 +26,7 @@ static uint32_t find_queue_family(VkPhysicalDevice phys, VkSurfaceKHR surface, V
     return ~0u;
 }
 
-void vulkan_context::init(VkInstance inst, VkSurfaceKHR surf)
+void vulkan_context_t::init(VkInstance inst, VkSurfaceKHR surf)
 {
     instance = inst;
     surface = surf;
@@ -58,7 +58,7 @@ void vulkan_context::init(VkInstance inst, VkSurfaceKHR surf)
     present_queue = graphics_queue;
 }
 
-void vulkan_context::create_swapchain(uint32_t width, uint32_t height)
+void vulkan_context_t::create_swapchain(uint32_t width, uint32_t height)
 {
     VkSurfaceCapabilitiesKHR caps{};
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface, &caps);
@@ -105,7 +105,7 @@ void vulkan_context::create_swapchain(uint32_t width, uint32_t height)
     swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
 }
 
-void vulkan_context::cleanup()
+void vulkan_context_t::cleanup()
 {
     for (uint32_t i = 0; i < image_count; ++i)
         vkDestroyImageView(device, swapchain_views[i], nullptr);

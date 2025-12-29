@@ -203,8 +203,8 @@ void create_pipeline()
 {
     auto* ctx = carrot::rhi::vulkan_context_t::get();
 
-    auto vert_spv = load_spv("bin/debug/shaders/debug_overlay.vert.spv");
-    auto frag_spv = load_spv("bin/debug/shaders/debug_overlay.frag.spv");
+    auto vert_spv = load_spv("shaders/debug_overlay.vert.spv");
+    auto frag_spv = load_spv("shaders/debug_overlay.frag.spv");
 
     VkShaderModule vert_mod = VK_NULL_HANDLE;
     VkShaderModule frag_mod = VK_NULL_HANDLE;
@@ -331,7 +331,7 @@ void rasterize_text(float x, float y, const char* text)
 
 void init() noexcept
 {    
-    FILE* f = fopen("src/Engine/Asset/Fonts/Roboto-Regular.ttf", "rb");
+    FILE* f = fopen("assets/Fonts/Roboto-Regular.ttf", "rb");
     if (!f) { fprintf(stderr, "Failed to open Roboto-Regular.ttf\n"); return; }
 
     fseek(f, 0, SEEK_END);

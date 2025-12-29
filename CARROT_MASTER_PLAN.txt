@@ -12,7 +12,7 @@ PROJECT NAME
 
 CORE PHILOSOPHY
 - High-performance, native, cross-platform desktop engine (Windows • Linux • macOS)
-- Zero external runtime dependencies after bootstrap (no SDL, no GLFW after month 2)
+- Zero external runtime dependencies after bootstrap (no SDL, no GLFW)
 - Write once in modern C++23, ship everywhere
 - 2D / 3D / Octopath-style hybrid from day 1
 - Hot-reloading of shaders & assets baked in from the start
@@ -21,14 +21,15 @@ CORE PHILOSOPHY
 TARGET PLATFORMS & APIs (2025 → 2030 roadmap)
 - Platforms - Windows, Linux, macOS
 - Windowing - Win32, Xcb + Wayland, Cocoa
-- Primary Graphics API (Years 1–2) - Vulkan, Vulkan, Vulkan via MoltenVK
-- Future Graphics APIs - DX11 → DX12 (optional), Vulkan, Native Metal (year 3+)
+- Primary Graphics API (Years 1–2) - Vulkan, Vulkan, Metal
+- Future Graphics APIs - DX12 (optional DX11 as well), Vulkan, Metal
 
-BUILD SYSTEM
-- Premake5 (Lua-based) – single premake5.lua generates native projects for:
-    - Visual Studio 2022/2025 (Windows)
-    - GNU Make (Linux and macOS)
-- No CMake ever
+BUILD SYSTEM & IDE
+- CMake
+- JetBrains CLion
+- clang prefered on all platforms
+- CMakeLists.txt should seemlessly create XCode4 and Visual Studio 2022 solutions
+    - Specifically for potential platform specific debugging if necessary
 
 CODE STYLE (non-negotiable)
 File & Folder Naming
@@ -115,11 +116,9 @@ private:
 
 REPOSITORY LAYOUT
 CarrotGameEngine/
-├── premake5.lua
+├── CMakeLists.txt
 ├── CODING_STANDARDS.md
-├── build/                       ← generated, gitignore
-├── bin/                         ← generated, gitignore
-├── obj/                         ← generated, gitignore
+├── cmake-build-debug/              ← generated, gitignore
 ├── src/
 │   ├── Engine/
 │   │   ├── Core/
@@ -127,7 +126,7 @@ CarrotGameEngine/
 │   │   │   ├── Engine.h/.cpp
 │   │   │   └── Platform/
 │   │   │       ├── Win32/
-│   │   │       ├── Xcb/
+│   │   │       ├── X11/
 │   │   │       ├── Wayland/
 │   │   │       └── Cocoa/
 │   │   ├── Window/
@@ -201,8 +200,7 @@ EDITOR & SCRIPTING FUTURE-PROOFING (zero cost today)
 
 DEVELOPMENT ENVIRONMENTS
 - OS - Ubuntu LTS, Windows, macOS
-- IDE - VS Code + clangd, Visual Studio 2022/2025, VS Code + clangd
-- Premake action - premake5 gmake2, premake5 vs2022, premake5 gmake2
+- IDE - CLion (potential to use XCode or Visual Studio 2022 if specific debugging is needed only - not common)
 - Initial windowing backend - Wayland (then Xcb fallback), Win32, Cocoa
 
 MILESTONES (2025 → 2027)
@@ -222,4 +220,3 @@ DEPENDENCIES (all header-only or static, no runtime DLLs required after bootstra
 - spdlog
 - tracy profiler (optional)
 - glslang (build-time only)
-- vulkan-hpp → REMOVED from build, kept only as reference for future RAII ideas

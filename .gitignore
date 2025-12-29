@@ -1,8 +1,58 @@
+# === CMake build directories (the only ones you will ever have) ===
+cmake-build-*/
 build/
-bin/
-obj/
-*.xcworkspace
+build-*/
+cmake-build-debug/
+cmake-build-release/
+CMakeFiles/
+*.dir/
+
+# CMake generated files
+CMakeCache.txt
+CMakeScripts/
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json    # (remove this line if you want it committed for clangd)
+
+# CMake presets (if you ever use them)
+CMakePresets.json
+CMakeUserPresets.json
+
+# === Executable & debug symbols ===
+CarrotGameEngine
+CarrotGameEngine.app/
+*.dSYM/
+*.dwarf
+
+# === Any other potential build files ===
 *.xcodeproj
-.DS_Store
-Makefile
+*.xcworkspace
+xcuserdata/
+DerivedData/
 *.make
+Makefile
+*.workspace
+
+# === Editor / OS trash ===
+.vscode/
+!.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/settings.json
+
+.idea/
+*.iml
+*.iws
+
+.DS_Store
+*~
+*.swp
+*.swo
+*.tmp
+
+# === Optional: assets build output (when you add shader compiler / atlas tools) ===
+# Note: assets/ folder itself is NOT ignored – only future compiled subfolders
+assets/compiled/
+assets/cache/
+
+# === End of file ===

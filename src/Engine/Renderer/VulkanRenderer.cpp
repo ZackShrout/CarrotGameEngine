@@ -112,8 +112,8 @@ void vulkan_renderer_t::shutdown()
 
 void vulkan_renderer_t::create_pipeline()
 {
-    auto vert_spv = load_spv("bin/debug/shaders/triangle.vert.spv");
-    auto frag_spv = load_spv("bin/debug/shaders/triangle.frag.spv");
+    auto vert_spv = load_spv("shaders/triangle.vert.spv");
+    auto frag_spv = load_spv("shaders/triangle.frag.spv");
 
     VkShaderModule vert_module{ VK_NULL_HANDLE };
     VkShaderModule frag_module{ VK_NULL_HANDLE };

@@ -49,6 +49,8 @@ set(CARROT_SOURCES
         src/Engine/Window/Window.cpp
         src/Engine/Window/Window.h
         src/Game/main.cpp
+        src/Engine/Debug/Message.h
+        src/Engine/Common/CommonHeaders.h
 )
 
 add_executable(Carrot ${CARROT_SOURCES})
@@ -112,9 +114,9 @@ endif()
 # macOS placeholders
 # ------------------------------------------------------------------------
 if(APPLE)
-    target_compile_definitions(CarrotGameEngine PRIVATE __APPLE__)
+    target_compile_definitions(Carrot PRIVATE __APPLE__)
 
-    target_link_libraries(CarrotGameEngine PRIVATE
+    target_link_libraries(Carrot PRIVATE
             "-framework Metal"
             "-framework MetalKit"
             "-framework Cocoa"
@@ -134,8 +136,8 @@ if(APPLE)
 # Windows placeholders
 # ------------------------------------------------------------------------
 elseif(WIN32)
-    target_link_libraries(CarrotGameEngine PRIVATE d3d12 dxgi dxguid)
-    target_compile_definitions(CarrotGameEngine PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_link_libraries(Carrot PRIVATE d3d12 dxgi dxguid)
+    target_compile_definitions(Carrot PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 # ------------------------------------------------------------------------
 # Linux
 # ------------------------------------------------------------------------

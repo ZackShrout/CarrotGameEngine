@@ -8,11 +8,11 @@
 #include "Engine/Renderer/VulkanRenderer.h"
 #include "Engine/RHI/VulkanContext.h"
 #include "Engine/Utils/ShaderUtils.h"
+#include "Engine/Common/CommonHeaders.h"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>
 #include <cstdarg>
-#include <cstdio>
 #include <vector>
 #include <fstream>
 
@@ -24,7 +24,7 @@ namespace carrot::debug {
         constexpr int k_char_count = 96;
         constexpr float k_font_pixel_height = 32.0f;
 
-        stbtt_fontinfo g_font;
+        // stbtt_fontinfo g_font;
         unsigned char* g_ttf_buffer{ nullptr };
         unsigned char* g_atlas_pixels{ nullptr };
         bool g_initialized{ false };
@@ -65,21 +65,25 @@ namespace carrot::debug {
 
         void create_font_texture()
         {
-            auto* ctx = carrot::rhi::vulkan_context_t::get(); // we’ll add this getter in a sec
+            rhi::vulkan_context_t* ctx{ rhi::vulkan_context_t::get() };
 
             // ── Create staging buffer
-            VkDeviceSize atlas_size = k_atlas_width * k_atlas_height;
+            VkDeviceSize atlas_size{ k_atlas_width * k_atlas_height };
 
             VkBuffer staging_buf{ };
             VkDeviceMemory staging_mem{ };
-            VkBufferCreateInfo buf_info{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+
+            VkBufferCreateInfo buf_info{ };
+            buf_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
             buf_info.size = atlas_size;
             buf_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
             vkCreateBuffer(ctx->device, &buf_info, nullptr, &staging_buf);
 
             VkMemoryRequirements mem_req{ };
             vkGetBufferMemoryRequirements(ctx->device, staging_buf, &mem_req);
-            VkMemoryAllocateInfo alloc_info{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
+
+            VkMemoryAllocateInfo alloc_info{ };
+            alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
             alloc_info.allocationSize = mem_req.size;
             alloc_info.memoryTypeIndex = ctx->find_memory_type(mem_req.memoryTypeBits,
                                                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
@@ -92,7 +96,8 @@ namespace carrot::debug {
             vkUnmapMemory(ctx->device, staging_mem);
 
             // ── Create device-local image
-            VkImageCreateInfo img_info{ VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
+            VkImageCreateInfo img_info{ };
+            img_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
             img_info.imageType = VK_IMAGE_TYPE_2D;
             img_info.format = VK_FORMAT_R8_UNORM;
             img_info.extent = { k_atlas_width, k_atlas_height, 1 };
@@ -112,9 +117,10 @@ namespace carrot::debug {
             vkBindImageMemory(ctx->device, g_font_image, g_font_memory, 0);
 
             // ── Transition + copy
-            VkCommandBuffer cmd = ctx->begin_one_time_commands();
+            VkCommandBuffer cmd{ ctx->begin_one_time_commands() };
 
-            VkImageMemoryBarrier barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+            VkImageMemoryBarrier barrier{ };
+            barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
             barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
             barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
             barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -146,7 +152,8 @@ namespace carrot::debug {
             vkFreeMemory(ctx->device, staging_mem, nullptr);
 
             // view + sampler
-            VkImageViewCreateInfo view_info{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+            VkImageViewCreateInfo view_info{ };
+            view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
             view_info.image = g_font_image;
             view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
             view_info.format = VK_FORMAT_R8_UNORM;
@@ -155,7 +162,8 @@ namespace carrot::debug {
             view_info.subresourceRange.layerCount = 1;
             vkCreateImageView(ctx->device, &view_info, nullptr, &g_font_view);
 
-            VkSamplerCreateInfo sampler_info{ VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+            VkSamplerCreateInfo sampler_info{ };
+            sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
             sampler_info.magFilter = VK_FILTER_LINEAR;
             sampler_info.minFilter = VK_FILTER_LINEAR;
             sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
@@ -168,7 +176,7 @@ namespace carrot::debug {
 
         void create_descriptor_objects()
         {
-            auto* ctx = carrot::rhi::vulkan_context_t::get();
+            const rhi::vulkan_context_t* ctx{ rhi::vulkan_context_t::get() };
 
             VkDescriptorSetLayoutBinding binding{ };
             binding.binding = 0;
@@ -176,19 +184,22 @@ namespace carrot::debug {
             binding.descriptorCount = 1;
             binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-            VkDescriptorSetLayoutCreateInfo layout_info{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+            VkDescriptorSetLayoutCreateInfo layout_info{ };
+            layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
             layout_info.bindingCount = 1;
             layout_info.pBindings = &binding;
             vkCreateDescriptorSetLayout(ctx->device, &layout_info, nullptr, &g_desc_layout);
 
-            VkDescriptorPoolSize pool_size{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 };
-            VkDescriptorPoolCreateInfo pool_info{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
+            constexpr VkDescriptorPoolSize pool_size{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 };
+            VkDescriptorPoolCreateInfo pool_info{ };
+            pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
             pool_info.maxSets = 1;
             pool_info.poolSizeCount = 1;
             pool_info.pPoolSizes = &pool_size;
             vkCreateDescriptorPool(ctx->device, &pool_info, nullptr, &g_desc_pool);
 
-            VkDescriptorSetAllocateInfo alloc_info{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
+            VkDescriptorSetAllocateInfo alloc_info{ };
+            alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
             alloc_info.descriptorPool = g_desc_pool;
             alloc_info.descriptorSetCount = 1;
             alloc_info.pSetLayouts = &g_desc_layout;
@@ -199,7 +210,8 @@ namespace carrot::debug {
             img_info.imageView = g_font_view;
             img_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-            VkWriteDescriptorSet write{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+            VkWriteDescriptorSet write{ };
+            write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             write.dstSet = g_desc_set;
             write.dstBinding = 0;
             write.descriptorCount = 1;
@@ -210,15 +222,16 @@ namespace carrot::debug {
 
         void create_pipeline()
         {
-            auto* ctx = carrot::rhi::vulkan_context_t::get();
+            rhi::vulkan_context_t* ctx{ rhi::vulkan_context_t::get() };
 
-            auto vert_spv = load_spv("shaders/debug_overlay.vert.spv");
-            auto frag_spv = load_spv("shaders/debug_overlay.frag.spv");
+            std::vector<uint32_t> vert_spv{ load_spv("shaders/debug_overlay.vert.spv") };
+            std::vector<uint32_t> frag_spv{ load_spv("shaders/debug_overlay.frag.spv") };
 
-            VkShaderModule vert_mod = VK_NULL_HANDLE;
-            VkShaderModule frag_mod = VK_NULL_HANDLE;
+            VkShaderModule vert_mod{ VK_NULL_HANDLE };
+            VkShaderModule frag_mod{ VK_NULL_HANDLE };
 
-            VkShaderModuleCreateInfo mod_info{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
+            VkShaderModuleCreateInfo mod_info{ };
+            mod_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
             mod_info.codeSize = vert_spv.size() * sizeof(uint32_t);
             mod_info.pCode = vert_spv.data();
             vkCreateShaderModule(ctx->device, &mod_info, nullptr, &vert_mod);
@@ -227,7 +240,7 @@ namespace carrot::debug {
             mod_info.pCode = frag_spv.data();
             vkCreateShaderModule(ctx->device, &mod_info, nullptr, &frag_mod);
 
-            VkPipelineShaderStageCreateInfo stages[2] = {
+            VkPipelineShaderStageCreateInfo stages[2]{
                 {
                     VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0, VK_SHADER_STAGE_VERTEX_BIT,
                     vert_mod, "main", nullptr
@@ -239,30 +252,33 @@ namespace carrot::debug {
             };
 
             VkVertexInputBindingDescription binding{ 0, sizeof(vertex_t), VK_VERTEX_INPUT_RATE_VERTEX };
-            VkVertexInputAttributeDescription attrs[2] = {
+            VkVertexInputAttributeDescription attrs[2]{
                 { 0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(vertex_t, x) },
                 { 1, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(vertex_t, u) }
             };
-            VkPipelineVertexInputStateCreateInfo vertex_input{
-                VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO
-            };
+            VkPipelineVertexInputStateCreateInfo vertex_input{ };
+            vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
             vertex_input.vertexBindingDescriptionCount = 1;
             vertex_input.pVertexBindingDescriptions = &binding;
             vertex_input.vertexAttributeDescriptionCount = 2;
             vertex_input.pVertexAttributeDescriptions = attrs;
 
-            VkPipelineInputAssemblyStateCreateInfo ia{ VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO };
+            VkPipelineInputAssemblyStateCreateInfo ia{ };
+            ia.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
             ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
-            VkPipelineViewportStateCreateInfo vp{ VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO };
+            VkPipelineViewportStateCreateInfo vp{ };
+            vp.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
             vp.viewportCount = vp.scissorCount = 1;
 
-            VkPipelineRasterizationStateCreateInfo rs{ VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO };
+            VkPipelineRasterizationStateCreateInfo rs{ };
+            rs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
             rs.lineWidth = 1.0f;
             rs.cullMode = VK_CULL_MODE_NONE;
             rs.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
-            VkPipelineMultisampleStateCreateInfo ms{ VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO };
+            VkPipelineMultisampleStateCreateInfo ms{ };
+            ms.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
             ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
             VkPipelineColorBlendAttachmentState blend{ };
@@ -274,26 +290,30 @@ namespace carrot::debug {
             blend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
             blend.colorWriteMask = 0xF;
 
-            VkPipelineColorBlendStateCreateInfo cb{ VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO };
+            VkPipelineColorBlendStateCreateInfo cb{ };
+            cb.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
             cb.attachmentCount = 1;
             cb.pAttachments = &blend;
 
-            VkDynamicState dyn[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-            VkPipelineDynamicStateCreateInfo dynamic{ VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO };
+            VkDynamicState dyn[]{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+            VkPipelineDynamicStateCreateInfo dynamic{ };
+            dynamic.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
             dynamic.dynamicStateCount = 2;
             dynamic.pDynamicStates = dyn;
 
             // PUSH CONSTANT + DESCRIPTOR SET
             VkPushConstantRange push_range{ VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 2 };
 
-            VkPipelineLayoutCreateInfo layout_info{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+            VkPipelineLayoutCreateInfo layout_info{ };
+            layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
             layout_info.setLayoutCount = 1;
             layout_info.pSetLayouts = &g_desc_layout;
             layout_info.pushConstantRangeCount = 1;
             layout_info.pPushConstantRanges = &push_range;
             vkCreatePipelineLayout(ctx->device, &layout_info, nullptr, &g_pipeline_layout);
 
-            VkGraphicsPipelineCreateInfo pipe{ VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
+            VkGraphicsPipelineCreateInfo pipe{ };
+            pipe.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
             pipe.stageCount = 2;
             pipe.pStages = stages;
             pipe.pVertexInputState = &vertex_input;
@@ -315,7 +335,7 @@ namespace carrot::debug {
 
         void rasterize_text(float x, float y, const char* text)
         {
-            float start_x = x;
+            const float start_x{ x };
 
             for (; *text; ++text)
             {
@@ -325,14 +345,16 @@ namespace carrot::debug {
                     y += k_font_pixel_height * 1.4f;
                     continue;
                 }
-                if (*text < k_first_char || *text >= k_first_char + k_char_count) continue;
+                if (static_cast<unsigned char>(*text) < k_first_char ||
+                    static_cast<unsigned char>(*text) >= k_first_char + k_char_count)
+                    continue;
 
-                int idx = *text - k_first_char;
+                const int idx{ *text - k_first_char };
                 stbtt_aligned_quad q;
-                stbtt_GetBakedQuad((stbtt_bakedchar *)g_glyphs, k_atlas_width, k_atlas_height,
+                stbtt_GetBakedQuad(reinterpret_cast<stbtt_bakedchar *>(g_glyphs), k_atlas_width, k_atlas_height,
                                    idx, &x, &y, &q, 1);
 
-                uint16_t base = (uint16_t)g_vertices.size();
+                const uint16_t base{ static_cast<uint16_t>(g_vertices.size()) };
 
                 g_vertices.push_back({ q.x0, q.y0, q.s0, q.t0 });
                 g_vertices.push_back({ q.x1, q.y0, q.s1, q.t0 });
@@ -354,12 +376,12 @@ namespace carrot::debug {
         FILE* f = fopen("assets/Fonts/Roboto-Regular.ttf", "rb");
         if (!f)
         {
-            fprintf(stderr, "Failed to open Roboto-Regular.ttf\n");
+            MESSAGE("Failed to open Roboto-Regular.ttf");
             return;
         }
 
         fseek(f, 0, SEEK_END);
-        size_t sz = ftell(f);
+        const size_t sz{ static_cast<size_t>(ftell(f)) };
         fseek(f, 0, SEEK_SET);
         g_ttf_buffer = new unsigned char[sz];
         fread(g_ttf_buffer, 1, sz, f);
@@ -368,20 +390,21 @@ namespace carrot::debug {
         g_atlas_pixels = new unsigned char[k_atlas_width * k_atlas_height];
         stbtt_BakeFontBitmap(g_ttf_buffer, 0, k_font_pixel_height,
                              g_atlas_pixels, k_atlas_width, k_atlas_height,
-                             k_first_char, k_char_count, (stbtt_bakedchar *)g_glyphs);
+                             k_first_char, k_char_count, reinterpret_cast<stbtt_bakedchar *>(g_glyphs));
 
-        auto* ctx = carrot::rhi::vulkan_context_t::get();
+        const rhi::vulkan_context_t* ctx{ rhi::vulkan_context_t::get() };
 
         create_font_texture();
         create_descriptor_objects();
         create_pipeline();
 
         // After create_pipeline() — CREATE BUFFERS AFTER EVERYTHING ELSE EXISTS
-        VkDeviceSize vb_size = 16 * 1024 * 1024; // 16 MiB
-        VkDeviceSize ib_size = 8 * 1024 * 1024; // 8 MiB
+        constexpr VkDeviceSize vb_size{ 16 * 1024 * 1024 }; // 16 MiB
+        constexpr VkDeviceSize ib_size{ 8 * 1024 * 1024 }; // 8 MiB
 
         // Vertex buffer
-        VkBufferCreateInfo buf_info{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+        VkBufferCreateInfo buf_info{ };
+        buf_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         buf_info.size = vb_size;
         buf_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
         buf_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -390,7 +413,8 @@ namespace carrot::debug {
         VkMemoryRequirements mem_req;
         vkGetBufferMemoryRequirements(ctx->device, g_vb, &mem_req);
 
-        VkMemoryAllocateInfo alloc_info{ VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO };
+        VkMemoryAllocateInfo alloc_info{ };
+        alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
         alloc_info.allocationSize = mem_req.size;
         alloc_info.memoryTypeIndex = ctx->find_memory_type(mem_req.memoryTypeBits,
                                                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
@@ -414,12 +438,12 @@ namespace carrot::debug {
         vkBindBufferMemory(ctx->device, g_ib, g_ib_mem, 0);
 
         g_initialized = true; // ← SET THIS AT THE END
-        printf("DEBUG OVERLAY FULLY INITIALIZED — READY TO RENDER\n");
+        MESSAGE("DEBUG OVERLAY FULLY INITIALIZED — READY TO RENDER");
     }
 
     void shutdown() noexcept
     {
-        auto* ctx = carrot::rhi::vulkan_context_t::get();
+        const rhi::vulkan_context_t* ctx{ rhi::vulkan_context_t::get() };
         vkDeviceWaitIdle(ctx->device);
 
         vkDestroyPipeline(ctx->device, g_pipeline, nullptr);
@@ -439,6 +463,38 @@ namespace carrot::debug {
         delete[] g_atlas_pixels;
     }
 
+    void render() noexcept
+    {
+        if (g_vertices.empty()) return;
+
+        const rhi::vulkan_context_t* ctx{ rhi::vulkan_context_t::get() };
+        VkCommandBuffer cmd{ vulkan_renderer_t::get_current_command_buffer() };
+
+        constexpr float resolution[2]{ 1280.0f, 720.0f };
+        vkCmdPushConstants(cmd, g_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(resolution), resolution);
+
+        // Upload real text geometry
+        void* data;
+        vkMapMemory(ctx->device, g_vb_mem, 0, g_vertices.size() * sizeof(vertex_t), 0, &data);
+        memcpy(data, g_vertices.data(), g_vertices.size() * sizeof(vertex_t));
+        vkUnmapMemory(ctx->device, g_vb_mem);
+
+        vkMapMemory(ctx->device, g_ib_mem, 0, g_indices.size() * sizeof(uint16_t), 0, &data);
+        memcpy(data, g_indices.data(), g_indices.size() * sizeof(uint16_t));
+        vkUnmapMemory(ctx->device, g_ib_mem);
+
+        constexpr VkDeviceSize offset{ 0 };
+        vkCmdBindVertexBuffers(cmd, 0, 1, &g_vb, &offset);
+        vkCmdBindIndexBuffer(cmd, g_ib, 0, VK_INDEX_TYPE_UINT16);
+        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_pipeline);
+        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_pipeline_layout, 0, 1, &g_desc_set, 0, nullptr);
+
+        vkCmdDrawIndexed(cmd, static_cast<uint32_t>(g_indices.size()), 1, 0, 0, 0);
+
+        g_vertices.clear();
+        g_indices.clear();
+    }
+
     bool is_initialized() noexcept
     {
         return g_initialized;
@@ -453,37 +509,5 @@ namespace carrot::debug {
         va_end(args);
 
         rasterize_text(x, y, buffer);
-    }
-
-    void render() noexcept
-    {
-        if (g_vertices.empty()) return;
-
-        auto* ctx = carrot::rhi::vulkan_context_t::get();
-        VkCommandBuffer cmd = vulkan_renderer_t::get_current_command_buffer();
-
-        const float resolution[2] = { 1280.0f, 720.0f };
-        vkCmdPushConstants(cmd, g_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(resolution), resolution);
-
-        // Upload real text geometry
-        void* data;
-        vkMapMemory(ctx->device, g_vb_mem, 0, g_vertices.size() * sizeof(vertex_t), 0, &data);
-        memcpy(data, g_vertices.data(), g_vertices.size() * sizeof(vertex_t));
-        vkUnmapMemory(ctx->device, g_vb_mem);
-
-        vkMapMemory(ctx->device, g_ib_mem, 0, g_indices.size() * sizeof(uint16_t), 0, &data);
-        memcpy(data, g_indices.data(), g_indices.size() * sizeof(uint16_t));
-        vkUnmapMemory(ctx->device, g_ib_mem);
-
-        VkDeviceSize offset = 0;
-        vkCmdBindVertexBuffers(cmd, 0, 1, &g_vb, &offset);
-        vkCmdBindIndexBuffer(cmd, g_ib, 0, VK_INDEX_TYPE_UINT16);
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_pipeline);
-        vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_pipeline_layout, 0, 1, &g_desc_set, 0, nullptr);
-
-        vkCmdDrawIndexed(cmd, static_cast<uint32_t>(g_indices.size()), 1, 0, 0, 0);
-
-        g_vertices.clear();
-        g_indices.clear();
     }
 } // namespace carrot::debug

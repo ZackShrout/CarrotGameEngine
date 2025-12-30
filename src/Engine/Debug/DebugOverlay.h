@@ -5,8 +5,6 @@
 
 #pragma once
 
-#include <cstdint>
-
 namespace carrot::debug {
     void init() noexcept;
     void shutdown() noexcept;

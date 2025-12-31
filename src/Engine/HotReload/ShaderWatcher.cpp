@@ -5,7 +5,6 @@
 
 #include "ShaderWatcher.h"
 #include "Engine/Debug/Message.h"
-#include "Engine/Renderer/VulkanRenderer.h"
 
 #include <sys/inotify.h>
 #include <unistd.h>

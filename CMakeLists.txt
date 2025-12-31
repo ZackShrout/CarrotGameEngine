@@ -40,10 +40,10 @@ set(CARROT_SOURCES
         src/Engine/Debug/DebugOverlay.h
         src/Engine/HotReload/ShaderWatcher.cpp
         src/Engine/HotReload/ShaderWatcher.h
-        src/Engine/Renderer/VulkanRenderer.cpp
-        src/Engine/Renderer/VulkanRenderer.h
-        src/Engine/RHI/VulkanContext.cpp
-        src/Engine/RHI/VulkanContext.h
+        src/Engine/RHI/Backends/Vulkan/VulkanRenderer.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanRenderer.h
+        src/Engine/RHI/Backends/Vulkan/VulkanContext.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanContext.h
         src/Engine/Utils/ShaderUtils.cpp
         src/Engine/Utils/ShaderUtils.h
         src/Engine/Window/Window.cpp

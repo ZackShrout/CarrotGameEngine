@@ -5,8 +5,8 @@
 
 #include "DebugOverlay.h"
 
-#include "Engine/Renderer/VulkanRenderer.h"
-#include "Engine/RHI/VulkanContext.h"
+#include "../RHI/Backends/Vulkan/VulkanRenderer.h"
+#include "../RHI/Backends/Vulkan/VulkanContext.h"
 #include "Engine/Utils/ShaderUtils.h"
 #include "Engine/Common/CommonHeaders.h"
 

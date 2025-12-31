@@ -6,7 +6,7 @@
 #include "Application.h"
 
 #include "Engine/Window/Window.h"
-#include "Engine/Renderer/VulkanRenderer.h"
+#include "../RHI/Backends/Vulkan/VulkanRenderer.h"
 #include "Engine/HotReload/ShaderWatcher.h"
 #include "Engine/Debug/DebugOverlay.h"
 #include "Engine/Utils/MulticastDelegate.h"

@@ -5,7 +5,7 @@
 
 #include "VulkanRenderer.h"
 
-#include "Engine/RHI/VulkanContext.h"
+#include "VulkanContext.h"
 #include "Engine/Window/Window.h"
 #include "Engine/Utils/ShaderUtils.h"
 #include "Engine/Debug/DebugOverlay.h"

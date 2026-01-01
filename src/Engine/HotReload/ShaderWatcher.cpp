@@ -4,7 +4,8 @@
 //
 
 #include "ShaderWatcher.h"
-#include "Engine/Debug/Message.h"
+
+#include "Engine/Core/Logger.h"
 
 #include <sys/inotify.h>
 #include <unistd.h>
@@ -53,14 +54,14 @@ namespace carrot::hot_reload {
 
                 if (const int result{ system(cmd.c_str()) }; result == 0)
                 {
-                    MESSAGE("[HotReload] Recompiled %s\n", event->name);
+                    LOG_GRAPHICS_INFO(std::string("[HotReload] Recompiled ") + event->name);
                     // Give filesystem a moment
                     usleep(50000);
                     if (_callback) _callback(spv_path);
                 }
                 else
                 {
-                    MESSAGE("[HotReload] Compilation failed for %s\n", event->name);
+                    LOG_GRAPHICS_ERROR(std::string("[HotReload] Failed to compile ") + event->name);
                 }
             }
         }

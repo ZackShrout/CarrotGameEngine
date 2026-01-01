@@ -5,8 +5,9 @@
 
 #include "Application.h"
 
+#include "Logger.h"
 #include "Engine/Window/Window.h"
-#include "../RHI/Backends/Vulkan/VulkanRenderer.h"
+#include "Engine/RHI/Backends/Vulkan/VulkanRenderer.h"
 #include "Engine/HotReload/ShaderWatcher.h"
 #include "Engine/Debug/DebugOverlay.h"
 #include "Engine/Utils/MulticastDelegate.h"
@@ -42,13 +43,13 @@ namespace carrot::core {
 
     application_t::application_t() noexcept
     {
-        MESSAGE("Starting up...");
+        LOG_CORE_TRACE("Application starting up");
         init();
     }
 
     application_t::~application_t()
     {
-        MESSAGE("Shutting down...");
+        LOG_CORE_TRACE("Shutting down...");
         shutdown();
     }
 

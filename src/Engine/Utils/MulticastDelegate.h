@@ -75,7 +75,7 @@ namespace carrot::utils {
 
         void invoke(Args... args) const
         {
-            ASSERT(_stub_ptr, "Invoking empty delegate");
+            CE_ASSERT(_stub_ptr, "Invoking empty delegate");
             _stub_ptr(_object_ptr, std::forward<Args>(args)...);
         }
 

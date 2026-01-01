@@ -180,7 +180,7 @@ namespace carrot::rhi {
                 return i;
             }
         }
-        MESSAGE_FL("[Vulkan] Failed to find suitable memory type!");
+        LOG_GRAPHICS_ERROR("[Vulkan] Failed to find suitable memory type!");
         return 0;
     }
 

@@ -376,7 +376,7 @@ namespace carrot::debug {
         FILE* f = fopen("assets/Fonts/Roboto-Regular.ttf", "rb");
         if (!f)
         {
-            MESSAGE("Failed to open Roboto-Regular.ttf");
+            LOG_GRAPHICS_ERROR("Failed to open Roboto-Regular.ttf");
             return;
         }
 
@@ -438,7 +438,7 @@ namespace carrot::debug {
         vkBindBufferMemory(ctx->device, g_ib, g_ib_mem, 0);
 
         g_initialized = true; // ← SET THIS AT THE END
-        MESSAGE("DEBUG OVERLAY FULLY INITIALIZED — READY TO RENDER");
+        LOG_GRAPHICS_INFO("DEBUG OVERLAY FULLY INITIALIZED — READY TO RENDER");
     }
 
     void shutdown() noexcept

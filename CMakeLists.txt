@@ -49,9 +49,12 @@ set(CARROT_SOURCES
         src/Engine/Window/Window.cpp
         src/Engine/Window/Window.h
         src/Game/main.cpp
-        src/Engine/Debug/Message.h
         src/Engine/Common/CommonHeaders.h
         src/Engine/Utils/MulticastDelegate.h
+        src/Engine/Core/Logger.cpp
+        src/Engine/Core/Logger.h
+        src/Engine/Utils/DebugBreak.h
+        src/Engine/Utils/Assert.h
 )
 
 add_executable(Carrot ${CARROT_SOURCES})

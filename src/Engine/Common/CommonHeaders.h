@@ -5,7 +5,8 @@
 
 #pragma once
 
-#include "Engine/Debug/Message.h"
+#include "Engine/Core/Logger.h"
+#include "Engine/Utils/Assert.h"
 
 #include <cstdint>
 

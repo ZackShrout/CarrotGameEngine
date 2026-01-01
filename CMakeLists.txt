@@ -55,6 +55,8 @@ set(CARROT_SOURCES
         src/Engine/Core/Logger.h
         src/Engine/Utils/DebugBreak.h
         src/Engine/Utils/Assert.h
+        src/Engine/Core/LogSink.h
+        src/Engine/Core/LogSink.cpp
 )
 
 add_executable(Carrot ${CARROT_SOURCES})

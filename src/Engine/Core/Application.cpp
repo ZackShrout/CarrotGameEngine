@@ -6,6 +6,7 @@
 #include "Application.h"
 
 #include "Logger.h"
+#include "LogSink.h"
 #include "Engine/Window/Window.h"
 #include "Engine/RHI/Backends/Vulkan/VulkanRenderer.h"
 #include "Engine/HotReload/ShaderWatcher.h"
@@ -43,12 +44,16 @@ namespace carrot::core {
 
     application_t::application_t() noexcept
     {
+        logger_t::init();
+
         LOG_CORE_TRACE("Application starting up");
         init();
     }
 
     application_t::~application_t()
     {
+        logger_t::shutdown();
+
         LOG_CORE_TRACE("Shutting down...");
         shutdown();
     }

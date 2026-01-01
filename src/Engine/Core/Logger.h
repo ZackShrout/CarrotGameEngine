@@ -7,11 +7,15 @@
 
 #include <cstdint>
 #include <format>
+#include <mutex>
 #include <print>
 #include <source_location>
 #include <string>
 
 namespace carrot::core {
+    struct log_message;
+    class log_sink_t;
+
     enum class log_category : uint32_t
     {
         core = 1 << 0,
@@ -87,11 +91,21 @@ namespace carrot::core {
     class logger_t
     {
     public:
-        static void set_enabled_categories(const log_category categories) { _enabled_categories = categories; }
-        static void set_minimum_severity(const log_severity severity) { _min_severity = severity; }
+        static void init();
+        static void shutdown();
+
+        static void add_sink(std::unique_ptr<log_sink_t> sink);
+        static void remove_all_sinks();
+        static void flush();
 
         static void log(log_category category, log_severity severity, const std::string& message,
                         const std::source_location& loc = std::source_location::current());
+
+        static std::string category_to_string(log_category categories);
+        static const char* severity_to_string(log_severity level);
+
+        static void set_enabled_categories(const log_category categories) { _enabled_categories = categories; }
+        static void set_minimum_severity(const log_severity severity) { _min_severity = severity; }
 
         // Default enabled categories
         static constexpr log_category default_categories{
@@ -100,14 +114,23 @@ namespace carrot::core {
         };
 
     private:
-        static std::string category_to_string(log_category categories);
-        static const char* severity_to_string(log_severity level);
-        static void set_console_color(log_severity level);
-        static void reset_console_color();
-        static void output_with_color(log_severity level, const std::string& text);
+        static void internal_log(const log_message& msg);
 
         static log_category _enabled_categories;
         static log_severity _min_severity;
+
+        static std::vector<std::unique_ptr<log_sink_t>> _sinks;
+        static std::mutex _sinks_mutex;
+
+
+
+
+        // static void set_console_color(log_severity level);
+        // static void reset_console_color();
+        // static void output_with_color(log_severity level, const std::string& text);
+        //
+        // static log_category _enabled_categories;
+        // static log_severity _min_severity;
     };
 
     // Static member definition

@@ -5,26 +5,91 @@
 
 #include "Logger.h"
 
+#include "LogSink.h"
+
 namespace carrot::core {
+    std::vector<std::unique_ptr<log_sink_t>> logger_t::_sinks;
+    std::mutex logger_t::_sinks_mutex;
+
     // PUBLIC
-    void logger_t::log(const log_category category, const log_severity severity, const std::string& message, const std::source_location& loc)
+    void logger_t::init()
     {
-        if (severity < _min_severity) return;
-        if ((category & _enabled_categories) == 0) return;
+        // Prevent double-init (idempotent)
+        static bool initialized = false;
+        if (initialized) return;
+        initialized = true;
 
-        std::string cat_str{ category_to_string(category) };
-        std::string sep{ cat_str.empty() ? "" : " | " };
-        const std::string prefix = std::format("[{}{}{}] {}:{} ",
-                                               cat_str,
-                                               sep,
-                                               severity_to_string(severity),
-                                               loc.file_name(),
-                                               loc.line());
+        // Create default console sink
+        auto console = std::make_unique<console_sink_t>();
 
-        output_with_color(severity, prefix + message);
+        // Wrap it in async sink for non-blocking logging
+        auto async_console = std::make_unique<async_sink_t>(std::move(console));
+
+        // Add it
+        add_sink(std::move(async_console));
+
+        // Note: We can't use macros yet because sinks just got added, but internal_log bypasses filters,
+        //       so we do a direct internal log here.
+        const log_message startup_msg{
+            log_category::core,
+            log_severity::info,
+            "Logger initialized with async console sink",
+            std::source_location::current()
+        };
+        internal_log(startup_msg);
     }
 
-    // PRIVATE
+    void logger_t::shutdown()
+    {
+        flush();
+        remove_all_sinks();
+    }
+
+    void logger_t::add_sink(std::unique_ptr<log_sink_t> sink)
+    {
+        std::lock_guard<std::mutex> lock(_sinks_mutex);
+        _sinks.push_back(std::move(sink));
+    }
+
+    void logger_t::remove_all_sinks()
+    {
+        std::lock_guard<std::mutex> lock(_sinks_mutex);
+        _sinks.clear();  // This destroys all sink objects
+        // → async_sink destructors join their threads and flush remaining messages
+    }
+
+    void logger_t::flush()
+    {
+        std::lock_guard<std::mutex> lock(_sinks_mutex);
+        for (const auto& sink : _sinks)
+            sink->flush();
+    }
+
+    void logger_t::log(const log_category category, const log_severity severity, const std::string& message,
+                       const std::source_location& loc)
+    {
+        // if (severity < _min_severity) return;
+        // if ((category & _enabled_categories) == 0) return;
+        //
+        // std::string cat_str{ category_to_string(category) };
+        // std::string sep{ cat_str.empty() ? "" : " | " };
+        // const std::string prefix = std::format("[{}{}{}] {}:{} ",
+        //                                        cat_str,
+        //                                        sep,
+        //                                        severity_to_string(severity),
+        //                                        loc.file_name(),
+        //                                        loc.line());
+        //
+        // output_with_color(severity, prefix + message);
+
+        if (severity < _min_severity) return;
+        if ((category & _enabled_categories) == static_cast<log_category>(0)) return;
+
+        const log_message msg{ category, severity, message, loc };
+
+        internal_log(msg);
+    }
+
     std::string logger_t::category_to_string(log_category categories)
     {
         struct category_info
@@ -85,65 +150,36 @@ namespace carrot::core {
         }
     }
 
-    void logger_t::set_console_color(const log_severity level)
+    // PRIVATE
+    void logger_t::internal_log(const log_message& msg)
     {
-#ifdef _WIN32
-        HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-        switch (level)
-        {
-            case log_severity::trace: SetConsoleTextAttribute(hConsole, 7);
-                break; // gray
-            case log_severity::debug: SetConsoleTextAttribute(hConsole, 15);
-                break; // white
-            case log_severity::info: SetConsoleTextAttribute(hConsole, 10);
-                break; // light green
-            case log_severity::warn: SetConsoleTextAttribute(hConsole, 14);
-                break; // yellow
-            case log_severity::error: SetConsoleTextAttribute(hConsole, 12);
-                break; // light red
-            case log_severity::fatal: SetConsoleTextAttribute(hConsole, 4 | 8 | BACKGROUND_RED);
-                break; // bright red bg
-        }
-#else
-        switch (level)
-        {
-            case log_severity::trace: std::print(stdout, "\033[90m");
-                break; // gray
-            case log_severity::debug: std::print(stdout, "\033[37m");
-                break; // white
-            case log_severity::info: std::print(stdout, "\033[92m");
-                break; // light green
-            case log_severity::warn: std::print(stdout, "\033[93m");
-                break; // yellow
-            case log_severity::error: std::print(stdout, "\033[91m");
-                break; // light red
-            case log_severity::fatal: std::print(stdout, "\033[97;41m");
-                break; // white on red
-        }
-#endif
+        std::lock_guard<std::mutex> lock(_sinks_mutex);
+        for (const auto& sink: _sinks)
+            sink->write(msg);
     }
 
-    void logger_t::reset_console_color()
-    {
-#ifdef _WIN32
-        SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), 7);
-#else
-        std::print(stdout, "\033[0m");
-#endif
-    }
-
-    void logger_t::output_with_color(log_severity level, const std::string& text)
-    {
-        set_console_color(level);
-        std::println(stdout, "{}", text);
-        reset_console_color();
-
-        // Also write to stderr for Error/Fatal
-        if (level >= log_severity::error)
-        {
-            set_console_color(level);
-            std::print(stderr, "{}", text);
-            reset_console_color();
-        }
-    }
+    // void logger_t::set_console_color(const log_severity level)
+    // {
+    //
+    // }
+    //
+    // void logger_t::reset_console_color()
+    // {
+    //
+    // }
+    //
+    // void logger_t::output_with_color(log_severity level, const std::string& text)
+    // {
+    //     set_console_color(level);
+    //     std::println(stdout, "{}", text);
+    //     reset_console_color();
+    //
+    //     // Also write to stderr for Error/Fatal
+    //     if (level >= log_severity::error)
+    //     {
+    //         set_console_color(level);
+    //         std::print(stderr, "{}", text);
+    //         reset_console_color();
+    //     }
+    // }
 } // namespace carrot::core

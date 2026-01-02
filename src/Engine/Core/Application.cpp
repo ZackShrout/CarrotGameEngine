@@ -67,8 +67,7 @@ namespace carrot::core {
         ).count();
 
         // _on_tick.add(utils::single_delegate_t<void(float)>::bind([](const float dt) {
-        //     const std::string msg{ std::format("Tick: {:.3f} ms", dt * 1000.f) };
-        //     LOG_CORE_TRACE(msg);
+        //     LOG_CORE_TRACE("Tick: {:.3f} ms", dt * 1000.f);
         // }));
 
         while (!_should_quit && !main_window.should_close())

@@ -50,16 +50,16 @@ namespace carrot::core {
 
         std::unique_ptr<log_sink_t> _sink;
 
-        struct queue_item {
+        struct queue_item
+        {
             log_message msg;
-            bool flush_request{false};
+            bool flush_request{ false };
         };
 
         std::queue<queue_item> _queue;
         std::mutex _mutex;
         std::condition_variable _cv;
         std::thread _thread;
-        std::atomic<bool> _quit{false};
+        std::atomic<bool> _quit{ false };
     };
-
 } // namespace carrot::core

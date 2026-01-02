@@ -9,7 +9,6 @@
 
 #include <sys/inotify.h>
 #include <unistd.h>
-#include <cstdio>
 #include <string>
 
 namespace carrot::hot_reload {
@@ -54,14 +53,14 @@ namespace carrot::hot_reload {
 
                 if (const int result{ system(cmd.c_str()) }; result == 0)
                 {
-                    LOG_GRAPHICS_INFO(std::string("[HotReload] Recompiled ") + event->name);
+                    LOG_GRAPHICS_INFO("[HotReload] Recompiled {}", std::string(event->name));
                     // Give filesystem a moment
                     usleep(50000);
                     if (_callback) _callback(spv_path);
                 }
                 else
                 {
-                    LOG_GRAPHICS_ERROR(std::string("[HotReload] Failed to compile ") + event->name);
+                    LOG_GRAPHICS_ERROR("[HotReload] Failed to compile {}", std::string(event->name));
                 }
             }
         }

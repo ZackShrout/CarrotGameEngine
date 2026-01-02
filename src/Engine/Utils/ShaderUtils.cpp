@@ -14,7 +14,7 @@ std::vector<uint32_t> load_spv(const std::string& path)
     std::ifstream file(path, std::ios::ate | std::ios::binary);
     if (!file.is_open())
     {
-        LOG_GRAPHICS_ERROR("Failed to open SPV: " + path);
+        LOG_GRAPHICS_ERROR("Failed to open SPV: {}", path);
         return { };
     }
 

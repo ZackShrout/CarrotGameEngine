@@ -15,15 +15,15 @@ namespace carrot::core {
     void logger_t::init()
     {
         // Prevent double-init (idempotent)
-        static bool initialized = false;
+        static bool initialized{ false };
         if (initialized) return;
         initialized = true;
 
         // Create default console sink
-        auto console = std::make_unique<console_sink_t>();
+        std::unique_ptr<console_sink_t> console{ std::make_unique<console_sink_t>() };
 
         // Wrap it in async sink for non-blocking logging
-        auto async_console = std::make_unique<async_sink_t>(std::move(console));
+        std::unique_ptr<async_sink_t> async_console{ std::make_unique<async_sink_t>(std::move(console)) };
 
         // Add it
         add_sink(std::move(async_console));
@@ -47,47 +47,21 @@ namespace carrot::core {
 
     void logger_t::add_sink(std::unique_ptr<log_sink_t> sink)
     {
-        std::lock_guard<std::mutex> lock(_sinks_mutex);
+        std::lock_guard<std::mutex> lock{ _sinks_mutex };
         _sinks.push_back(std::move(sink));
     }
 
     void logger_t::remove_all_sinks()
     {
-        std::lock_guard<std::mutex> lock(_sinks_mutex);
-        _sinks.clear();  // This destroys all sink objects
-        // → async_sink destructors join their threads and flush remaining messages
+        std::lock_guard<std::mutex> lock{ _sinks_mutex };
+        _sinks.clear(); // This destroys all sink objects
     }
 
     void logger_t::flush()
     {
-        std::lock_guard<std::mutex> lock(_sinks_mutex);
-        for (const auto& sink : _sinks)
+        std::lock_guard<std::mutex> lock{ _sinks_mutex };
+        for (const auto& sink: _sinks)
             sink->flush();
-    }
-
-    void logger_t::log(const log_category category, const log_severity severity, const std::string& message,
-                       const std::source_location& loc)
-    {
-        // if (severity < _min_severity) return;
-        // if ((category & _enabled_categories) == 0) return;
-        //
-        // std::string cat_str{ category_to_string(category) };
-        // std::string sep{ cat_str.empty() ? "" : " | " };
-        // const std::string prefix = std::format("[{}{}{}] {}:{} ",
-        //                                        cat_str,
-        //                                        sep,
-        //                                        severity_to_string(severity),
-        //                                        loc.file_name(),
-        //                                        loc.line());
-        //
-        // output_with_color(severity, prefix + message);
-
-        if (severity < _min_severity) return;
-        if ((category & _enabled_categories) == static_cast<log_category>(0)) return;
-
-        const log_message msg{ category, severity, message, loc };
-
-        internal_log(msg);
     }
 
     std::string logger_t::category_to_string(log_category categories)
@@ -153,33 +127,8 @@ namespace carrot::core {
     // PRIVATE
     void logger_t::internal_log(const log_message& msg)
     {
-        std::lock_guard<std::mutex> lock(_sinks_mutex);
+        std::lock_guard<std::mutex> lock{ _sinks_mutex };
         for (const auto& sink: _sinks)
             sink->write(msg);
     }
-
-    // void logger_t::set_console_color(const log_severity level)
-    // {
-    //
-    // }
-    //
-    // void logger_t::reset_console_color()
-    // {
-    //
-    // }
-    //
-    // void logger_t::output_with_color(log_severity level, const std::string& text)
-    // {
-    //     set_console_color(level);
-    //     std::println(stdout, "{}", text);
-    //     reset_console_color();
-    //
-    //     // Also write to stderr for Error/Fatal
-    //     if (level >= log_severity::error)
-    //     {
-    //         set_console_color(level);
-    //         std::print(stderr, "{}", text);
-    //         reset_console_color();
-    //     }
-    // }
 } // namespace carrot::core

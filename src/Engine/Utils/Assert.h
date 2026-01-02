@@ -14,7 +14,8 @@ namespace carrot {
 #define CE_ASSERT(cond, ...)                                                            \
         do {                                                                            \
                 if (!(cond)) {                                                          \
-                        carrot::core::logger_t::log(carrot::core::log_category::core,   \
+                        carrot::core::logger_t::log(std::source_location::current(),    \
+                        carrot::core::log_category::core,                               \
                         carrot::core::log_severity::fatal,                              \
                         "Assertion failed: " #cond " -- " __VA_ARGS__);                 \
                         CE_BREAK();                                                     \
@@ -25,7 +26,8 @@ namespace carrot {
 #define CE_ENSURE(cond, ...)                                                            \
         do {                                                                            \
                 if (!(cond)) {                                                          \
-                        carrot::core::logger_t::log(carrot::core::log_category::core,   \
+                        carrot::core::logger_t::log(std::source_location::current(),    \
+                        carrot::core::log_category::core,                               \
                         carrot::core::log_severity::error,                              \
                         "Ensure failed: " #cond " -- " __VA_ARGS__);                    \
                 }                                                                       \
@@ -43,10 +45,11 @@ namespace carrot {
         do {                                                                            \
                 if (!(cond)) {                                                          \
                         carrot::core::logger_t::log(carrot::core::log_category::core,   \
+                        carrot::core::logger_t::log(std::source_location::current(),    \
+                        carrot::core::log_category::core,                               \
                         carrot::core::log_severity::fatal,                              \
                         "Assertion (always) failed: " #cond " -- " __VA_ARGS__);        \
                         CE_BREAK();                                                     \
                 }                                                                       \
         } while (0)
-
 } // namespace carrot

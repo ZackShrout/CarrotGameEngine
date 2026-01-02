@@ -42,6 +42,14 @@ namespace carrot::core {
         fatal
     };
 
+    struct log_message
+    {
+        log_category category;
+        log_severity severity;
+        std::string message;
+        std::source_location location;
+    };
+
     constexpr log_category operator|(log_category a, log_category b) noexcept
     {
         return static_cast<log_category>(
@@ -121,16 +129,6 @@ namespace carrot::core {
 
         static std::vector<std::unique_ptr<log_sink_t>> _sinks;
         static std::mutex _sinks_mutex;
-
-
-
-
-        // static void set_console_color(log_severity level);
-        // static void reset_console_color();
-        // static void output_with_color(log_severity level, const std::string& text);
-        //
-        // static log_category _enabled_categories;
-        // static log_severity _min_severity;
     };
 
     // Static member definition

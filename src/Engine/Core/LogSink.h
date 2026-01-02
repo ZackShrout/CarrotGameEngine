@@ -16,14 +16,6 @@
 #include <atomic>
 
 namespace carrot::core {
-    struct log_message
-    {
-        log_category category;
-        log_severity severity;
-        std::string message;
-        std::source_location location;
-    };
-
     class log_sink_t
     {
     public:

@@ -5,10 +5,10 @@
 
 #include "DebugOverlay.h"
 
-#include "../RHI/Backends/Vulkan/VulkanRenderer.h"
-#include "../RHI/Backends/Vulkan/VulkanContext.h"
-#include "Engine/Utils/ShaderUtils.h"
-#include "Engine/Common/CommonHeaders.h"
+#include "RHI/Backends/Vulkan/VulkanRenderer.h"
+#include "RHI/Backends/Vulkan/VulkanContext.h"
+#include "Utils/ShaderUtils.h"
+#include "Common/CommonHeaders.h"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>

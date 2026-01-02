@@ -25,15 +25,13 @@ foreach(CONFIG Debug Release)
 endforeach()
 
 # ------------------------------------------------------------------------
-# Sources
+# Engine Sources
 # ------------------------------------------------------------------------
-set(CARROT_SOURCES
+set(CARROT_ENGINE_SOURCES
         src/Engine/Engine.cpp
         src/Engine/Engine.h
-        src/Engine/Module.h
         src/Engine/Core/Application.cpp
         src/Engine/Core/Application.h
-        src/Engine/Core/Module.h
         src/Engine/Core/Platform/Wayland/WaylandWindow.cpp
         src/Engine/Core/Platform/Wayland/WaylandWindow.h
         src/Engine/Debug/DebugOverlay.cpp
@@ -48,7 +46,6 @@ set(CARROT_SOURCES
         src/Engine/Utils/ShaderUtils.h
         src/Engine/Window/Window.cpp
         src/Engine/Window/Window.h
-        src/Game/main.cpp
         src/Engine/Common/CommonHeaders.h
         src/Engine/Utils/MulticastDelegate.h
         src/Engine/Core/Logger.cpp
@@ -57,32 +54,36 @@ set(CARROT_SOURCES
         src/Engine/Utils/Assert.h
         src/Engine/Core/LogSink.h
         src/Engine/Core/LogSink.cpp
+        src/Engine/CarrotEngine.h
 )
 
-add_executable(Carrot ${CARROT_SOURCES})
+add_library(CarrotEngine STATIC ${CARROT_ENGINE_SOURCES})
 
 # ------------------------------------------------------------------------
 # Debug/Release macros & optimizations
 # ------------------------------------------------------------------------
-target_compile_definitions(Carrot PRIVATE
+target_compile_definitions(CarrotEngine PUBLIC
         $<$<CONFIG:Debug>:_DEBUG CARROT_ENABLE_TRACY>
         $<$<NOT:$<CONFIG:Debug>>:NDEBUG>
 )
 
-target_compile_options(Carrot PRIVATE
+target_compile_options(CarrotEngine PUBLIC
         $<$<CONFIG:Debug>:-O0 -g>
         $<$<CONFIG:Release>:-O3>
+        $<$<CONFIG:RelWithDebInfo>:-O2 -g>
+        $<$<CONFIG:MinSizeRel>:-Os>
 )
 
 # ------------------------------------------------------------------------
 # Include directories – split user vs. third-party
 # ------------------------------------------------------------------------
-target_include_directories(Carrot PRIVATE
-        src                       # project code → full warnings
+# project code → full warnings
+target_include_directories(CarrotEngine PUBLIC
+        src/Engine
 )
 
 # Everything under deps/ is third-party → treat as system headers
-target_include_directories(Carrot SYSTEM PRIVATE
+target_include_directories(CarrotEngine SYSTEM PRIVATE
         deps
         deps/glm
         deps/stb
@@ -96,7 +97,7 @@ target_include_directories(Carrot SYSTEM PRIVATE
 # ------------------------------------------------------------------------
 # Warnings & sanitizers
 # ------------------------------------------------------------------------
-target_compile_options(Carrot PRIVATE
+target_compile_options(CarrotEngine PRIVATE
         $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>:
         -Wall -Wextra -Werror=return-type -Wshadow -Wno-missing-braces
         >
@@ -105,24 +106,29 @@ target_compile_options(Carrot PRIVATE
         >
 )
 
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    if(APPLE)
-        # Skip sanitizers on macOS to avoid Metal/nano zone conflicts
-        target_compile_options(Carrot PRIVATE -fno-sanitize=all)
-        target_link_options(Carrot PRIVATE -fno-sanitize=all)
-    else()
-        target_compile_options(Carrot PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
-        target_link_options(Carrot PRIVATE -fsanitize=address,undefined)
-    endif()
-endif()
+target_compile_options(CarrotEngine PUBLIC
+        $<$<AND:$<CONFIG:Debug>,$<NOT:$<BOOL:APPLE>>>: -fsanitize=address,undefined -fno-omit-frame-pointer>
+)
+
+target_link_options(CarrotEngine PUBLIC
+        $<$<AND:$<CONFIG:Debug>,$<NOT:$<BOOL:APPLE>>>: -fsanitize=address,undefined>
+)
+
+# Explicitly turn off sanitizers on Apple (in case any leak through)
+target_compile_options(CarrotEngine PUBLIC
+        $<$<AND:$<CONFIG:Debug>,$<BOOL:APPLE>>: -fno-sanitize=all>
+)
+target_link_options(CarrotEngine PUBLIC
+        $<$<AND:$<CONFIG:Debug>,$<BOOL:APPLE>>: -fno-sanitize=all>
+)
 
 # ------------------------------------------------------------------------
 # macOS placeholders
 # ------------------------------------------------------------------------
 if(APPLE)
-    target_compile_definitions(Carrot PRIVATE __APPLE__)
+    target_compile_definitions(CarrotEngine PUBLIC __APPLE__)
 
-    target_link_libraries(Carrot PRIVATE
+    target_link_libraries(CarrotEngine PRIVATE
             "-framework Metal"
             "-framework MetalKit"
             "-framework Cocoa"
@@ -142,8 +148,8 @@ if(APPLE)
 # Windows placeholders
 # ------------------------------------------------------------------------
 elseif(WIN32)
-    target_link_libraries(Carrot PRIVATE d3d12 dxgi dxguid)
-    target_compile_definitions(Carrot PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_link_libraries(CarrotEngine PRIVATE d3d12 dxgi dxguid)
+    target_compile_definitions(CarrotEngine PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
 # ------------------------------------------------------------------------
 # Linux
 # ------------------------------------------------------------------------
@@ -154,24 +160,24 @@ elseif(UNIX)
 
     # Find Vulkan (includes glslangValidator)
     find_package(Vulkan REQUIRED)
-    target_link_libraries(Carrot PRIVATE Vulkan::Vulkan)
+    target_link_libraries(CarrotEngine PRIVATE Vulkan::Vulkan)
 
-    target_sources(Carrot PRIVATE
+    target_sources(CarrotEngine PRIVATE
             src/Engine/Core/Platform/Wayland/xdg-shell-client-protocol.c
             src/Engine/Core/Platform/Wayland/xdg-shell-client-protocol.h
     )
 
     # Apply libc++ only to C++ compilation and linking
-    target_compile_options(Carrot PRIVATE
+    target_compile_options(CarrotEngine PUBLIC
             $<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>
     )
-    target_link_options(Carrot PRIVATE
+    target_link_options(CarrotEngine PUBLIC
             $<$<LINK_LANGUAGE:CXX>:-stdlib=libc++>
     )
 
-    target_compile_definitions(Carrot PRIVATE VK_USE_PLATFORM_WAYLAND_KHR)
+    target_compile_definitions(CarrotEngine PUBLIC VK_USE_PLATFORM_WAYLAND_KHR)
 
-    target_link_libraries(Carrot PRIVATE
+    target_link_libraries(CarrotEngine PRIVATE
             wayland-client
             wayland-cursor
             wayland-egl
@@ -181,6 +187,17 @@ elseif(UNIX)
     )
 
 endif()
+
+# ------------------------------------------------------------------------
+# Sandbox / Game Executable
+# ------------------------------------------------------------------------
+set(CARROT_SANDBOX_SOURCES
+        src/Game/main.cpp
+)
+
+add_executable(CarrotSandbox ${CARROT_SANDBOX_SOURCES})  # Rename if you prefer "Game" or "Sandbox"
+target_include_directories(CarrotSandbox PRIVATE src/Game)
+target_link_libraries(CarrotSandbox PRIVATE CarrotEngine)  # This pulls in everything needed
 
 # ------------------------------------------------------------------------
 # Shader compilation
@@ -208,13 +225,14 @@ foreach(SHADER ${SHADER_SOURCES})
 endforeach()
 
 add_custom_target(CompileShaders ALL DEPENDS ${SPV_OUTPUTS})
-add_dependencies(Carrot CompileShaders)
+#add_dependencies(CarrotEngine CompileShaders)
+add_dependencies(CarrotSandbox CompileShaders)
 
 # ------------------------------------------------------------------------
 # Asset copying
 # ------------------------------------------------------------------------
-add_custom_command(TARGET Carrot POST_BUILD
+add_custom_command(TARGET CarrotSandbox POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/src/Engine/Assets
-        $<TARGET_FILE_DIR:Carrot>/assets
+        $<TARGET_FILE_DIR:CarrotSandbox>/assets
 )

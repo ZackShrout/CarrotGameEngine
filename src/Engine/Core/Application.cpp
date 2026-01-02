@@ -7,11 +7,11 @@
 
 #include "Logger.h"
 #include "LogSink.h"
-#include "Engine/Window/Window.h"
-#include "Engine/RHI/Backends/Vulkan/VulkanRenderer.h"
-#include "Engine/HotReload/ShaderWatcher.h"
-#include "Engine/Debug/DebugOverlay.h"
-#include "Engine/Utils/MulticastDelegate.h"
+#include "Window/Window.h"
+#include "RHI/Backends/Vulkan/VulkanRenderer.h"
+#include "HotReload/ShaderWatcher.h"
+#include "Debug/DebugOverlay.h"
+#include "Utils/MulticastDelegate.h"
 
 #include <chrono>
 

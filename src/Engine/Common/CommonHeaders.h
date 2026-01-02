@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include "Engine/Core/Logger.h"
-#include "Engine/Utils/Assert.h"
+#include "Core/Logger.h"
+#include "Utils/Assert.h"
 
 #include <cstdint>
 

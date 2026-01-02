@@ -6,9 +6,9 @@
 #include "VulkanRenderer.h"
 
 #include "VulkanContext.h"
-#include "Engine/Window/Window.h"
-#include "Engine/Utils/ShaderUtils.h"
-#include "Engine/Debug/DebugOverlay.h"
+#include "Window/Window.h"
+#include "Utils/ShaderUtils.h"
+#include "Debug/DebugOverlay.h"
 
 #include <vector>
 #include <array>

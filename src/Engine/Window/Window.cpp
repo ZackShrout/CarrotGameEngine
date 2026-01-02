@@ -5,7 +5,7 @@
 
 #include "Window.h"
 
-#include "Engine/Core/Platform/Wayland/WaylandWindow.h"
+#include "Core/Platform/Wayland/WaylandWindow.h"
 
 namespace carrot::window {
     static platform::wayland_window_t* g_primary_window{ nullptr };

@@ -5,7 +5,7 @@
 
 #include "ShaderWatcher.h"
 
-#include "Engine/Core/Logger.h"
+#include "Core/Logger.h"
 
 #include <sys/inotify.h>
 #include <unistd.h>

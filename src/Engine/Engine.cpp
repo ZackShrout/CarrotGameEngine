@@ -13,10 +13,6 @@
 #include "Core/Application.h"
 
 namespace carrot {
-    namespace core {
-        class ce_application_t;
-    }
-
     namespace {
         void init()
         {
@@ -69,7 +65,7 @@ namespace carrot {
             std::chrono::steady_clock::now().time_since_epoch()
         ).count();
 
-        // Bind the on_tick function in our application class
+        // Bind the on_tick function in the engine's application class, to be inherited
         _on_tick.add(utils::single_delegate_t<void(float)>::bind<&core::ce_application_t::on_tick>(_application));
 
         while (!_should_quit && !main_window.should_close())

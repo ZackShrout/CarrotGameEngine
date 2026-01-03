@@ -418,3 +418,11 @@ namespace carrot {
 
     uint32_t vulkan_renderer_t::_current_image_index{ 0 };
 } // namespace carrot
+
+namespace carrot::renderer {
+    renderer_t* create_backend()
+    {
+        static vulkan_renderer_t instance;
+        return &instance;
+    }
+}

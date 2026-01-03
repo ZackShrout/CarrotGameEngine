@@ -5,8 +5,10 @@
 
 #pragma once
 
+#include "Renderer/Renderer.h"
+
 namespace carrot::debug {
-    void init() noexcept;
+    void init(renderer::renderer_t* renderer) noexcept;
     void shutdown() noexcept;
     void render() noexcept; // call every frame after scene
 

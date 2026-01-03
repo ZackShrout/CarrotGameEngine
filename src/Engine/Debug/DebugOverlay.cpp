@@ -369,10 +369,14 @@ namespace carrot::debug {
                                  });
             }
         }
+
+        renderer::renderer_t* _renderer{ nullptr };
     } // anonymous namespace
 
-    void init() noexcept
+    void init(renderer::renderer_t* renderer) noexcept
     {
+        _renderer = renderer;
+
         FILE* f = fopen("assets/Fonts/Roboto-Regular.ttf", "rb");
         if (!f)
         {

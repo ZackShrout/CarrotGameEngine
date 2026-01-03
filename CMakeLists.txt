@@ -55,6 +55,7 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Core/LogSink.h
         src/Engine/Core/LogSink.cpp
         src/Engine/CarrotEngine.h
+        src/Engine/Renderer/Renderer.h
 )
 
 add_library(CarrotEngine STATIC ${CARROT_ENGINE_SOURCES})
@@ -227,7 +228,6 @@ foreach(SHADER ${SHADER_SOURCES})
 endforeach()
 
 add_custom_target(CompileShaders ALL DEPENDS ${SPV_OUTPUTS})
-#add_dependencies(CarrotEngine CompileShaders)
 add_dependencies(CarrotSandbox CompileShaders)
 
 # ------------------------------------------------------------------------

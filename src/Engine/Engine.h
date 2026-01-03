@@ -6,6 +6,7 @@
 #pragma once
 
 #include "Common/CommonHeaders.h"
+#include "Renderer/Renderer.h"
 
 namespace carrot {
     namespace core {
@@ -31,8 +32,9 @@ namespace carrot {
     private:
         void tick();
 
-        bool        _should_quit{ false };
-        float       _delta_time{ 0.f };
-        uint32_t    _current_fps{ 0 };
+        bool                    _should_quit{ false };
+        float                   _delta_time{ 0.f };
+        uint32_t                _current_fps{ 0 };
+        renderer::renderer_t*   _renderer{ nullptr };
     };
 } // namespace carrot

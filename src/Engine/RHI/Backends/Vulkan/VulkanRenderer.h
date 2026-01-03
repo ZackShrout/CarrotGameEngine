@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "Renderer/Renderer.h"
+
 #include <vulkan/vulkan.h>
 #include <vector>
 
@@ -13,17 +15,17 @@ namespace carrot::rhi {
 }
 
 namespace carrot {
-    class vulkan_renderer_t
+    class vulkan_renderer_t : public renderer::renderer_t
     {
     public:
-        static void init();
-        static void shutdown();
+        void init() override;
+        void shutdown() override;
 
-        static void begin_frame();
-        static void render_frame(); // temporary triangle, will be replaced later
-        static void end_frame();
+        void begin_frame() override;
+        void render_frame() override; // temporary triangle, will be replaced later
+        void end_frame() override;
 
-        static void reload_pipeline();
+        void reload_pipeline() override;
 
         static void render_debug_overlay() noexcept;
 
@@ -37,7 +39,6 @@ namespace carrot {
         static void destroy_pipeline();
         static void recreate_swapchain_dependent_resources();
 
-    private:
         // Core context (lives for the whole application)
         static rhi::vulkan_context_t* _ctx;
 
@@ -62,3 +63,7 @@ namespace carrot {
         static uint32_t _current_image_index;
     };
 } // namespace carrot
+
+namespace carrot::renderer {
+    renderer_t* create_backend();
+} // namespace carrot::renderer

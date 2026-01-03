@@ -14,29 +14,6 @@
 
 namespace carrot {
     namespace {
-        void init()
-        {
-            core::logger_t::init();
-            window::create_primary_window(1280, 720, "Carrot Engine – Month 1");
-            vulkan_renderer_t::init();
-            hot_reload::shader_watcher_t::init([]([[maybe_unused]] const std::string& spv_path) {
-                vulkan_renderer_t::reload_pipeline();
-            });
-
-            LOG_CORE_INFO("Carrot Engine Initialized");
-        }
-
-        void shutdown()
-        {
-            LOG_CORE_INFO("Shutting down...");
-
-            core::logger_t::shutdown();
-            vulkan_renderer_t::shutdown();
-            hot_reload::shader_watcher_t::shutdown();
-            vulkan_renderer_t::shutdown();
-            window::destroy_primary_window();
-        }
-
         uint64_t                                    _last_tick_time{ 0 };
         uint32_t                                    _frame_counter{ 0 };
         float                                       _fps_timer{ 0.f };
@@ -48,12 +25,27 @@ namespace carrot {
     // PUBLIC
     engine_t::engine_t() noexcept
     {
-        init();
+        core::logger_t::init();
+        window::create_primary_window(1280, 720, "Carrot Engine – Month 1");
+
+        _renderer = renderer::create_backend();
+        _renderer->init();
+
+        hot_reload::shader_watcher_t::init([this]([[maybe_unused]] const std::string& spv_path) {
+                _renderer->reload_pipeline();
+            });
+
+        LOG_CORE_INFO("Carrot Engine Initialized");
     }
 
     engine_t::~engine_t()
     {
-        shutdown();
+        LOG_CORE_INFO("Shutting down...");
+
+        hot_reload::shader_watcher_t::shutdown();
+        _renderer->shutdown();
+        window::destroy_primary_window();
+        core::logger_t::shutdown();
     }
 
     void engine_t::run(core::ce_application_t* app)
@@ -74,17 +66,17 @@ namespace carrot {
             hot_reload::shader_watcher_t::poll();
             tick();
 
-            vulkan_renderer_t::begin_frame();
-            vulkan_renderer_t::render_frame(); // temporary — just our spinning triangle for now
+            _renderer->begin_frame();
+            _renderer->render_frame(); // temporary — just our spinning triangle for now
 
             // Initialize debug overlay AFTER the first swapchain image exists
             if (!_debug_overlay_initialized)
             {
-                debug::init();
+                debug::init(_renderer);
                 _debug_overlay_initialized = true;
             }
 
-            vulkan_renderer_t::end_frame();
+            _renderer->end_frame();
         }
     }
 

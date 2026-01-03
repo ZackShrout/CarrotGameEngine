@@ -193,6 +193,8 @@ endif()
 # ------------------------------------------------------------------------
 set(CARROT_SANDBOX_SOURCES
         src/Game/main.cpp
+        src/Game/Game.cpp
+        src/Game/Game.h
 )
 
 add_executable(CarrotSandbox ${CARROT_SANDBOX_SOURCES})  # Rename if you prefer "Game" or "Sandbox"

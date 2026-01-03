@@ -3,11 +3,16 @@
 // Copyright (c) 2025 BunnySofty. All rights reserved.
 //
 
+#include "Game.h"
+
 #include <CarrotEngine.h>
 
 int main()
 {
-    carrot::core::application_t::get().run();
+    sandbox::sandbox_t* game{ new sandbox::sandbox_t() };
+    carrot::engine_t::get().run(game);
+
+    delete game;
 
     return 0;
 }

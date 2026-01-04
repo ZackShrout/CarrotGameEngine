@@ -10,7 +10,7 @@
 namespace carrot::debug {
     void init(renderer::renderer_t* renderer) noexcept;
     void shutdown() noexcept;
-    void render() noexcept; // call every frame after scene
+    void render(void* cmd_buffer) noexcept; // call every frame after scene
 
     bool is_initialized() noexcept;
 

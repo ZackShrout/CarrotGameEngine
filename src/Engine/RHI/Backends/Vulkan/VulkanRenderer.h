@@ -6,15 +6,14 @@
 #pragma once
 
 #include "Renderer/Renderer.h"
+#include "VulkanCommon.h"
+#include "VulkanCore.h"
 
-#include <vulkan/vulkan.h>
 #include <vector>
 
-namespace carrot::rhi {
-    struct vulkan_context_t;
-}
+namespace carrot::rhi::vulkan {
+    class vulkan_context_t;
 
-namespace carrot {
     class vulkan_renderer_t : public renderer::renderer_t
     {
     public:
@@ -27,43 +26,29 @@ namespace carrot {
 
         void reload_pipeline() override;
 
-        static void render_debug_overlay() noexcept;
-
-        [[nodiscard]] static VkCommandBuffer get_current_command_buffer() noexcept
+        [[nodiscard]] VkCommandBuffer get_current_command_buffer() const noexcept
         {
-            return _command_buffers[_current_frame];
+            return _frames[_current_frame].command_buffer;
         }
 
     private:
-        static void create_pipeline();
-        static void destroy_pipeline();
-        static void recreate_swapchain_dependent_resources();
+        void create_pipeline();
+        void destroy_pipeline();
+        void recreate_swapchain_dependent_resources();
 
-        // Core context (lives for the whole application)
-        static rhi::vulkan_context_t* _ctx;
+        vulkan_context_t* _ctx{ nullptr };
 
-        // Pipeline
-        static VkPipeline _graphics_pipeline;
-        static VkPipelineLayout _pipeline_layout;
-        static VkRenderPass _render_pass;
+        VkPipeline _graphics_pipeline{ VK_NULL_HANDLE };
+        VkPipelineLayout _pipeline_layout{ VK_NULL_HANDLE };
+        VkRenderPass _render_pass{ VK_NULL_HANDLE };
 
-        // Swapchain-dependent
-        static std::vector<VkFramebuffer> _swapchain_framebuffers;
+        VkCommandPool _command_pool{ VK_NULL_HANDLE };
 
-        // Per-frame resources
-        static VkCommandPool _command_pool;
-        static std::vector<VkCommandBuffer> _command_buffers;
+        std::vector<VkFramebuffer> _swapchain_framebuffers;
+        frame_data_t _frames;
 
-        static std::vector<VkSemaphore> _image_available_semaphores;
-        static std::vector<VkSemaphore> _render_finished_semaphores;
-        static std::vector<VkFence> _in_flight_fences;
-
-        static uint32_t _current_frame;
-        static uint32_t _frame_counter;
-        static uint32_t _current_image_index;
+        uint32_t _current_frame{ 0 };
+        uint32_t _frame_counter{ 0 };
+        uint32_t _current_image_index{ 0 };
     };
-} // namespace carrot
-
-namespace carrot::renderer {
-    renderer_t* create_backend();
-} // namespace carrot::renderer
+} // namespace carrot::rhi::vulkan

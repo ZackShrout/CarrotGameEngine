@@ -65,7 +65,7 @@ namespace carrot::debug {
 
         void create_font_texture()
         {
-            rhi::vulkan_context_t* ctx{ rhi::vulkan_context_t::get() };
+            rhi::vulkan::vulkan_context_t* ctx{ rhi::vulkan::vulkan_context_t::get() };
 
             // ── Create staging buffer
             VkDeviceSize atlas_size{ k_atlas_width * k_atlas_height };
@@ -77,23 +77,23 @@ namespace carrot::debug {
             buf_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
             buf_info.size = atlas_size;
             buf_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-            vkCreateBuffer(ctx->device, &buf_info, nullptr, &staging_buf);
+            vkCreateBuffer(ctx->device(), &buf_info, nullptr, &staging_buf);
 
             VkMemoryRequirements mem_req{ };
-            vkGetBufferMemoryRequirements(ctx->device, staging_buf, &mem_req);
+            vkGetBufferMemoryRequirements(ctx->device(), staging_buf, &mem_req);
 
             VkMemoryAllocateInfo alloc_info{ };
             alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
             alloc_info.allocationSize = mem_req.size;
             alloc_info.memoryTypeIndex = ctx->find_memory_type(mem_req.memoryTypeBits,
                                                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-            vkAllocateMemory(ctx->device, &alloc_info, nullptr, &staging_mem);
-            vkBindBufferMemory(ctx->device, staging_buf, staging_mem, 0);
+            vkAllocateMemory(ctx->device(), &alloc_info, nullptr, &staging_mem);
+            vkBindBufferMemory(ctx->device(), staging_buf, staging_mem, 0);
 
             void* mapped;
-            vkMapMemory(ctx->device, staging_mem, 0, atlas_size, 0, &mapped);
+            vkMapMemory(ctx->device(), staging_mem, 0, atlas_size, 0, &mapped);
             memcpy(mapped, g_atlas_pixels, atlas_size);
-            vkUnmapMemory(ctx->device, staging_mem);
+            vkUnmapMemory(ctx->device(), staging_mem);
 
             // ── Create device-local image
             VkImageCreateInfo img_info{ };
@@ -107,14 +107,14 @@ namespace carrot::debug {
             img_info.tiling = VK_IMAGE_TILING_OPTIMAL;
             img_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
             img_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-            vkCreateImage(ctx->device, &img_info, nullptr, &g_font_image);
+            vkCreateImage(ctx->device(), &img_info, nullptr, &g_font_image);
 
-            vkGetImageMemoryRequirements(ctx->device, g_font_image, &mem_req);
+            vkGetImageMemoryRequirements(ctx->device(), g_font_image, &mem_req);
             alloc_info.allocationSize = mem_req.size;
             alloc_info.memoryTypeIndex = ctx->find_memory_type(mem_req.memoryTypeBits,
                                                                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-            vkAllocateMemory(ctx->device, &alloc_info, nullptr, &g_font_memory);
-            vkBindImageMemory(ctx->device, g_font_image, g_font_memory, 0);
+            vkAllocateMemory(ctx->device(), &alloc_info, nullptr, &g_font_memory);
+            vkBindImageMemory(ctx->device(), g_font_image, g_font_memory, 0);
 
             // ── Transition + copy
             VkCommandBuffer cmd{ ctx->begin_one_time_commands() };
@@ -148,8 +148,8 @@ namespace carrot::debug {
             ctx->end_one_time_commands(cmd);
 
             // cleanup staging
-            vkDestroyBuffer(ctx->device, staging_buf, nullptr);
-            vkFreeMemory(ctx->device, staging_mem, nullptr);
+            vkDestroyBuffer(ctx->device(), staging_buf, nullptr);
+            vkFreeMemory(ctx->device(), staging_mem, nullptr);
 
             // view + sampler
             VkImageViewCreateInfo view_info{ };
@@ -160,7 +160,7 @@ namespace carrot::debug {
             view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             view_info.subresourceRange.levelCount = 1;
             view_info.subresourceRange.layerCount = 1;
-            vkCreateImageView(ctx->device, &view_info, nullptr, &g_font_view);
+            vkCreateImageView(ctx->device(), &view_info, nullptr, &g_font_view);
 
             VkSamplerCreateInfo sampler_info{ };
             sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -171,12 +171,12 @@ namespace carrot::debug {
             sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
             sampler_info.minLod = 0.0f;
             sampler_info.maxLod = 1.0f;
-            vkCreateSampler(ctx->device, &sampler_info, nullptr, &g_font_sampler);
+            vkCreateSampler(ctx->device(), &sampler_info, nullptr, &g_font_sampler);
         }
 
         void create_descriptor_objects()
         {
-            const rhi::vulkan_context_t* ctx{ rhi::vulkan_context_t::get() };
+            const rhi::vulkan::vulkan_context_t* ctx{ rhi::vulkan::vulkan_context_t::get() };
 
             VkDescriptorSetLayoutBinding binding{ };
             binding.binding = 0;
@@ -188,7 +188,7 @@ namespace carrot::debug {
             layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
             layout_info.bindingCount = 1;
             layout_info.pBindings = &binding;
-            vkCreateDescriptorSetLayout(ctx->device, &layout_info, nullptr, &g_desc_layout);
+            vkCreateDescriptorSetLayout(ctx->device(), &layout_info, nullptr, &g_desc_layout);
 
             constexpr VkDescriptorPoolSize pool_size{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 };
             VkDescriptorPoolCreateInfo pool_info{ };
@@ -196,14 +196,14 @@ namespace carrot::debug {
             pool_info.maxSets = 1;
             pool_info.poolSizeCount = 1;
             pool_info.pPoolSizes = &pool_size;
-            vkCreateDescriptorPool(ctx->device, &pool_info, nullptr, &g_desc_pool);
+            vkCreateDescriptorPool(ctx->device(), &pool_info, nullptr, &g_desc_pool);
 
             VkDescriptorSetAllocateInfo alloc_info{ };
             alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
             alloc_info.descriptorPool = g_desc_pool;
             alloc_info.descriptorSetCount = 1;
             alloc_info.pSetLayouts = &g_desc_layout;
-            vkAllocateDescriptorSets(ctx->device, &alloc_info, &g_desc_set);
+            vkAllocateDescriptorSets(ctx->device(), &alloc_info, &g_desc_set);
 
             VkDescriptorImageInfo img_info{ };
             img_info.sampler = g_font_sampler;
@@ -217,12 +217,12 @@ namespace carrot::debug {
             write.descriptorCount = 1;
             write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             write.pImageInfo = &img_info;
-            vkUpdateDescriptorSets(ctx->device, 1, &write, 0, nullptr);
+            vkUpdateDescriptorSets(ctx->device(), 1, &write, 0, nullptr);
         }
 
         void create_pipeline()
         {
-            rhi::vulkan_context_t* ctx{ rhi::vulkan_context_t::get() };
+            rhi::vulkan::vulkan_context_t* ctx{ rhi::vulkan::vulkan_context_t::get() };
 
             std::vector<uint32_t> vert_spv{ load_spv("shaders/debug_overlay.vert.spv") };
             std::vector<uint32_t> frag_spv{ load_spv("shaders/debug_overlay.frag.spv") };
@@ -234,11 +234,11 @@ namespace carrot::debug {
             mod_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
             mod_info.codeSize = vert_spv.size() * sizeof(uint32_t);
             mod_info.pCode = vert_spv.data();
-            vkCreateShaderModule(ctx->device, &mod_info, nullptr, &vert_mod);
+            vkCreateShaderModule(ctx->device(), &mod_info, nullptr, &vert_mod);
 
             mod_info.codeSize = frag_spv.size() * sizeof(uint32_t);
             mod_info.pCode = frag_spv.data();
-            vkCreateShaderModule(ctx->device, &mod_info, nullptr, &frag_mod);
+            vkCreateShaderModule(ctx->device(), &mod_info, nullptr, &frag_mod);
 
             VkPipelineShaderStageCreateInfo stages[2]{
                 {
@@ -310,7 +310,7 @@ namespace carrot::debug {
             layout_info.pSetLayouts = &g_desc_layout;
             layout_info.pushConstantRangeCount = 1;
             layout_info.pPushConstantRanges = &push_range;
-            vkCreatePipelineLayout(ctx->device, &layout_info, nullptr, &g_pipeline_layout);
+            vkCreatePipelineLayout(ctx->device(), &layout_info, nullptr, &g_pipeline_layout);
 
             VkGraphicsPipelineCreateInfo pipe{ };
             pipe.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -324,13 +324,13 @@ namespace carrot::debug {
             pipe.pColorBlendState = &cb;
             pipe.pDynamicState = &dynamic;
             pipe.layout = g_pipeline_layout;
-            pipe.renderPass = ctx->render_pass;
+            pipe.renderPass = ctx->render_pass();
             pipe.subpass = 0;
 
-            vkCreateGraphicsPipelines(ctx->device, VK_NULL_HANDLE, 1, &pipe, nullptr, &g_pipeline);
+            vkCreateGraphicsPipelines(ctx->device(), VK_NULL_HANDLE, 1, &pipe, nullptr, &g_pipeline);
 
-            vkDestroyShaderModule(ctx->device, vert_mod, nullptr);
-            vkDestroyShaderModule(ctx->device, frag_mod, nullptr);
+            vkDestroyShaderModule(ctx->device(), vert_mod, nullptr);
+            vkDestroyShaderModule(ctx->device(), frag_mod, nullptr);
         }
 
         void rasterize_text(float x, float y, const char* text)
@@ -396,7 +396,7 @@ namespace carrot::debug {
                              g_atlas_pixels, k_atlas_width, k_atlas_height,
                              k_first_char, k_char_count, reinterpret_cast<stbtt_bakedchar *>(g_glyphs));
 
-        const rhi::vulkan_context_t* ctx{ rhi::vulkan_context_t::get() };
+        const rhi::vulkan::vulkan_context_t* ctx{ rhi::vulkan::vulkan_context_t::get() };
 
         create_font_texture();
         create_descriptor_objects();
@@ -412,10 +412,10 @@ namespace carrot::debug {
         buf_info.size = vb_size;
         buf_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
         buf_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        vkCreateBuffer(ctx->device, &buf_info, nullptr, &g_vb);
+        vkCreateBuffer(ctx->device(), &buf_info, nullptr, &g_vb);
 
         VkMemoryRequirements mem_req;
-        vkGetBufferMemoryRequirements(ctx->device, g_vb, &mem_req);
+        vkGetBufferMemoryRequirements(ctx->device(), g_vb, &mem_req);
 
         VkMemoryAllocateInfo alloc_info{ };
         alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -424,22 +424,22 @@ namespace carrot::debug {
                                                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                                                            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-        vkAllocateMemory(ctx->device, &alloc_info, nullptr, &g_vb_mem);
-        vkBindBufferMemory(ctx->device, g_vb, g_vb_mem, 0);
+        vkAllocateMemory(ctx->device(), &alloc_info, nullptr, &g_vb_mem);
+        vkBindBufferMemory(ctx->device(), g_vb, g_vb_mem, 0);
 
         // Index buffer
         buf_info.size = ib_size;
         buf_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-        vkCreateBuffer(ctx->device, &buf_info, nullptr, &g_ib);
+        vkCreateBuffer(ctx->device(), &buf_info, nullptr, &g_ib);
 
-        vkGetBufferMemoryRequirements(ctx->device, g_ib, &mem_req);
+        vkGetBufferMemoryRequirements(ctx->device(), g_ib, &mem_req);
         alloc_info.allocationSize = mem_req.size;
         alloc_info.memoryTypeIndex = ctx->find_memory_type(mem_req.memoryTypeBits,
                                                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                                                            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-        vkAllocateMemory(ctx->device, &alloc_info, nullptr, &g_ib_mem);
-        vkBindBufferMemory(ctx->device, g_ib, g_ib_mem, 0);
+        vkAllocateMemory(ctx->device(), &alloc_info, nullptr, &g_ib_mem);
+        vkBindBufferMemory(ctx->device(), g_ib, g_ib_mem, 0);
 
         g_initialized = true; // ← SET THIS AT THE END
         LOG_GRAPHICS_INFO("DEBUG OVERLAY FULLY INITIALIZED — READY TO RENDER");
@@ -447,45 +447,45 @@ namespace carrot::debug {
 
     void shutdown() noexcept
     {
-        const rhi::vulkan_context_t* ctx{ rhi::vulkan_context_t::get() };
-        vkDeviceWaitIdle(ctx->device);
+        const rhi::vulkan::vulkan_context_t* ctx{ rhi::vulkan::vulkan_context_t::get() };
+        vkDeviceWaitIdle(ctx->device());
 
-        vkDestroyPipeline(ctx->device, g_pipeline, nullptr);
-        vkDestroyPipelineLayout(ctx->device, g_pipeline_layout, nullptr);
-        vkDestroyDescriptorSetLayout(ctx->device, g_desc_layout, nullptr);
-        vkDestroyDescriptorPool(ctx->device, g_desc_pool, nullptr);
-        vkDestroySampler(ctx->device, g_font_sampler, nullptr);
-        vkDestroyImageView(ctx->device, g_font_view, nullptr);
-        vkDestroyImage(ctx->device, g_font_image, nullptr);
-        vkFreeMemory(ctx->device, g_font_memory, nullptr);
-        vkDestroyBuffer(ctx->device, g_vb, nullptr);
-        vkFreeMemory(ctx->device, g_vb_mem, nullptr);
-        vkDestroyBuffer(ctx->device, g_ib, nullptr);
-        vkFreeMemory(ctx->device, g_ib_mem, nullptr);
+        vkDestroyPipeline(ctx->device(), g_pipeline, nullptr);
+        vkDestroyPipelineLayout(ctx->device(), g_pipeline_layout, nullptr);
+        vkDestroyDescriptorSetLayout(ctx->device(), g_desc_layout, nullptr);
+        vkDestroyDescriptorPool(ctx->device(), g_desc_pool, nullptr);
+        vkDestroySampler(ctx->device(), g_font_sampler, nullptr);
+        vkDestroyImageView(ctx->device(), g_font_view, nullptr);
+        vkDestroyImage(ctx->device(), g_font_image, nullptr);
+        vkFreeMemory(ctx->device(), g_font_memory, nullptr);
+        vkDestroyBuffer(ctx->device(), g_vb, nullptr);
+        vkFreeMemory(ctx->device(), g_vb_mem, nullptr);
+        vkDestroyBuffer(ctx->device(), g_ib, nullptr);
+        vkFreeMemory(ctx->device(), g_ib_mem, nullptr);
 
         delete[] g_ttf_buffer;
         delete[] g_atlas_pixels;
     }
 
-    void render() noexcept
+    void render(void* cmd_buffer) noexcept
     {
         if (g_vertices.empty()) return;
 
-        const rhi::vulkan_context_t* ctx{ rhi::vulkan_context_t::get() };
-        VkCommandBuffer cmd{ vulkan_renderer_t::get_current_command_buffer() };
+        const rhi::vulkan::vulkan_context_t* ctx{ rhi::vulkan::vulkan_context_t::get() };
+        VkCommandBuffer cmd{ static_cast<VkCommandBuffer>(cmd_buffer) };
 
         constexpr float resolution[2]{ 1280.0f, 720.0f };
         vkCmdPushConstants(cmd, g_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(resolution), resolution);
 
         // Upload real text geometry
         void* data;
-        vkMapMemory(ctx->device, g_vb_mem, 0, g_vertices.size() * sizeof(vertex_t), 0, &data);
+        vkMapMemory(ctx->device(), g_vb_mem, 0, g_vertices.size() * sizeof(vertex_t), 0, &data);
         memcpy(data, g_vertices.data(), g_vertices.size() * sizeof(vertex_t));
-        vkUnmapMemory(ctx->device, g_vb_mem);
+        vkUnmapMemory(ctx->device(), g_vb_mem);
 
-        vkMapMemory(ctx->device, g_ib_mem, 0, g_indices.size() * sizeof(uint16_t), 0, &data);
+        vkMapMemory(ctx->device(), g_ib_mem, 0, g_indices.size() * sizeof(uint16_t), 0, &data);
         memcpy(data, g_indices.data(), g_indices.size() * sizeof(uint16_t));
-        vkUnmapMemory(ctx->device, g_ib_mem);
+        vkUnmapMemory(ctx->device(), g_ib_mem);
 
         constexpr VkDeviceSize offset{ 0 };
         vkCmdBindVertexBuffers(cmd, 0, 1, &g_vb, &offset);

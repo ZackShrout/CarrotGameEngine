@@ -9,18 +9,19 @@
 #include "Window/Window.h"
 #include "Utils/ShaderUtils.h"
 #include "Debug/DebugOverlay.h"
+#include "Utils/Assert.h"
 
 #include <vector>
-#include <array>
 
-namespace carrot {
+namespace carrot::rhi::vulkan {
     namespace {
-        constexpr uint32_t k_max_frames_in_flight{ 2 };
+
     } // anonymous namespace
 
+    // PUBLIC
     void vulkan_renderer_t::init()
     {
-        _ctx = new rhi::vulkan_context_t;
+        _ctx = new vulkan_context_t;
 
         // ── Instance & Surface ─────────────────────────────────────
         constexpr VkApplicationInfo app_info{
@@ -67,45 +68,53 @@ namespace carrot {
         VkCommandPoolCreateInfo pool_info{ };
         pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        pool_info.queueFamilyIndex = _ctx->graphics_family;
-        vkCreateCommandPool(_ctx->device, &pool_info, nullptr, &_ctx->command_pool);
+        pool_info.queueFamilyIndex = _ctx->graphics_family();
+        vkCreateCommandPool(_ctx->device(), &pool_info, nullptr, &_command_pool);
 
         recreate_swapchain_dependent_resources();
     }
 
     void vulkan_renderer_t::shutdown()
     {
-        vkDeviceWaitIdle(_ctx->device);
+        vkDeviceWaitIdle(_ctx->device());
 
         destroy_pipeline();
 
         for (const auto fb: _swapchain_framebuffers)
-            vkDestroyFramebuffer(_ctx->device, fb, nullptr);
+            vkDestroyFramebuffer(_ctx->device(), fb, nullptr);
         _swapchain_framebuffers.clear();
 
-        vkDestroyCommandPool(_ctx->device, _command_pool, nullptr);
+        vkDestroyCommandPool(_ctx->device(), _command_pool, nullptr);
 
-        for (const auto s: _image_available_semaphores) vkDestroySemaphore(_ctx->device, s, nullptr);
-        for (const auto s: _render_finished_semaphores) vkDestroySemaphore(_ctx->device, s, nullptr);
-        for (const auto f: _in_flight_fences) vkDestroyFence(_ctx->device, f, nullptr);
+        for (const auto& frame : _frames)
+        {
+            vkDestroySemaphore(_ctx->device(), frame.image_available, nullptr);
+            vkDestroySemaphore(_ctx->device(), frame.render_finished, nullptr);
+            vkDestroyFence(_ctx->device(), frame.in_flight, nullptr);
+        }
 
         _ctx->cleanup();
 
-        vkDestroySurfaceKHR(_ctx->instance, _ctx->surface, nullptr);
-        vkDestroyInstance(_ctx->instance, nullptr);
+        vkDestroySurfaceKHR(_ctx->instance(), _ctx->surface(), nullptr);
+        vkDestroyInstance(_ctx->instance(), nullptr);
 
         delete _ctx;
         _ctx = nullptr;
     }
     void vulkan_renderer_t::begin_frame()
     {
-        vkWaitForFences(_ctx->device, 1, &_in_flight_fences[_current_frame], VK_TRUE, ~0ULL);
-        vkResetFences(_ctx->device, 1, &_in_flight_fences[_current_frame]);
+        const frame_resources_t& frame{ _frames[_current_frame] };
+
+        vkWaitForFences(_ctx->device(), 1, &frame.in_flight, VK_TRUE, ~0ULL);
+        vkResetFences(_ctx->device(), 1, &frame.in_flight);
 
         uint32_t image_index{ 0 };
-        VkResult result = vkAcquireNextImageKHR(_ctx->device, _ctx->swapchain, ~0ULL,
-                                                _image_available_semaphores[_current_frame],
-                                                VK_NULL_HANDLE, &image_index);
+
+        const VkResult result{
+            vkAcquireNextImageKHR(_ctx->device(), *_ctx->swapchain(), ~0ULL, frame.image_available, VK_NULL_HANDLE,
+                                  &image_index)
+        };
+
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
         {
             // TODO: proper resize handling later
@@ -114,11 +123,11 @@ namespace carrot {
         }
         _current_image_index = image_index;
 
-        vkResetCommandBuffer(_command_buffers[_current_frame], 0);
+        vkResetCommandBuffer(frame.command_buffer, 0);
 
         VkCommandBufferBeginInfo begin_info{ };
         begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        vkBeginCommandBuffer(_command_buffers[_current_frame], &begin_info);
+        vkBeginCommandBuffer(frame.command_buffer, &begin_info);
 
         constexpr VkClearValue clear_color{ { { 0.15f, 0.05f, 0.0f, 1.0f } } };
 
@@ -126,82 +135,81 @@ namespace carrot {
         rp_begin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         rp_begin.renderPass = _render_pass;
         rp_begin.framebuffer = _swapchain_framebuffers[image_index];
-        rp_begin.renderArea.extent = _ctx->swapchain_extent;
+        rp_begin.renderArea.extent = _ctx->swapchain_extent();
         rp_begin.clearValueCount = 1;
         rp_begin.pClearValues = &clear_color;
 
-        vkCmdBeginRenderPass(_command_buffers[_current_frame], &rp_begin, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBeginRenderPass(frame.command_buffer, &rp_begin, VK_SUBPASS_CONTENTS_INLINE);
 
-        vkCmdBindPipeline(_command_buffers[_current_frame], VK_PIPELINE_BIND_POINT_GRAPHICS, _graphics_pipeline);
+        vkCmdBindPipeline(frame.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphics_pipeline);
 
         const VkViewport viewport{
             0.f, 0.f,
-            static_cast<float>(_ctx->swapchain_extent.width),
-            static_cast<float>(_ctx->swapchain_extent.height), 0.f, 1.f
+            static_cast<float>(_ctx->swapchain_extent().width),
+            static_cast<float>(_ctx->swapchain_extent().height), 0.f, 1.f
         };
-        vkCmdSetViewport(_command_buffers[_current_frame], 0, 1, &viewport);
+        vkCmdSetViewport(frame.command_buffer, 0, 1, &viewport);
 
-        const VkRect2D scissor{ { 0, 0 }, _ctx->swapchain_extent };
-        vkCmdSetScissor(_command_buffers[_current_frame], 0, 1, &scissor);
+        const VkRect2D scissor{ { 0, 0 }, _ctx->swapchain_extent() };
+        vkCmdSetScissor(frame.command_buffer, 0, 1, &scissor);
 
-        vkCmdPushConstants(_command_buffers[_current_frame], _pipeline_layout,
+        vkCmdPushConstants(frame.command_buffer, _pipeline_layout,
                            VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &_frame_counter);
     }
     void vulkan_renderer_t::render_frame()
     {
-        vkCmdDraw(_command_buffers[_current_frame], 3, 1, 0, 0);
+        const frame_resources_t& frame{ _frames[_current_frame] };
+
+        vkCmdDraw(frame.command_buffer, 3, 1, 0, 0);
 
         // Debug overlay — always last in the render pass
         // ← ONLY RENDER DEBUG OVERLAY AFTER IT'S INITIALIZED
-        if (carrot::debug::is_initialized()) carrot::debug::render();
+        if (debug::is_initialized()) debug::render(get_current_command_buffer());
 
-        vkCmdEndRenderPass(_command_buffers[_current_frame]);
+        vkCmdEndRenderPass(frame.command_buffer);
     }
 
     void vulkan_renderer_t::end_frame()
     {
-        vkEndCommandBuffer(_command_buffers[_current_frame]);
+        const frame_resources_t& frame{ _frames[_current_frame] };
+
+        vkEndCommandBuffer(frame.command_buffer);
 
         constexpr VkPipelineStageFlags wait_stage{ VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 
         VkSubmitInfo submit{ };
         submit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submit.waitSemaphoreCount = 1;
-        submit.pWaitSemaphores = &_image_available_semaphores[_current_frame];
+        submit.pWaitSemaphores = &frame.image_available;
         submit.pWaitDstStageMask = &wait_stage;
         submit.commandBufferCount = 1;
-        submit.pCommandBuffers = &_command_buffers[_current_frame];
+        submit.pCommandBuffers = &frame.command_buffer;
         submit.signalSemaphoreCount = 1;
-        submit.pSignalSemaphores = &_render_finished_semaphores[_current_frame];
+        submit.pSignalSemaphores = &frame.render_finished;
 
-        vkQueueSubmit(_ctx->graphics_queue, 1, &submit, _in_flight_fences[_current_frame]);
+        vkQueueSubmit(_ctx->graphics_queue(), 1, &submit, frame.in_flight);
 
         VkPresentInfoKHR present{ };
         present.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
         present.waitSemaphoreCount = 1;
-        present.pWaitSemaphores = &_render_finished_semaphores[_current_frame];
+        present.pWaitSemaphores = &frame.render_finished;
         present.swapchainCount = 1;
-        present.pSwapchains = &_ctx->swapchain;
+        present.pSwapchains = _ctx->swapchain();
         present.pImageIndices = &_current_image_index; // set in begin_frame
 
-        vkQueuePresentKHR(_ctx->present_queue, &present);
+        vkQueuePresentKHR(_ctx->present_queue(), &present);
 
         ++_frame_counter;
         _current_frame = (_current_frame + 1) % k_max_frames_in_flight;
     }
     void vulkan_renderer_t::reload_pipeline()
     {
-        vkDeviceWaitIdle(_ctx->device);
+        vkDeviceWaitIdle(_ctx->device());
         destroy_pipeline();
         create_pipeline();
     }
 
-    void vulkan_renderer_t::render_debug_overlay() noexcept
-    {
-        // This is called from inside the render pass (after triangle, before EndRenderPass)
-        carrot::debug::render();
-    }
-
+    // PRIVATE
     void vulkan_renderer_t::create_pipeline()
     {
         auto vert_spv = load_spv("shaders/triangle.vert.spv");
@@ -214,11 +222,11 @@ namespace carrot {
         mod_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
         mod_info.codeSize = vert_spv.size() * sizeof(uint32_t);
         mod_info.pCode = vert_spv.data();
-        vkCreateShaderModule(_ctx->device, &mod_info, nullptr, &vert_module);
+        vkCreateShaderModule(_ctx->device(), &mod_info, nullptr, &vert_module);
 
         mod_info.codeSize = frag_spv.size() * sizeof(uint32_t);
         mod_info.pCode = frag_spv.data();
-        vkCreateShaderModule(_ctx->device, &mod_info, nullptr, &frag_module);
+        vkCreateShaderModule(_ctx->device(), &mod_info, nullptr, &frag_module);
 
         VkPushConstantRange push_range{ VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t) };
 
@@ -226,11 +234,11 @@ namespace carrot {
         layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         layout_info.pushConstantRangeCount = 1;
         layout_info.pPushConstantRanges = &push_range;
-        vkCreatePipelineLayout(_ctx->device, &layout_info, nullptr, &_pipeline_layout);
+        vkCreatePipelineLayout(_ctx->device(), &layout_info, nullptr, &_pipeline_layout);
 
         // ── Render Pass ─────────────────────────────────────────────
         VkAttachmentDescription color_att{ };
-        color_att.format = _ctx->swapchain_format;
+        color_att.format = _ctx->swapchain_format();
         color_att.samples = VK_SAMPLE_COUNT_1_BIT;
         color_att.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         color_att.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -252,10 +260,10 @@ namespace carrot {
         rp_info.pAttachments = &color_att;
         rp_info.subpassCount = 1;
         rp_info.pSubpasses = &subpass;
-        vkCreateRenderPass(_ctx->device, &rp_info, nullptr, &_render_pass);
+        vkCreateRenderPass(_ctx->device(), &rp_info, nullptr, &_render_pass);
 
         // Share the render pass with the debug overlay
-        carrot::rhi::vulkan_context_t::get()->render_pass = _render_pass;
+        vulkan_context_t::get()->set_render_pass(_render_pass);
 
         // ── Graphics Pipeline ───────────────────────────────────────
         VkPipelineShaderStageCreateInfo stages[2]{
@@ -320,20 +328,20 @@ namespace carrot {
         pipe_info.layout = _pipeline_layout;
         pipe_info.renderPass = _render_pass;
 
-        vkCreateGraphicsPipelines(_ctx->device, VK_NULL_HANDLE, 1, &pipe_info, nullptr, &_graphics_pipeline);
+        vkCreateGraphicsPipelines(_ctx->device(), VK_NULL_HANDLE, 1, &pipe_info, nullptr, &_graphics_pipeline);
 
-        vkDestroyShaderModule(_ctx->device, vert_module, nullptr);
-        vkDestroyShaderModule(_ctx->device, frag_module, nullptr);
+        vkDestroyShaderModule(_ctx->device(), vert_module, nullptr);
+        vkDestroyShaderModule(_ctx->device(), frag_module, nullptr);
     }
     void vulkan_renderer_t::destroy_pipeline()
     {
-        if (_graphics_pipeline) vkDestroyPipeline(_ctx->device, _graphics_pipeline, nullptr);
-        if (_pipeline_layout) vkDestroyPipelineLayout(_ctx->device, _pipeline_layout, nullptr);
-        if (_render_pass) vkDestroyRenderPass(_ctx->device, _render_pass, nullptr);
-        if (_ctx->command_pool)
+        if (_graphics_pipeline) vkDestroyPipeline(_ctx->device(), _graphics_pipeline, nullptr);
+        if (_pipeline_layout) vkDestroyPipelineLayout(_ctx->device(), _pipeline_layout, nullptr);
+        if (_render_pass) vkDestroyRenderPass(_ctx->device(), _render_pass, nullptr);
+        if (_command_pool)
         {
-            vkDestroyCommandPool(_ctx->device, _ctx->command_pool, nullptr);
-            _ctx->command_pool = VK_NULL_HANDLE;
+            vkDestroyCommandPool(_ctx->device(), _command_pool, nullptr);
+            _command_pool = VK_NULL_HANDLE;
         }
 
         _graphics_pipeline = VK_NULL_HANDLE;
@@ -342,42 +350,65 @@ namespace carrot {
     }
     void vulkan_renderer_t::recreate_swapchain_dependent_resources()
     {
-        vkDeviceWaitIdle(_ctx->device);
+        vkDeviceWaitIdle(_ctx->device());
 
         // Destroy old framebuffers
-        for (auto fb: _swapchain_framebuffers)
-            vkDestroyFramebuffer(_ctx->device, fb, nullptr);
+        for (const auto& fb: _swapchain_framebuffers)
+            vkDestroyFramebuffer(_ctx->device(), fb, nullptr);
         _swapchain_framebuffers.clear();
 
         // Create framebuffers
-        _swapchain_framebuffers.resize(_ctx->image_count);
-        for (uint32_t i = 0; i < _ctx->image_count; ++i)
+        _swapchain_framebuffers.resize(_ctx->image_count());
+        for (uint32_t i = 0; i < _ctx->image_count(); ++i)
         {
             VkFramebufferCreateInfo fb_info{ };
             fb_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
             fb_info.renderPass = _render_pass;
             fb_info.attachmentCount = 1;
-            fb_info.pAttachments = &_ctx->swapchain_views[i];
-            fb_info.width = _ctx->swapchain_extent.width;
-            fb_info.height = _ctx->swapchain_extent.height;
+            fb_info.pAttachments = &_ctx->swapchain_views()[i];
+            fb_info.width = _ctx->swapchain_extent().width;
+            fb_info.height = _ctx->swapchain_extent().height;
             fb_info.layers = 1;
-            vkCreateFramebuffer(_ctx->device, &fb_info, nullptr, &_swapchain_framebuffers[i]);
+
+            const VkResult result{ vkCreateFramebuffer(_ctx->device(), &fb_info, nullptr, &_swapchain_framebuffers[i]) };
+            // TODO: proper error checking
+            CE_ASSERT(result == VK_SUCCESS, "Failed to create framebuffer");
+        }
+
+        // Destroy old per-frame sync objects
+        for (auto& frame : _frames)
+        {
+            if (frame.image_available != VK_NULL_HANDLE) vkDestroySemaphore(_ctx->device(), frame.image_available, nullptr);
+            if (frame.render_finished != VK_NULL_HANDLE) vkDestroySemaphore(_ctx->device(), frame.render_finished, nullptr);
+            if (frame.in_flight != VK_NULL_HANDLE) vkDestroyFence(_ctx->device(), frame.in_flight, nullptr);
+
+            frame.image_available = VK_NULL_HANDLE;
+            frame.render_finished = VK_NULL_HANDLE;
+            frame.in_flight = VK_NULL_HANDLE;
         }
 
         // Only recreate command buffers — pool stays alive
-        _command_buffers.resize(k_max_frames_in_flight);
+        if (!_frames.empty())
+        {
+            vkFreeCommandBuffers(_ctx->device(), _command_pool, static_cast<uint32_t>(_frames.size()),
+                                 &_frames[0].command_buffer);
+        }
+
         VkCommandBufferAllocateInfo alloc_info{ };
         alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        alloc_info.commandPool = _ctx->command_pool; // ← use the shared one from context
+        alloc_info.commandPool = _command_pool; // ← use the shared one from context
         alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         alloc_info.commandBufferCount = k_max_frames_in_flight;
-        vkAllocateCommandBuffers(_ctx->device, &alloc_info, _command_buffers.data());
 
-        // Sync objects
-        _image_available_semaphores.resize(k_max_frames_in_flight);
-        _render_finished_semaphores.resize(k_max_frames_in_flight);
-        _in_flight_fences.resize(k_max_frames_in_flight);
+        std::array<VkCommandBuffer, k_max_frames_in_flight> cmd_buffers{};
+        vkAllocateCommandBuffers(_ctx->device(), &alloc_info, cmd_buffers.data());
 
+        for (uint32_t i{ 0 }; i < k_max_frames_in_flight; ++i)
+        {
+            _frames[i].command_buffer = cmd_buffers[i];
+        }
+
+        // Recreate sync objects
         VkSemaphoreCreateInfo sem_info{ };
         sem_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
@@ -385,44 +416,19 @@ namespace carrot {
         fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-        for (uint32_t i = 0; i < k_max_frames_in_flight; ++i)
+        for (auto& frame : _frames)
         {
-            vkCreateSemaphore(_ctx->device, &sem_info, nullptr, &_image_available_semaphores[i]);
-            vkCreateSemaphore(_ctx->device, &sem_info, nullptr, &_render_finished_semaphores[i]);
-            vkCreateFence(_ctx->device, &fence_info, nullptr, &_in_flight_fences[i]);
+            vkCreateSemaphore(_ctx->device(), &sem_info, nullptr, &frame.image_available);
+            vkCreateSemaphore(_ctx->device(), &sem_info, nullptr, &frame.render_finished);
+            vkCreateFence(_ctx->device(), &fence_info, nullptr, &frame.in_flight);
         }
     }
-
-    // Static members
-    rhi::vulkan_context_t* vulkan_renderer_t::_ctx{ nullptr };
-    VkPipeline vulkan_renderer_t::_graphics_pipeline{ VK_NULL_HANDLE };
-    VkPipelineLayout vulkan_renderer_t::_pipeline_layout{ VK_NULL_HANDLE };
-
-    VkRenderPass vulkan_renderer_t::_render_pass{ VK_NULL_HANDLE };
-
-    std::vector<VkFramebuffer> vulkan_renderer_t::_swapchain_framebuffers;
-
-    VkCommandPool vulkan_renderer_t::_command_pool{ VK_NULL_HANDLE };
-
-    std::vector<VkCommandBuffer> vulkan_renderer_t::_command_buffers;
-
-    std::vector<VkSemaphore> vulkan_renderer_t::_image_available_semaphores;
-
-    std::vector<VkSemaphore> vulkan_renderer_t::_render_finished_semaphores;
-
-    std::vector<VkFence> vulkan_renderer_t::_in_flight_fences;
-
-    uint32_t vulkan_renderer_t::_current_frame{ 0 };
-
-    uint32_t vulkan_renderer_t::_frame_counter{ 0 };
-
-    uint32_t vulkan_renderer_t::_current_image_index{ 0 };
-} // namespace carrot
+} // namespace carrot::rhi::vulkan
 
 namespace carrot::renderer {
     renderer_t* create_backend()
     {
-        static vulkan_renderer_t instance;
+        static rhi::vulkan::vulkan_renderer_t instance;
         return &instance;
     }
 }

@@ -56,6 +56,10 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Core/LogSink.cpp
         src/Engine/CarrotEngine.h
         src/Engine/Renderer/Renderer.h
+        src/Engine/RHI/Backends/Vulkan/VulkanCommon.h
+        src/Engine/RHI/Backends/Vulkan/VulkanCore.h
+        src/Engine/RHI/RHI.h
+        src/Engine/RHI/Device.h
 )
 
 add_library(CarrotEngine STATIC ${CARROT_ENGINE_SOURCES})

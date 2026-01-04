@@ -9,8 +9,6 @@
 #include "VulkanCommon.h"
 #include "VulkanCore.h"
 
-#include <vector>
-
 namespace carrot::rhi::vulkan {
     class vulkan_context_t;
 

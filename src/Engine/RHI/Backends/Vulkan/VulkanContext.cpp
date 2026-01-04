@@ -37,8 +37,6 @@ namespace carrot::rhi::vulkan {
         return ~0u;
     }
 
-    vulkan_context_t* vulkan_context_t::_context{ nullptr };
-
     void vulkan_context_t::init(VkInstance inst, VkSurfaceKHR surf)
     {
         _instance = inst;
@@ -68,17 +66,17 @@ namespace carrot::rhi::vulkan {
         device_info.enabledExtensionCount = 1;
         device_info.ppEnabledExtensionNames = device_ext;
 
-        vkCreateDevice(_physical_device, &device_info, nullptr, &_device);
+        vkCreateDevice(_physical_device, &device_info, nullptr, &_device.device);
         vkGetDeviceQueue(_device, _graphics_family, 0, &_graphics_queue);
         _present_queue = _graphics_queue;
 
-        VkCommandPoolCreateInfo transient_pool_info{};
+        VkCommandPoolCreateInfo transient_pool_info{ };
         transient_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         transient_pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT |
-                                    VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;  // optional but useful
+                                    VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; // optional but useful
         transient_pool_info.queueFamilyIndex = _graphics_family;
 
-        vkCreateCommandPool(_device, &transient_pool_info, nullptr, &_transient_command_pool);
+        vkCreateCommandPool(_device, &transient_pool_info, nullptr, &_transient_command_pool.pool);
 
         _context = this;
     }
@@ -108,13 +106,18 @@ namespace carrot::rhi::vulkan {
         info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
         info.presentMode = VK_PRESENT_MODE_FIFO_KHR;
         info.clipped = VK_TRUE;
-        info.oldSwapchain = VK_NULL_HANDLE;
+        info.oldSwapchain = _swapchain;
 
-        vkCreateSwapchainKHR(_device, &info, nullptr, &_swapchain);
+        VkSwapchainKHR new_swapchain;
+        vkCreateSwapchainKHR(_device, &info, nullptr, &new_swapchain);
+        _swapchain = swapchain_t{ _device, new_swapchain };
+
         vkGetSwapchainImagesKHR(_device, _swapchain, &img_count, nullptr);
-        _swapchain_images = new VkImage[img_count];
-        _swapchain_views = new VkImageView[img_count];
-        vkGetSwapchainImagesKHR(_device, _swapchain, &img_count, _swapchain_images);
+        _swapchain_images.resize(img_count);
+        vkGetSwapchainImagesKHR(_device, _swapchain, &img_count, _swapchain_images.data());
+
+        _swapchain_views = image_view_array_t{ _device };
+        _swapchain_views.resize(img_count);
 
         for (uint32_t i = 0; i < img_count; ++i)
         {
@@ -129,6 +132,7 @@ namespace carrot::rhi::vulkan {
             view_info.subresourceRange.layerCount = 1;
             vkCreateImageView(_device, &view_info, nullptr, &_swapchain_views[i]);
         }
+
         _image_count = img_count;
         _swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
     }
@@ -159,24 +163,17 @@ namespace carrot::rhi::vulkan {
 
     void vulkan_context_t::cleanup()
     {
-        for (uint32_t i = 0; i < _image_count; ++i)
-            vkDestroyImageView(_device, _swapchain_views[i], nullptr);
-        delete[] _swapchain_images;
-        delete[] _swapchain_views;
-        if (_swapchain) vkDestroySwapchainKHR(_device, _swapchain, nullptr);
-
-        if (_transient_command_pool)
-        {
-            vkDestroyCommandPool(_device, _transient_command_pool, nullptr);
-            _transient_command_pool = VK_NULL_HANDLE;
-        }
-
-        if (_device) vkDestroyDevice(_device, nullptr);
+        _swapchain_views.reset();
+        _swapchain_images.clear();
+        _swapchain = { };
+        _transient_command_pool = { };
+        _device = { };
 
         _context = nullptr;
     }
 
-    uint32_t vulkan_context_t::find_memory_type(const uint32_t type_filter, VkMemoryPropertyFlags properties) const noexcept
+    uint32_t vulkan_context_t::find_memory_type(const uint32_t type_filter,
+                                                VkMemoryPropertyFlags properties) const noexcept
     {
         VkPhysicalDeviceMemoryProperties mem_props;
         vkGetPhysicalDeviceMemoryProperties(_physical_device, &mem_props);
@@ -197,7 +194,7 @@ namespace carrot::rhi::vulkan {
         VkCommandBufferAllocateInfo alloc_info{ };
         alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
         alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        alloc_info.commandPool = _transient_command_pool;
+        alloc_info.commandPool = _transient_command_pool.pool;
         alloc_info.commandBufferCount = 1;
 
         VkCommandBuffer cmd;
@@ -223,6 +220,8 @@ namespace carrot::rhi::vulkan {
         vkQueueSubmit(_graphics_queue, 1, &submit, VK_NULL_HANDLE);
         vkQueueWaitIdle(_graphics_queue);
 
-        vkFreeCommandBuffers(_device, _transient_command_pool, 1, &cmd);
+        vkFreeCommandBuffers(_device, _transient_command_pool.pool, 1, &cmd);
     }
+
+    vulkan_context_t* vulkan_context_t::_context{ nullptr };
 } // namespace carrot::rhi::vulkan

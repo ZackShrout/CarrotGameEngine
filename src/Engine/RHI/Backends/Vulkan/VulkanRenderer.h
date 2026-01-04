@@ -47,5 +47,7 @@ namespace carrot::rhi::vulkan {
         uint32_t _current_frame{ 0 };
         uint32_t _frame_counter{ 0 };
         uint32_t _current_image_index{ 0 };
+
+        bool _needs_swapchain_recreate{ false };
     };
 } // namespace carrot::rhi::vulkan

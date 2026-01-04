@@ -46,7 +46,7 @@ namespace carrot::rhi::vulkan {
         inst_info.ppEnabledExtensionNames = instance_extensions;
 
         VkInstance instance{ VK_NULL_HANDLE };
-        vkCreateInstance(&inst_info, nullptr, &instance);
+        VK_CHECK_FATAL(vkCreateInstance(&inst_info, nullptr, &instance));
 
         // ── Surface from Wayland window ─────────────────────────────
         const auto& win = window::get_primary_window();
@@ -56,7 +56,7 @@ namespace carrot::rhi::vulkan {
         surf_info.surface = win.get_wl_surface();
 
         VkSurfaceKHR surface{ VK_NULL_HANDLE };
-        vkCreateWaylandSurfaceKHR(instance, &surf_info, nullptr, &surface);
+        VK_CHECK_FATAL(vkCreateWaylandSurfaceKHR(instance, &surf_info, nullptr, &surface));
 
         // ── Vulkan context (device, queues, swapchain) ───────────────
         _ctx->init(instance, surface);
@@ -71,7 +71,7 @@ namespace carrot::rhi::vulkan {
         pool_info.queueFamilyIndex = _ctx->graphics_family();
 
         VkCommandPool raw_pool{ VK_NULL_HANDLE };
-        vkCreateCommandPool(_ctx->device(), &pool_info, nullptr, &raw_pool);
+        VK_CHECK_FATAL(vkCreateCommandPool(_ctx->device(), &pool_info, nullptr, &raw_pool));
         _command_pool = command_pool_t{ _ctx->device(), raw_pool };
 
         recreate_swapchain_dependent_resources();
@@ -108,6 +108,17 @@ namespace carrot::rhi::vulkan {
     }
     void vulkan_renderer_t::begin_frame()
     {
+        if (_needs_swapchain_recreate)
+        {
+            recreate_swapchain_dependent_resources();
+            _needs_swapchain_recreate = false;
+            return;
+        }
+
+        // Note: we skip frame for now if framebuffer is invalid... at some point this
+        //       might instead trigger a full recreation of the frame instead.
+        if (_swapchain_framebuffers[_current_image_index] == VK_NULL_HANDLE) return;
+
         const frame_resources_t& frame{ _frames[_current_frame] };
 
         vkWaitForFences(_ctx->device(), 1, &frame.in_flight, VK_TRUE, ~0ULL);
@@ -115,17 +126,10 @@ namespace carrot::rhi::vulkan {
 
         uint32_t image_index{ 0 };
 
-        const VkResult result{
+        VK_CHECK_ACQUIRE(
             vkAcquireNextImageKHR(_ctx->device(), *_ctx->swapchain(), ~0ULL, frame.image_available, VK_NULL_HANDLE,
-                                  &image_index)
-        };
+                &image_index));
 
-        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
-        {
-            // TODO: proper resize handling later
-            recreate_swapchain_dependent_resources();
-            return;
-        }
         _current_image_index = image_index;
 
         vkResetCommandBuffer(frame.command_buffer, 0);
@@ -202,7 +206,13 @@ namespace carrot::rhi::vulkan {
         present.pSwapchains = _ctx->swapchain();
         present.pImageIndices = &_current_image_index; // set in begin_frame
 
-        vkQueuePresentKHR(_ctx->present_queue(), &present);
+        // ReSharper disable once CppTooWideScopeInitStatement
+        const VkResult result{ vkQueuePresentKHR(_ctx->present_queue(), &present) };
+
+        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
+            _needs_swapchain_recreate = true;
+        else if (result != VK_SUCCESS)
+            VK_CHECK_FATAL(result);
 
         ++_frame_counter;
         _current_frame = (_current_frame + 1) % k_max_frames_in_flight;
@@ -227,11 +237,17 @@ namespace carrot::rhi::vulkan {
         mod_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
         mod_info.codeSize = vert_spv.size() * sizeof(uint32_t);
         mod_info.pCode = vert_spv.data();
-        vkCreateShaderModule(_ctx->device(), &mod_info, nullptr, &vert_module);
+        VK_CHECK(vkCreateShaderModule(_ctx->device(), &mod_info, nullptr, &vert_module));
 
         mod_info.codeSize = frag_spv.size() * sizeof(uint32_t);
         mod_info.pCode = frag_spv.data();
-        vkCreateShaderModule(_ctx->device(), &mod_info, nullptr, &frag_module);
+        VK_CHECK(vkCreateShaderModule(_ctx->device(), &mod_info, nullptr, &frag_module));
+
+        if (vert_module == VK_NULL_HANDLE || frag_module == VK_NULL_HANDLE)
+        {
+            LOG_GRAPHICS_ERROR("Failed to create one or more shader modules – using fallback shader?");
+            // TODO: load a default pink/missing shader here later
+        }
 
         VkPushConstantRange push_range{ VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t) };
 
@@ -241,7 +257,7 @@ namespace carrot::rhi::vulkan {
         layout_info.pPushConstantRanges = &push_range;
 
         VkPipelineLayout raw_layout{ VK_NULL_HANDLE };
-        vkCreatePipelineLayout(_ctx->device(), &layout_info, nullptr, &raw_layout);
+        VK_CHECK_FATAL(vkCreatePipelineLayout(_ctx->device(), &layout_info, nullptr, &raw_layout));
         _pipeline_layout = pipeline_layout_t{ _ctx->device(), raw_layout };
 
         // ── Render Pass ─────────────────────────────────────────────
@@ -270,7 +286,7 @@ namespace carrot::rhi::vulkan {
         rp_info.pSubpasses = &subpass;
 
         VkRenderPass raw_rp{ VK_NULL_HANDLE };
-        vkCreateRenderPass(_ctx->device(), &rp_info, nullptr, &raw_rp);
+        VK_CHECK_FATAL(vkCreateRenderPass(_ctx->device(), &rp_info, nullptr, &raw_rp));
         _render_pass = render_pass_t{ _ctx->device(), raw_rp };
 
         // Share the render pass with the debug overlay
@@ -340,7 +356,7 @@ namespace carrot::rhi::vulkan {
         pipe_info.renderPass = _render_pass.pass;
 
         VkPipeline raw_pipe{ VK_NULL_HANDLE };
-        vkCreateGraphicsPipelines(_ctx->device(), VK_NULL_HANDLE, 1, &pipe_info, nullptr, &raw_pipe);
+        VK_CHECK_FATAL(vkCreateGraphicsPipelines(_ctx->device(), VK_NULL_HANDLE, 1, &pipe_info, nullptr, &raw_pipe));
         _graphics_pipeline = pipeline_t{ _ctx->device(), raw_pipe };
 
         vkDestroyShaderModule(_ctx->device(), vert_module, nullptr);
@@ -371,9 +387,15 @@ namespace carrot::rhi::vulkan {
             fb_info.height = _ctx->swapchain_extent().height;
             fb_info.layers = 1;
 
-            const VkResult result{ vkCreateFramebuffer(_ctx->device(), &fb_info, nullptr, &_swapchain_framebuffers[i]) };
-            // TODO: proper error checking
-            CE_ASSERT(result == VK_SUCCESS, "Failed to create framebuffer");
+            VkFramebuffer fb;
+            if (const VkResult result{ vkCreateFramebuffer(_ctx->device(), &fb_info, nullptr, &fb) }; result != VK_SUCCESS)
+            {
+                VK_CHECK(result); // logs error, continues
+                _swapchain_framebuffers[i] = VK_NULL_HANDLE;
+                continue;
+            }
+
+            _swapchain_framebuffers[i] = fb;
         }
 
         // Destroy old per-frame sync objects
@@ -402,7 +424,7 @@ namespace carrot::rhi::vulkan {
         alloc_info.commandBufferCount = k_max_frames_in_flight;
 
         std::array<VkCommandBuffer, k_max_frames_in_flight> cmd_buffers{};
-        vkAllocateCommandBuffers(_ctx->device(), &alloc_info, cmd_buffers.data());
+        VK_CHECK_FATAL(vkAllocateCommandBuffers(_ctx->device(), &alloc_info, cmd_buffers.data()));
 
         for (uint32_t i{ 0 }; i < k_max_frames_in_flight; ++i)
         {
@@ -417,11 +439,21 @@ namespace carrot::rhi::vulkan {
         fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
+        bool sync_ok{ true };
         for (auto& frame : _frames)
         {
-            vkCreateSemaphore(_ctx->device(), &sem_info, nullptr, &frame.image_available);
-            vkCreateSemaphore(_ctx->device(), &sem_info, nullptr, &frame.render_finished);
-            vkCreateFence(_ctx->device(), &fence_info, nullptr, &frame.in_flight);
+            if (vkCreateSemaphore(_ctx->device(), &sem_info, nullptr, &frame.image_available) != VK_SUCCESS)
+                sync_ok = false;
+            if (vkCreateSemaphore(_ctx->device(), &sem_info, nullptr, &frame.render_finished) != VK_SUCCESS)
+                sync_ok = false;
+            if (vkCreateFence(_ctx->device(), &fence_info, nullptr, &frame.in_flight) != VK_SUCCESS)
+                sync_ok = false;
+
+            if (!sync_ok)
+            {
+                LOG_GRAPHICS_ERROR("Failed to recreate some sync objects — rendering may stall");
+                // Optionally reduce frames-in-flight or trigger shutdown
+            }
         }
     }
 } // namespace carrot::rhi::vulkan

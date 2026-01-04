@@ -42,15 +42,27 @@ namespace carrot::rhi::vulkan {
         _instance = inst;
         _surface = surf;
 
+        // ── Physical Device Selection ─────────────────────────────────
         uint32_t device_count = 0;
-        vkEnumeratePhysicalDevices(_instance, &device_count, nullptr);
+        VK_CHECK_FATAL(vkEnumeratePhysicalDevices(_instance, &device_count, nullptr));
+
+        if (device_count == 0)
+            LOG_GRAPHICS_FATAL("No Vulkan-capable GPU found!");
+
         std::vector<VkPhysicalDevice> devices(device_count);
-        vkEnumeratePhysicalDevices(_instance, &device_count, devices.data());
+        VK_CHECK_FATAL(vkEnumeratePhysicalDevices(_instance, &device_count, devices.data()));
+        // TODO: In future, score and pick best GPU instead of [0]
         _physical_device = devices[0];
 
+        // ── Queue Families ────────────────────────────────────────────
         _graphics_family = find_queue_family(_physical_device, _surface, VK_QUEUE_GRAPHICS_BIT);
+
+        if (_graphics_family == ~0u)
+            LOG_GRAPHICS_FATAL("No graphics queue family found with present support!");
+
         _present_family = _graphics_family;
 
+        // ── Logical Device ────────────────────────────────────────────
         constexpr float priority{ 1.0f };
         VkDeviceQueueCreateInfo queue_info{ };
         queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -66,17 +78,18 @@ namespace carrot::rhi::vulkan {
         device_info.enabledExtensionCount = 1;
         device_info.ppEnabledExtensionNames = device_ext;
 
-        vkCreateDevice(_physical_device, &device_info, nullptr, &_device.device);
+        VK_CHECK_FATAL(vkCreateDevice(_physical_device, &device_info, nullptr, &_device.device));
         vkGetDeviceQueue(_device, _graphics_family, 0, &_graphics_queue);
         _present_queue = _graphics_queue;
 
+        // ── Transient Command Pool ────────────────────────────────────
         VkCommandPoolCreateInfo transient_pool_info{ };
         transient_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         transient_pool_info.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT |
                                     VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; // optional but useful
         transient_pool_info.queueFamilyIndex = _graphics_family;
 
-        vkCreateCommandPool(_device, &transient_pool_info, nullptr, &_transient_command_pool.pool);
+        VK_CHECK_FATAL(vkCreateCommandPool(_device, &transient_pool_info, nullptr, &_transient_command_pool.pool));
 
         _context = this;
     }
@@ -84,7 +97,7 @@ namespace carrot::rhi::vulkan {
     void vulkan_context_t::create_swapchain(const uint32_t width, const uint32_t height)
     {
         VkSurfaceCapabilitiesKHR caps{ };
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(_physical_device, _surface, &caps);
+        VK_CHECK_FATAL(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(_physical_device, _surface, &caps));
 
         _swapchain_extent = { width, height };
         if (caps.currentExtent.width != ~0u) _swapchain_extent = caps.currentExtent;
@@ -106,15 +119,15 @@ namespace carrot::rhi::vulkan {
         info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
         info.presentMode = VK_PRESENT_MODE_FIFO_KHR;
         info.clipped = VK_TRUE;
-        info.oldSwapchain = _swapchain;
+        info.oldSwapchain = _swapchain.swapchain;
 
         VkSwapchainKHR new_swapchain;
-        vkCreateSwapchainKHR(_device, &info, nullptr, &new_swapchain);
+        VK_CHECK_FATAL(vkCreateSwapchainKHR(_device, &info, nullptr, &new_swapchain));
         _swapchain = swapchain_t{ _device, new_swapchain };
 
-        vkGetSwapchainImagesKHR(_device, _swapchain, &img_count, nullptr);
+        VK_CHECK_FATAL(vkGetSwapchainImagesKHR(_device, _swapchain, &img_count, nullptr));
         _swapchain_images.resize(img_count);
-        vkGetSwapchainImagesKHR(_device, _swapchain, &img_count, _swapchain_images.data());
+        VK_CHECK_FATAL(vkGetSwapchainImagesKHR(_device, _swapchain, &img_count, _swapchain_images.data()));
 
         _swapchain_views = image_view_array_t{ _device };
         _swapchain_views.resize(img_count);
@@ -130,7 +143,19 @@ namespace carrot::rhi::vulkan {
             view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
             view_info.subresourceRange.levelCount = 1;
             view_info.subresourceRange.layerCount = 1;
-            vkCreateImageView(_device, &view_info, nullptr, &_swapchain_views[i]);
+
+            VkImageView view;
+            // ReSharper disable once CppTooWideScopeInitStatement
+            const VkResult result{ vkCreateImageView(_device, &view_info, nullptr, &view) };
+
+            if (result != VK_SUCCESS)
+            {
+                VK_CHECK(result);
+                _swapchain_views[i] = VK_NULL_HANDLE;
+                continue;
+            }
+
+            _swapchain_views[i] = view;
         }
 
         _image_count = img_count;
@@ -147,7 +172,7 @@ namespace carrot::rhi::vulkan {
         buffer_info.usage = usage;
         buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-        vkCreateBuffer(_device, &buffer_info, nullptr, &buffer);
+        VK_CHECK(vkCreateBuffer(_device, &buffer_info, nullptr, &buffer));
 
         VkMemoryRequirements mem_req;
         vkGetBufferMemoryRequirements(_device, buffer, &mem_req);
@@ -157,8 +182,8 @@ namespace carrot::rhi::vulkan {
         alloc_info.allocationSize = mem_req.size;
         alloc_info.memoryTypeIndex = find_memory_type(mem_req.memoryTypeBits, properties);
 
-        vkAllocateMemory(_device, &alloc_info, nullptr, &memory);
-        vkBindBufferMemory(_device, buffer, memory, 0);
+        VK_CHECK(vkAllocateMemory(_device, &alloc_info, nullptr, &memory));
+        VK_CHECK(vkBindBufferMemory(_device, buffer, memory, 0));
     }
 
     void vulkan_context_t::cleanup()
@@ -198,7 +223,14 @@ namespace carrot::rhi::vulkan {
         alloc_info.commandBufferCount = 1;
 
         VkCommandBuffer cmd;
-        vkAllocateCommandBuffers(_device, &alloc_info, &cmd);
+        // ReSharper disable once CppTooWideScopeInitStatement
+        const VkResult result{ vkAllocateCommandBuffers(_device, &alloc_info, &cmd) };
+
+        if (result != VK_SUCCESS)
+        {
+            VK_CHECK(result);
+            return VK_NULL_HANDLE;
+        }
 
         VkCommandBufferBeginInfo begin_info{ };
         begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -217,7 +249,7 @@ namespace carrot::rhi::vulkan {
         submit.commandBufferCount = 1;
         submit.pCommandBuffers = &cmd;
 
-        vkQueueSubmit(_graphics_queue, 1, &submit, VK_NULL_HANDLE);
+        VK_CHECK_FATAL(vkQueueSubmit(_graphics_queue, 1, &submit, VK_NULL_HANDLE));
         vkQueueWaitIdle(_graphics_queue);
 
         vkFreeCommandBuffers(_device, _transient_command_pool.pool, 1, &cmd);

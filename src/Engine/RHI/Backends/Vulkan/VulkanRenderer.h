@@ -38,13 +38,12 @@ namespace carrot::rhi::vulkan {
 
         vulkan_context_t* _ctx{ nullptr };
 
-        VkPipeline _graphics_pipeline{ VK_NULL_HANDLE };
-        VkPipelineLayout _pipeline_layout{ VK_NULL_HANDLE };
-        VkRenderPass _render_pass{ VK_NULL_HANDLE };
+        pipeline_t _graphics_pipeline;
+        pipeline_layout_t _pipeline_layout;
+        render_pass_t _render_pass;
+        command_pool_t _command_pool;
 
-        VkCommandPool _command_pool{ VK_NULL_HANDLE };
-
-        std::vector<VkFramebuffer> _swapchain_framebuffers;
+        framebuffer_array_t _swapchain_framebuffers;
         frame_data_t _frames;
 
         uint32_t _current_frame{ 0 };

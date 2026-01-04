@@ -38,7 +38,7 @@ namespace carrot::rhi::vulkan {
         [[nodiscard]] VkFormat swapchain_format() const noexcept { return _swapchain_format; }
         [[nodiscard]] VkExtent2D swapchain_extent() const noexcept { return _swapchain_extent; }
         [[nodiscard]] uint32_t image_count() const noexcept { return _image_count; }
-        [[nodiscard]] VkImageView* swapchain_views() noexcept { return _swapchain_views; }
+        [[nodiscard]] VkImageView* swapchain_views() const noexcept { return _swapchain_views; }
 
     private:
         VkInstance          _instance{ VK_NULL_HANDLE };
@@ -55,7 +55,6 @@ namespace carrot::rhi::vulkan {
         VkFormat            _swapchain_format{ };
         VkExtent2D          _swapchain_extent{ };
         uint32_t            _image_count{ 0 };
-        uint32_t            _frame_count{ 0 };
         VkImage*            _swapchain_images{ nullptr };
         VkImageView*        _swapchain_views{ nullptr };
 

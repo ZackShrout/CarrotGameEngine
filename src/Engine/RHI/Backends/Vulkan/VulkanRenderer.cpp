@@ -69,7 +69,10 @@ namespace carrot::rhi::vulkan {
         pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
         pool_info.queueFamilyIndex = _ctx->graphics_family();
-        vkCreateCommandPool(_ctx->device(), &pool_info, nullptr, &_command_pool);
+
+        VkCommandPool raw_pool{ VK_NULL_HANDLE };
+        vkCreateCommandPool(_ctx->device(), &pool_info, nullptr, &raw_pool);
+        _command_pool = command_pool_t{ _ctx->device(), raw_pool };
 
         recreate_swapchain_dependent_resources();
     }
@@ -84,7 +87,9 @@ namespace carrot::rhi::vulkan {
             vkDestroyFramebuffer(_ctx->device(), fb, nullptr);
         _swapchain_framebuffers.clear();
 
-        vkDestroyCommandPool(_ctx->device(), _command_pool, nullptr);
+        vkDestroyCommandPool(_ctx->device(), _command_pool.pool, nullptr);
+
+        _command_pool = {};
 
         for (const auto& frame : _frames)
         {
@@ -133,7 +138,7 @@ namespace carrot::rhi::vulkan {
 
         VkRenderPassBeginInfo rp_begin{ };
         rp_begin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        rp_begin.renderPass = _render_pass;
+        rp_begin.renderPass = _render_pass.pass;
         rp_begin.framebuffer = _swapchain_framebuffers[image_index];
         rp_begin.renderArea.extent = _ctx->swapchain_extent();
         rp_begin.clearValueCount = 1;
@@ -141,7 +146,7 @@ namespace carrot::rhi::vulkan {
 
         vkCmdBeginRenderPass(frame.command_buffer, &rp_begin, VK_SUBPASS_CONTENTS_INLINE);
 
-        vkCmdBindPipeline(frame.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphics_pipeline);
+        vkCmdBindPipeline(frame.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphics_pipeline.pipeline);
 
         const VkViewport viewport{
             0.f, 0.f,
@@ -153,7 +158,7 @@ namespace carrot::rhi::vulkan {
         const VkRect2D scissor{ { 0, 0 }, _ctx->swapchain_extent() };
         vkCmdSetScissor(frame.command_buffer, 0, 1, &scissor);
 
-        vkCmdPushConstants(frame.command_buffer, _pipeline_layout,
+        vkCmdPushConstants(frame.command_buffer, _pipeline_layout.layout,
                            VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(uint32_t), &_frame_counter);
     }
     void vulkan_renderer_t::render_frame()
@@ -234,7 +239,10 @@ namespace carrot::rhi::vulkan {
         layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         layout_info.pushConstantRangeCount = 1;
         layout_info.pPushConstantRanges = &push_range;
-        vkCreatePipelineLayout(_ctx->device(), &layout_info, nullptr, &_pipeline_layout);
+
+        VkPipelineLayout raw_layout{ VK_NULL_HANDLE };
+        vkCreatePipelineLayout(_ctx->device(), &layout_info, nullptr, &raw_layout);
+        _pipeline_layout = pipeline_layout_t{ _ctx->device(), raw_layout };
 
         // ── Render Pass ─────────────────────────────────────────────
         VkAttachmentDescription color_att{ };
@@ -260,10 +268,13 @@ namespace carrot::rhi::vulkan {
         rp_info.pAttachments = &color_att;
         rp_info.subpassCount = 1;
         rp_info.pSubpasses = &subpass;
-        vkCreateRenderPass(_ctx->device(), &rp_info, nullptr, &_render_pass);
+
+        VkRenderPass raw_rp{ VK_NULL_HANDLE };
+        vkCreateRenderPass(_ctx->device(), &rp_info, nullptr, &raw_rp);
+        _render_pass = render_pass_t{ _ctx->device(), raw_rp };
 
         // Share the render pass with the debug overlay
-        vulkan_context_t::get()->set_render_pass(_render_pass);
+        vulkan_context_t::get()->set_render_pass(_render_pass.pass);
 
         // ── Graphics Pipeline ───────────────────────────────────────
         VkPipelineShaderStageCreateInfo stages[2]{
@@ -325,45 +336,35 @@ namespace carrot::rhi::vulkan {
         pipe_info.pMultisampleState = &ms;
         pipe_info.pColorBlendState = &cb;
         pipe_info.pDynamicState = &dyn;
-        pipe_info.layout = _pipeline_layout;
-        pipe_info.renderPass = _render_pass;
+        pipe_info.layout = _pipeline_layout.layout;
+        pipe_info.renderPass = _render_pass.pass;
 
-        vkCreateGraphicsPipelines(_ctx->device(), VK_NULL_HANDLE, 1, &pipe_info, nullptr, &_graphics_pipeline);
+        VkPipeline raw_pipe{ VK_NULL_HANDLE };
+        vkCreateGraphicsPipelines(_ctx->device(), VK_NULL_HANDLE, 1, &pipe_info, nullptr, &raw_pipe);
+        _graphics_pipeline = pipeline_t{ _ctx->device(), raw_pipe };
 
         vkDestroyShaderModule(_ctx->device(), vert_module, nullptr);
         vkDestroyShaderModule(_ctx->device(), frag_module, nullptr);
     }
     void vulkan_renderer_t::destroy_pipeline()
     {
-        if (_graphics_pipeline) vkDestroyPipeline(_ctx->device(), _graphics_pipeline, nullptr);
-        if (_pipeline_layout) vkDestroyPipelineLayout(_ctx->device(), _pipeline_layout, nullptr);
-        if (_render_pass) vkDestroyRenderPass(_ctx->device(), _render_pass, nullptr);
-        if (_command_pool)
-        {
-            vkDestroyCommandPool(_ctx->device(), _command_pool, nullptr);
-            _command_pool = VK_NULL_HANDLE;
-        }
-
-        _graphics_pipeline = VK_NULL_HANDLE;
-        _pipeline_layout = VK_NULL_HANDLE;
-        _render_pass = VK_NULL_HANDLE;
+        _graphics_pipeline = {};
+        _pipeline_layout = {};
+        _render_pass = {};
     }
     void vulkan_renderer_t::recreate_swapchain_dependent_resources()
     {
         vkDeviceWaitIdle(_ctx->device());
 
-        // Destroy old framebuffers
-        for (const auto& fb: _swapchain_framebuffers)
-            vkDestroyFramebuffer(_ctx->device(), fb, nullptr);
-        _swapchain_framebuffers.clear();
-
-        // Create framebuffers
+        // Framebuffers: auto-cleaned by RAII destructor
+        _swapchain_framebuffers = framebuffer_array_t{ _ctx->device() };
         _swapchain_framebuffers.resize(_ctx->image_count());
+
         for (uint32_t i = 0; i < _ctx->image_count(); ++i)
         {
             VkFramebufferCreateInfo fb_info{ };
             fb_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-            fb_info.renderPass = _render_pass;
+            fb_info.renderPass = _render_pass.pass;
             fb_info.attachmentCount = 1;
             fb_info.pAttachments = &_ctx->swapchain_views()[i];
             fb_info.width = _ctx->swapchain_extent().width;
@@ -390,13 +391,13 @@ namespace carrot::rhi::vulkan {
         // Only recreate command buffers — pool stays alive
         if (!_frames.empty())
         {
-            vkFreeCommandBuffers(_ctx->device(), _command_pool, static_cast<uint32_t>(_frames.size()),
+            vkFreeCommandBuffers(_ctx->device(), _command_pool.pool, static_cast<uint32_t>(_frames.size()),
                                  &_frames[0].command_buffer);
         }
 
         VkCommandBufferAllocateInfo alloc_info{ };
         alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        alloc_info.commandPool = _command_pool; // ← use the shared one from context
+        alloc_info.commandPool = _command_pool.pool;
         alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         alloc_info.commandBufferCount = k_max_frames_in_flight;
 

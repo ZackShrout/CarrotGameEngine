@@ -9,6 +9,10 @@
 #include "Renderer/Renderer.h"
 
 namespace carrot {
+    namespace rhi {
+        class rhi_context_t;
+    }
+
     namespace core {
         class ce_application_t;
     }
@@ -32,9 +36,11 @@ namespace carrot {
     private:
         void tick();
 
-        bool                    _should_quit{ false };
-        float                   _delta_time{ 0.f };
-        uint32_t                _current_fps{ 0 };
-        renderer::renderer_t*   _renderer{ nullptr };
+        bool                                _should_quit{ false };
+        float                               _delta_time{ 0.f };
+        uint32_t                            _current_fps{ 0 };
+        renderer::renderer_t*               _renderer{ nullptr };
+
+        std::unique_ptr<rhi::rhi_context_t> _rhi_context;
     };
 } // namespace carrot

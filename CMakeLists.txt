@@ -60,6 +60,17 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/RHI/Backends/Vulkan/VulkanCore.h
         src/Engine/RHI/RHI.h
         src/Engine/RHI/Device.h
+        src/Engine/RHI/Swapchain.h
+        src/Engine/RHI/CommandQueue.h
+        src/Engine/RHI/CommandList.h
+        src/Engine/RHI/Buffer.h
+        src/Engine/RHI/Texture.h
+        src/Engine/RHI/Pipeline.h
+        src/Engine/RHI/Fence.h
+        src/Engine/RHI/Semaphore.h
+        src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.h
+        src/Engine/RHI/RHI.cpp
 )
 
 add_library(CarrotEngine STATIC ${CARROT_ENGINE_SOURCES})

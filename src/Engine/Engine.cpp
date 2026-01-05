@@ -11,6 +11,7 @@
 #include "Utils/MulticastDelegate.h"
 #include "Window/Window.h"
 #include "Core/Application.h"
+#include "RHI/RHI.h"
 
 namespace carrot {
     namespace {
@@ -28,14 +29,30 @@ namespace carrot {
         core::logger_t::init();
         window::create_primary_window(1280, 720, "Carrot Engine – Month 1");
 
+        // OLD WAY — keep for now
         _renderer = renderer::create_backend();
         _renderer->init();
 
-        hot_reload::shader_watcher_t::init([this]([[maybe_unused]] const std::string& spv_path) {
-                _renderer->reload_pipeline();
-            });
+        // NEW: Create RHI context using the already-initialized renderer
+        rhi::rhi_desc_t desc{};
+        desc.api = rhi::graphics_api::vulkan;
+        desc.window_handle = nullptr; // we'll pass proper handle later
+        desc.width = 1280;
+        desc.height = 720;
+        desc.existing_renderer = _renderer; // Pass the one we just init'd
+        _rhi_context = rhi::create_rhi_context(desc);
 
-        LOG_CORE_INFO("Carrot Engine Initialized");
+        if (!_rhi_context)
+        {
+            LOG_CORE_FATAL("Failed to create RHI context!");
+            std::abort();
+        }
+
+        hot_reload::shader_watcher_t::init([this]([[maybe_unused]] const std::string& spv_path) {
+            _renderer->reload_pipeline();
+        });
+
+        LOG_CORE_INFO("Carrot Engine Initialized (Hybrid RHI Mode)");
     }
 
     engine_t::~engine_t()
@@ -43,6 +60,7 @@ namespace carrot {
         LOG_CORE_INFO("Shutting down...");
 
         hot_reload::shader_watcher_t::shutdown();
+        _rhi_context.reset();
         _renderer->shutdown();
         window::destroy_primary_window();
         core::logger_t::shutdown();

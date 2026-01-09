@@ -6,9 +6,9 @@
 #pragma once
 
 namespace carrot::rhi {
-    class semaphore_t
+    class rhi_semaphore_t
     {
     public:
-        virtual ~semaphore_t() = default;
+        virtual ~rhi_semaphore_t() = default;
     };
 } // namespace carrot::rhi

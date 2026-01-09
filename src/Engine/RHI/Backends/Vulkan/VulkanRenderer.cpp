@@ -108,6 +108,8 @@ namespace carrot::rhi::vulkan {
     }
     void vulkan_renderer_t::begin_frame()
     {
+        CE_ASSERT(_ctx->device() != VK_NULL_HANDLE, "Device was destroyed prematurely!");
+
         if (_needs_swapchain_recreate)
         {
             recreate_swapchain_dependent_resources();

@@ -8,6 +8,7 @@
 #include "Common/CommonHeaders.h"
 
 #include <vulkan/vulkan.h>
+#include <chlm/CarrotHLM.h>
 
 namespace carrot::rhi::vulkan {
     inline const char* result_to_string(const VkResult result)

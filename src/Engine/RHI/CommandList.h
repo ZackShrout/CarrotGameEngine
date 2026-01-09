@@ -6,10 +6,10 @@
 #pragma once
 
 namespace carrot::rhi {
-    class command_list_t
+    class rhi_command_list_t
     {
     public:
-        virtual ~command_list_t() = default;
+        virtual ~rhi_command_list_t() = default;
 
         virtual void reset() = 0;
         virtual void begin_recording() = 0;

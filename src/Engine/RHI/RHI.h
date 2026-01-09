@@ -12,9 +12,9 @@ namespace carrot::renderer {
 }
 
 namespace carrot::rhi {
-    class command_queue_t;
-    class swapchain_t;
-    class device_t;
+    class rhi_command_queue_t;
+    class rhi_swapchain_t;
+    class rhi_device_t;
 
     enum class graphics_api { vulkan, direct_x12, metal, count };
 
@@ -35,9 +35,9 @@ namespace carrot::rhi {
     public:
         virtual ~rhi_context_t() = default;
 
-        [[nodiscard]] virtual device_t* get_device() const noexcept = 0;
-        [[nodiscard]] virtual swapchain_t* get_swapchain() const noexcept = 0;
-        [[nodiscard]] virtual command_queue_t* get_command_queue() const noexcept = 0;
+        [[nodiscard]] virtual rhi_device_t* get_device() const noexcept = 0;
+        [[nodiscard]] virtual rhi_swapchain_t* get_swapchain() const noexcept = 0;
+        [[nodiscard]] virtual rhi_command_queue_t* get_command_queue() const noexcept = 0;
 
         virtual void wait_idle() = 0;
     };

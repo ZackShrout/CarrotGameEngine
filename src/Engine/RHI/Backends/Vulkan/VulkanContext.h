@@ -41,6 +41,9 @@ namespace carrot::rhi::vulkan {
         [[nodiscard]] uint32_t image_count() const noexcept { return _image_count; }
         [[nodiscard]] VkImageView* swapchain_views() noexcept { return _swapchain_views.data(); }
 
+        [[nodiscard]] device_t& get_device() noexcept { return _device; }
+        [[nodiscard]] VkPhysicalDevice physical_device() const noexcept { return _physical_device; }
+
     private:
         VkInstance              _instance{ VK_NULL_HANDLE };
         VkPhysicalDevice        _physical_device{ VK_NULL_HANDLE };

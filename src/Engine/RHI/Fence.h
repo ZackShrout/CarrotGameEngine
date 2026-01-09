@@ -8,10 +8,10 @@
 #include <cstdint>
 
 namespace carrot::rhi {
-    class fence_t
+    class rhi_fence_t
     {
     public:
-        virtual ~fence_t() = default;
+        virtual ~rhi_fence_t() = default;
         virtual void wait(uint64_t timeout_ns = ~0ULL) = 0;
         virtual void reset() = 0;
     };

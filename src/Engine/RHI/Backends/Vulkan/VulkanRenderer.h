@@ -29,6 +29,8 @@ namespace carrot::rhi::vulkan {
             return _frames[_current_frame].command_buffer;
         }
 
+        [[nodiscard]] vulkan_context_t* get_context() const noexcept { return _ctx; }
+
     private:
         void create_pipeline();
         void destroy_pipeline();

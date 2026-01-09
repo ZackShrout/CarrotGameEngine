@@ -71,6 +71,12 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.cpp
         src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.h
         src/Engine/RHI/RHI.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanDevice.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanDevice.h
+        src/Engine/RHI/Backends/Vulkan/VulkanSwapchain.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanSwapchain.h
+        src/Engine/RHI/Backends/Vulkan/VulkanCommandQueue.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanCommandQueue.h
 )
 
 add_library(CarrotEngine STATIC ${CARROT_ENGINE_SOURCES})
@@ -109,6 +115,12 @@ target_include_directories(CarrotEngine SYSTEM PRIVATE
         deps/metal-cpp
         deps/metal-cpp-extensions
 )
+
+# ------------------------------------------------------------------------
+# Libraries & Third Party Deps
+# ------------------------------------------------------------------------
+add_subdirectory(deps/CarrotHLM)
+target_link_libraries(CarrotEngine PUBLIC CarrotHLM::CarrotHLM)
 
 # ------------------------------------------------------------------------
 # Warnings & sanitizers

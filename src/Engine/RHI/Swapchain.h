@@ -8,27 +8,28 @@
 #include <cstdint>
 
 namespace carrot::rhi {
-    class texture_t;
-    class semaphore_t;
+    class rhi_texture_t;
+    class rhi_semaphore_t;
 
-    class swapchain_t
+    class rhi_swapchain_t
     {
-        virtual ~swapchain_t() = default;
+    public:
+        virtual ~rhi_swapchain_t() = default;
 
         // Called when window is resized
         virtual void resize(uint32_t width, uint32_t height) = 0;
 
         // Acquire next backbuffer image
-        virtual uint32_t acquire_next_image(semaphore_t* signal_semaphore) = 0;
+        virtual uint32_t acquire_next_image(rhi_semaphore_t* signal_semaphore) = 0;
 
         // Present the current image
-        virtual void present(semaphore_t* wait_semaphore) = 0;
+        virtual void present(rhi_semaphore_t* wait_semaphore) = 0;
 
-        [[nodiscard]] virtual texture_t*    get_current_backbuffer() const = 0;
-        [[nodiscard]] virtual uint32_t      get_current_image_index() const = 0;
-        [[nodiscard]] virtual uint32_t      get_image_count() const = 0;
-        [[nodiscard]] virtual uint32_t      get_width() const = 0;
-        [[nodiscard]] virtual uint32_t      get_height() const = 0;
-        // [[nodiscard]] virtual format        get_format() const = 0;
+        [[nodiscard]] virtual rhi_texture_t*    get_current_backbuffer() const = 0;
+        [[nodiscard]] virtual uint32_t          get_current_image_index() const = 0;
+        [[nodiscard]] virtual uint32_t          get_image_count() const = 0;
+        [[nodiscard]] virtual uint32_t          get_width() const = 0;
+        [[nodiscard]] virtual uint32_t          get_height() const = 0;
+        // [[nodiscard]] virtual format            get_format() const = 0;
     };
 } // namespace carrot::rhi

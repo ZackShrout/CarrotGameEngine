@@ -8,18 +8,19 @@
 #include <cstdint>
 
 namespace carrot::rhi {
-    class command_list_t;
-    class fence_t;
-    class semaphore_t;
+    class rhi_command_list_t;
+    class rhi_fence_t;
+    class rhi_semaphore_t;
 
     enum class queue_type : std::uint8_t { graphics, compute, transfer };
 
-    class command_queue_t
+    class rhi_command_queue_t
     {
-        virtual ~command_queue_t() = default;
+    public:
+        virtual ~rhi_command_queue_t() = default;
 
-        virtual void submit(command_list_t* cmd_list, fence_t* fence_to_signal = nullptr,
-                            semaphore_t* wait_semaphore = nullptr, semaphore_t* signal_semaphore = nullptr) = 0;
+        virtual void submit(rhi_command_list_t* cmd_list, rhi_fence_t* fence_to_signal = nullptr,
+                            rhi_semaphore_t* wait_semaphore = nullptr, rhi_semaphore_t* signal_semaphore = nullptr) = 0;
 
         virtual void wait_idle() = 0;
     };

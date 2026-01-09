@@ -36,7 +36,7 @@ namespace carrot::rhi {
             return nullptr;
         }
 
-        return std::make_unique<vulkan_rhi_context_t>(renderer);
+        return std::make_unique<vulkan::vulkan_rhi_context_t>(renderer);
     }
 
 } // namespace carrot::rhi

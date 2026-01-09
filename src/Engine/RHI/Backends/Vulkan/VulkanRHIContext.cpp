@@ -5,45 +5,27 @@
 
 #include "VulkanRHIContext.h"
 
-#include "RHI/Device.h"
-#include "RHI/Swapchain.h"
-#include "RHI/CommandQueue.h"
-
-namespace carrot::rhi {
+namespace carrot::rhi::vulkan {
 
     vulkan_rhi_context_t::vulkan_rhi_context_t(vulkan::vulkan_renderer_t* existing_renderer)
         : _legacy_renderer(existing_renderer)
     {
-        // For now, we just hold the pointer. Real implementations coming soon.
+        // Extract from legacy
+        vulkan_context_t* ctx{ existing_renderer->get_context() };
+
+        _device = std::make_unique<vulkan_device_t>(ctx);
+
+        // We'll create swapchain next step
+        // _swapchain = std::make_unique<VulkanSwapchain>(_device.get(), ...);
+
+        _graphics_queue = std::make_unique<vulkan_command_queue_t>(ctx->graphics_queue(), ctx->graphics_family());
     }
 
     vulkan_rhi_context_t::~vulkan_rhi_context_t() = default;
 
-    device_t* vulkan_rhi_context_t::get_device() const noexcept
-    {
-        return nullptr;
-        // return _device.get();  // nullptr for now
-    }
-
-    swapchain_t* vulkan_rhi_context_t::get_swapchain() const noexcept
-    {
-        return nullptr;
-        // return _swapchain.get();  // nullptr
-    }
-
-    command_queue_t* vulkan_rhi_context_t::get_command_queue() const noexcept
-    {
-        return nullptr;
-        // return _graphics_queue.get();  // nullptr
-    }
-
     void vulkan_rhi_context_t::wait_idle()
     {
-        // if (_legacy_renderer)
-        // {
-        //     // Forward to existing Vulkan device wait
-        //     vkDeviceWaitIdle(_legacy_renderer->_ctx->device());
-        // }
+        if (_graphics_queue) _graphics_queue->wait_idle();
     }
 
-} // namespace carrot::rhi
+} // namespace carrot::rhi::vulkan

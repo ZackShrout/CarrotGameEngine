@@ -1,10 +1,12 @@
 //
 // Created by zshrout on 1/4/26.
-// Copyright (c) 2026 BunnySofty. All rights reserved.
+// Copyright (c) 2026 BunnySoft. All rights reserved.
 //
 
 #pragma once
 
+#include "VulkanCommon.h"
+#include "VulkanCore.h"
 #include "VulkanDevice.h"
 #include "VulkanSwapchain.h"
 #include "VulkanCommandQueue.h"
@@ -24,14 +26,17 @@ namespace carrot::rhi::vulkan {
         void record_frame() override;
         void end_frame() override;
 
-        [[nodiscard]] rhi_device_t*         get_device() const noexcept override { return _device.get(); }
-        [[nodiscard]] rhi_swapchain_t*      get_swapchain() const noexcept override { return _swapchain.get();}
-        [[nodiscard]] rhi_command_queue_t*  get_command_queue() const noexcept override { return _graphics_queue.get(); }
+        void resize(uint32_t width, uint32_t height) override;
+
+        [[nodiscard]] rhi_device_t* get_device() const noexcept override { return _device.get(); }
+        [[nodiscard]] rhi_swapchain_t* get_swapchain() const noexcept override { return _swapchain.get();}
+        [[nodiscard]] rhi_command_queue_t* get_command_queue() const noexcept override { return _graphics_queue.get(); }
 
         void wait_idle() override;
 
     private:
         void init(const rhi_desc_t& desc);
+        void recreate_swapchain_dependent_resources();
 
         VkInstance                                              _vk_instance{ VK_NULL_HANDLE };
         VkSurfaceKHR                                            _vk_surface{ VK_NULL_HANDLE };
@@ -43,6 +48,7 @@ namespace carrot::rhi::vulkan {
         std::unique_ptr<vulkan_pipeline_t>                      _graphics_pipeline;
         framebuffer_array_t                                     _framebuffers;
         std::array<frame_resources_t, k_max_frames_in_flight>   _frames;
+        uint32_t                                                _frame_counter{ 0 };
         uint32_t                                                _current_frame{ 0 };
         uint32_t                                                _current_image_index{ 0 };
     };

@@ -76,24 +76,12 @@ namespace carrot::rhi::vulkan {
         input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
         input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 
-        VkViewport viewport{ };
-        viewport.x = 0.0f;
-        viewport.y = 0.0f;
-        viewport.width = 1280.0f; // will be dynamic later
-        viewport.height = 720.0f;
-        viewport.minDepth = 0.0f;
-        viewport.maxDepth = 1.0f;
-
-        VkRect2D scissor{ };
-        scissor.offset = { 0, 0 };
-        scissor.extent = { 1280, 720 }; // dynamic later
-
         VkPipelineViewportStateCreateInfo viewport_state{ };
         viewport_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
         viewport_state.viewportCount = 1;
-        viewport_state.pViewports = &viewport;
+        viewport_state.pViewports = nullptr;
         viewport_state.scissorCount = 1;
-        viewport_state.pScissors = &scissor;
+        viewport_state.pScissors = nullptr;
 
         VkPipelineRasterizationStateCreateInfo rasterizer{ };
         rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;

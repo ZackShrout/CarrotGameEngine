@@ -1,6 +1,6 @@
 //
 // Created by zshrout on 11/27/25.
-// Copyright (c) 2025 BunnySofty. All rights reserved.
+// Copyright (c) 2025 BunnySoft. All rights reserved.
 //
 
 #include "Engine.h"
@@ -125,5 +125,17 @@ namespace carrot {
         // debug::text(20.f, 65.f, "Frame: %.3f ms", _delta_time * 1000.f);
 
         _on_tick.broadcast(_delta_time);
+
+        // Resize test
+        // static float seconds_counter{ 0.0f };
+        // static int seconds{ 0 };
+        // static bool resized{ false };
+        // seconds_counter += _delta_time;
+        //
+        // if (seconds_counter >= 6.0f && !resized)
+        // {
+        //     _rhi_context->resize(800, 600);
+        //     resized = true;
+        // }
     }
 } // namespace carrot

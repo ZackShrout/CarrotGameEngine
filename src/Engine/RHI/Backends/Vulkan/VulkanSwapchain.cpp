@@ -1,9 +1,11 @@
 //
 // Created by zshrout on 1/4/26.
-// Copyright (c) 2026 BunnySofty. All rights reserved.
+// Copyright (c) 2026 BunnySoft. All rights reserved.
 //
 
 #include "VulkanSwapchain.h"
+
+#include "VulkanDevice.h"
 
 namespace carrot::rhi::vulkan {
     vulkan_swapchain_t::vulkan_swapchain_t(vulkan_device_t* device, VkSurfaceKHR surface,
@@ -21,7 +23,75 @@ namespace carrot::rhi::vulkan {
         _swapchain = { };
     }
 
-    void vulkan_swapchain_t::resize(uint32_t width, uint32_t height) {}
+    void vulkan_swapchain_t::resize(uint32_t width, uint32_t height)
+    {
+        // Prevent invalid/zero size (common during minimize)
+        if (width == 0 || height == 0)
+        {
+            LOG_GRAPHICS_WARN("Resize to zero size ignored (window minimized?)");
+            return;
+        }
+
+        // Wait for GPU to finish using the current swapchain
+        vkDeviceWaitIdle(_device->vk_device());
+
+        // Store old swapchain handle for handover
+        VkSwapchainKHR old_swapchain{ _swapchain.swapchain };
+
+        // Clean up current resources (views, but not the swapchain itself yet)
+        _image_views.reset();
+        _images.clear();
+
+        // Re-create the swapchain (pass the old one for efficient handover)
+        create_or_recreate(old_swapchain, width, height);
+
+        // If you have framebuffers stored in the swapchain class, recreate them here too
+        // (most engines keep framebuffers in the renderer/context, so you may skip this)
+        // _framebuffers = create_framebuffers(_render_pass);  // if you moved them here
+
+        LOG_GRAPHICS_INFO("Swapchain resized to {}x{}", width, height);
+    }
+
+    void vulkan_swapchain_t::recreate()
+    {
+        // Safety wait
+        vkDeviceWaitIdle(_device->vk_device());
+
+        // Query current surface capabilities (compositor tells us the truth)
+        VkSurfaceCapabilitiesKHR caps{ };
+        VK_CHECK_FATAL(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+            _device->physical_device(),
+            _surface,
+            &caps
+        ));
+
+        uint32_t width{ 0 };
+        uint32_t height{ 0 };
+
+        if (caps.currentExtent.width != UINT32_MAX && caps.currentExtent.width != 0)
+        {
+            width = caps.currentExtent.width;
+            height = caps.currentExtent.height;
+            LOG_GRAPHICS_INFO("Using compositor-provided extent for recreation: {}x{}", width, height);
+        }
+        else
+        {
+            // Very rare fallback — compositor allows us to choose
+            // Use current extent if we have one, or a safe default
+            width = _extent.width ? _extent.width : 1280;
+            height = _extent.height ? _extent.height : 720;
+            LOG_GRAPHICS_WARN("No currentExtent from compositor — using fallback {}x{}", width, height);
+        }
+
+        if (width == 0 || height == 0)
+        {
+            LOG_GRAPHICS_WARN("Zero extent detected — skipping recreation (likely minimized)");
+            return;
+        }
+
+        // Now just call the existing resize() with the discovered size
+        resize(width, height);
+    }
 
     framebuffer_array_t vulkan_swapchain_t::create_framebuffers(VkRenderPass render_pass) const
     {

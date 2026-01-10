@@ -1,6 +1,6 @@
 //
 // Created by zshrout on 11/28/25.
-// Copyright (c) 2025 BunnySofty. All rights reserved.
+// Copyright (c) 2025 BunnySoft. All rights reserved.
 //
 
 #include "Application.h"

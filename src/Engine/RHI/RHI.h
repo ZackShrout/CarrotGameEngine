@@ -1,6 +1,6 @@
 //
 // Created by zshrout on 1/3/26.
-// Copyright (c) 2026 BunnySofty. All rights reserved.
+// Copyright (c) 2026 BunnySoft. All rights reserved.
 //
 
 #pragma once
@@ -38,6 +38,8 @@ namespace carrot::rhi {
         virtual void begin_frame() = 0;
         virtual void record_frame() = 0;
         virtual void end_frame() = 0;
+
+        virtual void resize(uint32_t width, uint32_t height) = 0;
 
         [[nodiscard]] virtual rhi_device_t* get_device() const noexcept = 0;
         [[nodiscard]] virtual rhi_swapchain_t* get_swapchain() const noexcept = 0;

@@ -1,6 +1,6 @@
 //
 // Created by zshrout on 1/1/26.
-// Copyright (c) 2026 BunnySofty. All rights reserved.
+// Copyright (c) 2026 BunnySoft. All rights reserved.
 //
 
 #include "LogSink.h"

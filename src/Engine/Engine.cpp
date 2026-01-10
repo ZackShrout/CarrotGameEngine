@@ -75,7 +75,7 @@ namespace carrot {
         while (!_should_quit && !main_window.should_close())
         {
             window::poll_events();
-            // hot_reload::shader_watcher_t::poll();
+            hot_reload::shader_watcher_t::poll();
             tick();
 
             // _renderer->begin_frame();

@@ -81,6 +81,11 @@ set(CARROT_ENGINE_SOURCES
 
 add_library(CarrotEngine STATIC ${CARROT_ENGINE_SOURCES})
 
+target_compile_definitions(CarrotEngine PRIVATE
+        CARROT_SOURCE_ROOT="${CMAKE_SOURCE_DIR}"
+)
+
+
 # ------------------------------------------------------------------------
 # Debug/Release macros & optimizations
 # ------------------------------------------------------------------------

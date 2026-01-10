@@ -9,6 +9,7 @@
 #include "VulkanRenderPass.h"
 #include "Window/Window.h"
 #include "Core/Platform/Wayland/WaylandWindow.h"
+#include "HotReload/ShaderWatcher.h"
 
 namespace carrot::rhi::vulkan {
     // PUBLIC
@@ -66,6 +67,17 @@ namespace carrot::rhi::vulkan {
 
         // Reset the fence for this frame
         VK_CHECK_FATAL(vkResetFences(_device->vk_device(), 1, &frame.in_flight));
+
+        // Hot-reload check: safe here because previous frames are done
+        if (_pending_pipeline_reload)
+        {
+            LOG_GRAPHICS_INFO("Safe reload point reached — destroying old pipeline");
+            _graphics_pipeline.reset();
+            LOG_GRAPHICS_INFO("Old pipeline destroyed");
+            _graphics_pipeline = std::make_unique<vulkan_pipeline_t>(_device.get(), _render_pass->vk_render_pass());
+            _pending_pipeline_reload = false;
+            LOG_GRAPHICS_INFO("Pipeline hot-reloaded (safe point)");
+        }
 
         // Acquire next swapchain image
         const VkResult acquire_result{
@@ -432,6 +444,16 @@ namespace carrot::rhi::vulkan {
         // ── 10. Create Graphics Queue Wrapper ─────────────────────────────────────
         _graphics_queue = std::make_unique<vulkan_command_queue_t>(graphics_queue, graphics_family);
 
+        hot_reload::shader_watcher_t::init([this](const std::string& changed_path) {
+            LOG_GRAPHICS_INFO("Hot-reload QUEUED for {}", changed_path);
+            if (_pending_pipeline_reload)
+            {
+                LOG_GRAPHICS_WARN("Hot-reload already pending — ignoring duplicate");
+                return;
+            }
+            _pending_pipeline_reload = true;
+        });
+
         LOG_CORE_INFO("VulkanRHIContext initialized successfully (fresh boot)");
     }
 
@@ -441,7 +463,7 @@ namespace carrot::rhi::vulkan {
         vkDeviceWaitIdle(_device->vk_device());
 
         // 1. Destroy old framebuffers (your RAII wrapper handles it)
-        _framebuffers = framebuffer_array_t{};  // or .clear() + reset device if needed
+        _framebuffers = framebuffer_array_t{ }; // or .clear() + reset device if needed
 
         // 2. Recreate swapchain (your existing resize logic)
         _swapchain->recreate();

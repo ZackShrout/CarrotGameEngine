@@ -7,7 +7,6 @@
 
 #include "Debug/DebugOverlay.h"
 #include "HotReload/ShaderWatcher.h"
-#include "RHI/Backends/Vulkan/VulkanRenderer.h"
 #include "Utils/MulticastDelegate.h"
 #include "Window/Window.h"
 #include "Core/Application.h"
@@ -29,17 +28,13 @@ namespace carrot {
         core::logger_t::init();
         window::create_primary_window(1280, 720, "Carrot Engine – Month 1");
 
-        // OLD WAY — keep for now
-        _renderer = renderer::create_backend();
-        _renderer->init();
-
-        // NEW: Create RHI context using the already-initialized renderer
+        // Create RHI context
         rhi::rhi_desc_t desc{};
         desc.api = rhi::graphics_api::vulkan;
-        desc.window_handle = nullptr; // we'll pass proper handle later
+        desc.window_handle = window::get_primary_window().get_wl_surface(); // TODO: Wayland is now hardcoded in...
         desc.width = 1280;
         desc.height = 720;
-        desc.existing_renderer = _renderer; // Pass the one we just init'd
+        desc.enable_debug_layers = true;
         _rhi_context = rhi::create_rhi_context(desc);
 
         if (!_rhi_context)
@@ -48,11 +43,11 @@ namespace carrot {
             std::abort();
         }
 
-        hot_reload::shader_watcher_t::init([this]([[maybe_unused]] const std::string& spv_path) {
-            _renderer->reload_pipeline();
-        });
+        // hot_reload::shader_watcher_t::init([this]([[maybe_unused]] const std::string& spv_path) {
+        //     _renderer->reload_pipeline();
+        // });
 
-        LOG_CORE_INFO("Carrot Engine Initialized (Hybrid RHI Mode)");
+        LOG_CORE_INFO("Carrot Engine Initialized (Pure RHI Mode)");
     }
 
     engine_t::~engine_t()
@@ -61,7 +56,6 @@ namespace carrot {
 
         hot_reload::shader_watcher_t::shutdown();
         _rhi_context.reset();
-        _renderer->shutdown();
         window::destroy_primary_window();
         core::logger_t::shutdown();
     }
@@ -81,20 +75,24 @@ namespace carrot {
         while (!_should_quit && !main_window.should_close())
         {
             window::poll_events();
-            hot_reload::shader_watcher_t::poll();
+            // hot_reload::shader_watcher_t::poll();
             tick();
 
-            _renderer->begin_frame();
-            _renderer->render_frame(); // temporary — just our spinning triangle for now
+            // _renderer->begin_frame();
+            // _renderer->render_frame(); // temporary — just our spinning triangle for now
+
+            _rhi_context->begin_frame();
+            _rhi_context->record_frame();
 
             // Initialize debug overlay AFTER the first swapchain image exists
-            if (!_debug_overlay_initialized)
-            {
-                debug::init(_renderer);
-                _debug_overlay_initialized = true;
-            }
+            // if (!_debug_overlay_initialized)
+            // {
+            //     debug::init(_renderer);
+            //     _debug_overlay_initialized = true;
+            // }
 
-            _renderer->end_frame();
+            // _renderer->end_frame();
+            _rhi_context->end_frame();
         }
     }
 
@@ -123,8 +121,8 @@ namespace carrot {
             _fps_timer -= 1.0f;
         }
 
-        debug::text(20.f, 30.f, "FPS: %u", _current_fps);
-        debug::text(20.f, 65.f, "Frame: %.3f ms", _delta_time * 1000.f);
+        // debug::text(20.f, 30.f, "FPS: %u", _current_fps);
+        // debug::text(20.f, 65.f, "Frame: %.3f ms", _delta_time * 1000.f);
 
         _on_tick.broadcast(_delta_time);
     }

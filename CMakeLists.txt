@@ -38,10 +38,6 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Debug/DebugOverlay.h
         src/Engine/HotReload/ShaderWatcher.cpp
         src/Engine/HotReload/ShaderWatcher.h
-        src/Engine/RHI/Backends/Vulkan/VulkanRenderer.cpp
-        src/Engine/RHI/Backends/Vulkan/VulkanRenderer.h
-        src/Engine/RHI/Backends/Vulkan/VulkanContext.cpp
-        src/Engine/RHI/Backends/Vulkan/VulkanContext.h
         src/Engine/Utils/ShaderUtils.cpp
         src/Engine/Utils/ShaderUtils.h
         src/Engine/Window/Window.cpp
@@ -77,6 +73,10 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/RHI/Backends/Vulkan/VulkanSwapchain.h
         src/Engine/RHI/Backends/Vulkan/VulkanCommandQueue.cpp
         src/Engine/RHI/Backends/Vulkan/VulkanCommandQueue.h
+        src/Engine/RHI/Backends/Vulkan/VulkanRenderPass.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanRenderPass.h
+        src/Engine/RHI/Backends/Vulkan/VulkanPipeline.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanPipeline.h
 )
 
 add_library(CarrotEngine STATIC ${CARROT_ENGINE_SOURCES})

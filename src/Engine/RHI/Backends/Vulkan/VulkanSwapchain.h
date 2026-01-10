@@ -14,10 +14,13 @@ namespace carrot::rhi::vulkan {
     class vulkan_swapchain_t final : public rhi_swapchain_t
     {
     public:
-        vulkan_swapchain_t(vulkan_device_t* device, void* native_window, uint32_t width, uint32_t height);
+        vulkan_swapchain_t(vulkan_device_t* device, VkSurfaceKHR surface, void* native_window, uint32_t width,
+                           uint32_t height, VkSwapchainKHR old_swapchain = VK_NULL_HANDLE);
         ~vulkan_swapchain_t() override;
 
         void resize(uint32_t width, uint32_t height) override;
+
+        [[nodiscard]] framebuffer_array_t create_framebuffers(VkRenderPass render_pass) const;
 
         uint32_t acquire_next_image(rhi_semaphore_t* signal_semaphore) override;
         void present(rhi_semaphore_t* wait_semaphore) override;
@@ -28,17 +31,23 @@ namespace carrot::rhi::vulkan {
         [[nodiscard]] uint32_t get_width() const override { return _extent.width; }
         [[nodiscard]] uint32_t get_height() const override { return _extent.height; }
 
+        [[nodiscard]] VkExtent2D extent() const { return _extent; }
+
         // Temporary accessors for bridge
         [[nodiscard]] VkSwapchainKHR vk_swapchain() const noexcept { return _swapchain.swapchain; }
+        [[nodiscard]] const image_view_array_t& image_views() const noexcept { return _image_views; }
+        [[nodiscard]] VkFormat format() const noexcept { return _format; }
 
     private:
-        void create_or_recreate(uint32_t width, uint32_t height);
+        void create_or_recreate(VkSwapchainKHR old_swapchain, uint32_t width, uint32_t height);
 
         vulkan_device_t*        _device{ nullptr };
+        VkSurfaceKHR            _surface{ VK_NULL_HANDLE };
         swapchain_t             _swapchain;
         image_view_array_t      _image_views;
         std::vector<VkImage>    _images;
 
+        VkFormat                _format{ VK_FORMAT_UNDEFINED };
         VkExtent2D              _extent{};
         uint32_t                _image_count{ 0 };
         uint32_t                _current_image_index{ 0 };

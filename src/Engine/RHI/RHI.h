@@ -35,6 +35,10 @@ namespace carrot::rhi {
     public:
         virtual ~rhi_context_t() = default;
 
+        virtual void begin_frame() = 0;
+        virtual void record_frame() = 0;
+        virtual void end_frame() = 0;
+
         [[nodiscard]] virtual rhi_device_t* get_device() const noexcept = 0;
         [[nodiscard]] virtual rhi_swapchain_t* get_swapchain() const noexcept = 0;
         [[nodiscard]] virtual rhi_command_queue_t* get_command_queue() const noexcept = 0;

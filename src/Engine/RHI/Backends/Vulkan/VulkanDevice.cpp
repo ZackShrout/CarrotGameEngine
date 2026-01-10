@@ -6,18 +6,15 @@
 #include "VulkanDevice.h"
 
 #include "VulkanCommandQueue.h"
+#include "VulkanSwapchain.h"
 
 namespace carrot::rhi::vulkan {
-    vulkan_device_t::vulkan_device_t(vulkan_context_t* legacy_context)
+    vulkan_device_t::vulkan_device_t(VkDevice device, VkPhysicalDevice physical_device, const uint32_t graphics_family,
+                                     VkQueue graphics_queue, VkSurfaceKHR surface)
+        : _device{ device }, _physical_device{ physical_device }, _surface{ surface },
+          _graphics_family{ graphics_family }, _graphics_queue{ graphics_queue }
     {
-        // Steal/move the device ownership
-        // _device = std::move(legacy_context->get_device());
-
-        _physical_device = legacy_context->physical_device();
-        _graphics_family = legacy_context->graphics_family();
-        _graphics_queue = legacy_context->graphics_queue();
-
-        _device_handle     = legacy_context->get_device();
+        LOG_GRAPHICS_INFO("VulkanDevice constructed with fresh VkDevice: {:p}", static_cast<void *>(_device));
     }
 
     vulkan_device_t::~vulkan_device_t() = default;
@@ -36,7 +33,7 @@ namespace carrot::rhi::vulkan {
 
     rhi_swapchain_t* vulkan_device_t::create_swapchain(void* native_window, uint32_t width, uint32_t height)
     {
-        return nullptr; // temporary
+        return new vulkan_swapchain_t{ this, _surface, native_window, width, height };
     }
 
     rhi_buffer_t* vulkan_device_t::create_buffer(const buffer_desc_t& desc)
@@ -54,8 +51,5 @@ namespace carrot::rhi::vulkan {
         return nullptr; // temporary
     }
 
-    void vulkan_device_t::destroy_buffer(rhi_buffer_t* buffer)
-    {
-
-    }
+    void vulkan_device_t::destroy_buffer(rhi_buffer_t* buffer) {}
 } // namespace carrot::rhi::vulkan

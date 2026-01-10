@@ -5,16 +5,17 @@
 
 #pragma once
 
-#include "VulkanCore.h"
 #include "VulkanCommon.h"
-#include "VulkanContext.h"
+#include "VulkanCore.h"
 #include "RHI/Device.h"
 
 namespace carrot::rhi::vulkan {
     class vulkan_device_t final : public rhi_device_t
     {
     public:
-        explicit vulkan_device_t(vulkan_context_t* legacy_context);
+        explicit vulkan_device_t(VkDevice device, VkPhysicalDevice physical_device, uint32_t graphics_family,
+                                 VkQueue graphics_queue, VkSurfaceKHR surface);
+
         ~vulkan_device_t() override;
 
         rhi_command_queue_t* create_command_queue(queue_type queue) override;
@@ -27,17 +28,17 @@ namespace carrot::rhi::vulkan {
         void destroy_buffer(rhi_buffer_t* buffer) override;
 
         // Accessors for internal use
-        // [[nodiscard]] VkDevice vk_device() const noexcept { return _device.device; }
-        [[nodiscard]] VkDevice vk_device_handle() const noexcept { return _device_handle; }
+        [[nodiscard]] VkDevice vk_device() const noexcept { return _device.device; }
+        [[nodiscard]] VkPhysicalDevice physical_device() const noexcept { return _physical_device; }
         [[nodiscard]] uint32_t graphics_family() const noexcept { return _graphics_family; }
+        [[nodiscard]] VkSurfaceKHR surface() const noexcept { return _surface; }
+        [[nodiscard]] VkQueue graphics_queue() const noexcept { return _graphics_queue; }
 
     private:
-        // device_t            _device;
+        device_t            _device;
         VkPhysicalDevice    _physical_device{ VK_NULL_HANDLE };
+        VkSurfaceKHR        _surface{ VK_NULL_HANDLE };
         uint32_t            _graphics_family{ ~0u };
         VkQueue             _graphics_queue{ VK_NULL_HANDLE };
-
-        // Temporary
-        VkDevice               _device_handle{ VK_NULL_HANDLE };
     };
 } // namespace carrot::rhi::vulkan

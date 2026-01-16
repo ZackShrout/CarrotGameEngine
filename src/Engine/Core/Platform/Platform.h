@@ -21,10 +21,10 @@ using CAMetalLayer = void *;
 namespace carrot::core::platform {
     enum class platform_type : std::uint8_t
     {
-        unknown,
-        wayland,
         win32,
+        wayland,
         cocoa,
+        unknown,
         // future: Xcb, Headless, ...
     };
 

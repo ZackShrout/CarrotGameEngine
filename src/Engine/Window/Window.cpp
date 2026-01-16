@@ -17,11 +17,12 @@ namespace carrot::window {
     {
         switch (core::platform::current_platform())
         {
+            case core::platform::platform_type::win32: break;
             case core::platform::platform_type::wayland:
                 g_primary_window = std::make_unique<core::platform::wayland_window_t>(width, height, title.data());
                 break;
-            case core::platform::platform_type::win32: break;
             case core::platform::platform_type::cocoa: break;
+            case core::platform::platform_type::unknown:
             default:
                 LOG_CORE_FATAL("Could not create primary window - invalid platform.");
                 break;

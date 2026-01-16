@@ -19,7 +19,7 @@ namespace carrot::rhi::vulkan {
         ~vulkan_device_t() override;
 
         rhi_command_queue_t* create_command_queue(queue_type queue) override;
-        rhi_swapchain_t* create_swapchain(void* native_window, uint32_t width, uint32_t height) override;
+        rhi_swapchain_t* create_swapchain(uint32_t width, uint32_t height) override;
 
         rhi_buffer_t* create_buffer(const buffer_desc_t& desc) override;
         rhi_texture_t* create_texture() override;

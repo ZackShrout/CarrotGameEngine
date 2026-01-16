@@ -18,9 +18,6 @@ namespace carrot::rhi::vulkan {
         if (desc.api != graphics_api::vulkan)
             LOG_GRAPHICS_FATAL("Only Vulkan supported in this implementation");
 
-        if (!desc.window_handle)
-            LOG_GRAPHICS_FATAL("No native window handle provided for Vulkan surface");
-
         init(desc);
     }
 
@@ -247,8 +244,7 @@ namespace carrot::rhi::vulkan {
     // PRIVATE
     void vulkan_rhi_context_t::init(const rhi_desc_t& desc)
     {
-        wl_display* wl_display_{ window::get_primary_window().get_wl_display() };
-        wl_surface* wl_surface_{ static_cast<wl_surface *>(desc.window_handle) };
+        auto handle = window::get_native_handle();
 
         // ── 1. Create Vulkan Instance ─────────────────────────────────────────────
 
@@ -289,12 +285,21 @@ namespace carrot::rhi::vulkan {
 
         // ── 2. Create Wayland Surface ─────────────────────────────────────────────
 
-        VkWaylandSurfaceCreateInfoKHR surf_info{ };
-        surf_info.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
-        surf_info.display = wl_display_;
-        surf_info.surface = wl_surface_;
-
+#if defined(CARROT_PLATFORM_WAYLAND)
+        VkWaylandSurfaceCreateInfoKHR surf_info{};
+        surf_info.sType    = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
+        surf_info.display  = handle.wayland_t.display;
+        surf_info.surface  = handle.wayland_t.surface;
         VK_CHECK_FATAL(vkCreateWaylandSurfaceKHR(_vk_instance, &surf_info, nullptr, &_vk_surface));
+#elif defined(CARROT_PLATFORM_WIN32)
+        VkWin32SurfaceCreateInfoKHR surf_info{};
+        surf_info.sType     = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+        surf_info.hwnd      = handle.win32.hwnd;
+        surf_info.hinstance = handle.win32.hinstance;
+        vkCreateWin32SurfaceKHR(...);
+#elif defined(CARROT_PLATFORM_COCOA)
+#error Vulkan unsupported on MacOS currently
+#endif
 
         // ── 3. Pick Physical Device & Queue Family ────────────────────────────────
 
@@ -421,7 +426,6 @@ namespace carrot::rhi::vulkan {
         _swapchain = std::make_unique<vulkan_swapchain_t>(
             _device.get(),
             _vk_surface,
-            desc.window_handle,
             desc.width,
             desc.height
         );

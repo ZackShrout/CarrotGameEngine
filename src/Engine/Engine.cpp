@@ -25,27 +25,13 @@ namespace carrot {
     // PUBLIC
     engine_t::engine_t() noexcept
     {
+        constexpr uint32_t width{ 1280 };
+        constexpr uint32_t height{ 720 };
+
         core::logger_t::init();
-        window::create_primary_window(1280, 720, "Carrot Engine – Month 1");
+        window::create_primary_window(width, height, "Carrot Engine – Month 1");
 
-        // Create RHI context
-        rhi::rhi_desc_t desc{};
-        desc.api = rhi::graphics_api::vulkan;
-        desc.window_handle = window::get_primary_window().get_wl_surface(); // TODO: Wayland is now hardcoded in...
-        desc.width = 1280;
-        desc.height = 720;
-        desc.enable_debug_layers = true;
-        _rhi_context = rhi::create_rhi_context(desc);
-
-        if (!_rhi_context)
-        {
-            LOG_CORE_FATAL("Failed to create RHI context!");
-            std::abort();
-        }
-
-        // hot_reload::shader_watcher_t::init([this]([[maybe_unused]] const std::string& spv_path) {
-        //     _renderer->reload_pipeline();
-        // });
+        _renderer = std::make_unique<renderer::renderer_t>();
 
         LOG_CORE_INFO("Carrot Engine Initialized (Pure RHI Mode)");
     }
@@ -55,7 +41,7 @@ namespace carrot {
         LOG_CORE_INFO("Shutting down...");
 
         hot_reload::shader_watcher_t::shutdown();
-        _rhi_context.reset();
+        _renderer.reset();
         window::destroy_primary_window();
         core::logger_t::shutdown();
     }
@@ -78,21 +64,17 @@ namespace carrot {
             hot_reload::shader_watcher_t::poll();
             tick();
 
-            // _renderer->begin_frame();
-            // _renderer->render_frame(); // temporary — just our spinning triangle for now
-
-            _rhi_context->begin_frame();
-            _rhi_context->record_frame();
+            _renderer->begin_frame();
+            _renderer->get_rhi()->record_frame();
 
             // Initialize debug overlay AFTER the first swapchain image exists
-            // if (!_debug_overlay_initialized)
-            // {
-            //     debug::init(_renderer);
-            //     _debug_overlay_initialized = true;
-            // }
+            if (!_debug_overlay_initialized)
+            {
+                // debug::init(_renderer);
+                _debug_overlay_initialized = true;
+            }
 
-            // _renderer->end_frame();
-            _rhi_context->end_frame();
+            _renderer->end_frame();
         }
     }
 

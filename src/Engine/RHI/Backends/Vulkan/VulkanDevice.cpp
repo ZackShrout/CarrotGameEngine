@@ -31,9 +31,9 @@ namespace carrot::rhi::vulkan {
         return &dummy;
     }
 
-    rhi_swapchain_t* vulkan_device_t::create_swapchain(void* native_window, uint32_t width, uint32_t height)
+    rhi_swapchain_t* vulkan_device_t::create_swapchain(const uint32_t width, const uint32_t height)
     {
-        return new vulkan_swapchain_t{ this, _surface, native_window, width, height };
+        return new vulkan_swapchain_t{ this, _surface, width, height };
     }
 
     rhi_buffer_t* vulkan_device_t::create_buffer(const buffer_desc_t& desc)

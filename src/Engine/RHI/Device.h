@@ -30,7 +30,7 @@ namespace carrot::rhi {
         virtual ~rhi_device_t() = default;
 
         virtual rhi_command_queue_t*        create_command_queue(queue_type type) = 0;
-        virtual rhi_swapchain_t*            create_swapchain(void* native_window, uint32_t width, uint32_t height) = 0;
+        virtual rhi_swapchain_t*            create_swapchain(uint32_t width, uint32_t height) = 0;
 
         virtual rhi_buffer_t*               create_buffer(const buffer_desc_t& desc) = 0;
         virtual rhi_texture_t*              create_texture(/*const texture_desc_t& desc*/) = 0;

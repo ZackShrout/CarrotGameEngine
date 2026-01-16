@@ -21,8 +21,7 @@ CORE PHILOSOPHY
 TARGET PLATFORMS & APIs (2025 → 2030 roadmap)
 - Platforms - Windows, Linux, macOS
 - Windowing - Win32, Xcb + Wayland, Cocoa
-- Primary Graphics API (Years 1–2) - Vulkan, Vulkan, Metal
-- Future Graphics APIs - DX12 (optional DX11 as well), Vulkan, Metal
+- Primary Graphics API- DirectX12, Vulkan, Metal
 
 BUILD SYSTEM & IDE
 - CMake
@@ -213,7 +212,7 @@ MILESTONES (2025 → 2027)
 - Year 3+    → Native Metal backend, DX12 backend, editor beginnings
 
 DEPENDENCIES (all header-only or static, no runtime DLLs required after bootstrap)
-- glm
+- CarrotHLM (proprietary math library)
 - vulkan.h (system headers – libvulkan-dev)
 - miniaudio
 - stb_* suite

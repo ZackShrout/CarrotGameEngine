@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "Core/Platform/Platform.h"
+
 #include <memory>
 
 namespace carrot::renderer {
@@ -20,11 +22,10 @@ namespace carrot::rhi {
 
     struct rhi_desc_t
     {
-        graphics_api    api{ graphics_api::vulkan };
-        void*           window_handle{ nullptr }; // wl_surface*, HWND, NSView*
-        uint32_t        width{ 1280 };
-        uint32_t        height{ 720 };
-        bool            enable_debug_layers{ true };
+        graphics_api                            api{ graphics_api::vulkan };
+        uint32_t                                width{ 1280 };
+        uint32_t                                height{ 720 };
+        bool                                    enable_debug_layers{ true };
 
         // Temporary bridge for migration
         renderer::renderer_t* existing_renderer = nullptr;

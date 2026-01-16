@@ -15,7 +15,7 @@ namespace carrot::rhi::vulkan {
     class vulkan_swapchain_t final : public rhi_swapchain_t
     {
     public:
-        vulkan_swapchain_t(vulkan_device_t* device, VkSurfaceKHR surface, void* native_window, uint32_t width,
+        vulkan_swapchain_t(vulkan_device_t* device, VkSurfaceKHR surface, uint32_t width,
                            uint32_t height, VkSwapchainKHR old_swapchain = VK_NULL_HANDLE);
         ~vulkan_swapchain_t() override;
 

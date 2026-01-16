@@ -52,6 +52,7 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Core/LogSink.cpp
         src/Engine/CarrotEngine.h
         src/Engine/Renderer/Renderer.h
+        src/Engine/Renderer/Renderer.cpp
         src/Engine/RHI/Backends/Vulkan/VulkanCommon.h
         src/Engine/RHI/Backends/Vulkan/VulkanCore.h
         src/Engine/RHI/RHI.h
@@ -77,6 +78,9 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/RHI/Backends/Vulkan/VulkanRenderPass.h
         src/Engine/RHI/Backends/Vulkan/VulkanPipeline.cpp
         src/Engine/RHI/Backends/Vulkan/VulkanPipeline.h
+        src/Engine/Core/Module.h
+        src/Engine/Core/Platform/Platform.h
+        src/Engine/Core/Platform/Window.h
 )
 
 add_library(CarrotEngine STATIC ${CARROT_ENGINE_SOURCES})
@@ -159,7 +163,10 @@ target_link_options(CarrotEngine PUBLIC
 # macOS placeholders
 # ------------------------------------------------------------------------
 if(APPLE)
-    target_compile_definitions(CarrotEngine PUBLIC __APPLE__)
+    set(CARROT_PLATFORM_COCOA ON CACHE INTERNAL "")
+    add_compile_definitions(CARROT_PLATFORM_COCOA=1)
+
+    #target_compile_definitions(CarrotEngine PUBLIC __APPLE__)
 
     target_link_libraries(CarrotEngine PRIVATE
             "-framework Metal"
@@ -181,12 +188,60 @@ if(APPLE)
 # Windows placeholders
 # ------------------------------------------------------------------------
 elseif(WIN32)
+    set(CARROT_PLATFORM_WIN32 ON CACHE INTERNAL "")
+    add_compile_definitions(CARROT_PLATFORM_WIN32=1)
+
     target_link_libraries(CarrotEngine PRIVATE d3d12 dxgi dxguid)
     target_compile_definitions(CarrotEngine PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
 # ------------------------------------------------------------------------
 # Linux
 # ------------------------------------------------------------------------
 elseif(UNIX)
+    # Define the cache variable with a proper default value right away.
+    # This runs only on first configure (or if deleted from cache).
+    # After that, user choices (-D or cmake-gui) are preserved.
+    set(CARROT_LINUX_WINDOWING "Auto" CACHE STRING
+            "Linux windowing system to target: Auto (prefer Wayland), Wayland, or X11")
+
+    # Restrict the possible values in cmake-gui / ccmake (optional but very nice)
+    set_property(CACHE CARROT_LINUX_WINDOWING PROPERTY STRINGS "Auto" "Wayland" "X11")
+
+    # Now resolve which backend we're actually using
+    if(CARROT_LINUX_WINDOWING STREQUAL "Auto")
+        find_package(PkgConfig QUIET)
+        if(PkgConfig_FOUND)
+            pkg_check_modules(WL_CLIENT QUIET wayland-client)
+            pkg_check_modules(WL_EGL    QUIET wayland-egl)
+            pkg_check_modules(XKB       QUIET xkbcommon)
+
+            if(WL_CLIENT_FOUND AND WL_EGL_FOUND AND XKB_FOUND)
+                set(_backend Wayland)
+                message(STATUS "Auto: Wayland selected (dev packages detected)")
+            else()
+                set(_backend X11)
+                message(STATUS "Auto: X11 selected (Wayland dev packages missing)")
+            endif()
+        else()
+            set(_backend X11)
+            message(STATUS "pkg-config not found → defaulting to X11")
+        endif()
+    else()
+        set(_backend ${CARROT_LINUX_WINDOWING})
+    endif()
+
+    # Apply the final choice
+    if(_backend STREQUAL "Wayland")
+        set(CARROT_PLATFORM_WAYLAND ON CACHE INTERNAL "")
+        add_compile_definitions(CARROT_PLATFORM_WAYLAND=1)
+    elseif(_backend STREQUAL "X11")
+        set(CARROT_PLATFORM_X11 ON CACHE INTERNAL "")
+        add_compile_definitions(CARROT_PLATFORM_X11=1)
+    else()
+        message(FATAL_ERROR "Internal error: unexpected backend ${_backend}")
+    endif()
+
+    message(STATUS "Linux windowing backend: ${_backend}")
+
     # Force Clang for both C and C++ to ensure consistent libc++ usage
     set(CMAKE_C_COMPILER clang)
     set(CMAKE_CXX_COMPILER clang++)
@@ -270,3 +325,13 @@ add_custom_command(TARGET CarrotSandbox POST_BUILD
         ${CMAKE_SOURCE_DIR}/src/Engine/Assets
         $<TARGET_FILE_DIR:CarrotSandbox>/assets
 )
+
+# ------------------------------------------------------------------------
+# Output
+# ------------------------------------------------------------------------
+message(STATUS "")
+message(STATUS "Platform summary:")
+message(STATUS "  Windows        : ${CARROT_PLATFORM_WIN32}")
+message(STATUS "  macOS/Cocoa    : ${CARROT_PLATFORM_COCOA}")
+message(STATUS "  Linux/Wayland  : ${CARROT_PLATFORM_WAYLAND}")
+message(STATUS "  Linux/X11      : ${CARROT_PLATFORM_X11}")

@@ -5,20 +5,32 @@
 
 #include "Window.h"
 
+#include "Core/Logger.h"
 #include "Core/Platform/Wayland/WaylandWindow.h"
 
-namespace carrot::window {
-    static platform::wayland_window_t* g_primary_window{ nullptr };
+#include <memory>
 
-    void create_primary_window(const uint32_t width, const uint32_t height, const char* title) noexcept
+namespace carrot::window {
+    static std::unique_ptr<core::platform::window_t> g_primary_window{ nullptr };
+
+    void create_primary_window(const uint32_t width, const uint32_t height, const std::string_view title) noexcept
     {
-        g_primary_window = new platform::wayland_window_t(width, height, title);
+        switch (core::platform::current_platform())
+        {
+            case core::platform::platform_type::wayland:
+                g_primary_window = std::make_unique<core::platform::wayland_window_t>(width, height, title.data());
+                break;
+            case core::platform::platform_type::win32: break;
+            case core::platform::platform_type::cocoa: break;
+            default:
+                LOG_CORE_FATAL("Could not create primary window - invalid platform.");
+                break;
+        }
     }
 
     void destroy_primary_window() noexcept
     {
-        delete g_primary_window;
-        g_primary_window = nullptr;
+        g_primary_window.reset();
     }
 
     void poll_events() noexcept
@@ -26,9 +38,24 @@ namespace carrot::window {
         if (g_primary_window) g_primary_window->poll_events();
     }
 
-    [[nodiscard]] platform::wayland_window_t& get_primary_window() noexcept
+    [[nodiscard]] core::platform::window_t& get_primary_window() noexcept
     {
         return *g_primary_window;
+    }
+
+    uint32_t get_width() noexcept
+    {
+        return g_primary_window->get_width();
+    }
+
+    uint32_t get_height() noexcept
+    {
+        return g_primary_window->get_height();
+    }
+
+    core::platform::native_window_handle_t get_native_handle() noexcept
+    {
+        return g_primary_window->get_native_handle();
     }
 
     [[nodiscard]] bool should_close() noexcept

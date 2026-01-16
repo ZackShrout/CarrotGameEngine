@@ -12,12 +12,6 @@ namespace carrot::rhi {
 
     std::unique_ptr<rhi_context_t> create_rhi_context(const rhi_desc_t& desc)
     {
-        if (!desc.window_handle)
-        {
-            LOG_CORE_FATAL("No native window handle provided!");
-            return nullptr;
-        }
-
         switch (desc.api)
         {
             case graphics_api::vulkan: return std::make_unique<vulkan::vulkan_rhi_context_t>(desc);

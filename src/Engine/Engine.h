@@ -36,11 +36,9 @@ namespace carrot {
     private:
         void tick();
 
-        bool                                _should_quit{ false };
-        float                               _delta_time{ 0.f };
-        uint32_t                            _current_fps{ 0 };
-        renderer::renderer_t*               _renderer{ nullptr };
-
-        std::unique_ptr<rhi::rhi_context_t> _rhi_context;
+        bool                                    _should_quit{ false };
+        float                                   _delta_time{ 0.f };
+        uint32_t                                _current_fps{ 0 };
+        std::unique_ptr<renderer::renderer_t>   _renderer{ nullptr };
     };
 } // namespace carrot

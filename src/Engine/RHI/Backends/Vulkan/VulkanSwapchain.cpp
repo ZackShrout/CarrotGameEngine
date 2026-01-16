@@ -9,7 +9,6 @@
 
 namespace carrot::rhi::vulkan {
     vulkan_swapchain_t::vulkan_swapchain_t(vulkan_device_t* device, VkSurfaceKHR surface,
-                                           [[maybe_unused]] void* native_window,
                                            const uint32_t width, const uint32_t height,
                                            VkSwapchainKHR old_swapchain/* = VK_NULL_HANDLE*/)
         : _device{ device }, _surface{ surface }
@@ -44,10 +43,6 @@ namespace carrot::rhi::vulkan {
 
         // Re-create the swapchain (pass the old one for efficient handover)
         create_or_recreate(old_swapchain, width, height);
-
-        // If you have framebuffers stored in the swapchain class, recreate them here too
-        // (most engines keep framebuffers in the renderer/context, so you may skip this)
-        // _framebuffers = create_framebuffers(_render_pass);  // if you moved them here
 
         LOG_GRAPHICS_INFO("Swapchain resized to {}x{}", width, height);
     }

@@ -7,9 +7,9 @@
 #include "xdg-shell-client-protocol.h"
 
 #include <wayland-client-protocol.h>
-#include <cstring>
+#include <string>
 
-namespace carrot::platform {
+namespace carrot::core::platform {
     namespace {
         void xdg_wm_base_ping(void*, xdg_wm_base* shell, const uint32_t serial)
         {
@@ -18,11 +18,41 @@ namespace carrot::platform {
 
         constexpr xdg_wm_base_listener xdg_wm_base_listener{ .ping = xdg_wm_base_ping };
 
-        void xdg_surface_configure(void*, xdg_surface*, uint32_t) {}
+        void xdg_surface_configure(void* data, xdg_surface* xdg_surface, uint32_t serial)
+        {
+            auto* win = static_cast<wayland_window_t*>(data);
+
+            xdg_surface_ack_configure(xdg_surface, serial);
+
+            if (win->configure_pending() && win->get_pending_width() > 0 && win->get_pending_height() > 0)
+            {
+                win->set_current_width(win->get_pending_width());
+                win->set_current_height(win->get_pending_height());
+
+                win->set_configure_pending(false);
+            }
+        }
+
         constexpr xdg_surface_listener xdg_surface_listener{ .configure = xdg_surface_configure };
 
-        void xdg_toplevel_configure(void*, xdg_toplevel*, int32_t, int32_t, wl_array*) {}
-        void xdg_toplevel_close(void*, xdg_toplevel*) {}
+        void xdg_toplevel_configure(void* data, xdg_toplevel*, const int32_t width, const int32_t height, [[maybe_unused]] wl_array* states)
+        {
+            auto* win = static_cast<wayland_window_t*>(data);
+
+            if (width > 0 && height > 0)
+            {
+                win->set_pending_width(static_cast<uint32_t>(width));
+                win->set_pending_height(static_cast<uint32_t>(height));
+            }
+
+            win->set_configure_pending(true);
+        }
+
+        void xdg_toplevel_close(void* data, xdg_toplevel*)
+        {
+            auto* win = static_cast<wayland_window_t*>(data);
+            win->set_should_close(true);
+        }
 
         constexpr xdg_toplevel_listener xdg_toplevel_listener{
             .configure = xdg_toplevel_configure,
@@ -58,7 +88,8 @@ namespace carrot::platform {
         };
     } // anonymous
 
-    wayland_window_t::wayland_window_t([[maybe_unused]] uint32_t width, [[maybe_unused]] uint32_t height, const char* title) noexcept
+    wayland_window_t::wayland_window_t(const uint32_t width, const uint32_t height, const std::string_view title) noexcept
+        : _current_width{ width }, _current_height{ height }
     {
         _display = wl_display_connect(nullptr);
         if (!_display) return;
@@ -71,11 +102,11 @@ namespace carrot::platform {
 
         _surface = wl_compositor_create_surface(_compositor);
         _xdg_surface = xdg_wm_base_get_xdg_surface(_xdg_wm_base, _surface);
-        xdg_surface_add_listener(_xdg_surface, &xdg_surface_listener, nullptr);
+        xdg_surface_add_listener(_xdg_surface, &xdg_surface_listener, this);
 
         _xdg_toplevel = xdg_surface_get_toplevel(_xdg_surface);
-        xdg_toplevel_add_listener(_xdg_toplevel, &xdg_toplevel_listener, nullptr);
-        xdg_toplevel_set_title(_xdg_toplevel, title);
+        xdg_toplevel_add_listener(_xdg_toplevel, &xdg_toplevel_listener, this);
+        xdg_toplevel_set_title(_xdg_toplevel, std::string(title).c_str());
 
         wl_surface_commit(_surface);
         wl_display_roundtrip(_display);
@@ -90,8 +121,17 @@ namespace carrot::platform {
         if (_display) wl_display_disconnect(_display);
     }
 
-    void wayland_window_t::poll_events() const noexcept
+    void wayland_window_t::poll_events() noexcept
     {
         wl_display_dispatch_pending(_display);
     }
-} // namespace carrot::platform
+
+    native_window_handle_t wayland_window_t::get_native_handle() const noexcept
+    {
+        native_window_handle_t handle{ nullptr };
+        handle.wayland_t.display = _display;
+        handle.wayland_t.surface = _surface;
+
+        return handle;
+    }
+} // namespace carrot::core::platform

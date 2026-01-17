@@ -65,6 +65,65 @@ namespace carrot::core::platform {
             .wm_capabilities = nullptr,
         };
 
+        void pointer_motion(void* data, wl_pointer*, [[maybe_unused]] uint32_t time, const wl_fixed_t sx,
+                            const wl_fixed_t sy)
+        {
+            wayland_window_t* win{ static_cast<wayland_window_t *>(data) };
+
+            const chlm::float2 pos{
+                static_cast<float>(wl_fixed_to_double(sx)), static_cast<float>(wl_fixed_to_double(sy))
+            };
+            const chlm::float2 delta{ pos - win->last_mouse_pos() };
+
+            win->on_mouse_moved({ pos, delta });
+            win->set_last_mouse_pos(pos);
+        }
+
+        void pointer_button(void* data, wl_pointer*, [[maybe_unused]] uint32_t serial, [[maybe_unused]] uint32_t time,
+                            const uint32_t button, const uint32_t state_wl)
+        {
+            const wayland_window_t* win{ static_cast<wayland_window_t *>(data) };
+            const input::mouse_button carrot_btn{ input::to_carrot_mouse_button(button) };
+
+            const events::key_action action{
+                state_wl == WL_POINTER_BUTTON_STATE_PRESSED ? events::key_action::press : events::key_action::release
+            };
+
+            win->on_mouse_button({ carrot_btn, action, win->last_mouse_pos() });
+        }
+
+        void pointer_axis(void* data, wl_pointer*, [[maybe_unused]] uint32_t time, const uint32_t axis,
+                          const wl_fixed_t value)
+        {
+            wayland_window_t* win{ static_cast<wayland_window_t *>(data) };
+            chlm::float2 delta{ 0.f, 0.f };
+
+            if (axis == WL_POINTER_AXIS_VERTICAL_SCROLL)
+            {
+                delta.y = static_cast<float>(-wl_fixed_to_double(value)); // usually invert Y for natural scroll
+            }
+            else if (axis == WL_POINTER_AXIS_HORIZONTAL_SCROLL)
+            {
+                delta.x = static_cast<float>(wl_fixed_to_double(value));
+            }
+
+            win->on_mouse_scrolled({ delta });
+        }
+
+        constexpr wl_pointer_listener pointer_listener = {
+            .enter = [](void*, wl_pointer*, uint32_t, wl_surface*, wl_fixed_t, wl_fixed_t) {},
+            .leave = [](void*, wl_pointer*, uint32_t, wl_surface*) {},
+            .motion = pointer_motion,
+            .button = pointer_button,
+            .axis = pointer_axis,
+            .frame = nullptr,
+            .axis_source = nullptr,
+            .axis_stop = nullptr,
+            .axis_discrete = nullptr,
+            .axis_value120 = nullptr,
+            .axis_relative_direction = nullptr
+        };
+
         void keyboard_key(void* data, wl_keyboard*, [[maybe_unused]] uint32_t serial, [[maybe_unused]] uint32_t time,
                           const uint32_t key, const uint32_t state_wl)
         {
@@ -90,14 +149,7 @@ namespace carrot::core::platform {
                 win->set_key_down(static_cast<uint16_t>(carrot_key), false);
             }
 
-            const events::key_event_t evt{
-                carrot_key,
-                action,
-                repeat,
-                win->keyboard_mods()
-            };
-
-            win->on_key(evt);
+            win->on_key({ carrot_key, action, repeat, win->keyboard_mods() });
         }
 
         void keyboard_modifiers(void* data, wl_keyboard*, [[maybe_unused]] uint32_t serial, const uint32_t depressed,
@@ -125,7 +177,6 @@ namespace carrot::core::platform {
             .key = keyboard_key,
             .modifiers = keyboard_modifiers,
             .repeat_info = [](void*, wl_keyboard*, [[maybe_unused]] int32_t rate, [[maybe_unused]] int32_t delay) {
-                /* store for OS repeat if desired */
             },
         };
 
@@ -142,7 +193,7 @@ namespace carrot::core::platform {
                 if (caps & WL_SEAT_CAPABILITY_POINTER)
                 {
                     win->set_pointer(wl_seat_get_pointer(seat));
-                    // Add pointer listener here
+                    wl_pointer_add_listener(win->get_wl_pointer(), &pointer_listener, win);
                 }
             },
             .name = []([[maybe_unused]] void* data, [[maybe_unused]] wl_seat* seat, const char* name) {

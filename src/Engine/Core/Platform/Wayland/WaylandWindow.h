@@ -54,6 +54,7 @@ namespace carrot::core::platform {
         void set_pending_height(const uint32_t height) noexcept { _pending_height = height; }
         void set_configure_pending(const bool configure) noexcept { _configure_pending = configure; }
         void set_key_down(const uint16_t code, const bool pressed) noexcept { _keys_down[code] = pressed; }
+        void set_last_mouse_pos(const chlm::float2& pos) noexcept { _last_mouse_pos = pos; }
         void set_keyboard_mods(const uint8_t mods) noexcept { _keyboard_mods = mods; }
 
         // These two are only for the registry callback

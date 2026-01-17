@@ -57,7 +57,11 @@ namespace carrot {
         // Bind the on_tick function in the engine's application class, to be inherited
         _on_tick += BIND_MEMBER(_application, on_tick);
 
+        // Bind input events
         main_window._on_key += BIND_MEMBER(_application, on_key);
+        main_window._on_mouse_button += BIND_MEMBER(_application, on_mouse_button);
+        main_window._on_mouse_moved += BIND_MEMBER(_application, on_mouse_moved);
+        main_window._on_mouse_scrolled += BIND_MEMBER(_application, on_mouse_scrolled);
 
         while (!_should_quit && !main_window.should_close())
         {

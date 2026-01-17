@@ -35,4 +35,28 @@ namespace sandbox {
         if (e._action == carrot::events::key_action::press && e._key == carrot::input::key_code::escape)
             quit_application();
     }
+
+    void sandbox_t::on_mouse_moved(const carrot::events::mouse_moved_event_t& e)
+    {
+        ce_application_t::on_mouse_moved(e);
+
+        LOG_CORE_TRACE("Mouse Coordinates: {}, {}", static_cast<uint32_t>(e._pos.x), static_cast<uint32_t>(e._pos.y));
+    }
+
+    void sandbox_t::on_mouse_button(const carrot::events::mouse_button_event_t& e)
+    {
+        ce_application_t::on_mouse_button(e);
+
+        if (e._action == carrot::events::key_action::press)
+            LOG_CORE_INFO("Mouse Button {} pressed", static_cast<uint32_t>(e._button));
+        else if (e._action == carrot::events::key_action::release)
+            LOG_CORE_INFO("Mouse Button {} released", static_cast<uint32_t>(e._button));
+    }
+
+    void sandbox_t::on_mouse_scrolled(const carrot::events::mouse_scrolled_event_t& e)
+    {
+        ce_application_t::on_mouse_scrolled(e);
+
+        LOG_CORE_INFO("Mouse wheel scrolled: {} {}", static_cast<int32_t>(e._delta.x), static_cast<int32_t>(e._delta.y));
+    }
 } // namespace sandbox

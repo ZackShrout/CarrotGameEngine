@@ -4,6 +4,7 @@
 //
 
 #include "WaylandWindow.h"
+
 #include "xdg-shell-client-protocol.h"
 #include "Events/Events.h"
 #include "Input/PlatformKeyMapping.h"
@@ -144,9 +145,8 @@ namespace carrot::core::platform {
                     // Add pointer listener here
                 }
             },
-            .name = [](void* data, wl_seat* seat, const char* name) {
+            .name = []([[maybe_unused]] void* data, [[maybe_unused]] wl_seat* seat, const char* name) {
                 LOG_CORE_TRACE("Seat name: {}", name ? name : "unknown");
-                (void)data; (void)seat; (void)name;
             }
         };
 
@@ -169,7 +169,7 @@ namespace carrot::core::platform {
             }
             else if (std::strcmp(interface, wl_seat_interface.name) == 0)
             {
-                win->set_seat(static_cast<wl_seat*>(wl_registry_bind(registry, name, &wl_seat_interface, 4)));
+                win->set_seat(static_cast<wl_seat *>(wl_registry_bind(registry, name, &wl_seat_interface, 4)));
                 wl_seat_add_listener(win->get_wl_seat(), &seat_listener, win);
             }
         }

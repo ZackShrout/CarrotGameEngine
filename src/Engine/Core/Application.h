@@ -8,6 +8,7 @@
 #include "Common/CommonHeaders.h"
 #include "Events/Events.h"
 #include "Utils/MulticastDelegate.h"
+#include "Window/Window.h"
 
 namespace carrot::core {
     class ce_application_t
@@ -60,5 +61,7 @@ namespace carrot::core {
     protected:
         ce_application_t() noexcept = default;
         virtual ~ce_application_t() = default;
+
+        static void quit_application() { window::set_should_close(true); }
     };
 } // namespace carrot

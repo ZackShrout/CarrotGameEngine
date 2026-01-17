@@ -59,11 +59,6 @@ namespace carrot {
 
         main_window._on_key += BIND_MEMBER(_application, on_key);
 
-        main_window._on_key += BIND_LAMBDA([](const events::key_event_t& e) {
-            if (e._action == events::key_action::press && e._key == input::key_code::escape)
-                window::get_primary_window().set_should_close(true);
-        });
-
         while (!_should_quit && !main_window.should_close())
         {
             window::poll_events();

@@ -11,5 +11,6 @@ namespace sandbox {
     class sandbox_t : public carrot::core::ce_application_t
     {
         void on_tick([[maybe_unused]] float delta_time) override;
+        void on_key(const carrot::events::key_event_t& e) override;
     };
 } // namespace sandbox

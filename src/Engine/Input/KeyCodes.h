@@ -69,4 +69,98 @@ namespace carrot::input {
         button5 = 5, // side/forward
         // ... more if needed
     };
+
+    constexpr const char* key_code_to_string(const key_code key)
+    {
+        switch (key)
+        {
+            case key_code::a: return "A";
+            case key_code::b: return "B";
+            case key_code::c: return "C";
+            case key_code::d: return "D";
+            case key_code::e: return "E";
+            case key_code::f: return "F";
+            case key_code::g: return "G";
+            case key_code::h: return "H";
+            case key_code::i: return "I";
+            case key_code::j: return "J";
+            case key_code::k: return "K";
+            case key_code::l: return "L";
+            case key_code::m: return "M";
+            case key_code::n: return "N";
+            case key_code::o: return "O";
+            case key_code::p: return "P";
+            case key_code::q: return "Q";
+            case key_code::r: return "R";
+            case key_code::s: return "S";
+            case key_code::t: return "T";
+            case key_code::u: return "U";
+            case key_code::v: return "V";
+            case key_code::w: return "W";
+            case key_code::x: return "X";
+            case key_code::y: return "Y";
+            case key_code::z: return "Z";
+
+            case key_code::digit0: return "0";
+            case key_code::digit1: return "1";
+            case key_code::digit2: return "2";
+            case key_code::digit3: return "3";
+            case key_code::digit4: return "4";
+            case key_code::digit5: return "5";
+            case key_code::digit6: return "6";
+            case key_code::digit7: return "7";
+            case key_code::digit8: return "8";
+            case key_code::digit9: return "9";
+
+            case key_code::f1: return "F1";
+            case key_code::f2: return "F2";
+            case key_code::f3: return "F3";
+            case key_code::f4: return "F4";
+            case key_code::f5: return "F5";
+            case key_code::f6: return "F6";
+            case key_code::f7: return "F7";
+            case key_code::f8: return "F8";
+            case key_code::f9: return "F9";
+            case key_code::f10: return "F10";
+            case key_code::f11: return "F11";
+            case key_code::f12: return "F12";
+
+            case key_code::escape: return "Escape";
+            case key_code::enter: return "Enter";
+            case key_code::tab: return "Tab";
+            case key_code::backspace: return "Backspace";
+            case key_code::space: return "Space";
+            case key_code::del: return "Delete";
+            case key_code::insert: return "Insert";
+
+            case key_code::left: return "Left Arrow";
+            case key_code::right: return "Right Arrow";
+            case key_code::up: return "Up Arrow";
+            case key_code::down: return "Down Arrow";
+
+            case key_code::left_shift: return "Left Shift";
+            case key_code::right_shift: return "Right Shift";
+            case key_code::left_control: return "Left Control";
+            case key_code::right_control: return "Right Control";
+            case key_code::left_alt: return "Left Alt";
+            case key_code::right_alt: return "Right Alt";
+            case key_code::left_super: return "Left Super";
+            case key_code::right_super: return "Right Super";
+
+            default: return "Unknown";
+        }
+    }
+
+    constexpr const char* mouse_button_to_string(const mouse_button button)
+    {
+        switch (button)
+        {
+            case mouse_button::left: return "Left";
+            case mouse_button::right: return "Right";
+            case mouse_button::middle: return "Middle";
+            case mouse_button::button4: return "Button4";
+            case mouse_button::button5: return "Button5";
+            default: return "Unknown";
+        }
+    }
 } // ns carrot::input

@@ -25,6 +25,9 @@ namespace carrot::rhi::vulkan {
     {
         vkDeviceWaitIdle(_device ? _device->vk_device() : VK_NULL_HANDLE);
 
+        _framebuffers = { };
+        _graphics_pipeline.reset();
+        _render_pass.reset();
         _swapchain.reset();
 
         for (const auto& frame: _frames)
@@ -32,12 +35,13 @@ namespace carrot::rhi::vulkan {
             if (frame.image_available) vkDestroySemaphore(_device->vk_device(), frame.image_available, nullptr);
             if (frame.render_finished) vkDestroySemaphore(_device->vk_device(), frame.render_finished, nullptr);
             if (frame.in_flight) vkDestroyFence(_device->vk_device(), frame.in_flight, nullptr);
+
+            if (_command_pool != VK_NULL_HANDLE && frame.command_buffer)
+                vkFreeCommandBuffers(_device->vk_device(), _command_pool, 1, &frame.command_buffer);
         }
 
         if (_command_pool != VK_NULL_HANDLE)
         {
-            vkFreeCommandBuffers(_device->vk_device(), _command_pool, k_max_frames_in_flight,
-                                 &_frames[0].command_buffer);
             vkDestroyCommandPool(_device->vk_device(), _command_pool, nullptr);
             _command_pool = VK_NULL_HANDLE;
         }
@@ -286,15 +290,15 @@ namespace carrot::rhi::vulkan {
         // ── 2. Create Wayland Surface ─────────────────────────────────────────────
 
 #if defined(CARROT_PLATFORM_WAYLAND)
-        VkWaylandSurfaceCreateInfoKHR surf_info{};
-        surf_info.sType    = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
-        surf_info.display  = handle.wayland_t.display;
-        surf_info.surface  = handle.wayland_t.surface;
+        VkWaylandSurfaceCreateInfoKHR surf_info{ };
+        surf_info.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
+        surf_info.display = handle.wayland_t.display;
+        surf_info.surface = handle.wayland_t.surface;
         VK_CHECK_FATAL(vkCreateWaylandSurfaceKHR(_vk_instance, &surf_info, nullptr, &_vk_surface));
 #elif defined(CARROT_PLATFORM_WIN32)
-        VkWin32SurfaceCreateInfoKHR surf_info{};
-        surf_info.sType     = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-        surf_info.hwnd      = handle.win32.hwnd;
+        VkWin32SurfaceCreateInfoKHR surf_info{ };
+        surf_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+        surf_info.hwnd = handle.win32.hwnd;
         surf_info.hinstance = handle.win32.hinstance;
         vkCreateWin32SurfaceKHR(...);
 #elif defined(CARROT_PLATFORM_COCOA)

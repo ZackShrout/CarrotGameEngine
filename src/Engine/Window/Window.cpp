@@ -39,6 +39,17 @@ namespace carrot::window {
         if (g_primary_window) g_primary_window->poll_events();
     }
 
+    [[nodiscard]] bool should_close() noexcept
+    {
+        return g_primary_window ? g_primary_window->should_close() : true;
+    }
+
+    void set_should_close(const bool should_close) noexcept
+    {
+        if (g_primary_window)
+            g_primary_window->set_should_close(should_close);
+    }
+
     [[nodiscard]] core::platform::window_t& get_primary_window() noexcept
     {
         return *g_primary_window;
@@ -57,10 +68,5 @@ namespace carrot::window {
     core::platform::native_window_handle_t get_native_handle() noexcept
     {
         return g_primary_window->get_native_handle();
-    }
-
-    [[nodiscard]] bool should_close() noexcept
-    {
-        return g_primary_window ? g_primary_window->should_close() : true;
     }
 } // namespace carrot::window

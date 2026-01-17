@@ -7,6 +7,7 @@
 
 #include "Common/CommonHeaders.h"
 #include "Renderer/Renderer.h"
+#include "Utils/MulticastDelegate.h"
 
 namespace carrot {
     namespace rhi {
@@ -16,6 +17,8 @@ namespace carrot {
     namespace core {
         class ce_application_t;
     }
+
+    DECLARE_MULTICAST_DELEGATE(on_tick_t, float/* dt*/)
 
     class engine_t
     {
@@ -40,5 +43,6 @@ namespace carrot {
         float                                   _delta_time{ 0.f };
         uint32_t                                _current_fps{ 0 };
         std::unique_ptr<renderer::renderer_t>   _renderer{ nullptr };
+        on_tick_t                               _on_tick;
     };
 } // namespace carrot

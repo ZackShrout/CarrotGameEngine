@@ -13,6 +13,7 @@ namespace carrot::window {
 
     void poll_events() noexcept;
     [[nodiscard]] bool should_close() noexcept;
+    void set_should_close(bool should_close) noexcept;
 
     [[nodiscard]] core::platform::window_t&                 get_primary_window() noexcept;
     [[nodiscard]] uint32_t                                  get_width()  noexcept;

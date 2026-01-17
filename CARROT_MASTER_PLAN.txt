@@ -117,7 +117,7 @@ REPOSITORY LAYOUT
 CarrotGameEngine/
 ├── CMakeLists.txt
 ├── CODING_STANDARDS.md
-├── cmake-build-debug/              ← generated, gitignore
+├── cmake-build-debug/
 ├── src/
 │   ├── Engine/
 │   │   ├── Core/
@@ -131,6 +131,8 @@ CarrotGameEngine/
 │   │   ├── Window/
 │   │   │   ├── Window.h/.cpp
 │   │   │   └── PlatformWindow.h (internal)
+│   │   ├── Events/
+│   │   │   └── Events.h
 │   │   ├── Input/
 │   │   ├── RHI/
 │   │   │   ├── RHIDevice.h
@@ -147,7 +149,7 @@ CarrotGameEngine/
 │   │   └── HotReload/
 │   └── Game/                      ← sandbox or actual game code
 ├── deps/                          ← git submodules
-│   ├── glm
+│   ├── CarrotHLM                  ← custom SIMD math library
 │   ├── vulkan-hpp
 │   ├── miniaudio
 │   ├── stb

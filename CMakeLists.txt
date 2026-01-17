@@ -81,6 +81,10 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Core/Module.h
         src/Engine/Core/Platform/Platform.h
         src/Engine/Core/Platform/Window.h
+        src/Engine/Events/Events.h
+        src/Engine/Input/KeyCodes.h
+        src/Engine/Input/PlatformKeyMapping.cpp
+        src/Engine/Input/PlatformKeyMapping.h
 )
 
 add_library(CarrotEngine STATIC ${CARROT_ENGINE_SOURCES})

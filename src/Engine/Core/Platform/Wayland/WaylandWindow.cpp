@@ -5,6 +5,8 @@
 
 #include "WaylandWindow.h"
 #include "xdg-shell-client-protocol.h"
+#include "Events/Events.h"
+#include "Input/PlatformKeyMapping.h"
 
 #include <wayland-client-protocol.h>
 #include <string>
@@ -20,7 +22,7 @@ namespace carrot::core::platform {
 
         void xdg_surface_configure(void* data, xdg_surface* xdg_surface, uint32_t serial)
         {
-            auto* win = static_cast<wayland_window_t*>(data);
+            auto* win = static_cast<wayland_window_t *>(data);
 
             xdg_surface_ack_configure(xdg_surface, serial);
 
@@ -35,9 +37,10 @@ namespace carrot::core::platform {
 
         constexpr xdg_surface_listener xdg_surface_listener{ .configure = xdg_surface_configure };
 
-        void xdg_toplevel_configure(void* data, xdg_toplevel*, const int32_t width, const int32_t height, [[maybe_unused]] wl_array* states)
+        void xdg_toplevel_configure(void* data, xdg_toplevel*, const int32_t width, const int32_t height,
+                                    [[maybe_unused]] wl_array* states)
         {
-            auto* win = static_cast<wayland_window_t*>(data);
+            auto* win = static_cast<wayland_window_t *>(data);
 
             if (width > 0 && height > 0)
             {
@@ -50,7 +53,7 @@ namespace carrot::core::platform {
 
         void xdg_toplevel_close(void* data, xdg_toplevel*)
         {
-            auto* win = static_cast<wayland_window_t*>(data);
+            auto* win = static_cast<wayland_window_t *>(data);
             win->set_should_close(true);
         }
 
@@ -59,6 +62,92 @@ namespace carrot::core::platform {
             .close = xdg_toplevel_close,
             .configure_bounds = nullptr,
             .wm_capabilities = nullptr,
+        };
+
+        void keyboard_key(void* data, wl_keyboard*, [[maybe_unused]] uint32_t serial, [[maybe_unused]] uint32_t time,
+                          const uint32_t key, const uint32_t state_wl)
+        {
+            auto* win = static_cast<wayland_window_t *>(data);
+
+            auto carrot_key = input::to_carrot_key(key); // your mapping function
+
+            events::key_action action;
+            bool repeat = false;
+
+            if (state_wl == WL_KEYBOARD_KEY_STATE_PRESSED)
+            {
+                action = events::key_action::press;
+                if (win->key_down(static_cast<uint16_t>(carrot_key)))
+                {
+                    repeat = true; // simple repeat detection (improve later with timer)
+                }
+                win->set_key_down(static_cast<uint16_t>(carrot_key), true);
+            }
+            else
+            {
+                action = events::key_action::release;
+                win->set_key_down(static_cast<uint16_t>(carrot_key), false);
+            }
+
+            const events::key_event_t evt{
+                carrot_key,
+                action,
+                repeat,
+                win->keyboard_mods()
+            };
+
+            win->on_key(evt);
+        }
+
+        void keyboard_modifiers(void* data, wl_keyboard*, [[maybe_unused]] uint32_t serial, const uint32_t depressed,
+                                [[maybe_unused]] uint32_t latched, [[maybe_unused]] uint32_t locked,
+                                [[maybe_unused]] uint32_t group)
+        {
+            auto* win = static_cast<wayland_window_t *>(data);
+
+            // Simple bitfield (adjust bits to your needs)
+            uint8_t mods = 0;
+            if (depressed & (1 << 0)) mods |= 1; // Shift (example mapping - use xkbcommon for real)
+            // ... map other bits (Ctrl, Alt, Super)
+
+            win->set_keyboard_mods(mods);
+        }
+
+        constexpr wl_keyboard_listener keyboard_listener = {
+            .keymap = [](void*, wl_keyboard*, [[maybe_unused]] uint32_t format, [[maybe_unused]] int32_t fd,
+                         [[maybe_unused]] uint32_t size) {
+                /* handle keymap if using xkbcommon */
+            },
+            .enter = [](void*, wl_keyboard*, [[maybe_unused]] uint32_t serial, wl_surface*,
+                        [[maybe_unused]] wl_array* keys) {},
+            .leave = [](void*, wl_keyboard*, [[maybe_unused]] uint32_t serial, wl_surface*) {},
+            .key = keyboard_key,
+            .modifiers = keyboard_modifiers,
+            .repeat_info = [](void*, wl_keyboard*, [[maybe_unused]] int32_t rate, [[maybe_unused]] int32_t delay) {
+                /* store for OS repeat if desired */
+            },
+        };
+
+        constexpr wl_seat_listener seat_listener = {
+            .capabilities = [](void* data, wl_seat* seat, uint32_t caps) {
+                auto* win = static_cast<wayland_window_t *>(data);
+
+                if (caps & WL_SEAT_CAPABILITY_KEYBOARD)
+                {
+                    win->set_keyboard(wl_seat_get_keyboard(seat));
+                    wl_keyboard_add_listener(win->get_wl_keyboard(), &keyboard_listener, win);
+                }
+
+                if (caps & WL_SEAT_CAPABILITY_POINTER)
+                {
+                    win->set_pointer(wl_seat_get_pointer(seat));
+                    // Add pointer listener here
+                }
+            },
+            .name = [](void* data, wl_seat* seat, const char* name) {
+                LOG_CORE_TRACE("Seat name: {}", name ? name : "unknown");
+                (void)data; (void)seat; (void)name;
+            }
         };
 
         void registry_global(void* data, wl_registry* registry, const uint32_t name,
@@ -78,6 +167,11 @@ namespace carrot::core::platform {
                 win->set_xdg_wm_base(base);
                 xdg_wm_base_add_listener(base, &xdg_wm_base_listener, nullptr);
             }
+            else if (std::strcmp(interface, wl_seat_interface.name) == 0)
+            {
+                win->set_seat(static_cast<wl_seat*>(wl_registry_bind(registry, name, &wl_seat_interface, 4)));
+                wl_seat_add_listener(win->get_wl_seat(), &seat_listener, win);
+            }
         }
 
         void registry_global_remove(void*, wl_registry*, uint32_t) noexcept {}
@@ -88,7 +182,8 @@ namespace carrot::core::platform {
         };
     } // anonymous
 
-    wayland_window_t::wayland_window_t(const uint32_t width, const uint32_t height, const std::string_view title) noexcept
+    wayland_window_t::wayland_window_t(const uint32_t width, const uint32_t height,
+                                       const std::string_view title) noexcept
         : _current_width{ width }, _current_height{ height }
     {
         _display = wl_display_connect(nullptr);

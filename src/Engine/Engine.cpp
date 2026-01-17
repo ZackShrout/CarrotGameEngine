@@ -19,7 +19,6 @@ namespace carrot {
         float                                       _fps_timer{ 0.f };
         bool                                        _debug_overlay_initialized{ false };
         core::ce_application_t*                     _application{ nullptr };
-        utils::multicast_delegate_t<void(float dt)> _on_tick;
     } // anonymous namespace
 
     // PUBLIC
@@ -48,7 +47,7 @@ namespace carrot {
 
     void engine_t::run(core::ce_application_t* app)
     {
-        const auto& main_window = window::get_primary_window();
+        auto& main_window = window::get_primary_window();
         _application = app;
 
         _last_tick_time = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -56,7 +55,14 @@ namespace carrot {
         ).count();
 
         // Bind the on_tick function in the engine's application class, to be inherited
-        _on_tick.add(utils::single_delegate_t<void(float)>::bind<&core::ce_application_t::on_tick>(_application));
+        _on_tick += BIND_MEMBER(_application, on_tick);
+
+        main_window._on_key += BIND_MEMBER(_application, on_key);
+
+        main_window._on_key += BIND_LAMBDA([](const events::key_event_t& e) {
+            if (e._action == events::key_action::press && e._key == input::key_code::escape)
+                window::get_primary_window().set_should_close(true);
+        });
 
         while (!_should_quit && !main_window.should_close())
         {

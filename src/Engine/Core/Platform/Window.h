@@ -17,12 +17,11 @@ namespace carrot::core::platform {
         virtual ~window_t() = default;
 
         virtual void poll_events() noexcept = 0;
-        [[nodiscard]] virtual bool should_close() const noexcept = 0;
-        virtual void set_should_close(bool should_close) noexcept = 0;;
+        virtual void set_should_close(bool should_close) noexcept = 0;
 
+        [[nodiscard]] virtual bool should_close() const noexcept = 0;
         [[nodiscard]] virtual uint32_t get_width()  const noexcept = 0;
         [[nodiscard]] virtual uint32_t get_height() const noexcept = 0;
-
         [[nodiscard]] virtual native_window_handle_t get_native_handle() const noexcept = 0;
 
         // ───────────────────────────────────────────────

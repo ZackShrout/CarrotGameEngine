@@ -35,7 +35,7 @@ namespace sandbox {
             if (e._key == carrot::input::key_code::a)
             {
                 if (carrot::input::has_modifier(e._mods, carrot::input::modifier::shift))
-                    LOG_CORE_INFO("Shift+A -> Uppercase of sprint!");
+                    LOG_CORE_INFO("Shift+A -> Uppercase!");
                 else
                     LOG_CORE_INFO("Just A");
             }

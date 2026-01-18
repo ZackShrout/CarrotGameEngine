@@ -22,8 +22,8 @@ namespace carrot::core::platform {
         input::key_code _key{ input::key_code::unknown };
         bool _active{ false };
         bool _first_repeat_sent{ false };
-        uint32_t _last_time_ms{ 0 }; // when last repeat was sent
-        uint32_t _delay_ms{ 500 }; // initial delay
+        uint32_t _last_time_ms{ 0 };
+        uint32_t _delay_ms{ 500 };
         uint32_t _rate_ms{ 33 }; // ~30 Hz = 33 ms
     };
 
@@ -34,12 +34,11 @@ namespace carrot::core::platform {
         ~wayland_window_t() noexcept override;
 
         void poll_events() noexcept override;
-        [[nodiscard]] bool should_close() const noexcept override { return _should_close; }
         void set_should_close(const bool should_close) noexcept override { _should_close = should_close; }
 
+        [[nodiscard]] bool should_close() const noexcept override { return _should_close; }
         [[nodiscard]] uint32_t get_width() const noexcept override { return _current_width; }
         [[nodiscard]] uint32_t get_height() const noexcept override { return _current_height; }
-
         [[nodiscard]] native_window_handle_t get_native_handle() const noexcept override;
 
         [[nodiscard]] wl_display* get_wl_display() const noexcept { return _display; }
@@ -47,39 +46,32 @@ namespace carrot::core::platform {
         [[nodiscard]] wl_seat* get_wl_seat() const noexcept { return _seat; }
         [[nodiscard]] wl_keyboard* get_wl_keyboard() const noexcept { return _keyboard; }
         [[nodiscard]] wl_pointer* get_wl_pointer() const noexcept { return _pointer; }
-
         [[nodiscard]] xkb_context* get_xkb_context() const noexcept { return _xkb_context; }
         [[nodiscard]] xkb_keymap* get_xkb_keymap() const noexcept { return _xkb_keymap; }
         [[nodiscard]] xkb_state* get_xkb_state() const noexcept { return _xkb_state; }
-
-        [[nodiscard]] uint32_t get_current_width() const noexcept { return _current_width; }
-        [[nodiscard]] uint32_t get_current_height() const noexcept { return _current_height; }
         [[nodiscard]] uint32_t get_pending_width() const noexcept { return _pending_width; }
         [[nodiscard]] uint32_t get_pending_height() const noexcept { return _pending_height; }
         [[nodiscard]] bool get_configure_pending() const noexcept { return _configure_pending; }
-        [[nodiscard]] bool get_key_down(const uint16_t code) const noexcept { return _keys_down[code]; }
         [[nodiscard]] chlm::float2 get_last_mouse_pos() const noexcept { return _last_mouse_pos; }
         [[nodiscard]] uint8_t get_keyboard_mods() const noexcept { return _keyboard_mods; }
         [[nodiscard]] key_repeat_state_t get_repeat_state() const noexcept { return _repeat_state; }
         [[nodiscard]] bool get_repeat_enabled() const noexcept { return _repeat_enabled; }
 
+        void set_compositor(wl_compositor* c) noexcept { _compositor = c; }
+        void set_xdg_wm_base(xdg_wm_base* base) noexcept { _xdg_wm_base = base; }
         void set_seat(wl_seat* seat) noexcept { _seat = seat; }
         void set_keyboard(wl_keyboard* keyboard) noexcept { _keyboard = keyboard; }
         void set_pointer(wl_pointer* pointer) noexcept { _pointer = pointer; }
-
         void set_xkb_context(xkb_context* context) noexcept { _xkb_context = context; }
         void set_xkb_keymap(xkb_keymap* keymap) noexcept { _xkb_keymap = keymap; }
         void set_xkb_state(xkb_state* state) noexcept { _xkb_state = state; }
-
         void set_current_width(const uint32_t width) noexcept { _current_width = width; }
         void set_current_height(const uint32_t height) noexcept { _current_height = height; }
         void set_pending_width(const uint32_t width) noexcept { _pending_width = width; }
         void set_pending_height(const uint32_t height) noexcept { _pending_height = height; }
         void set_configure_pending(const bool configure) noexcept { _configure_pending = configure; }
-        void set_key_down(const uint16_t code, const bool pressed) noexcept { _keys_down[code] = pressed; }
         void set_last_mouse_pos(const chlm::float2& pos) noexcept { _last_mouse_pos = pos; }
         void set_keyboard_mods(const uint8_t mods) noexcept { _keyboard_mods = mods; }
-        void set_key_repeat_state(const key_repeat_state_t state) noexcept { _repeat_state = state; }
         void set_repeat_enabled(const bool enabled) noexcept { _repeat_enabled = enabled; }
         void set_repeat_state_key(const input::key_code code) noexcept { _repeat_state._key = code; }
         void set_repeat_state_active(const bool active) noexcept { _repeat_state._active = active; }
@@ -87,10 +79,6 @@ namespace carrot::core::platform {
         void set_repeat_state_last_time(const uint32_t value) noexcept { _repeat_state._last_time_ms = value; }
         void set_repeat_state_delay(const uint32_t value) noexcept { _repeat_state._delay_ms = value; }
         void set_repeat_state_rate(const uint32_t value) noexcept { _repeat_state._rate_ms = value; }
-
-        // These two are only for the registry callback
-        void set_compositor(wl_compositor* c) noexcept { _compositor = c; }
-        void set_xdg_wm_base(xdg_wm_base* base) noexcept { _xdg_wm_base = base; }
 
     private:
         wl_display* _display{ nullptr };
@@ -102,13 +90,11 @@ namespace carrot::core::platform {
         wl_seat* _seat{ nullptr };
         wl_keyboard* _keyboard{ nullptr };
         wl_pointer* _pointer{ nullptr };
-
         xkb_context* _xkb_context{ nullptr };
         xkb_keymap* _xkb_keymap{ nullptr };
         xkb_state* _xkb_state{ nullptr };
 
         uint8_t _modifiers{ 0 };
-
         uint32_t _current_width{ 1280 };
         uint32_t _current_height{ 720 };
         uint32_t _pending_width{ 0 };
@@ -118,7 +104,7 @@ namespace carrot::core::platform {
 
         bool _keys_down[static_cast<uint16_t>(input::key_code::max_key_code)]{ false };
         chlm::float2 _last_mouse_pos{ 0.f, 0.f };
-        uint8_t _keyboard_mods{ 0 }; // depressed mods from wl_keyboard_modifiers
+        uint8_t _keyboard_mods{ 0 };
         key_repeat_state_t _repeat_state;
         bool _repeat_enabled{ true };
     };

@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 namespace carrot::input {
     enum class key_code : uint16_t
@@ -69,6 +70,20 @@ namespace carrot::input {
         button5 = 5, // side/forward
         // ... more if needed
     };
+
+    enum class modifier : uint8_t
+    {
+        none = 0,
+        shift = 1 << 0,
+        control = 1 << 1,
+        alt = 1 << 2,
+        super = 1 << 3,
+    };
+
+    constexpr bool has_modifier(const uint8_t mods, modifier m) noexcept
+    {
+        return (mods & static_cast<uint8_t>(m)) != 0;
+    }
 
     constexpr const char* key_code_to_string(const key_code key)
     {
@@ -162,5 +177,19 @@ namespace carrot::input {
             case mouse_button::button5: return "Button5";
             default: return "Unknown";
         }
+    }
+
+    constexpr std::string modifiers_to_string(const uint8_t mods)
+    {
+        std::string s;
+
+        if (has_modifier(mods, modifier::shift)) s += "Shift ";
+        if (has_modifier(mods, modifier::control)) s += "Ctrl ";
+        if (has_modifier(mods, modifier::alt)) s += "Alt ";
+        if (has_modifier(mods, modifier::super)) s += "Super ";
+        if (s.empty()) return "None";
+
+        s.pop_back();
+        return s;
     }
 } // ns carrot::input

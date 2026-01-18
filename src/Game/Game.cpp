@@ -27,9 +27,22 @@ namespace sandbox {
     {
         ce_application_t::on_key(e);
 
-        if (e._action == carrot::events::key_action::press || e._action == carrot::events::key_action::repeat)
-            LOG_CORE_INFO("Key pressed: {} ({})", carrot::input::key_code_to_string(e._key),
-                      static_cast<uint32_t>(e._key));
+        if (e._action == carrot::events::key_action::press)
+        {
+            LOG_CORE_INFO("Key pressed: {} ({}) (mods: {})", carrot::input::key_code_to_string(e._key),
+                      static_cast<uint32_t>(e._key), carrot::input::modifiers_to_string(e._mods));
+
+            if (e._key == carrot::input::key_code::a)
+            {
+                if (carrot::input::has_modifier(e._mods, carrot::input::modifier::shift))
+                    LOG_CORE_INFO("Shift+A -> Uppercase of sprint!");
+                else
+                    LOG_CORE_INFO("Just A");
+            }
+        }
+        else if (e._action == carrot::events::key_action::repeat)
+            LOG_CORE_INFO("Key held: {} ({})", carrot::input::key_code_to_string(e._key),
+                          static_cast<uint32_t>(e._key));
         else if (e._action == carrot::events::key_action::release)
             LOG_CORE_INFO("Key released: {} ({})", carrot::input::key_code_to_string(e._key),
                       static_cast<uint32_t>(e._key));

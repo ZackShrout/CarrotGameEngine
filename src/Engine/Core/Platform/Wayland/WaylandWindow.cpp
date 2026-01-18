@@ -10,6 +10,7 @@
 #include "Input/PlatformKeyMapping.h"
 
 #include <wayland-client-protocol.h>
+#include <sys/mman.h>
 #include <string>
 
 namespace carrot::core::platform {
@@ -95,7 +96,7 @@ namespace carrot::core::platform {
         void pointer_axis(void* data, wl_pointer*, [[maybe_unused]] uint32_t time, const uint32_t axis,
                           const wl_fixed_t value)
         {
-            wayland_window_t* win{ static_cast<wayland_window_t *>(data) };
+            const wayland_window_t* win{ static_cast<wayland_window_t *>(data) };
             chlm::float2 delta{ 0.f, 0.f };
 
             if (axis == WL_POINTER_AXIS_VERTICAL_SCROLL)
@@ -191,22 +192,33 @@ namespace carrot::core::platform {
         }
 
         void keyboard_modifiers(void* data, wl_keyboard*, [[maybe_unused]] uint32_t serial, const uint32_t depressed,
-                                [[maybe_unused]] uint32_t latched, [[maybe_unused]] uint32_t locked,
-                                [[maybe_unused]] uint32_t group)
+                                const uint32_t latched, const uint32_t locked, const uint32_t group)
         {
-            auto* win = static_cast<wayland_window_t *>(data);
+            wayland_window_t* win{ static_cast<wayland_window_t *>(data) };
 
-            // Simple bitfield (adjust bits to your needs)
+            // Tell xkbcommon about the new modifier state
+            xkb_state_update_mask(win->get_xkb_state(),
+                                  depressed, latched, locked,
+                                  0, 0, group); // group = layout index
+
+            // Now query effective modifier bits
             uint8_t mods = 0;
-            if (depressed & (1 << 0)) mods |= 1; // Shift (example mapping - use xkbcommon for real)
-            // ... map other bits (Ctrl, Alt, Super)
+
+            if (xkb_state_mod_name_is_active(win->get_xkb_state(), XKB_MOD_NAME_SHIFT, XKB_STATE_MODS_EFFECTIVE))
+                mods |= static_cast<uint8_t>(input::modifier::shift);
+            if (xkb_state_mod_name_is_active(win->get_xkb_state(), XKB_MOD_NAME_CTRL, XKB_STATE_MODS_EFFECTIVE))
+                mods |= static_cast<uint8_t>(input::modifier::control);
+            if (xkb_state_mod_name_is_active(win->get_xkb_state(), XKB_MOD_NAME_ALT, XKB_STATE_MODS_EFFECTIVE))
+                mods |= static_cast<uint8_t>(input::modifier::alt);
+            if (xkb_state_mod_name_is_active(win->get_xkb_state(), XKB_MOD_NAME_LOGO, XKB_STATE_MODS_EFFECTIVE))
+                mods |= static_cast<uint8_t>(input::modifier::super); // (Win/Cmd)
 
             win->set_keyboard_mods(mods);
         }
 
         void keyboard_repeat_info(void* data, wl_keyboard*, const int32_t rate, const int32_t delay)
         {
-            auto* win = static_cast<wayland_window_t *>(data);
+            wayland_window_t* win{ static_cast<wayland_window_t *>(data) };
 
             if (rate <= 0)
             {
@@ -220,11 +232,52 @@ namespace carrot::core::platform {
             win->set_repeat_state_rate(1000 / static_cast<uint32_t>(rate)); // e.g. 33 ms for 30 Hz
         }
 
+        void keyboard_keymap(void* data, wl_keyboard*, uint32_t format, int32_t fd, uint32_t size)
+        {
+            wayland_window_t* win{ static_cast<wayland_window_t *>(data) };
+
+            if (format != WL_KEYBOARD_KEYMAP_FORMAT_XKB_V1)
+            {
+                LOG_CORE_ERROR("Unsupported keymap format: {}", format);
+                close(fd);
+                return;
+            }
+
+            char* map_str = static_cast<char *>(mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0));
+            if (map_str == MAP_FAILED)
+            {
+                LOG_CORE_ERROR("Failed to mmap keymap");
+                close(fd);
+                return;
+            }
+
+            win->set_xkb_keymap(xkb_keymap_new_from_string(
+                win->get_xkb_context(),
+                map_str,
+                XKB_KEYMAP_FORMAT_TEXT_V1,
+                XKB_KEYMAP_COMPILE_NO_FLAGS
+            ));
+
+            munmap(map_str, size);
+            close(fd);
+
+            if (!win->get_xkb_keymap())
+            {
+                LOG_CORE_ERROR("Failed to compile xkb keymap");
+                return;
+            }
+
+            win->set_xkb_state(xkb_state_new(win->get_xkb_keymap()));
+            if (!win->get_xkb_state())
+            {
+                LOG_CORE_ERROR("Failed to create xkb state");
+                xkb_keymap_unref(win->get_xkb_keymap());
+                win->set_xkb_keymap(nullptr);
+            }
+        }
+
         constexpr wl_keyboard_listener keyboard_listener = {
-            .keymap = [](void*, wl_keyboard*, [[maybe_unused]] uint32_t format, [[maybe_unused]] int32_t fd,
-                         [[maybe_unused]] uint32_t size) {
-                /* handle keymap if using xkbcommon */
-            },
+            .keymap = keyboard_keymap,
             .enter = [](void*, wl_keyboard*, [[maybe_unused]] uint32_t serial, wl_surface*,
                         [[maybe_unused]] wl_array* keys) {},
             .leave = [](void*, wl_keyboard*, [[maybe_unused]] uint32_t serial, wl_surface*) {},
@@ -240,6 +293,15 @@ namespace carrot::core::platform {
                 if (caps & WL_SEAT_CAPABILITY_KEYBOARD)
                 {
                     win->set_keyboard(wl_seat_get_keyboard(seat));
+
+                    // ────────────── xkbcommon setup ──────────────
+                    win->set_xkb_context(xkb_context_new(XKB_CONTEXT_NO_FLAGS));
+                    if (!win->get_xkb_context())
+                    {
+                        LOG_CORE_ERROR("Failed to create xkb_context");
+                        return;
+                    }
+
                     wl_keyboard_add_listener(win->get_wl_keyboard(), &keyboard_listener, win);
                 }
 
@@ -317,6 +379,9 @@ namespace carrot::core::platform {
         if (_xdg_wm_base) xdg_wm_base_destroy(_xdg_wm_base);
         if (_surface) wl_surface_destroy(_surface);
         if (_display) wl_display_disconnect(_display);
+        if (_xkb_state) xkb_state_unref(_xkb_state);
+        if (_xkb_keymap) xkb_keymap_unref(_xkb_keymap);
+        if (_xkb_context) xkb_context_unref(_xkb_context);
     }
 
     void wayland_window_t::poll_events() noexcept

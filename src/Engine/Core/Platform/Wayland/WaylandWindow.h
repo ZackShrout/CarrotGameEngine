@@ -10,6 +10,7 @@
 #include "Input/KeyCodes.h"
 
 #include <wayland-client.h>
+#include <xkbcommon/xkbcommon.h>
 
 struct xdg_wm_base;
 struct xdg_surface;
@@ -46,6 +47,11 @@ namespace carrot::core::platform {
         [[nodiscard]] wl_seat* get_wl_seat() const noexcept { return _seat; }
         [[nodiscard]] wl_keyboard* get_wl_keyboard() const noexcept { return _keyboard; }
         [[nodiscard]] wl_pointer* get_wl_pointer() const noexcept { return _pointer; }
+
+        [[nodiscard]] xkb_context* get_xkb_context() const noexcept { return _xkb_context; }
+        [[nodiscard]] xkb_keymap* get_xkb_keymap() const noexcept { return _xkb_keymap; }
+        [[nodiscard]] xkb_state* get_xkb_state() const noexcept { return _xkb_state; }
+
         [[nodiscard]] uint32_t get_current_width() const noexcept { return _current_width; }
         [[nodiscard]] uint32_t get_current_height() const noexcept { return _current_height; }
         [[nodiscard]] uint32_t get_pending_width() const noexcept { return _pending_width; }
@@ -60,6 +66,11 @@ namespace carrot::core::platform {
         void set_seat(wl_seat* seat) noexcept { _seat = seat; }
         void set_keyboard(wl_keyboard* keyboard) noexcept { _keyboard = keyboard; }
         void set_pointer(wl_pointer* pointer) noexcept { _pointer = pointer; }
+
+        void set_xkb_context(xkb_context* context) noexcept { _xkb_context = context; }
+        void set_xkb_keymap(xkb_keymap* keymap) noexcept { _xkb_keymap = keymap; }
+        void set_xkb_state(xkb_state* state) noexcept { _xkb_state = state; }
+
         void set_current_width(const uint32_t width) noexcept { _current_width = width; }
         void set_current_height(const uint32_t height) noexcept { _current_height = height; }
         void set_pending_width(const uint32_t width) noexcept { _pending_width = width; }
@@ -91,6 +102,12 @@ namespace carrot::core::platform {
         wl_seat* _seat{ nullptr };
         wl_keyboard* _keyboard{ nullptr };
         wl_pointer* _pointer{ nullptr };
+
+        xkb_context* _xkb_context{ nullptr };
+        xkb_keymap* _xkb_keymap{ nullptr };
+        xkb_state* _xkb_state{ nullptr };
+
+        uint8_t _modifiers{ 0 };
 
         uint32_t _current_width{ 1280 };
         uint32_t _current_height{ 720 };

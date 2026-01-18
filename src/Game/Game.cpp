@@ -27,7 +27,7 @@ namespace sandbox {
     {
         ce_application_t::on_key(e);
 
-        if (e._action == carrot::events::key_action::press)
+        if (e._action == carrot::events::key_action::press || e._action == carrot::events::key_action::repeat)
             LOG_CORE_INFO("Key pressed: {} ({})", carrot::input::key_code_to_string(e._key),
                       static_cast<uint32_t>(e._key));
         else if (e._action == carrot::events::key_action::release)

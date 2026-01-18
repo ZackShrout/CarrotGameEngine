@@ -27,7 +27,7 @@ namespace carrot::core::platform {
 
             xdg_surface_ack_configure(xdg_surface, serial);
 
-            if (win->configure_pending() && win->get_pending_width() > 0 && win->get_pending_height() > 0)
+            if (win->get_configure_pending() && win->get_pending_width() > 0 && win->get_pending_height() > 0)
             {
                 win->set_current_width(win->get_pending_width());
                 win->set_current_height(win->get_pending_height());
@@ -73,7 +73,7 @@ namespace carrot::core::platform {
             const chlm::float2 pos{
                 static_cast<float>(wl_fixed_to_double(sx)), static_cast<float>(wl_fixed_to_double(sy))
             };
-            const chlm::float2 delta{ pos - win->last_mouse_pos() };
+            const chlm::float2 delta{ pos - win->get_last_mouse_pos() };
 
             win->on_mouse_moved({ pos, delta });
             win->set_last_mouse_pos(pos);
@@ -89,7 +89,7 @@ namespace carrot::core::platform {
                 state_wl == WL_POINTER_BUTTON_STATE_PRESSED ? events::key_action::press : events::key_action::release
             };
 
-            win->on_mouse_button({ carrot_btn, action, win->last_mouse_pos() });
+            win->on_mouse_button({ carrot_btn, action, win->get_last_mouse_pos() });
         }
 
         void pointer_axis(void* data, wl_pointer*, [[maybe_unused]] uint32_t time, const uint32_t axis,
@@ -124,32 +124,70 @@ namespace carrot::core::platform {
             .axis_relative_direction = nullptr
         };
 
+        bool is_repeatable_key(const input::key_code key)
+        {
+            switch (key)
+            {
+                case input::key_code::left_shift:
+                case input::key_code::right_shift:
+                case input::key_code::left_control:
+                case input::key_code::right_control:
+                case input::key_code::left_alt:
+                case input::key_code::right_alt:
+                case input::key_code::left_super:
+                case input::key_code::right_super:
+                case input::key_code::escape:
+                case input::key_code::f1:
+                case input::key_code::f2:
+                case input::key_code::f3:
+                case input::key_code::f4:
+                case input::key_code::f5:
+                case input::key_code::f6:
+                case input::key_code::f7:
+                case input::key_code::f8:
+                case input::key_code::f9:
+                case input::key_code::f10:
+                case input::key_code::f11:
+                case input::key_code::f12:
+                    return false;
+                default:
+                    return true;
+            }
+        }
+
         void keyboard_key(void* data, wl_keyboard*, [[maybe_unused]] uint32_t serial, [[maybe_unused]] uint32_t time,
                           const uint32_t key, const uint32_t state_wl)
         {
-            auto* win = static_cast<wayland_window_t *>(data);
+            wayland_window_t* win{ static_cast<wayland_window_t *>(data) };
+            const input::key_code carrot_key{ input::to_carrot_key(key) };
+            constexpr bool repeat{ false };
 
-            auto carrot_key = input::to_carrot_key(key); // your mapping function
+            const events::key_action action{
+                state_wl == WL_KEYBOARD_KEY_STATE_PRESSED ? events::key_action::press : events::key_action::release
+            };
 
-            events::key_action action;
-            bool repeat = false;
+            const events::key_event_t evt{ carrot_key, action, repeat, win->get_keyboard_mods() };
+            win->on_key(evt);
 
-            if (state_wl == WL_KEYBOARD_KEY_STATE_PRESSED)
+            // ────────────── Repeat management ──────────────
+            if (action == events::key_action::press)
             {
-                action = events::key_action::press;
-                if (win->key_down(static_cast<uint16_t>(carrot_key)))
+                if (win->get_repeat_enabled() && is_repeatable_key(carrot_key))
                 {
-                    repeat = true; // simple repeat detection (improve later with timer)
-                }
-                win->set_key_down(static_cast<uint16_t>(carrot_key), true);
-            }
-            else
-            {
-                action = events::key_action::release;
-                win->set_key_down(static_cast<uint16_t>(carrot_key), false);
-            }
+                    win->set_repeat_state_key(carrot_key);
+                    win->set_repeat_state_active(true);
+                    win->set_repeat_state_last_time(std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::steady_clock::now().time_since_epoch()
+                    ).count()); // start delay countdown
 
-            win->on_key({ carrot_key, action, repeat, win->keyboard_mods() });
+                    win->set_repeat_state_first_sent(false);
+                }
+            }
+            else // Release
+            {
+                if (win->get_repeat_state()._key == carrot_key)
+                    win->set_repeat_state_active(false);
+            }
         }
 
         void keyboard_modifiers(void* data, wl_keyboard*, [[maybe_unused]] uint32_t serial, const uint32_t depressed,
@@ -166,6 +204,22 @@ namespace carrot::core::platform {
             win->set_keyboard_mods(mods);
         }
 
+        void keyboard_repeat_info(void* data, wl_keyboard*, const int32_t rate, const int32_t delay)
+        {
+            auto* win = static_cast<wayland_window_t *>(data);
+
+            if (rate <= 0)
+            {
+                win->set_repeat_enabled(false);
+                win->set_repeat_state_active(false);
+                return;
+            }
+
+            win->set_repeat_enabled(true);
+            win->set_repeat_state_delay(static_cast<uint32_t>(delay));
+            win->set_repeat_state_rate(1000 / static_cast<uint32_t>(rate)); // e.g. 33 ms for 30 Hz
+        }
+
         constexpr wl_keyboard_listener keyboard_listener = {
             .keymap = [](void*, wl_keyboard*, [[maybe_unused]] uint32_t format, [[maybe_unused]] int32_t fd,
                          [[maybe_unused]] uint32_t size) {
@@ -176,12 +230,11 @@ namespace carrot::core::platform {
             .leave = [](void*, wl_keyboard*, [[maybe_unused]] uint32_t serial, wl_surface*) {},
             .key = keyboard_key,
             .modifiers = keyboard_modifiers,
-            .repeat_info = [](void*, wl_keyboard*, [[maybe_unused]] int32_t rate, [[maybe_unused]] int32_t delay) {
-            },
+            .repeat_info = keyboard_repeat_info
         };
 
         constexpr wl_seat_listener seat_listener = {
-            .capabilities = [](void* data, wl_seat* seat, uint32_t caps) {
+            .capabilities = [](void* data, wl_seat* seat, const uint32_t caps) {
                 auto* win = static_cast<wayland_window_t *>(data);
 
                 if (caps & WL_SEAT_CAPABILITY_KEYBOARD)
@@ -196,9 +249,8 @@ namespace carrot::core::platform {
                     wl_pointer_add_listener(win->get_wl_pointer(), &pointer_listener, win);
                 }
             },
-            .name = []([[maybe_unused]] void* data, [[maybe_unused]] wl_seat* seat, const char* name) {
-                LOG_CORE_TRACE("Seat name: {}", name ? name : "unknown");
-            }
+            .name = []([[maybe_unused]] void* data, [[maybe_unused]] wl_seat* seat,
+                       [[maybe_unused]] const char* name) {}
         };
 
         void registry_global(void* data, wl_registry* registry, const uint32_t name,
@@ -269,7 +321,49 @@ namespace carrot::core::platform {
 
     void wayland_window_t::poll_events() noexcept
     {
-        wl_display_dispatch_pending(_display);
+        // 1. Dispatch all pending Wayland events (keys, buttons, motion, scroll, modifiers, etc.)
+        while (wl_display_dispatch_pending(_display) != 0) {}
+
+        // 2. Generate synthetic repeats (only if we have an active repeating key)
+        if (_repeat_state._active && _repeat_state._key != input::key_code::unknown)
+        {
+            const uint64_t now_ms{
+                static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch()).count())
+            };
+
+            const uint64_t time_since_last = now_ms - _repeat_state._last_time_ms;
+            bool should_send_repeat = false;
+
+            if (!_repeat_state._first_repeat_sent)
+            {
+                // Waiting for initial delay
+                if (time_since_last >= _repeat_state._delay_ms)
+                {
+                    should_send_repeat = true;
+                    _repeat_state._first_repeat_sent = true;
+                }
+            }
+            else
+            {
+                // Waiting for next interval
+                if (time_since_last >= _repeat_state._rate_ms)
+                    should_send_repeat = true;
+            }
+
+            if (should_send_repeat)
+            {
+                const events::key_event_t evt{
+                    _repeat_state._key,
+                    events::key_action::repeat,
+                    true,
+                    _keyboard_mods
+                };
+
+                on_key(evt);
+                _repeat_state._last_time_ms = now_ms;
+            }
+        }
     }
 
     native_window_handle_t wayland_window_t::get_native_handle() const noexcept

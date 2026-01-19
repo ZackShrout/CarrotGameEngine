@@ -32,8 +32,6 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Engine.h
         src/Engine/Core/Application.cpp
         src/Engine/Core/Application.h
-        src/Engine/Core/Platform/Wayland/WaylandWindow.cpp
-        src/Engine/Core/Platform/Wayland/WaylandWindow.h
         src/Engine/Debug/DebugOverlay.cpp
         src/Engine/Debug/DebugOverlay.h
         src/Engine/HotReload/ShaderWatcher.cpp
@@ -87,12 +85,95 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Input/PlatformKeyMapping.h
 )
 
+# ------------------------------------------------------------------------
+# Platform / Windowing / RHI specific sources
+# ------------------------------------------------------------------------
+if (APPLE)
+    set(CARROT_PLATFORM_COCOA ON CACHE INTERNAL "")
+    add_compile_definitions(CARROT_PLATFORM_COCOA=1)
+    list(APPEND CARROT_ENGINE_SOURCES
+            # ... your Metal-specific .cpp / .h files here ...
+    )
+elseif (WIN32)
+    set(CARROT_PLATFORM_WIN32 ON CACHE INTERNAL "")
+    add_compile_definitions(CARROT_PLATFORM_WIN32=1)
+    list(APPEND CARROT_ENGINE_SOURCES
+            # ... your D3D12-specific .cpp / .h files here (if any) ...
+    )
+elseif (UNIX)
+    # Define the cache variable with a proper default value right away.
+    # This runs only on first configure (or if deleted from cache).
+    # After that, user choices (-D or cmake-gui) are preserved.
+    set(CARROT_LINUX_WINDOWING "Auto" CACHE STRING
+            "Linux windowing system to target: Auto (prefer Wayland), Wayland, or X11")
+
+    # Restrict the possible values in cmake-gui / ccmake (optional but very nice)
+    set_property(CACHE CARROT_LINUX_WINDOWING PROPERTY STRINGS "Auto" "Wayland" "X11")
+
+    # Now resolve which backend we're actually using
+    if (CARROT_LINUX_WINDOWING STREQUAL "Auto")
+        find_package(PkgConfig QUIET)
+        if (PkgConfig_FOUND)
+            pkg_check_modules(WL_CLIENT QUIET wayland-client)
+            pkg_check_modules(WL_EGL QUIET wayland-egl)
+            pkg_check_modules(XKB QUIET xkbcommon)
+
+            if (WL_CLIENT_FOUND AND WL_EGL_FOUND AND XKB_FOUND)
+                set(_backend Wayland)
+                message(STATUS "Auto: Wayland selected (dev packages detected)")
+            else ()
+                set(_backend X11)
+                message(STATUS "Auto: X11 selected (Wayland dev packages missing)")
+            endif ()
+        else ()
+            set(_backend X11)
+            message(STATUS "pkg-config not found → defaulting to X11")
+        endif ()
+    else ()
+        set(_backend ${CARROT_LINUX_WINDOWING})
+    endif ()
+
+    # Apply the final choice
+    if (_backend STREQUAL "Wayland")
+        set(CARROT_PLATFORM_WAYLAND ON CACHE INTERNAL "")
+        add_compile_definitions(CARROT_PLATFORM_WAYLAND=1)
+    elseif (_backend STREQUAL "X11")
+        set(CARROT_PLATFORM_X11 ON CACHE INTERNAL "")
+        add_compile_definitions(CARROT_PLATFORM_X11=1)
+    else ()
+        message(FATAL_ERROR "Internal error: unexpected backend ${_backend}")
+    endif ()
+
+    message(STATUS "Linux windowing backend: ${_backend}")
+
+    # Wayland-specific sources (only added when Wayland is chosen)
+    if (CARROT_PLATFORM_WAYLAND)
+        list(APPEND CARROT_ENGINE_SOURCES
+                src/Engine/Core/Platform/Wayland/WaylandWindow.cpp
+                src/Engine/Core/Platform/Wayland/WaylandWindow.h
+                src/Engine/Core/Platform/Wayland/xdg-shell-client-protocol.c
+                src/Engine/Core/Platform/Wayland/xdg-shell-client-protocol.h
+                # ... any other Wayland-only files ...
+        )
+    endif ()
+
+    # X11-specific sources (only if X11 is active)
+    if (CARROT_PLATFORM_X11)
+        list(APPEND CARROT_ENGINE_SOURCES
+                # ... your X11 windowing .cpp / .h files here ...
+        )
+    endif ()
+
+    # You can also add Linux-common files here if needed
+    # list(APPEND CARROT_ENGINE_SOURCES ...)endif ()
+
+endif()
+
 add_library(CarrotEngine STATIC ${CARROT_ENGINE_SOURCES})
 
 target_compile_definitions(CarrotEngine PRIVATE
         CARROT_SOURCE_ROOT="${CMAKE_SOURCE_DIR}"
 )
-
 
 # ------------------------------------------------------------------------
 # Debug/Release macros & optimizations
@@ -201,63 +282,9 @@ elseif(WIN32)
 # Linux
 # ------------------------------------------------------------------------
 elseif(UNIX)
-    # Define the cache variable with a proper default value right away.
-    # This runs only on first configure (or if deleted from cache).
-    # After that, user choices (-D or cmake-gui) are preserved.
-    set(CARROT_LINUX_WINDOWING "Auto" CACHE STRING
-            "Linux windowing system to target: Auto (prefer Wayland), Wayland, or X11")
-
-    # Restrict the possible values in cmake-gui / ccmake (optional but very nice)
-    set_property(CACHE CARROT_LINUX_WINDOWING PROPERTY STRINGS "Auto" "Wayland" "X11")
-
-    # Now resolve which backend we're actually using
-    if(CARROT_LINUX_WINDOWING STREQUAL "Auto")
-        find_package(PkgConfig QUIET)
-        if(PkgConfig_FOUND)
-            pkg_check_modules(WL_CLIENT QUIET wayland-client)
-            pkg_check_modules(WL_EGL    QUIET wayland-egl)
-            pkg_check_modules(XKB       QUIET xkbcommon)
-
-            if(WL_CLIENT_FOUND AND WL_EGL_FOUND AND XKB_FOUND)
-                set(_backend Wayland)
-                message(STATUS "Auto: Wayland selected (dev packages detected)")
-            else()
-                set(_backend X11)
-                message(STATUS "Auto: X11 selected (Wayland dev packages missing)")
-            endif()
-        else()
-            set(_backend X11)
-            message(STATUS "pkg-config not found → defaulting to X11")
-        endif()
-    else()
-        set(_backend ${CARROT_LINUX_WINDOWING})
-    endif()
-
-    # Apply the final choice
-    if(_backend STREQUAL "Wayland")
-        set(CARROT_PLATFORM_WAYLAND ON CACHE INTERNAL "")
-        add_compile_definitions(CARROT_PLATFORM_WAYLAND=1)
-    elseif(_backend STREQUAL "X11")
-        set(CARROT_PLATFORM_X11 ON CACHE INTERNAL "")
-        add_compile_definitions(CARROT_PLATFORM_X11=1)
-    else()
-        message(FATAL_ERROR "Internal error: unexpected backend ${_backend}")
-    endif()
-
-    message(STATUS "Linux windowing backend: ${_backend}")
-
-    # Force Clang for both C and C++ to ensure consistent libc++ usage
-    set(CMAKE_C_COMPILER clang)
-    set(CMAKE_CXX_COMPILER clang++)
-
     # Find Vulkan (includes glslangValidator)
     find_package(Vulkan REQUIRED)
     target_link_libraries(CarrotEngine PRIVATE Vulkan::Vulkan)
-
-    target_sources(CarrotEngine PRIVATE
-            src/Engine/Core/Platform/Wayland/xdg-shell-client-protocol.c
-            src/Engine/Core/Platform/Wayland/xdg-shell-client-protocol.h
-    )
 
     # Apply libc++ only to C++ compilation and linking
     target_compile_options(CarrotEngine PUBLIC
@@ -296,30 +323,16 @@ target_link_libraries(CarrotSandbox PRIVATE CarrotEngine)  # This pulls in every
 # ------------------------------------------------------------------------
 # Shader compilation
 # ------------------------------------------------------------------------
-file(GLOB SHADER_SOURCES
-        "shaders/*.vert"
-        "shaders/*.frag"
-)
+include(CompileShaders.cmake)
 
-set(SPV_OUTPUT_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/shaders)
+file(GLOB SHADER_SOURCES "shaders/*.vert" "shaders/*.frag")
 
-foreach(SHADER ${SHADER_SOURCES})
-    get_filename_component(SHADER_NAME ${SHADER} NAME)
-    set(SPV_OUTPUT ${SPV_OUTPUT_DIR}/${SHADER_NAME}.spv)
+set(SPV_OUTPUT_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/shaders")
 
-    add_custom_command(
-            OUTPUT ${SPV_OUTPUT}
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${SPV_OUTPUT_DIR}
-            COMMAND Vulkan::glslangValidator -V ${SHADER} -o ${SPV_OUTPUT}
-            DEPENDS ${SHADER}
-            COMMENT "Compiling shader ${SHADER_NAME}"
-            VERBATIM
-    )
-    list(APPEND SPV_OUTPUTS ${SPV_OUTPUT})
+foreach(SHADER_FILE IN LISTS SHADER_SOURCES)
+    file(RELATIVE_PATH REL_SHADER "${CMAKE_CURRENT_SOURCE_DIR}" "${SHADER_FILE}")
+    compile_glsl_to_spv(CarrotSandbox "${REL_SHADER}" "${SPV_OUTPUT_DIR}")
 endforeach()
-
-add_custom_target(CompileShaders ALL DEPENDS ${SPV_OUTPUTS})
-add_dependencies(CarrotSandbox CompileShaders)
 
 # ------------------------------------------------------------------------
 # Asset copying

@@ -12,11 +12,7 @@ CMakeCache.txt
 CMakeScripts/
 cmake_install.cmake
 install_manifest.txt
-compile_commands.json    # (remove this line if you want it committed for clangd)
-
-# CMake presets (if you ever use them)
-CMakePresets.json
-CMakeUserPresets.json
+compile_commands.json
 
 # === Executable & debug symbols ===
 CarrotGameEngine

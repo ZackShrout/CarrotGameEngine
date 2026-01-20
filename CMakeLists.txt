@@ -175,6 +175,12 @@ target_compile_definitions(CarrotEngine PRIVATE
         CARROT_SOURCE_ROOT="${CMAKE_SOURCE_DIR}"
 )
 
+# Let all targets that link to CarrotEngine (or CarrotEngine itself) see generated headers
+target_include_directories(CarrotEngine PUBLIC
+        ${CMAKE_BINARY_DIR}/src/Engine/HotReload/Config
+        # ... you can keep your existing PUBLIC includes ...
+)
+
 # ------------------------------------------------------------------------
 # Debug/Release macros & optimizations
 # ------------------------------------------------------------------------

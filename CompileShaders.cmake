@@ -4,11 +4,20 @@ find_program(DXC_EXECUTABLE
         NAMES dxc dxcompiler
 )
 
+
+
 if(DXC_EXECUTABLE)
     message(STATUS "Found DirectX Shader Compiler: ${DXC_EXECUTABLE}")
 else()
     message(FATAL_ERROR "dxc is required but was not found.")
 endif()
+
+# Generate config header
+configure_file(
+        ${CMAKE_SOURCE_DIR}/src/Engine/HotReload/Config/ShaderToolsConfig.h.in
+        ${CMAKE_BINARY_DIR}/src/Engine/HotReload/Config/ShaderToolsConfig.h
+        @ONLY
+)
 
 #function(compile_glsl_to_spv TARGET_NAME GLSL_FILE OUTPUT_DIR)
 #    # Make absolute path from source root

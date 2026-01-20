@@ -304,7 +304,6 @@ elseif(UNIX)
             dl
             pthread
     )
-
 endif()
 
 # ------------------------------------------------------------------------
@@ -333,6 +332,22 @@ foreach(SHADER_FILE IN LISTS SHADER_SOURCES)
     file(RELATIVE_PATH REL_SHADER "${CMAKE_CURRENT_SOURCE_DIR}" "${SHADER_FILE}")
     compile_glsl_to_spv(CarrotSandbox "${REL_SHADER}" "${SPV_OUTPUT_DIR}")
 endforeach()
+
+# Temporary test: compile one specific HLSL file to SPIR-V
+# Temporary test: compile the specific HLSL file
+set(TEST_HLSL_REL "shaders/test.vert.hlsl")
+set(TEST_HLSL_ABS "${CMAKE_CURRENT_SOURCE_DIR}/${TEST_HLSL_REL}")
+
+if(EXISTS "${TEST_HLSL_ABS}")
+    compile_hlsl_to_spirv(
+            CarrotSandbox
+            "${TEST_HLSL_REL}"          # pass the relative path — that's what your function expects
+            "${SPV_OUTPUT_DIR}"
+    )
+    message(STATUS "Added HLSL → SPIR-V compilation for ${TEST_HLSL_REL}")
+else()
+    message(WARNING "HLSL test file not found at: ${TEST_HLSL_ABS}")
+endif()
 
 # ------------------------------------------------------------------------
 # Asset copying

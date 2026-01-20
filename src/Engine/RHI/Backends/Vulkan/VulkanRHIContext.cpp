@@ -8,7 +8,7 @@
 #include "VulkanPipeline.h"
 #include "VulkanRenderPass.h"
 #include "Window/Window.h"
-#include "Core/Platform/Wayland/WaylandWindow.h"
+//#include "Core/Platform/Wayland/WaylandWindow.h"
 #include "HotReload/ShaderWatcher.h"
 
 namespace carrot::rhi::vulkan {
@@ -254,7 +254,11 @@ namespace carrot::rhi::vulkan {
 
         std::vector<const char *> instance_extensions{
             VK_KHR_SURFACE_EXTENSION_NAME,
+#if defined(CARROT_PLATFORM_WAYLAND)
             VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME
+#elif defined(CARROT_PLATFORM_WIN32)
+            VK_KHR_WIN32_SURFACE_EXTENSION_NAME
+#endif
         };
 
 #ifdef _DEBUG

@@ -6,27 +6,39 @@
 #include "Window.h"
 
 #include "Core/Logger.h"
-#include "Core/Platform/Wayland/WaylandWindow.h"
 
 #include <memory>
+
+// #include "Core/Platform/Wayland/WaylandWindow.h"
 
 namespace carrot::window {
     static std::unique_ptr<core::platform::window_t> g_primary_window{ nullptr };
 
     void create_primary_window(const uint32_t width, const uint32_t height, const std::string_view title) noexcept
     {
-        switch (core::platform::current_platform())
-        {
-            case core::platform::platform_type::win32: break;
-            case core::platform::platform_type::wayland:
-                g_primary_window = std::make_unique<core::platform::wayland_window_t>(width, height, title.data());
-                break;
-            case core::platform::platform_type::cocoa: break;
-            case core::platform::platform_type::unknown:
-            default:
-                LOG_CORE_FATAL("Could not create primary window - invalid platform.");
-                break;
-        }
+#ifdef CARROT_PLATFORM_WIN32
+        // TODO: Include Win32Window.h and Return win32_window_t
+#elifdef CARROT_PLATFORM_WAYLAND
+#include "Core/Platform/Wayland/WaylandWindow.h"
+        g_primary_window = std::make_unique<core::platform::wayland_window_t>(width, height, title.data());
+#elifdef CARROT_PLATFORM_COCOA
+        // TODO: Include CocoaWindow.h and return cocoa_window_t
+#else
+        LOG_CORE_FATAL("Could not create primary window - invalid platform.");
+#endif
+
+        // switch (core::platform::current_platform())
+        // {
+        //     case core::platform::platform_type::win32: break;
+        //     case core::platform::platform_type::wayland:
+        //         g_primary_window = std::make_unique<core::platform::wayland_window_t>(width, height, title.data());
+        //         break;
+        //     case core::platform::platform_type::cocoa: break;
+        //     case core::platform::platform_type::unknown:
+        //     default:
+        //         LOG_CORE_FATAL("Could not create primary window - invalid platform.");
+        //         break;
+        // }
     }
 
     void destroy_primary_window() noexcept

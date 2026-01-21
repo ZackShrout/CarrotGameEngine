@@ -7,7 +7,6 @@
 
 #include "Core/Logger.h"
 
-#include <ShaderToolsConfig.h>
 #include <sys/inotify.h>
 #include <unistd.h>
 #include <filesystem>
@@ -78,56 +77,16 @@ namespace carrot::hot_reload {
             // Skip directories and irrelevant files early
             if (event->mask & IN_ISDIR) goto next;
             if (!name.ends_with(".vert.hlsl") && !name.ends_with(".frag.hlsl") &&
-                !name.ends_with(".comp.hlsl") /* add others later */) goto next;
+                !name.ends_with(".comp.hlsl") /* add others later */)
+                goto next;
 
             if (event->mask & (IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE))
             {
                 try_compile_and_notify(name);
             }
 
-            next:
-                ptr += sizeof(inotify_event) + event->len;
-
-
-
-
-            // if (!(event->mask & (IN_CLOSE_WRITE | IN_MOVED_TO))) continue;
-            //
-            // std::string name(event->name);
-            //
-            // // Skip directories and non-shader files
-            // if (event->mask & IN_ISDIR) continue;
-            // if (!name.ends_with(".vert") && !name.ends_with(".frag") &&
-            //     !name.ends_with(".tesc") && !name.ends_with(".tese") &&
-            //     !name.ends_with(".geom") && !name.ends_with(".comp"))
-            // {
-            //     continue;
-            // }
-            //
-            // // Build full source path
-            // const std::string source_path{ std::string(CARROT_SOURCE_ROOT) + "/shaders/" + name };
-            //
-            // // Build output SPIR-V path (relative to executable)
-            // const std::string spv_name = name + ".spv";
-            // const std::string spv_path = "shaders/" + spv_name;
-            //
-            // // Recompile
-            // std::string cmd = "glslangValidator -V \"" + source_path + "\" -o \"" + spv_path + "\"";
-            //
-            // LOG_GRAPHICS_INFO("[HotReload] Compiling: {}", name);
-            // int result{ system(cmd.c_str()) };
-            //
-            // if (result == 0)
-            // {
-            //     LOG_GRAPHICS_INFO("[HotReload] Success: {}", name);
-            //     // Small debounce
-            //     usleep(50000);
-            //     if (_callback) _callback(spv_path);
-            // }
-            // else
-            // {
-            //     LOG_GRAPHICS_ERROR("[HotReload] Compile failed (exit {}): {}", WEXITSTATUS(result), name);
-            // }
+        next:
+            ptr += sizeof(inotify_event) + event->len;
         }
     }
 
@@ -139,7 +98,7 @@ namespace carrot::hot_reload {
 
         try
         {
-            for (const auto& entry : fs::directory_iterator(dir))
+            for (const auto& entry: fs::directory_iterator(dir))
             {
                 if (!entry.is_regular_file()) continue;
                 std::string name = entry.path().filename().string();
@@ -157,14 +116,14 @@ namespace carrot::hot_reload {
     // PRIVATE
     void shader_watcher_t::try_compile_and_notify(const std::string& filename) noexcept
     {
-        const std::string src_path = std::format("{}/shaders/{}", CARROT_SOURCE_ROOT, filename);
+        const std::string src_path{ std::format("{}/shaders/{}", CARROT_SOURCE_ROOT, filename) };
 
         // Determine shader stage from filename convention
-        std::string profile = "vs_6_7"; // fallback
-        std::string lower = filename;
+        std::string profile{ "vs_6_7" }; // fallback
+        std::string lower{ filename };
         std::ranges::transform(lower, lower.begin(), ::tolower);
 
-        if      (lower.ends_with(".frag.hlsl")) profile = "ps_6_7";
+        if (lower.ends_with(".frag.hlsl")) profile = "ps_6_7";
         else if (lower.ends_with(".vert.hlsl")) profile = "vs_6_7";
         else if (lower.ends_with(".comp.hlsl")) profile = "cs_6_7";
         // else if (lower.ends_with(".geom.hlsl")) profile = "gs_6_7";
@@ -172,46 +131,47 @@ namespace carrot::hot_reload {
         // else if (lower.ends_with(".task.hlsl")) profile = "as_6_7";
         // etc.
 
-        // Output filename convention — same as your CMake
-        std::string out_name = filename;
+        // Output filename convention — same as in CompileShaders.cmake
+        std::string out_name{ filename };
         if (out_name.ends_with(".hlsl")) out_name.resize(out_name.size() - 5);
         out_name += ".spv";
 
-        const std::string out_rel_path = "shaders/" + out_name;           // what you give callback
-        const std::string out_abs_path = std::format("{}/{}", fs::current_path().string(), out_rel_path);
+        const std::string out_rel_path{ "shaders/" + out_name }; // what you give callback
+        const std::string out_abs_path{ std::format("{}/{}", fs::current_path().string(), out_rel_path) };
 
         // Make sure output directory exists
         fs::create_directories(fs::path(out_abs_path).parent_path());
 
-        std::string dxc_exe = CARROT_DXC_EXECUTABLE;
-        if (dxc_exe.empty()) dxc_exe = "dxc";  // fallback
+        std::string dxc_exe{ CARROT_DXC_EXECUTABLE };
+        if (dxc_exe.empty()) dxc_exe = "dxc"; // fallback
 
         std::string extra_flags;
         if (profile.starts_with("vs_") || profile.starts_with("gs_") || profile.starts_with("ds_") ||
-            profile.starts_with("ms_") || profile.starts_with("as_") || profile == "lib_6_x") {
+            profile.starts_with("ms_") || profile.starts_with("as_") || profile == "lib_6_x")
+        {
             extra_flags = "-fvk-invert-y ";
-            }
+        }
 
-        // Build dxc command — keep flags in sync with CompileShaders.cmake !
-        std::string cmd = std::format(
+        // Build dxc command — keep flags in sync with CompileShaders.cmake
+        const std::string cmd{ std::format(
             "\"{}\" -spirv -T {} -E main -fvk-use-scalar-layout -Zi -Od -WX "
-            "{}"  // ← extra_flags inserted here
+            "{}" // ← extra_flags inserted here
             "-fspv-target-env=vulkan1.3 \"{}\" -Fo \"{}\"",
             CARROT_DXC_EXECUTABLE, profile, extra_flags, src_path, out_abs_path
-        );
+        ) };
 
         LOG_GRAPHICS_INFO("[HotReload] Compiling: {} → {} ({})", filename, out_name, profile);
 
-        int ret = std::system(cmd.c_str());
-        if (ret == 0)
+        const int result{ std::system(cmd.c_str()) };
+        if (result == 0)
         {
             LOG_GRAPHICS_INFO("[HotReload] Success: {}", filename);
-            usleep(50'000); // tiny debounce — helps when editor writes file in multiple steps
+            usleep(50'000); // tiny debounce — helps when editor writes files in multiple steps
             if (_callback) _callback(out_rel_path);
         }
         else
         {
-            LOG_GRAPHICS_ERROR("[HotReload] dxc failed (code {}): {}", WEXITSTATUS(ret), filename);
+            LOG_GRAPHICS_ERROR("[HotReload] dxc failed (code {}): {}", WEXITSTATUS(result), filename);
         }
     }
 

@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <ShaderToolsConfig.h>
 #include <string>
 #include <functional>
 

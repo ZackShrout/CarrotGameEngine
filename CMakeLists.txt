@@ -92,13 +92,13 @@ if (APPLE)
     set(CARROT_PLATFORM_COCOA ON CACHE INTERNAL "")
     add_compile_definitions(CARROT_PLATFORM_COCOA=1)
     list(APPEND CARROT_ENGINE_SOURCES
-            # ... your Metal-specific .cpp / .h files here ...
+            # ... Metal-specific .cpp / .h files here ...
     )
 elseif (WIN32)
     set(CARROT_PLATFORM_WIN32 ON CACHE INTERNAL "")
     add_compile_definitions(CARROT_PLATFORM_WIN32=1)
     list(APPEND CARROT_ENGINE_SOURCES
-            # ... your D3D12-specific .cpp / .h files here (if any) ...
+            # ... D3D12-specific .cpp / .h files here ...
     )
 elseif (UNIX)
     # Define the cache variable with a proper default value right away.
@@ -146,26 +146,20 @@ elseif (UNIX)
 
     message(STATUS "Linux windowing backend: ${_backend}")
 
-    # Wayland-specific sources (only added when Wayland is chosen)
     if (CARROT_PLATFORM_WAYLAND)
         list(APPEND CARROT_ENGINE_SOURCES
                 src/Engine/Core/Platform/Wayland/WaylandWindow.cpp
                 src/Engine/Core/Platform/Wayland/WaylandWindow.h
                 src/Engine/Core/Platform/Wayland/xdg-shell-client-protocol.c
                 src/Engine/Core/Platform/Wayland/xdg-shell-client-protocol.h
-                # ... any other Wayland-only files ...
         )
     endif ()
 
-    # X11-specific sources (only if X11 is active)
     if (CARROT_PLATFORM_X11)
         list(APPEND CARROT_ENGINE_SOURCES
-                # ... your X11 windowing .cpp / .h files here ...
+                # ... X11 windowing .cpp / .h files here ...
         )
     endif ()
-
-    # You can also add Linux-common files here if needed
-    # list(APPEND CARROT_ENGINE_SOURCES ...)endif ()
 
 endif()
 
@@ -175,10 +169,8 @@ target_compile_definitions(CarrotEngine PRIVATE
         CARROT_SOURCE_ROOT="${CMAKE_SOURCE_DIR}"
 )
 
-# Let all targets that link to CarrotEngine (or CarrotEngine itself) see generated headers
-target_include_directories(CarrotEngine PUBLIC
+target_include_directories(CarrotEngine PRIVATE
         ${CMAKE_BINARY_DIR}/src/Engine/HotReload/Config
-        # ... you can keep your existing PUBLIC includes ...
 )
 
 # ------------------------------------------------------------------------
@@ -199,12 +191,12 @@ target_compile_options(CarrotEngine PUBLIC
 # ------------------------------------------------------------------------
 # Include directories – split user vs. third-party
 # ------------------------------------------------------------------------
-# project code → full warnings
+# project code -> full warnings
 target_include_directories(CarrotEngine PUBLIC
         src/Engine
 )
 
-# Everything under deps/ is third-party → treat as system headers
+# Everything under deps/ is third-party -> treat as system headers
 target_include_directories(CarrotEngine SYSTEM PRIVATE
         deps
         deps/glm
@@ -288,7 +280,7 @@ elseif(WIN32)
 # Linux
 # ------------------------------------------------------------------------
 elseif(UNIX)
-    # Find Vulkan (includes glslangValidator)
+    # Find Vulkan
     find_package(Vulkan REQUIRED)
     target_link_libraries(CarrotEngine PRIVATE Vulkan::Vulkan)
 
@@ -323,24 +315,14 @@ set(CARROT_SANDBOX_SOURCES
 
 add_executable(CarrotSandbox ${CARROT_SANDBOX_SOURCES})  # Rename if you prefer "Game" or "Sandbox"
 target_include_directories(CarrotSandbox PRIVATE src/Game)
-target_link_libraries(CarrotSandbox PRIVATE CarrotEngine)  # This pulls in everything needed
+target_link_libraries(CarrotSandbox PRIVATE CarrotEngine)
 
 # ------------------------------------------------------------------------
 # Shader compilation
 # ------------------------------------------------------------------------
 include(CompileShaders.cmake)
 
-#file(GLOB SHADER_SOURCES "shaders/*.vert" "shaders/*.frag")
-#
-#set(SPV_OUTPUT_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/shaders")
-#
-#foreach(SHADER_FILE IN LISTS SHADER_SOURCES)
-#    file(RELATIVE_PATH REL_SHADER "${CMAKE_CURRENT_SOURCE_DIR}" "${SHADER_FILE}")
-#    compile_glsl_to_spv(CarrotSandbox "${REL_SHADER}" "${SPV_OUTPUT_DIR}")
-#endforeach()
-
 file(GLOB HLSL_SOURCES "shaders/*.vert.hlsl" "shaders/*.frag.hlsl")
-
 set(SPV_OUTPUT_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/shaders")
 
 foreach(SHADER_FILE IN LISTS HLSL_SOURCES)

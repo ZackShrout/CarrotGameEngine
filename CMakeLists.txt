@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 4.1)
-project(CarrotGameEngine LANGUAGES CXX C VERSION 0.0.1)
+project(CarrotGameEngine LANGUAGES CXX C OBJCXX VERSION 0.0.1)
 
 # ------------------------------------------------------------------------
 # Default build type for single-config generators (Ninja, Makefiles)
@@ -92,7 +92,7 @@ if (APPLE)
     set(CARROT_PLATFORM_COCOA ON CACHE INTERNAL "")
     add_compile_definitions(CARROT_PLATFORM_COCOA=1)
     list(APPEND CARROT_ENGINE_SOURCES
-            # ... Metal-specific .cpp / .h files here ...
+            src/Engine/HotReload/ShaderWatcherApple.mm
     )
 elseif (WIN32)
     set(CARROT_PLATFORM_WIN32 ON CACHE INTERNAL "")
@@ -254,7 +254,7 @@ if(APPLE)
     set(CARROT_PLATFORM_COCOA ON CACHE INTERNAL "")
     add_compile_definitions(CARROT_PLATFORM_COCOA=1)
 
-    #target_compile_definitions(CarrotEngine PUBLIC __APPLE__)
+    target_compile_definitions(CarrotEngine PUBLIC __APPLE__)
 
     target_link_libraries(CarrotEngine PRIVATE
             "-framework Metal"

@@ -22,10 +22,9 @@ namespace carrot::hot_reload {
         static void poll() noexcept; // call every frame from application_t::run()
 
         static void recompile_all() noexcept;
-
-    private:
         static void try_compile_and_notify(const std::string& filename) noexcept;
 
+    private:
         static shader_reload_callback_t _callback;
     };
 } // namespace carrot::hot_reload

@@ -7,94 +7,17 @@
 
 #include "Core/Logger.h"
 
-#include <sys/inotify.h>
-#include <unistd.h>
+#include <ShaderToolsConfig.h>
+#include <thread>
+#include <chrono>
 #include <filesystem>
-#include <cstring>
 
 namespace carrot::hot_reload {
     namespace fs = std::filesystem;
 
-    void shader_watcher_t::init(const shader_reload_callback_t& callback) noexcept
-    {
-        _callback = callback;
-        _initialized_ok = false;
-
-        _inotify_fd = inotify_init1(IN_NONBLOCK);
-        if (_inotify_fd == -1)
-        {
-            LOG_CORE_ERROR("inotify_init1 failed: {}", strerror(errno));
-            return;
-        }
-
-        // Watch the SOURCE shaders directory (NOT bin)
-#ifndef CARROT_SOURCE_ROOT
-#error "CARROT_SOURCE_ROOT must be defined in CMake"
-#endif
-
-        const std::string shader_dir{ std::string(CARROT_SOURCE_ROOT) + "/shaders" };
-
-        _watch_desc = inotify_add_watch(_inotify_fd, shader_dir.c_str(), IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE);
-        if (_watch_desc == -1)
-        {
-            LOG_CORE_ERROR("inotify_add_watch failed on {}: {}", shader_dir, strerror(errno));
-            close(_inotify_fd);
-            _inotify_fd = -1;
-            return;
-        }
-
-        LOG_CORE_INFO("Shader hot-reload watching: {}", shader_dir);
-        _initialized_ok = true;
-    }
-
-    void shader_watcher_t::shutdown() noexcept
-    {
-        if (_watch_desc != -1) inotify_rm_watch(_inotify_fd, _watch_desc);
-        if (_inotify_fd != -1) close(_inotify_fd);
-        _inotify_fd = -1;
-        _watch_desc = -1;
-        _callback = nullptr;
-        _initialized_ok = false;
-    }
-
-    void shader_watcher_t::poll() noexcept
-    {
-        if (!_initialized_ok || _inotify_fd == -1) return;
-
-        alignas(inotify_event) char buffer[8192];
-        const ssize_t len{ read(_inotify_fd, buffer, sizeof(buffer)) };
-        if (len <= 0) return;
-
-        const inotify_event* event{ nullptr };
-        for (char* ptr{ buffer }; ptr < buffer + len; /*ptr += sizeof(inotify_event) + event->len*/)
-        {
-            event = reinterpret_cast<inotify_event *>(ptr);
-
-            if (event->len == 0) break; // malformed?
-
-            std::string name(event->name);
-
-            // Skip directories and irrelevant files early
-            if (event->mask & IN_ISDIR) goto next;
-            if (!name.ends_with(".vert.hlsl") && !name.ends_with(".frag.hlsl") &&
-                !name.ends_with(".comp.hlsl") /* add others later */)
-                goto next;
-
-            if (event->mask & (IN_CLOSE_WRITE | IN_MOVED_TO | IN_CREATE))
-            {
-                try_compile_and_notify(name);
-            }
-
-        next:
-            ptr += sizeof(inotify_event) + event->len;
-        }
-    }
-
     void shader_watcher_t::recompile_all() noexcept
     {
-        if (!_initialized_ok) return;
-
-        const std::string dir = std::string(CARROT_SOURCE_ROOT) + "/shaders";
+        const std::string dir{ std::string(CARROT_SOURCE_ROOT) + "/shaders" };
 
         try
         {
@@ -157,7 +80,7 @@ namespace carrot::hot_reload {
             "\"{}\" -spirv -T {} -E main -fvk-use-scalar-layout -Zi -Od -WX "
             "{}" // ← extra_flags inserted here
             "-fspv-target-env=vulkan1.3 \"{}\" -Fo \"{}\"",
-            CARROT_DXC_EXECUTABLE, profile, extra_flags, src_path, out_abs_path
+            dxc_exe, profile, extra_flags, src_path, out_abs_path
         ) };
 
         LOG_GRAPHICS_INFO("[HotReload] Compiling: {} → {} ({})", filename, out_name, profile);
@@ -166,7 +89,8 @@ namespace carrot::hot_reload {
         if (result == 0)
         {
             LOG_GRAPHICS_INFO("[HotReload] Success: {}", filename);
-            usleep(50'000); // tiny debounce — helps when editor writes files in multiple steps
+            // Tiny debounce — helps when editor writes files in multiple steps
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
             if (_callback) _callback(out_rel_path);
         }
         else
@@ -175,8 +99,5 @@ namespace carrot::hot_reload {
         }
     }
 
-    int shader_watcher_t::_inotify_fd = -1;
-    int shader_watcher_t::_watch_desc = -1;
     shader_reload_callback_t shader_watcher_t::_callback;
-    bool shader_watcher_t::_initialized_ok = false;
 } // namespace carrot::hot_reload

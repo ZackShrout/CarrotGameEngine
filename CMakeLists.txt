@@ -161,6 +161,11 @@ elseif (UNIX)
         )
     endif ()
 
+    # All Linux platforms get these
+    list(APPEND CARROT_ENGINE_SOURCES
+            src/Engine/HotReload/ShaderWatcherLinux.cpp
+    )
+
 endif()
 
 add_library(CarrotEngine STATIC ${CARROT_ENGINE_SOURCES})
@@ -257,6 +262,7 @@ if(APPLE)
             "-framework Cocoa"
             "-framework AppKit"
             "-framework QuartzCore"
+            "-framework CoreServices"
     )
 
     # Set source file that will have the defines applied to them, which must also include all metal-cpp headers

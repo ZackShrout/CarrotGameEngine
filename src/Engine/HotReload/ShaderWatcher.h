@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include <ShaderToolsConfig.h>
 #include <string>
 #include <functional>
 
@@ -15,6 +14,9 @@ namespace carrot::hot_reload {
     class shader_watcher_t
     {
     public:
+        shader_watcher_t() = delete;
+        ~shader_watcher_t() = delete;
+
         static void init(const shader_reload_callback_t& callback) noexcept;
         static void shutdown() noexcept;
         static void poll() noexcept; // call every frame from application_t::run()
@@ -24,9 +26,6 @@ namespace carrot::hot_reload {
     private:
         static void try_compile_and_notify(const std::string& filename) noexcept;
 
-        static int                      _inotify_fd;
-        static int                      _watch_desc;
         static shader_reload_callback_t _callback;
-        static bool                     _initialized_ok;
     };
 } // namespace carrot::hot_reload

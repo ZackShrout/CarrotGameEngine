@@ -15,7 +15,7 @@ namespace carrot::rhi::vulkan {
         vulkan_render_pass_t(const vulkan_device_t* device, VkFormat color_format);
         ~vulkan_render_pass_t();
 
-        DISABLE_COPY(vulkan_render_pass_t);
+        DISABLE_COPY(vulkan_render_pass_t)
 
         vulkan_render_pass_t(vulkan_render_pass_t&&) noexcept = default;
         vulkan_render_pass_t& operator=(vulkan_render_pass_t&&) noexcept = default;

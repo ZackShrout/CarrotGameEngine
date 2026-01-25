@@ -25,8 +25,6 @@ namespace carrot::rhi {
                 LOG_CORE_FATAL("Invalid backend enum value");
                 return nullptr;
         }
-
-        return nullptr;
     }
 
 } // namespace carrot::rhi

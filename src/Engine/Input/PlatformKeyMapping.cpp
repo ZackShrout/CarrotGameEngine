@@ -227,6 +227,7 @@ namespace carrot::input {
                 if (platform_button == 0x00) return mouse_button::left;
                 if (platform_button == 0x01) return mouse_button::right;
                 if (platform_button == 0x02) return mouse_button::middle;
+                break;
             default:
                 break;
         }

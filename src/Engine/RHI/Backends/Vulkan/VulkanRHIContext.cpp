@@ -301,9 +301,9 @@ namespace carrot::rhi::vulkan {
 #elif defined(CARROT_PLATFORM_WIN32)
         VkWin32SurfaceCreateInfoKHR surf_info{ };
         surf_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-        surf_info.hwnd = handle.win32.hwnd;
-        surf_info.hinstance = handle.win32.hinstance;
-        vkCreateWin32SurfaceKHR(...);
+        surf_info.hwnd = static_cast<HWND>(handle.win32_t.hwnd);
+        surf_info.hinstance = static_cast<HINSTANCE>(handle.win32_t.hinstance);
+        vkCreateWin32SurfaceKHR(_vk_instance, &surf_info, nullptr, &_vk_surface);
 #elif defined(CARROT_PLATFORM_COCOA)
 #error Vulkan unsupported on MacOS currently
 #endif

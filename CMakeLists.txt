@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 4.1)
-project(CarrotGameEngine LANGUAGES CXX C OBJCXX VERSION 0.0.1)
+project(CarrotGameEngine LANGUAGES CXX C VERSION 0.0.1)
 
 # ------------------------------------------------------------------------
 # Default build type for single-config generators (Ninja, Makefiles)
@@ -98,7 +98,7 @@ elseif (WIN32)
     set(CARROT_PLATFORM_WIN32 ON CACHE INTERNAL "")
     add_compile_definitions(CARROT_PLATFORM_WIN32=1)
     list(APPEND CARROT_ENGINE_SOURCES
-            # ... D3D12-specific .cpp / .h files here ...
+            src/Engine/HotReload/ShaderWatcherWindows.cpp
     )
 elseif (UNIX)
     # Define the cache variable with a proper default value right away.
@@ -202,9 +202,9 @@ target_include_directories(CarrotEngine PUBLIC
 )
 
 # Everything under deps/ is third-party -> treat as system headers
-target_include_directories(CarrotEngine SYSTEM PRIVATE
+target_include_directories(CarrotEngine SYSTEM PUBLIC
         deps
-        deps/glm
+        deps/CarrotHLM/include
         deps/stb
         deps/spdlog/include
         deps/tracy/public
@@ -214,22 +214,29 @@ target_include_directories(CarrotEngine SYSTEM PRIVATE
 )
 
 # ------------------------------------------------------------------------
-# Libraries & Third Party Deps
-# ------------------------------------------------------------------------
-add_subdirectory(deps/CarrotHLM)
-target_link_libraries(CarrotEngine PUBLIC CarrotHLM::CarrotHLM)
-
-# ------------------------------------------------------------------------
 # Warnings & sanitizers
 # ------------------------------------------------------------------------
 target_compile_options(CarrotEngine PRIVATE
         $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>,$<CXX_COMPILER_ID:GNU>>:
         -Wall -Wextra -Werror=return-type -Wshadow -Wno-missing-braces
+        -Wno-c++98-compat -Wno-c++98-compat-pedantic
         >
         $<$<CXX_COMPILER_ID:MSVC>:
         /W4 /permissive- /wd4201
         >
 )
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND MSVC)
+    target_compile_options(CarrotEngine PRIVATE
+            -Wno-padded /wd4820
+            -Wno-unique-object-duplication
+            -Wno-exit-time-destructors -Wno-global-constructors
+            -Wno-switch-enum -Wno-switch-default
+            -Wno-nrvo
+    )
+endif()
+
+
 
 target_compile_options(CarrotEngine PUBLIC
         $<$<AND:$<CONFIG:Debug>,$<NOT:$<BOOL:APPLE>>>: -fsanitize=address,undefined -fno-omit-frame-pointer>
@@ -277,8 +284,13 @@ if(APPLE)
 # Windows placeholders
 # ------------------------------------------------------------------------
 elseif(WIN32)
+    find_package(Vulkan REQUIRED)
+    target_link_libraries(CarrotEngine PRIVATE Vulkan::Vulkan)
+
     set(CARROT_PLATFORM_WIN32 ON CACHE INTERNAL "")
     add_compile_definitions(CARROT_PLATFORM_WIN32=1)
+
+    target_compile_definitions(CarrotEngine PUBLIC VK_USE_PLATFORM_WIN32_KHR)
 
     target_link_libraries(CarrotEngine PRIVATE d3d12 dxgi dxguid)
     target_compile_definitions(CarrotEngine PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)

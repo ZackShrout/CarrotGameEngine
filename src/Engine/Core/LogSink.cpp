@@ -5,6 +5,10 @@
 
 #include "LogSink.h"
 
+#ifdef _WIN32
+    #include <Windows.h>
+#endif
+
 namespace carrot::core {
     // ── console_sink_t ──────────────────────────────────────────
     // PUBLIC
@@ -36,7 +40,7 @@ namespace carrot::core {
     void console_sink_t::set_console_color(const log_severity level)
     {
 #ifdef _WIN32
-        HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+        const HANDLE hConsole{ GetStdHandle(STD_OUTPUT_HANDLE) };
         switch (level)
         {
             case log_severity::trace: SetConsoleTextAttribute(hConsole, 7);

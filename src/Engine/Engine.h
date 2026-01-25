@@ -18,7 +18,7 @@ namespace carrot {
         class ce_application_t;
     }
 
-    DECLARE_MULTICAST_DELEGATE(on_tick_t, float/* dt*/)
+    DECLARE_MULTICAST_DELEGATE(on_tick_t, float/* dt*/);
 
     class engine_t
     {
@@ -26,7 +26,7 @@ namespace carrot {
         engine_t() noexcept;
         ~engine_t();
 
-        DISABLE_COPY_AND_MOVE(engine_t);
+        DISABLE_COPY_AND_MOVE(engine_t)
 
         void run(core::ce_application_t* app);
         [[nodiscard]] static engine_t& get() noexcept;

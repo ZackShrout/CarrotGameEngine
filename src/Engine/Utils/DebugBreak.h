@@ -7,17 +7,21 @@
 
 #include <csignal>
 
+#if defined(_MSC_VER)
+#include <intrin.h>  // Required for __debugbreak on MSVC/clang-cl
+#endif
+
 namespace carrot::utils {
     [[maybe_unused]] inline void debug_trap()
     {
-#ifdef __clang__
+#if defined(_MSC_VER)
+        __debugbreak();
+#elif defined(__clang__) || defined(__GNUC__)
 #if __has_builtin(__builtin_debugtrap)
         __builtin_debugtrap();
 #else
         __builtin_trap(); // Fallback, but less ideal
 #endif
-#elif defined(_MSC_VER)
-        __debugbreak();
 #elif defined(SIGTRAP)
         raise(SIGTRAP);
 #else
@@ -46,10 +50,10 @@ namespace carrot::utils {
 }
 
 #ifdef _DEBUG
-#define CE_BREAK()              carrot::utils::debug_trap()
-#define CE_BREAK_IF(cond)       carrot::utils::debug_trap_if(cond)
-#define CE_UNREACHABLE()        carrot::utils::unreachable()
-#define CE_ASSUME(cond)         do { if (!(cond)) UNREACHABLE(); } while(0)
+#define CE_BREAK()              do { carrot::utils::debug_trap(); } while (0)
+#define CE_BREAK_IF(cond)       do { if (cond) carrot::utils::debug_trap(); } while (0)
+#define CE_UNREACHABLE()        do { carrot::utils::unreachable(); } while (0)
+#define CE_ASSUME(cond)         do { if (!(cond)) carrot::utils::unreachable(); } while (0)
 #else
 #define CE_BREAK()              ((void)0)
 #define CE_BREAK_IF(cond)       ((void)0)

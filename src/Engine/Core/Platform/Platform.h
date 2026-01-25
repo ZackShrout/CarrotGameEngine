@@ -10,12 +10,6 @@
 #ifdef CARROT_PLATFORM_WAYLAND
 struct wl_display;
 struct wl_surface;
-#elifdef CARROT_PLATFORM_WIN32
-using HWND = void *;
-using HINSTANCE = void *;
-#elifdef CARROT_PLATFORM_COCOA
-using NSWindow = void *;
-using CAMetalLayer = void *;
 #endif // #ifdef CARROT_PLATFORM_WAYLAND
 
 namespace carrot::core::platform {
@@ -54,14 +48,14 @@ namespace carrot::core::platform {
 #elif defined(CARROT_PLATFORM_WIN32)
         struct
         {
-            HWND hwnd;
-            HINSTANCE hinstance;
+            void* hwnd; // HWND
+            void* hinstance; // HINSTANCE
         } win32_t;
 #elif defined(CARROT_PLATFORM_COCOA)
         struct
         {
-            NSWindow* ns_window;
-            CAMetalLayer* metal_layer; // usually needed for Metal
+            void* ns_window; // NSWindow*
+            void* metal_layer; // CAMetalLayer*
         } cocoa_t;
 #endif
     };

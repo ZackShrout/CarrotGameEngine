@@ -190,6 +190,7 @@ namespace carrot::input {
         if (s.empty()) return "None";
 
         s.pop_back();
+
         return s;
     }
 } // ns carrot::input

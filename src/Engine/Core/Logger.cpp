@@ -120,8 +120,9 @@ namespace carrot::core {
             case log_severity::warn: return "WARN";
             case log_severity::error: return "ERROR";
             case log_severity::fatal: return "FATAL";
-            default: return "???";
         }
+
+        return "???";
     }
 
     // PRIVATE

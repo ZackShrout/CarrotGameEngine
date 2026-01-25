@@ -50,9 +50,8 @@ namespace carrot {
         auto& main_window = window::get_primary_window();
         _application = app;
 
-        _last_tick_time = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::steady_clock::now().time_since_epoch()
-        ).count();
+        _last_tick_time = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count());
 
         // Bind the on_tick function in the engine's application class, to be inherited
         _on_tick += BIND_MEMBER(_application, on_tick);
@@ -95,8 +94,8 @@ namespace carrot {
         const long long now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count();
 
-        _delta_time = static_cast<float>(now_ms - _last_tick_time) / 1000.f;
-        _last_tick_time = now_ms;
+        _delta_time = static_cast<float>(static_cast<uint64_t>(now_ms) - _last_tick_time) / 1000.f;
+        _last_tick_time = static_cast<uint64_t>(now_ms);
 
         _fps_timer += _delta_time;
         ++_frame_counter;

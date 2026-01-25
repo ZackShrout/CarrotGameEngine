@@ -95,7 +95,7 @@ namespace carrot::hot_reload {
         }
         else
         {
-            LOG_GRAPHICS_ERROR("[HotReload] dxc failed (code {}): {}", WEXITSTATUS(result), filename);
+            LOG_GRAPHICS_ERROR("[HotReload] dxc failed (code {}): {}", /*WEXITSTATUS(*/result/*)*/, filename);
         }
     }
 

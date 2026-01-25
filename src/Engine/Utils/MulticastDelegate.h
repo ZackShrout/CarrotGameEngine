@@ -234,7 +234,7 @@ namespace carrot::utils {
 } // carrot::utils
 
 #define DECLARE_MULTICAST_DELEGATE(delegate_type, ...) \
-using delegate_type = carrot::utils::multicast_delegate_t<void(__VA_ARGS__)>;
+using delegate_type = carrot::utils::multicast_delegate_t<void(__VA_ARGS__)>
 
 #define BIND_MEMBER(object_ptr, member_func) \
 carrot::utils::bind_member<&std::remove_pointer_t<decltype(object_ptr)>::member_func>(object_ptr)

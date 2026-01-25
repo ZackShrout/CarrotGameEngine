@@ -11,6 +11,7 @@
 #include <print>
 #include <source_location>
 #include <string>
+#include <vector>
 
 namespace carrot::core {
     struct log_message;

@@ -71,7 +71,7 @@ namespace carrot::rhi::vulkan {
                 is_fatal ? carrot::core::log_severity::fatal : carrot::core::log_severity::error,   \
                 "{} ({}): {}", prefix_msg, #result, error_str);                                     \
             if (is_fatal) {                                                                         \
-                CE_BREAK();                                                                         \
+                CE_ASSERT(0);                                                                         \
             }                                                                                       \
         }                                                                                           \
     } while (0)

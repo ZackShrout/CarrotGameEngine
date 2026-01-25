@@ -8,6 +8,7 @@
 #include "DebugBreak.h"
 #include "Core/Logger.h"
 
+
 namespace carrot {
 #ifdef _DEBUG
 
@@ -18,7 +19,7 @@ namespace carrot {
                         carrot::core::log_category::core,                               \
                         carrot::core::log_severity::fatal,                              \
                         "Assertion failed: " #cond " -- " __VA_ARGS__);                 \
-                        CE_BREAK();                                                     \
+                        carrot::utils::debug_trap();                                    \
                 }                                                                       \
         } while (0)
 

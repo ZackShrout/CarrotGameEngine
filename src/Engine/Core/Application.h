@@ -14,7 +14,7 @@ namespace carrot::core {
     class ce_application_t
     {
     public:
-        DISABLE_COPY_AND_MOVE(ce_application_t);
+        DISABLE_COPY_AND_MOVE(ce_application_t)
 
         // ───────────────────────────────────────────────
         // Window events

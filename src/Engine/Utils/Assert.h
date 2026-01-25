@@ -50,7 +50,7 @@ namespace carrot {
                         carrot::core::log_category::core,                               \
                         carrot::core::log_severity::fatal,                              \
                         "Assertion (always) failed: " #cond " -- " __VA_ARGS__);        \
-                        CE_BREAK();                                                     \
+                        carrot::utils::debug_trap();                                    \
                 }                                                                       \
         } while (0)
 } // namespace carrot

@@ -8,7 +8,7 @@
 #include <csignal>
 
 #if defined(_MSC_VER)
-#include <intrin.h>  // Required for __debugbreak on MSVC/clang-cl
+#include <intrin.h>
 #endif
 
 namespace carrot::utils {

@@ -10,7 +10,7 @@
 #include <memory>
 
 #ifdef CARROT_PLATFORM_WIN32
-        // TODO: Include Win32Window.h
+#include "Core/Platform/Win32/Win32Window.h"
 #elifdef CARROT_PLATFORM_WAYLAND
 #include "Core/Platform/Wayland/WaylandWindow.h"
 #elifdef CARROT_PLATFORM_COCOA
@@ -23,7 +23,7 @@ namespace carrot::window {
     void create_primary_window(const uint32_t width, const uint32_t height, const std::string_view title) noexcept
     {
 #ifdef CARROT_PLATFORM_WIN32
-        // TODO: Return win32_window_t
+        g_primary_window = std::make_unique<core::platform::win32_window_t>(width, height, title.data());
 #elifdef CARROT_PLATFORM_WAYLAND
         g_primary_window = std::make_unique<core::platform::wayland_window_t>(width, height, title.data());
 #elifdef CARROT_PLATFORM_COCOA

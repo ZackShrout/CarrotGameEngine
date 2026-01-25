@@ -93,35 +93,36 @@ namespace carrot::input {
                 }
             }
 
-            // case core::platform::platform_type::win32:
-            // {
-            //     switch (platform_code)
-            //     {
-            //         case 'A':
-            //         case 0x41: return key_code::a;
-            //         case 'B':
-            //         case 0x42: return key_code::b;
-            //         // VK_A = 0x41, VK_B = 0x42, etc. for letters
-            //         case VK_0: return key_code::digit0;
-            //         case VK_1: return key_code::digit1;
-            //         // ...
-            //         case VK_ESCAPE: return key_code::escape;
-            //         case VK_RETURN: return key_code::enter;
-            //         case VK_LEFT: return key_code::left;
-            //         case VK_RIGHT: return key_code::right;
-            //         case VK_UP: return key_code::up;
-            //         case VK_DOWN: return key_code::down;
-            //         case VK_LSHIFT: return key_code::left_shift;
-            //         case VK_RSHIFT: return key_code::right_shift;
-            //         case VK_LCONTROL: return key_code::left_control;
-            //         case VK_RCONTROL: return key_code::right_control;
-            //         case VK_LMENU: return key_code::left_alt; // Alt
-            //         case VK_RMENU: return key_code::right_alt;
-            //         case VK_LWIN: return key_code::left_super;
-            //         case VK_RWIN: return key_code::right_super;
-            //         default: return key_code::unknown;
-            //     }
-            // }
+            case core::platform::platform_type::win32:
+            {
+                switch (platform_code)
+                {
+                    case 0x41: return key_code::a; // VK_A
+                    case 0x42: return key_code::b; // VK_B
+                    // VK_A = 0x41, VK_B = 0x42, etc. for letters
+                    case 0x30: return key_code::digit0; // VK_0
+                    case 0x31: return key_code::digit1; // VK_1
+
+                    case 0x1B: return key_code::escape; // VK_ESCAPE
+                    case 0x0D: return key_code::enter; // VK_RETURN
+
+                    case 0x25: return key_code::left; // VK_LEFT
+                    case 0x27: return key_code::right; // VK_RIGHT
+                    case 0x26: return key_code::up; // VK_UP
+                    case 0x28: return key_code::down; // VK_DOWN
+
+                    case 0xA0: return key_code::left_shift; // VK_LSHIFT
+                    case 0xA1: return key_code::right_shift; // VK_RSHIFT
+                    case 0xA2: return key_code::left_control; // VK_LCONTROL
+                    case 0xA3: return key_code::right_control; // VK_RCONTROL
+                    case 0xA4: return key_code::left_alt; // VK_LMENU
+                    case 0xA5: return key_code::right_alt; // VK_RMENU
+                    case 0x5B: return key_code::left_super; // VK_LWIN
+                    case 0x5C: return key_code::right_super; // VK_RWIN
+
+                    default: return key_code::unknown;
+                }
+            }
 
             case core::platform::platform_type::cocoa:
             {

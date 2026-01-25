@@ -99,6 +99,8 @@ elseif (WIN32)
     add_compile_definitions(CARROT_PLATFORM_WIN32=1)
     list(APPEND CARROT_ENGINE_SOURCES
             src/Engine/HotReload/ShaderWatcherWindows.cpp
+            src/Engine/Core/Platform/Win32/Win32Window.cpp
+            src/Engine/Core/Platform/Win32/Win32Window.h
     )
 elseif (UNIX)
     # Define the cache variable with a proper default value right away.
@@ -334,6 +336,15 @@ set(CARROT_SANDBOX_SOURCES
 add_executable(CarrotSandbox ${CARROT_SANDBOX_SOURCES})  # Rename if you prefer "Game" or "Sandbox"
 target_include_directories(CarrotSandbox PRIVATE src/Game)
 target_link_libraries(CarrotSandbox PRIVATE CarrotEngine)
+
+#if(WIN32)
+#    # Use Windows GUI subsystem → no console window
+#    target_link_options(CarrotSandbox PRIVATE "/SUBSYSTEM:WINDOWS")
+#
+#    # Optional but often needed with clang-cl to avoid entry-point mismatch warnings
+#    # This tells linker to look for main() even in WINDOWS subsystem (CRT shim helps)
+#   target_link_options(CarrotSandbox PRIVATE "/ENTRY:mainCRTStartup")
+#endif()
 
 # ------------------------------------------------------------------------
 # Shader compilation

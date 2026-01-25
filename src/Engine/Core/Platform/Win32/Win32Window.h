@@ -35,5 +35,6 @@ namespace carrot::core::platform {
         uint32_t _height{ 0 };
         bool _should_close{ false };
         std::wstring _title;
+        chlm::float2 _last_mouse_position{ 0.f, 0.f };
     };
 } // namespace carrot::core::platform

@@ -97,28 +97,78 @@ namespace carrot::input {
             {
                 switch (platform_code)
                 {
-                    case 0x41: return key_code::a; // VK_A
-                    case 0x42: return key_code::b; // VK_B
-                    // VK_A = 0x41, VK_B = 0x42, etc. for letters
-                    case 0x30: return key_code::digit0; // VK_0
-                    case 0x31: return key_code::digit1; // VK_1
+                    case 0x41: return key_code::a;              // VK_A
+                    case 0x42: return key_code::b;              // VK_B
+                    case 0x43: return key_code::c;              // VK_C
+                    case 0x44: return key_code::d;              // VK_D
+                    case 0x45: return key_code::e;              // VK_E
+                    case 0x46: return key_code::f;              // VK_F
+                    case 0x47: return key_code::g;              // VK_G
+                    case 0x48: return key_code::h;              // VK_H
+                    case 0x49: return key_code::i;              // VK_I
+                    case 0x4A: return key_code::j;              // VK_J
+                    case 0x4B: return key_code::k;              // VK_K
+                    case 0x4C: return key_code::l;              // VK_L
+                    case 0x4D: return key_code::m;              // VK_M
+                    case 0x4E: return key_code::n;              // VK_N
+                    case 0x4F: return key_code::o;              // VK_O
+                    case 0x50: return key_code::p;              // VK_P
+                    case 0x51: return key_code::q;              // VK_Q
+                    case 0x52: return key_code::r;              // VK_R
+                    case 0x53: return key_code::s;              // VK_S
+                    case 0x54: return key_code::t;              // VK_T
+                    case 0x55: return key_code::u;              // VK_U
+                    case 0x56: return key_code::v;              // VK_V
+                    case 0x57: return key_code::w;              // VK_W
+                    case 0x58: return key_code::x;              // VK_X
+                    case 0x59: return key_code::y;              // VK_Y
+                    case 0x5A: return key_code::z;              // VK_Z
 
-                    case 0x1B: return key_code::escape; // VK_ESCAPE
-                    case 0x0D: return key_code::enter; // VK_RETURN
+                    case 0x30: return key_code::digit0;         // VK_0
+                    case 0x31: return key_code::digit1;         // VK_1
+                    case 0x32: return key_code::digit2;         // VK_2
+                    case 0x33: return key_code::digit3;         // VK_3
+                    case 0x34: return key_code::digit4;         // VK_4
+                    case 0x35: return key_code::digit5;         // VK_5
+                    case 0x36: return key_code::digit6;         // VK_6
+                    case 0x37: return key_code::digit7;         // VK_7
+                    case 0x38: return key_code::digit8;         // VK_8
+                    case 0x39: return key_code::digit9;         // VK_9
 
-                    case 0x25: return key_code::left; // VK_LEFT
-                    case 0x27: return key_code::right; // VK_RIGHT
-                    case 0x26: return key_code::up; // VK_UP
-                    case 0x28: return key_code::down; // VK_DOWN
+                    case 0x70: return key_code::f1;             // VK_F1
+                    case 0x71: return key_code::f2;             // VK_F2
+                    case 0x72: return key_code::f3;             // VK_F3
+                    case 0x73: return key_code::f4;             // VK_F4
+                    case 0x74: return key_code::f5;             // VK_F5
+                    case 0x75: return key_code::f6;             // VK_F6
+                    case 0x76: return key_code::f7;             // VK_F7
+                    case 0x77: return key_code::f8;             // VK_F8
+                    case 0x78: return key_code::f9;             // VK_F9
+                    case 0x79: return key_code::f10;            // VK_F10
+                    case 0x7A: return key_code::f11;            // VK_F11
+                    case 0x7B: return key_code::f12;            // VK_F12
 
-                    case 0xA0: return key_code::left_shift; // VK_LSHIFT
-                    case 0xA1: return key_code::right_shift; // VK_RSHIFT
-                    case 0xA2: return key_code::left_control; // VK_LCONTROL
-                    case 0xA3: return key_code::right_control; // VK_RCONTROL
-                    case 0xA4: return key_code::left_alt; // VK_LMENU
-                    case 0xA5: return key_code::right_alt; // VK_RMENU
-                    case 0x5B: return key_code::left_super; // VK_LWIN
-                    case 0x5C: return key_code::right_super; // VK_RWIN
+                    case 0x1B: return key_code::escape;         // VK_ESCAPE
+                    case 0x0D: return key_code::enter;          // VK_RETURN
+                    case 0x09: return key_code::tab;            // VK_TAB
+                    case 0x08: return key_code::backspace;      // VK_BACK
+                    case 0x20: return key_code::space;          // VK_SPACE
+                    case 0x2E: return key_code::del;            // VK_DELETE
+                    case 0x2D: return key_code::insert;         // VK_INSERT
+
+                    case 0x25: return key_code::left;           // VK_LEFT
+                    case 0x27: return key_code::right;          // VK_RIGHT
+                    case 0x26: return key_code::up;             // VK_UP
+                    case 0x28: return key_code::down;           // VK_DOWN
+
+                    case 0xA0: return key_code::left_shift;     // VK_LSHIFT
+                    case 0xA1: return key_code::right_shift;    // VK_RSHIFT
+                    case 0xA2: return key_code::left_control;   // VK_LCONTROL
+                    case 0xA3: return key_code::right_control;  // VK_RCONTROL
+                    case 0xA4: return key_code::left_alt;       // VK_LMENU
+                    case 0xA5: return key_code::right_alt;      // VK_RMENU
+                    case 0x5B: return key_code::left_super;     // VK_LWIN
+                    case 0x5C: return key_code::right_super;    // VK_RWIN
 
                     default: return key_code::unknown;
                 }
@@ -220,10 +270,6 @@ namespace carrot::input {
                 if (platform_button == 0x112) return mouse_button::middle; // BTN_MIDDLE
                 break;
             case core::platform::platform_type::win32:
-                if (platform_button == 0x00) return mouse_button::left;
-                if (platform_button == 0x01) return mouse_button::right;
-                if (platform_button == 0x02) return mouse_button::middle;
-                break;
             case core::platform::platform_type::cocoa:
                 if (platform_button == 0x00) return mouse_button::left;
                 if (platform_button == 0x01) return mouse_button::right;

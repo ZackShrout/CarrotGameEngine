@@ -120,7 +120,7 @@ namespace carrot {
         //
         // if (seconds_counter >= 6.0f && !resized)
         // {
-        //     _rhi_context->resize(800, 600);
+        //     _renderer->get_rhi()->resize(800, 600);
         //     resized = true;
         // }
     }

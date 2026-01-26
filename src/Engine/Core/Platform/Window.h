@@ -22,7 +22,30 @@ namespace carrot::core::platform {
         [[nodiscard]] virtual bool should_close() const noexcept = 0;
         [[nodiscard]] virtual uint32_t get_width()  const noexcept = 0;
         [[nodiscard]] virtual uint32_t get_height() const noexcept = 0;
+        [[nodiscard]] virtual bool is_minimized() const noexcept = 0;
         [[nodiscard]] virtual native_window_handle_t get_native_handle() const noexcept = 0;
+
+        [[nodiscard]] virtual bool is_fullscreen() const noexcept = 0;
+        virtual void set_fullscreen(bool fullscreen) noexcept = 0;
+
+        // ───────────────────────────────────────────────
+        // Window events
+        // ───────────────────────────────────────────────
+        DECLARE_MULTICAST_DELEGATE(on_window_resized_sig, const events::window_resized_t&);
+        DECLARE_MULTICAST_DELEGATE(on_window_closed_sig, const events::window_closed_t&);
+        DECLARE_MULTICAST_DELEGATE(on_window_focused_sig, const events::window_focused_t&);
+
+        on_window_resized_sig _on_window_resized;
+        on_window_closed_sig _on_window_closed;
+        on_window_focused_sig _on_window_focus_changed;
+
+        virtual void on_window_resized(const events::window_resized_t& e) { _on_window_resized.broadcast(e); }
+        virtual void on_window_closed(const events::window_closed_t& e) { _on_window_closed.broadcast(e); }
+
+        virtual void on_window_focus_changed(const events::window_focused_t& e)
+        {
+            _on_window_focus_changed.broadcast(e);
+        }
 
         // ───────────────────────────────────────────────
         // Input events

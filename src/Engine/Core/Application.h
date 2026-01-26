@@ -62,6 +62,8 @@ namespace carrot::core {
         ce_application_t() noexcept = default;
         virtual ~ce_application_t() = default;
 
+        static bool is_fullscreen() { return window::is_fullscreen(); }
+        static void set_fullscreen(const bool fullscreen) noexcept { window::set_fullscreen(fullscreen); }
         static void quit_application() { window::set_should_close(true); }
     };
 } // namespace carrot

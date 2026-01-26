@@ -30,7 +30,7 @@ namespace sandbox {
         if (e._action == carrot::events::key_action::press)
         {
             LOG_CORE_INFO("Key pressed: {} ({}) (mods: {})", carrot::input::key_code_to_string(e._key),
-                      static_cast<uint32_t>(e._key), carrot::input::modifiers_to_string(e._mods));
+                          static_cast<uint32_t>(e._key), carrot::input::modifiers_to_string(e._mods));
 
             if (e._key == carrot::input::key_code::a)
             {
@@ -42,13 +42,20 @@ namespace sandbox {
         }
         else if (e._action == carrot::events::key_action::repeat)
             LOG_CORE_INFO("Key held: {} ({})", carrot::input::key_code_to_string(e._key),
-                          static_cast<uint32_t>(e._key));
+                      static_cast<uint32_t>(e._key));
         else if (e._action == carrot::events::key_action::release)
             LOG_CORE_INFO("Key released: {} ({})", carrot::input::key_code_to_string(e._key),
                       static_cast<uint32_t>(e._key));
 
         if (e._action == carrot::events::key_action::press && e._key == carrot::input::key_code::escape)
             quit_application();
+
+        if (e._action == carrot::events::key_action::press && (
+                (e._key == carrot::input::key_code::enter && carrot::input::has_modifier(
+                     e._mods, carrot::input::modifier::alt)) || e._key == carrot::input::key_code::f11))
+        {
+            set_fullscreen(!is_fullscreen());
+        }
     }
 
     void sandbox_t::on_mouse_moved(const carrot::events::mouse_moved_event_t& e)

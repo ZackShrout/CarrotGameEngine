@@ -56,6 +56,11 @@ namespace carrot {
         // Bind the on_tick function in the engine's application class, to be inherited
         _on_tick += BIND_MEMBER(_application, on_tick);
 
+        // Bind window events
+        main_window._on_window_resized += BIND_LAMBDA([this](const events::window_resized_t& e) {
+            _renderer->get_rhi()->resize(e._width, e._height);
+        });
+
         // Bind input events
         main_window._on_key += BIND_MEMBER(_application, on_key);
         main_window._on_mouse_button += BIND_MEMBER(_application, on_mouse_button);
@@ -67,6 +72,8 @@ namespace carrot {
             window::poll_events();
             hot_reload::shader_watcher_t::poll();
             tick();
+
+            if (window::is_minimized()) continue;
 
             _renderer->begin_frame();
             _renderer->get_rhi()->record_frame();

@@ -69,8 +69,23 @@ namespace carrot::window {
         return g_primary_window->get_height();
     }
 
+    bool is_minimized() noexcept
+    {
+        return g_primary_window->is_minimized();
+    }
+
     core::platform::native_window_handle_t get_native_handle() noexcept
     {
         return g_primary_window->get_native_handle();
+    }
+
+    bool is_fullscreen() noexcept
+    {
+        return g_primary_window->is_fullscreen();
+    }
+
+    void set_fullscreen(const bool fullscreen) noexcept
+    {
+        g_primary_window->set_fullscreen(fullscreen);
     }
 } // namespace carrot::window

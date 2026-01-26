@@ -166,6 +166,89 @@ namespace carrot::core::platform {
         return handle;
     }
 
+    void win32_window_t::set_fullscreen(const bool fullscreen) noexcept
+    {
+        if (fullscreen == _is_fullscreen) return;
+        if (!_hwnd) return;
+
+        _is_fullscreen = fullscreen;
+
+        if (fullscreen)
+        {
+            // Going → fullscreen
+
+            // Remember current state so we can restore it perfectly
+            GetWindowRect(_hwnd, &_prev_window_rect);
+            _prev_style    = GetWindowLongPtrW(_hwnd, GWL_STYLE);
+            _prev_ex_style = GetWindowLongPtrW(_hwnd, GWL_EXSTYLE);
+
+            // Optional: was it maximized before we mess with it?
+            WINDOWPLACEMENT wp{};
+            wp.length = sizeof(wp);
+            GetWindowPlacement(_hwnd, &wp);
+            _was_maximized = (wp.showCmd == SW_SHOWMAXIMIZED);
+
+            // Remove title bar, borders, etc.
+            SetWindowLongPtrW(_hwnd, GWL_STYLE,
+                _prev_style & ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU));
+
+            // Usually keep WS_EX_APPWINDOW so it appears in taskbar/alt-tab
+            // (remove WS_EX_TOPMOST unless you really want always-on-top behavior)
+            SetWindowLongPtrW(_hwnd, GWL_EXSTYLE, _prev_ex_style | WS_EX_APPWINDOW);
+
+            // Find target monitor (here: the one the window is currently mostly on)
+            HMONITOR hmon = MonitorFromWindow(_hwnd, MONITOR_DEFAULTTONEAREST);
+            MONITORINFO mi{};
+            mi.cbSize = sizeof(mi);
+            GetMonitorInfoW(hmon, &mi);
+
+            const RECT& target = mi.rcMonitor;  // full monitor area (including taskbar)
+
+            // Move & resize — important: use SWP_FRAMECHANGED so non-client area updates
+            SetWindowPos(_hwnd, HWND_TOP,          // or HWND_NOTOPMOST if you don't want to steal focus
+                         target.left, target.top,
+                         target.right - target.left,
+                         target.bottom - target.top,
+                         SWP_FRAMECHANGED | SWP_NOACTIVATE);  // NOACTIVATE = don't steal focus if you prefer
+
+            // Optional dark mode refresh (some themes glitch otherwise)
+            RedrawWindow(_hwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_FRAME);
+        }
+        else
+        {
+            // Going → windowed
+
+            // Restore original styles
+            SetWindowLongPtrW(_hwnd, GWL_STYLE,    _prev_style);
+            SetWindowLongPtrW(_hwnd, GWL_EXSTYLE,  _prev_ex_style);
+
+            // Restore position & size
+            SetWindowPos(_hwnd, nullptr,
+                         _prev_window_rect.left,
+                         _prev_window_rect.top,
+                         _prev_window_rect.right  - _prev_window_rect.left,
+                         _prev_window_rect.bottom - _prev_window_rect.top,
+                         SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOACTIVATE);
+
+            // If it was maximized before, maximize again
+            if (_was_maximized)
+                ShowWindow(_hwnd, SW_MAXIMIZE);
+        }
+
+        // Optional: tell your renderer the client area probably changed
+        RECT client{};
+        GetClientRect(_hwnd, &client);
+        uint32_t new_w = client.right  - client.left;
+        uint32_t new_h = client.bottom - client.top;
+
+        if (new_w != _width || new_h != _height)
+        {
+            _width  = new_w;
+            _height = new_h;
+            _on_window_resized.broadcast({ _width, _height });
+        }
+    }
+
     LRESULT win32_window_t::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) noexcept
     {
         if (msg == WM_NCCREATE)
@@ -189,15 +272,26 @@ namespace carrot::core::platform {
             case WM_DESTROY:
                 _should_close = true;
                 PostQuitMessage(0);
+
                 return 0;
             case WM_CLOSE:
                 _should_close = true;
+
                 return 0;
             case WM_SIZE:
             {
                 _width = LOWORD(lParam);
                 _height = HIWORD(lParam);
-                // TODO: later broadcast resize event if you add one
+
+                if (_width == 0 || _height == 0)
+                {
+                    _is_minimized = true;
+                    return 0;
+                }
+
+                _is_minimized = false;
+                _on_window_resized.broadcast({ _width, _height });
+
                 return 0;
             }
             case WM_KEYDOWN:

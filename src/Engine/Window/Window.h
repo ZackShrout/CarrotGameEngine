@@ -18,5 +18,9 @@ namespace carrot::window {
     [[nodiscard]] core::platform::window_t&                 get_primary_window() noexcept;
     [[nodiscard]] uint32_t                                  get_width()  noexcept;
     [[nodiscard]] uint32_t                                  get_height() noexcept;
+    [[nodiscard]] bool                                      is_minimized() noexcept;
     [[nodiscard]] core::platform::native_window_handle_t    get_native_handle() noexcept;
+
+    [[nodiscard]] bool                                      is_fullscreen() noexcept;
+    void                                                    set_fullscreen(bool fullscreen) noexcept;
 } // namespace carrot::window

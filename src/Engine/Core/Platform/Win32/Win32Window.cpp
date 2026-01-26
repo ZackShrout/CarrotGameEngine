@@ -7,6 +7,9 @@
 
 #include "Input/PlatformKeyMapping.h"
 
+#include <dwmapi.h>
+#pragma comment(lib, "dwmapi.lib")
+
 namespace carrot::core::platform {
     namespace {
         // Unique class name — could also use project name or GUID in real code
@@ -30,12 +33,32 @@ namespace carrot::core::platform {
 
             return RegisterClassExW(&wc) != 0;
         }
+
+        bool is_system_dark_mode() noexcept
+        {
+            HKEY hKey;
+            if (RegOpenKeyExW(HKEY_CURRENT_USER,
+                              L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+                              0,
+                              KEY_READ,
+                              &hKey) != ERROR_SUCCESS)
+            {
+                return false; // fallback to light if can't read
+            }
+
+            DWORD value{ 1 }; // default to light
+            DWORD size{ sizeof(DWORD) };
+            RegQueryValueExW(hKey, L"AppsUseLightTheme", nullptr, nullptr, reinterpret_cast<BYTE *>(&value), &size);
+            RegCloseKey(hKey);
+
+            return value == 0; // 0 = dark
+        }
     } // anonymous namespace
 
-    win32_window_t::win32_window_t(uint32_t width, uint32_t height, std::string_view title) noexcept : _width{ width },
+    win32_window_t::win32_window_t(const uint32_t width, const uint32_t height, std::string_view title) noexcept : _width{ width },
         _height{ height }
     {
-        _title = std::wstring(title.begin(), title.end()); // safer
+        _title = std::wstring(title.begin(), title.end());
 
         _hinstance = GetModuleHandleW(nullptr);
         if (!_hinstance)
@@ -81,6 +104,27 @@ namespace carrot::core::platform {
             _should_close = true;
             return;
         }
+
+        const BOOL use_dark{ is_system_dark_mode() ? TRUE : FALSE };
+        HRESULT hr{DwmSetWindowAttribute(_hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &use_dark, sizeof(BOOL)) };
+
+        if (!SUCCEEDED(hr))
+        {
+            LOG_CORE_WARN("DwmSetWindowAttribute failed (HRESULT = {:#x}) - title bar theme may not match system preference", hr);
+
+            if (hr == E_NOTIMPL)
+            {
+                LOG_CORE_WARN("  → DWMWA_USE_IMMERSIVE_DARK_MODE not supported (pre-Win10 1809?)");
+            }
+            else if (hr == E_INVALIDARG)
+            {
+                LOG_CORE_ERROR("  → Invalid argument passed to DwmSetWindowAttribute");
+            }
+        }
+
+        // Force DWM to redraw / refresh non-client area
+        SetWindowPos(_hwnd, nullptr, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_SHOWWINDOW);
 
         ShowWindow(_hwnd, SW_SHOWDEFAULT);
         UpdateWindow(_hwnd);
@@ -217,9 +261,6 @@ namespace carrot::core::platform {
                                 : events::key_action::release;
                 e._repeat = ((lParam & 0x40000000) != 0); // bit 30 = previous state
 
-                // ───────────────────────────────────────────────
-                // Populate modifier bitfield using GetKeyState
-                // ───────────────────────────────────────────────
                 uint8_t mods = 0;
 
                 if (GetKeyState(VK_SHIFT) & 0x8000) mods |= static_cast<uint8_t>(input::modifier::shift);
@@ -242,12 +283,12 @@ namespace carrot::core::platform {
             case WM_MBUTTONUP:
             {
                 events::mouse_button_event_t e{ };
-                e._button = (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP)
+                e._button = msg == WM_LBUTTONDOWN || msg == WM_LBUTTONUP
                                 ? input::mouse_button::left
-                                : (msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP)
+                                : msg == WM_RBUTTONDOWN || msg == WM_RBUTTONUP
                                       ? input::mouse_button::right
                                       : input::mouse_button::middle;
-                e._action = (msg == WM_LBUTTONDOWN || msg == WM_RBUTTONDOWN || msg == WM_MBUTTONDOWN)
+                e._action = msg == WM_LBUTTONDOWN || msg == WM_RBUTTONDOWN || msg == WM_MBUTTONDOWN
                                 ? events::key_action::press
                                 : events::key_action::release;
                 e._pos.x = LOWORD(lParam);

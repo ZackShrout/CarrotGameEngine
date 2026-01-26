@@ -48,6 +48,8 @@ namespace carrot::rhi::vulkan {
         std::unique_ptr<vulkan_pipeline_t>                      _graphics_pipeline;
         framebuffer_array_t                                     _framebuffers;
         std::array<frame_resources_t, k_max_frames_in_flight>   _frames;
+        // std::vector<VkSemaphore>                                _image_available_semaphores;
+        std::vector<VkSemaphore>                                _render_finished_semaphores;
         uint32_t                                                _frame_counter{ 0 };
         uint32_t                                                _current_frame{ 0 };
         uint32_t                                                _current_image_index{ 0 };

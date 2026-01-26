@@ -27,12 +27,20 @@ namespace carrot::rhi::vulkan {
         _framebuffers = { };
         _graphics_pipeline.reset();
         _render_pass.reset();
+
+        for (uint32_t i{ 0 }; i < _swapchain->get_image_count(); ++i)
+        {
+            // if (_image_available_semaphores[i]) vkDestroySemaphore(_device->vk_device(), _image_available_semaphores[i], nullptr);
+            if (_render_finished_semaphores[i]) vkDestroySemaphore(_device->vk_device(), _render_finished_semaphores[i], nullptr);
+        }
+
         _swapchain.reset();
 
         for (const auto& frame: _frames)
         {
-            if (frame.image_available) vkDestroySemaphore(_device->vk_device(), frame.image_available, nullptr);
-            if (frame.render_finished) vkDestroySemaphore(_device->vk_device(), frame.render_finished, nullptr);
+            // if (frame.image_available) vkDestroySemaphore(_device->vk_device(), frame.image_available, nullptr);
+            // if (frame.render_finished) vkDestroySemaphore(_device->vk_device(), frame.render_finished, nullptr);
+            if (frame.image_acquire) vkDestroySemaphore(_device->vk_device(), frame.image_acquire, nullptr);
             if (frame.in_flight) vkDestroyFence(_device->vk_device(), frame.in_flight, nullptr);
 
             if (_command_pool != VK_NULL_HANDLE && frame.command_buffer)
@@ -85,7 +93,7 @@ namespace carrot::rhi::vulkan {
                 _device->vk_device(),
                 _swapchain->vk_swapchain(),
                 UINT64_MAX,
-                frame.image_available,
+                frame.image_acquire,
                 VK_NULL_HANDLE,
                 &_current_image_index
             )
@@ -181,12 +189,12 @@ namespace carrot::rhi::vulkan {
         VkSubmitInfo submit_info{ };
         submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submit_info.waitSemaphoreCount = 1;
-        submit_info.pWaitSemaphores = &frame.image_available;
+        submit_info.pWaitSemaphores = &frame.image_acquire;
         submit_info.pWaitDstStageMask = &wait_stage;
         submit_info.commandBufferCount = 1;
         submit_info.pCommandBuffers = &frame.command_buffer;
         submit_info.signalSemaphoreCount = 1;
-        submit_info.pSignalSemaphores = &frame.render_finished;
+        submit_info.pSignalSemaphores = &_render_finished_semaphores[_current_image_index];
 
         VK_CHECK_FATAL(vkQueueSubmit(
             _device->graphics_queue(),
@@ -201,7 +209,7 @@ namespace carrot::rhi::vulkan {
         VkPresentInfoKHR present_info{ };
         present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
         present_info.waitSemaphoreCount = 1;
-        present_info.pWaitSemaphores = &frame.render_finished;
+        present_info.pWaitSemaphores = &_render_finished_semaphores[_current_image_index];
         present_info.swapchainCount = 1;
         present_info.pSwapchains = &current_swapchain;
         present_info.pImageIndices = &_current_image_index;
@@ -422,8 +430,9 @@ namespace carrot::rhi::vulkan {
         {
             _frames[i].command_buffer = cmd_buffers[i];
 
-            VK_CHECK_FATAL(vkCreateSemaphore(_device->vk_device(), &sem_info, nullptr, &_frames[i].image_available));
-            VK_CHECK_FATAL(vkCreateSemaphore(_device->vk_device(), &sem_info, nullptr, &_frames[i].render_finished));
+            // VK_CHECK_FATAL(vkCreateSemaphore(_device->vk_device(), &sem_info, nullptr, &_frames[i].image_available));
+            // VK_CHECK_FATAL(vkCreateSemaphore(_device->vk_device(), &sem_info, nullptr, &_frames[i].render_finished));
+            VK_CHECK_FATAL(vkCreateSemaphore(_device->vk_device(), &sem_info, nullptr, &_frames[i].image_acquire));
             VK_CHECK_FATAL(vkCreateFence(_device->vk_device(), &fence_info, nullptr, &_frames[i].in_flight));
         }
 
@@ -436,6 +445,16 @@ namespace carrot::rhi::vulkan {
             desc.width,
             desc.height
         );
+
+        uint32_t image_count{ _swapchain->get_image_count() };
+        // _image_available_semaphores.resize(image_count);
+        _render_finished_semaphores.resize(image_count);
+
+        for (uint32_t i{ 0 }; i < image_count; ++i)
+        {
+            // VK_CHECK_FATAL(vkCreateSemaphore(_device->vk_device(), &sem_info, nullptr, &_image_available_semaphores[i]));
+            VK_CHECK_FATAL(vkCreateSemaphore(_device->vk_device(), &sem_info, nullptr, &_render_finished_semaphores[i]));
+        }
 
         // ── 7. Create Render Pass ─────────────────────────────────────────────────
         _render_pass = std::make_unique<vulkan_render_pass_t>(

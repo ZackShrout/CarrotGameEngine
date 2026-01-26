@@ -10,13 +10,14 @@
 #include <array>
 
 namespace carrot::rhi::vulkan {
-    constexpr uint32_t k_max_frames_in_flight{ 2 };
+    constexpr uint32_t k_max_frames_in_flight{ 3 };
 
     struct frame_resources_t
     {
         VkCommandBuffer command_buffer{ VK_NULL_HANDLE };
-        VkSemaphore image_available{ VK_NULL_HANDLE };
-        VkSemaphore render_finished{ VK_NULL_HANDLE };
+        VkSemaphore image_acquire{ VK_NULL_HANDLE };
+        // VkSemaphore image_available{ VK_NULL_HANDLE };
+        // VkSemaphore render_finished{ VK_NULL_HANDLE };
         VkFence in_flight{ VK_NULL_HANDLE };
 
         // Note: potential future per-frame additions...

@@ -51,8 +51,6 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/CarrotEngine.h
         src/Engine/Renderer/Renderer.h
         src/Engine/Renderer/Renderer.cpp
-        src/Engine/RHI/Backends/Vulkan/VulkanCommon.h
-        src/Engine/RHI/Backends/Vulkan/VulkanCore.h
         src/Engine/RHI/RHI.h
         src/Engine/RHI/Device.h
         src/Engine/RHI/Swapchain.h
@@ -63,19 +61,7 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/RHI/Pipeline.h
         src/Engine/RHI/Fence.h
         src/Engine/RHI/Semaphore.h
-        src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.cpp
-        src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.h
         src/Engine/RHI/RHI.cpp
-        src/Engine/RHI/Backends/Vulkan/VulkanDevice.cpp
-        src/Engine/RHI/Backends/Vulkan/VulkanDevice.h
-        src/Engine/RHI/Backends/Vulkan/VulkanSwapchain.cpp
-        src/Engine/RHI/Backends/Vulkan/VulkanSwapchain.h
-        src/Engine/RHI/Backends/Vulkan/VulkanCommandQueue.cpp
-        src/Engine/RHI/Backends/Vulkan/VulkanCommandQueue.h
-        src/Engine/RHI/Backends/Vulkan/VulkanRenderPass.cpp
-        src/Engine/RHI/Backends/Vulkan/VulkanRenderPass.h
-        src/Engine/RHI/Backends/Vulkan/VulkanPipeline.cpp
-        src/Engine/RHI/Backends/Vulkan/VulkanPipeline.h
         src/Engine/Core/Module.h
         src/Engine/Core/Platform/Platform.h
         src/Engine/Core/Platform/Window.h
@@ -89,6 +75,12 @@ set(CARROT_ENGINE_SOURCES
 # Platform / Windowing / RHI specific sources
 # ------------------------------------------------------------------------
 if (APPLE)
+    enable_language(OBJCXX)
+
+    set(CMAKE_OBJCXX_STANDARD 23)
+    set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
+    set(CMAKE_OBJCXX_EXTENSIONS OFF)
+
     set(CARROT_PLATFORM_COCOA ON CACHE INTERNAL "")
     add_compile_definitions(CARROT_PLATFORM_COCOA=1)
     list(APPEND CARROT_ENGINE_SOURCES
@@ -101,6 +93,20 @@ elseif (WIN32)
             src/Engine/HotReload/ShaderWatcherWindows.cpp
             src/Engine/Core/Platform/Win32/Win32Window.cpp
             src/Engine/Core/Platform/Win32/Win32Window.h
+            src/Engine/RHI/Backends/Vulkan/VulkanDevice.cpp
+            src/Engine/RHI/Backends/Vulkan/VulkanDevice.h
+            src/Engine/RHI/Backends/Vulkan/VulkanSwapchain.cpp
+            src/Engine/RHI/Backends/Vulkan/VulkanSwapchain.h
+            src/Engine/RHI/Backends/Vulkan/VulkanCommandQueue.cpp
+            src/Engine/RHI/Backends/Vulkan/VulkanCommandQueue.h
+            src/Engine/RHI/Backends/Vulkan/VulkanRenderPass.cpp
+            src/Engine/RHI/Backends/Vulkan/VulkanRenderPass.h
+            src/Engine/RHI/Backends/Vulkan/VulkanPipeline.cpp
+            src/Engine/RHI/Backends/Vulkan/VulkanPipeline.h
+            src/Engine/RHI/Backends/Vulkan/VulkanCommon.h
+            src/Engine/RHI/Backends/Vulkan/VulkanCore.h
+            src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.cpp
+            src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.h
     )
 elseif (UNIX)
     # Define the cache variable with a proper default value right away.
@@ -166,6 +172,20 @@ elseif (UNIX)
     # All Linux platforms get these
     list(APPEND CARROT_ENGINE_SOURCES
             src/Engine/HotReload/ShaderWatcherLinux.cpp
+            src/Engine/RHI/Backends/Vulkan/VulkanDevice.cpp
+            src/Engine/RHI/Backends/Vulkan/VulkanDevice.h
+            src/Engine/RHI/Backends/Vulkan/VulkanSwapchain.cpp
+            src/Engine/RHI/Backends/Vulkan/VulkanSwapchain.h
+            src/Engine/RHI/Backends/Vulkan/VulkanCommandQueue.cpp
+            src/Engine/RHI/Backends/Vulkan/VulkanCommandQueue.h
+            src/Engine/RHI/Backends/Vulkan/VulkanRenderPass.cpp
+            src/Engine/RHI/Backends/Vulkan/VulkanRenderPass.h
+            src/Engine/RHI/Backends/Vulkan/VulkanPipeline.cpp
+            src/Engine/RHI/Backends/Vulkan/VulkanPipeline.h
+            src/Engine/RHI/Backends/Vulkan/VulkanCommon.h
+            src/Engine/RHI/Backends/Vulkan/VulkanCore.h
+            src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.cpp
+            src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.h
     )
 
 endif()
@@ -352,12 +372,19 @@ target_link_libraries(CarrotSandbox PRIVATE CarrotEngine)
 include(CompileShaders.cmake)
 
 file(GLOB HLSL_SOURCES "shaders/*.vert.hlsl" "shaders/*.frag.hlsl")
-set(SPV_OUTPUT_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/shaders")
+set(SHADER_OUTPUT_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/shaders")
 
-foreach(SHADER_FILE IN LISTS HLSL_SOURCES)
-    file(RELATIVE_PATH REL_SHADER "${CMAKE_CURRENT_SOURCE_DIR}" "${SHADER_FILE}")
-    compile_hlsl_to_spirv(CarrotSandbox "${REL_SHADER}" "${SPV_OUTPUT_DIR}")
-endforeach()
+if(APPLE)
+    foreach(SHADER_FILE IN LISTS HLSL_SOURCES)
+        file(RELATIVE_PATH REL_SHADER "${CMAKE_CURRENT_SOURCE_DIR}" "${SHADER_FILE}")
+        compile_hlsl_to_metallib(CarrotSandbox "${REL_SHADER}" "${SHADER_OUTPUT_DIR}")
+    endforeach()
+else()
+    foreach(SHADER_FILE IN LISTS HLSL_SOURCES)
+        file(RELATIVE_PATH REL_SHADER "${CMAKE_CURRENT_SOURCE_DIR}" "${SHADER_FILE}")
+        compile_hlsl_to_spirv(CarrotSandbox "${REL_SHADER}" "${SHADER_OUTPUT_DIR}")
+    endforeach()
+endif()
 
 # ------------------------------------------------------------------------
 # Asset copying

@@ -4,12 +4,24 @@ find_program(DXC_EXECUTABLE
         NAMES dxc dxcompiler
 )
 
-
-
 if(DXC_EXECUTABLE)
     message(STATUS "Found DirectX Shader Compiler: ${DXC_EXECUTABLE}")
 else()
     message(FATAL_ERROR "dxc is required but was not found.")
+endif()
+
+if(APPLE)
+    find_program(METAL_SHADERCONVERTER_EXECUTABLE
+            NAMES metal-shaderconverter
+            PATHS "/usr/bin" "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin"
+    )
+
+    if(METAL_SHADERCONVERTER_EXECUTABLE)
+        message(STATUS "Found Metal Shader Converter: ${METAL_SHADERCONVERTER_EXECUTABLE}")
+    else()
+        message(FATAL_ERROR "metal-shaderconverter is required on macOS but was not found. "
+                "Install Xcode command line tools or check your PATH.")
+    endif()
 endif()
 
 # Generate config header
@@ -69,4 +81,78 @@ function(compile_hlsl_to_spirv TARGET_NAME HLSL_FILE OUTPUT_DIR)
     add_dependencies(${TARGET_NAME} ${SHADER_TARGET})
 
     set_property(TARGET ${SHADER_TARGET} PROPERTY OUTPUT_FILE "${SPV_OUTPUT}")
+endfunction()
+
+# ----------------------------------------------------------------------------
+# Compile HLSL to .metallib using DXC -> DXIL -> metal-shaderconverter
+# ----------------------------------------------------------------------------
+function(compile_hlsl_to_metallib TARGET_NAME HLSL_FILE OUTPUT_DIR)
+    if(NOT APPLE)
+        return()  # Should never be called on non-Apple, but guard anyway
+    endif()
+
+    if(NOT DXC_EXECUTABLE OR NOT METAL_SHADERCONVERTER_EXECUTABLE)
+        message(FATAL_ERROR "DXC or metal-shaderconverter not found for Metal pipeline")
+    endif()
+
+    cmake_path(SET ABS_HLSL "${CMAKE_CURRENT_SOURCE_DIR}/${HLSL_FILE}" NORMALIZE)
+
+    # Naming / sanitization (same as the SPIR-V version)
+    get_filename_component(FULL_BASE "${HLSL_FILE}" NAME)          # e.g. triangle.vert.hlsl
+    string(REPLACE "." "_" SANITIZED "${FULL_BASE}")
+    string(MAKE_C_IDENTIFIER "${SANITIZED}" TARGET_ID)
+
+    string(REPLACE ".hlsl" "" OUTPUT_BASE "${FULL_BASE}")
+    cmake_path(SET DXIL_OUTPUT "${OUTPUT_DIR}/${OUTPUT_BASE}.dxil" NORMALIZE)
+    cmake_path(SET METALLIB_OUTPUT "${OUTPUT_DIR}/${OUTPUT_BASE}.metallib" NORMALIZE)
+
+    # Determine shader profile (same logic as SPIR-V version)
+    set(PROFILE "vs_6_7")
+    string(TOLOWER "${HLSL_FILE}" LOWER)
+    if(LOWER MATCHES ".*\\.frag\\.hlsl$")
+        set(PROFILE "ps_6_7")
+    elseif(LOWER MATCHES ".*\\.vert\\.hlsl$")
+        set(PROFILE "vs_6_7")
+    elseif(LOWER MATCHES ".*\\.comp\\.hlsl$")
+        set(PROFILE "cs_6_7")
+    endif()
+
+    # Step 1: HLSL -> DXIL
+    add_custom_command(
+            OUTPUT "${DXIL_OUTPUT}"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${OUTPUT_DIR}"
+            COMMAND ${DXC_EXECUTABLE}
+            -T ${PROFILE} -E main
+            # Add any other flags you need, e.g. -Zi for debug, -Od, etc.
+            # -HV 2021   # HLSL version if needed
+            "${ABS_HLSL}" -Fo "${DXIL_OUTPUT}"
+            DEPENDS "${ABS_HLSL}"
+            COMMENT "DXC → DXIL: ${OUTPUT_BASE} (${PROFILE})"
+            VERBATIM
+    )
+
+    # Step 2: DXIL -> .metallib
+    add_custom_command(
+            OUTPUT "${METALLIB_OUTPUT}"
+            COMMAND ${METAL_SHADERCONVERTER_EXECUTABLE}
+            "${DXIL_OUTPUT}" -o "${METALLIB_OUTPUT}"
+            # Optional useful flags (see metal-shaderconverter --help):
+            # --minimum-os-build-version 13.0     # e.g. target macOS 13+
+            # --output-reflection-file "${METALLIB_OUTPUT}.json"   # if you want reflection data
+            # --entry-point-name main             # usually not needed if entry is 'main'
+            DEPENDS "${DXIL_OUTPUT}"
+            COMMENT "metal-shaderconverter → metallib: ${OUTPUT_BASE}"
+            VERBATIM
+    )
+
+    set(SHADER_TARGET "${TARGET_NAME}_${TARGET_ID}_metal")
+
+    add_custom_target(${SHADER_TARGET}
+            DEPENDS "${METALLIB_OUTPUT}"
+    )
+
+    add_dependencies(${TARGET_NAME} ${SHADER_TARGET})
+
+    # Optional: store the final .metallib path on the target for later use if needed
+    set_property(TARGET ${SHADER_TARGET} PROPERTY OUTPUT_FILE "${METALLIB_OUTPUT}")
 endfunction()

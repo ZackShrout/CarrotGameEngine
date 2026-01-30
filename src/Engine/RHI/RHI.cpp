@@ -14,7 +14,9 @@ namespace carrot::rhi {
     {
         switch (desc.api)
         {
+#if defined(CARROT_PLATFORM_WAYLAND) || defined(CARROT_PLATFORM_WIN32)
             case graphics_api::vulkan: return std::make_unique<vulkan::vulkan_rhi_context_t>(desc);
+#endif
 
             case graphics_api::direct_x12:
             case graphics_api::metal:

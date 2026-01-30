@@ -104,7 +104,6 @@ void shader_watcher_t::init(const shader_reload_callback_t& callback) noexcept
         return;
     }
 
-    // Modern way: schedule on a dispatch queue
     _state.queue = dispatch_queue_create("com.bunnysoft.carrot.shaderwatcher.fsevents", DISPATCH_QUEUE_SERIAL);
     if (!_state.queue)
     {

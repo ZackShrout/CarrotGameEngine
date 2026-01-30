@@ -28,6 +28,7 @@ namespace carrot::window {
         g_primary_window = std::make_unique<core::platform::wayland_window_t>(width, height, title.data());
 #elifdef CARROT_PLATFORM_COCOA
         // TODO: Return cocoa_window_t
+        LOG_CORE_INFO("Starting Cocoa Window.");
 #else
         LOG_CORE_FATAL("Could not create primary window - invalid platform.");
 #endif

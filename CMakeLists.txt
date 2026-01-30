@@ -85,6 +85,8 @@ if (APPLE)
     add_compile_definitions(CARROT_PLATFORM_COCOA=1)
     list(APPEND CARROT_ENGINE_SOURCES
             src/Engine/HotReload/ShaderWatcherApple.mm
+            src/Engine/Core/Platform/Cocoa/CocoaWindow.cpp
+            src/Engine/Core/Platform/Cocoa/CocoaWindow.h
     )
 elseif (WIN32)
     set(CARROT_PLATFORM_WIN32 ON CACHE INTERNAL "")

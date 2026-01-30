@@ -36,7 +36,9 @@ namespace carrot::core::platform {
         void poll_events() noexcept override;
         void set_should_close(const bool should_close) noexcept override { _should_close = should_close; }
 
-        [[nodiscard]] bool should_close() const noexcept override { return _should_close; }
+        // [[nodiscard]] bool should_close() const noexcept override { return _should_close; }
+        // TODO: change these (and the functionality inside the .cpp file) to use the
+        //       window_t protected _width and _height
         [[nodiscard]] uint32_t get_width() const noexcept override { return _current_width; }
         [[nodiscard]] uint32_t get_height() const noexcept override { return _current_height; }
         [[nodiscard]] native_window_handle_t get_native_handle() const noexcept override;
@@ -99,7 +101,7 @@ namespace carrot::core::platform {
         uint32_t _current_height{ 720 };
         uint32_t _pending_width{ 0 };
         uint32_t _pending_height{ 0 };
-        bool _should_close{ false };
+        // bool _should_close{ false };
         bool _configure_pending{ false };
 
         bool _keys_down[static_cast<uint16_t>(input::key_code::max_key_code)]{ false };

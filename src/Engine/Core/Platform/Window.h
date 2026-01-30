@@ -19,14 +19,14 @@ namespace carrot::core::platform {
         virtual void poll_events() noexcept = 0;
         virtual void set_should_close(bool should_close) noexcept = 0;
 
-        [[nodiscard]] virtual bool should_close() const noexcept = 0;
-        [[nodiscard]] virtual uint32_t get_width()  const noexcept = 0;
-        [[nodiscard]] virtual uint32_t get_height() const noexcept = 0;
-        [[nodiscard]] virtual bool is_minimized() const noexcept = 0;
+        [[nodiscard]] virtual bool should_close() const noexcept { return _should_close; }
+        [[nodiscard]] virtual uint32_t get_width()  const noexcept { return _width; }
+        [[nodiscard]] virtual uint32_t get_height() const noexcept { return _height; }
+        [[nodiscard]] virtual bool is_minimized() const noexcept { return _is_minimized; }
         [[nodiscard]] virtual native_window_handle_t get_native_handle() const noexcept = 0;
 
-        [[nodiscard]] virtual bool is_fullscreen() const noexcept = 0;
-        virtual void set_fullscreen(bool fullscreen) noexcept = 0;
+        [[nodiscard]] virtual bool is_fullscreen() const noexcept { return _is_fullscreen; }
+        virtual void set_fullscreen(const bool fullscreen) noexcept { _is_fullscreen = fullscreen; }
 
         // ───────────────────────────────────────────────
         // Window events
@@ -65,6 +65,12 @@ namespace carrot::core::platform {
         void on_mouse_button(const events::mouse_button_event_t& e) const { _on_mouse_button.broadcast(e); }
         void on_mouse_moved(const events::mouse_moved_event_t& e) const { _on_mouse_moved.broadcast(e); }
         void on_mouse_scrolled(const events::mouse_scrolled_event_t& e) const { _on_mouse_scrolled.broadcast(e); }
+
+    protected:
+        bool _should_close{ false };
+        bool _is_minimized{ false };
+        bool _is_fullscreen{ false };
+        uint32_t _width{ 0 }, _height{ 0 };
     };
 
 } // namespace carrot::core::platform

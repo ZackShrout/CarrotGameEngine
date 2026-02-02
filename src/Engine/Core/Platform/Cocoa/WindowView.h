@@ -8,10 +8,4 @@
 #include <AppKit/AppKit.h>
 
 @interface WindowView : NSView
-{
-    NSEventModifierFlags _previous_modifier_flags;
-}
-
-- (instancetype)initWithFrame:(NSRect)frameRect NS_DESIGNATED_INITIALIZER;
-
 @end

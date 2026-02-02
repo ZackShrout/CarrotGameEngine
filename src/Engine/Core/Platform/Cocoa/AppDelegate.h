@@ -6,6 +6,7 @@
 #pragma once
 
 #include "Core/Logger.h"
+
 #include <AppKit/AppKit.h>
 
 namespace carrot::core::platform {

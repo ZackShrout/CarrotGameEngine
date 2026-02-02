@@ -14,7 +14,6 @@
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 #include <MetalKit/MetalKit.hpp>
-#include <AppKit/AppKit.h>
 
 
 namespace carrot::core::platform {
@@ -133,6 +132,46 @@ namespace carrot::core::platform {
                             break;
                     }
                 }
+            }
+
+            NSEventModifierFlags currentFlags = [app currentEvent].modifierFlags;
+
+            if (currentFlags != _last_modifier_flags)
+            {
+                NSEventModifierFlags changed{ currentFlags ^ _last_modifier_flags };
+
+                auto send_mod_event{ [&](carrot::input::key_code key, bool pressed) {
+                    carrot::events::key_event_t e{ };
+                    e._key = key;
+                    e._action = pressed ? events::key_action::press : events::key_action::release;
+                    e._repeat = false;
+                    e._mods = carrot::core::platform::translate_modifier_flags(currentFlags);
+
+                    _on_key.broadcast(e);
+                } };
+
+                if (changed & NSEventModifierFlagShift)
+                {
+                    bool pressed{ (currentFlags & NSEventModifierFlagShift) != 0 };
+                    send_mod_event(carrot::input::key_code::left_shift, pressed);
+                }
+                if (changed & NSEventModifierFlagControl)
+                {
+                    bool pressed{ (currentFlags & NSEventModifierFlagControl) != 0 };
+                    send_mod_event(carrot::input::key_code::left_control, pressed);
+                }
+                if (changed & NSEventModifierFlagOption)
+                {
+                    bool pressed{ (currentFlags & NSEventModifierFlagOption) != 0 };
+                    send_mod_event(carrot::input::key_code::left_alt, pressed);
+                }
+                if (changed & NSEventModifierFlagCommand)
+                {
+                    bool pressed{ (currentFlags & NSEventModifierFlagCommand) != 0 };
+                    send_mod_event(carrot::input::key_code::left_super, pressed);
+                }
+
+                _last_modifier_flags = currentFlags;
             }
         }
     }

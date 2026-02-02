@@ -5,9 +5,9 @@
 
 #pragma once
 
-#include <objc/objc.h>
-
 #include "Core/Platform/Window.h"
+
+#include <objc/objc.h>
 
 namespace carrot::core::platform {
     class cocoa_window_t final : public window_t
@@ -24,5 +24,6 @@ namespace carrot::core::platform {
     private:
         void* _controller{ nullptr };
         id _ns_window{ nullptr };
+        uint32_t _last_modifier_flags{ 0 };
     };
 } // nanamespace carrot::core::platform

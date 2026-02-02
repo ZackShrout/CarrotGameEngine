@@ -17,7 +17,7 @@ namespace carrot::renderer {
         LOG_GRAPHICS_INFO("Initializing Renderer...");
 
         rhi::rhi_desc_t desc{};
-        desc.api = rhi::graphics_api::vulkan;
+        desc.api = rhi::graphics_api::metal;
         desc.enable_debug_layers = true;  // change via config later
         desc.width  = window::get_width();
         desc.height = window::get_height();
@@ -32,7 +32,7 @@ namespace carrot::renderer {
         create_common_resources();
 
         _is_initialized = true;
-        LOG_GRAPHICS_INFO("Renderer initialized successfully (backend: Vulkan)");
+        LOG_GRAPHICS_INFO("Renderer initialized successfully (backend: {})", carrot::rhi::graphics_api_to_string(desc.api));
     }
 
     void renderer_t::shutdown()

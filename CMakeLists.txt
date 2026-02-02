@@ -89,6 +89,9 @@ if (APPLE)
             src/Engine/Core/Platform/Cocoa/CocoaWindow.h
             src/Engine/Core/Platform/Cocoa/AppDelegate.mm
             src/Engine/Core/Platform/Cocoa/AppDelegate.h
+            src/Engine/RHI/Backends/Metal/MetalCommon.h
+            src/Engine/RHI/Backends/Metal/MetalRHIContext.cpp
+            src/Engine/RHI/Backends/Metal/MetalRHIContext.h
     )
 elseif (WIN32)
     set(CARROT_PLATFORM_WIN32 ON CACHE INTERNAL "")
@@ -304,7 +307,7 @@ if(APPLE)
     # Make this file contain the five PRIVATE_IMPLEMENTATION defines
     set_source_files_properties(${METAL_CPP_PRIVATE_IMPL}
             PROPERTIES COMPILE_DEFINITIONS
-            "NS_PRIVATE_IMPLEMENTATION;CA_PRIVATE_IMPLEMENTATION;MTL_PRIVATE_IMPLEMENTATION;MTK_PRIVATE_IMPLEMENTATION"#;APPKIT_PRIVATE_IMPLEMENTATION"
+            "NS_PRIVATE_IMPLEMENTATION;CA_PRIVATE_IMPLEMENTATION;MTL_PRIVATE_IMPLEMENTATION;MTK_PRIVATE_IMPLEMENTATION;APPKIT_PRIVATE_IMPLEMENTATION"
     )
 # ------------------------------------------------------------------------
 # Windows

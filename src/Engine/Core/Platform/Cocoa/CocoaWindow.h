@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <objc/objc.h>
+
 #include "Core/Platform/Window.h"
 
 namespace carrot::core::platform {
@@ -21,5 +23,6 @@ namespace carrot::core::platform {
 
     private:
         void* _controller{ nullptr };
+        id _ns_window{ nullptr };
     };
 } // nanamespace carrot::core::platform

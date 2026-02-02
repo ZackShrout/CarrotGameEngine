@@ -6,6 +6,8 @@
 #include "CocoaWindow.h"
 
 #include "AppDelegate.h"
+#include "Events/Events.h"
+#include "CocoaInputUtils.h"
 
 // Note: even though some of these includes appear to be unused, they must be included
 //       for private definitions needed for metal-cpp that are set in CMakeLists.txt
@@ -27,13 +29,12 @@ namespace carrot::core::platform {
 
         _controller = (void *)[[app_delegate_t class] alloc];
         _controller = (void *)[(id)_controller initWithInfo:info];
+        _ns_window = [(id)_controller createAndReturnWindow];
 
         LOG_CORE_INFO("Creating window with size {}x{}, title \"{}\"", width, height, title);
 
         NSApplication *app = [NSApplication sharedApplication];
         [app setDelegate:(id<NSApplicationDelegate>)_controller];
-
-        //[app run];
 
         [app finishLaunching];
     }
@@ -52,35 +53,104 @@ namespace carrot::core::platform {
         @autoreleasepool {
             NSApplication *app = [NSApplication sharedApplication];
 
-            // Non-blocking version (recommended for game loop)
-            // Use [NSDate distantPast] or nil to drain current queue only
-            while (NSEvent *event = [app nextEventMatchingMask:NSEventMaskAny
+            for (;;)
+            {
+                @autoreleasepool {
+                    NSEvent *event = [app nextEventMatchingMask:NSEventMaskAny
                                                     untilDate:nil
                                                        inMode:NSDefaultRunLoopMode
-                                                      dequeue:YES])
-            {
-                [app sendEvent:event];
+                                                      dequeue:YES];
+                    if (!event) break;
 
-                // Add translation here later
-                // Example:
-                // NSEventType type = [event type];
-                // if (type == NSEventTypeKeyDown) { ... }
+                    [app sendEvent:event];
+
+                    NSEventType type = [event type];
+                    switch (type)
+                    {
+                        case NSEventTypeKeyDown:
+                        case NSEventTypeKeyUp:
+                        {
+                            unichar c = [[event charactersIgnoringModifiers] characterAtIndex:0];
+                            // or use [event keyCode] directly if you want scan codes
+
+                            carrot::events::key_event_t e{};
+                            e._key    = carrot::input::to_carrot_key([event keyCode]);
+                            e._action = (type == NSEventTypeKeyDown) ? events::key_action::press : events::key_action::release;
+                            e._repeat = [event isARepeat];
+                            e._mods   = translate_modifier_flags([event modifierFlags]);
+
+                            _on_key.broadcast(e); // your multicast
+                            break;
+                        }
+
+                        case NSEventTypeLeftMouseDown:
+                        case NSEventTypeLeftMouseUp:
+                        {
+                            auto loc = [event locationInWindow];
+                            carrot::events::mouse_button_event_t e{};
+                            e._button = input::mouse_button::left;
+                            e._action = (type == NSEventTypeLeftMouseDown) ? events::key_action::press : events::key_action::release;
+                            e._pos    = { (float)loc.x, (float)(_height - loc.y) }; // flip Y ?
+                            _on_mouse_button.broadcast(e);
+                            break;
+                        }
+
+                        case NSEventTypeRightMouseDown:
+                        case NSEventTypeRightMouseUp:
+                        {
+                            auto loc = [event locationInWindow];
+                            carrot::events::mouse_button_event_t e{};
+                            e._button = input::mouse_button::right;
+                            e._action = (type == NSEventTypeRightMouseDown) ? events::key_action::press : events::key_action::release;
+                            e._pos    = { (float)loc.x, (float)(_height - loc.y) };
+                            _on_mouse_button.broadcast(e);
+                            break;
+                        }
+
+                        case NSEventTypeMouseMoved:
+                        case NSEventTypeLeftMouseDragged:
+                        {
+                            auto loc = [event locationInWindow];
+                            // You usually need to keep last position yourself to compute delta
+                            carrot::events::mouse_moved_event_t e{};
+                            e._pos   = { (float)loc.x, (float)loc.y };
+                            e._delta = { (float)[event deltaX], (float)[event deltaY] };
+                            _on_mouse_moved.broadcast(e);
+                            break;
+                        }
+
+                        case NSEventTypeScrollWheel:
+                        {
+                            carrot::events::mouse_scrolled_event_t e{};
+                            e._delta = { (float)[event scrollingDeltaX], (float)[event scrollingDeltaY] };
+                            _on_mouse_scrolled.broadcast(e);
+                            break;
+                        }
+
+                        // Add more: other mouse, flagsChanged (modifiers only), etc.
+
+                        default:
+                            break;
+                    }
+                }
             }
         }
-
-    // After events: your engine can now update/render/present
     }
 
     void cocoa_window_t::set_should_close(bool should_close) noexcept
     {
-
+        if (should_close)
+        {
+            NSApplication *app = [NSApplication sharedApplication];
+            [app terminate:nil];
+        }
     }
 
     native_window_handle_t cocoa_window_t::get_native_handle() const noexcept
     {
         native_window_handle_t handle{ };
 
-        handle.cocoa_t.ns_window = nullptr;
+        handle.cocoa_t.ns_window = _ns_window;
         handle.cocoa_t.metal_layer = nullptr;
 
         return handle;

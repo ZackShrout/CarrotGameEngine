@@ -16,13 +16,15 @@ namespace carrot::core::platform {
     };
 } // namespace carrot::core::platform
 
-@interface app_delegate_t : NSObject <NSApplicationDelegate>
+@interface app_delegate_t : NSObject <NSApplicationDelegate, NSWindowDelegate>
 
 - (instancetype)initWithInfo:(const carrot::core::platform::app_delegate_info_t &)info;
 
 - (void)applicationWillFinishLaunching:(NSNotification *)notification;
 - (void)applicationDidFinishLaunching:(NSNotification *)notification;
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender;
+- (void)windowWillClose:(NSNotification *)notification;
+- (NSWindow *)createAndReturnWindow;
 
 @property (nonatomic, readonly) NSWindow *window;
 @property (nonatomic, readonly) carrot::core::platform::app_delegate_info_t info;

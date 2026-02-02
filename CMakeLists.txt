@@ -85,8 +85,10 @@ if (APPLE)
     add_compile_definitions(CARROT_PLATFORM_COCOA=1)
     list(APPEND CARROT_ENGINE_SOURCES
             src/Engine/HotReload/ShaderWatcherApple.mm
-            src/Engine/Core/Platform/Cocoa/CocoaWindow.cpp
+            src/Engine/Core/Platform/Cocoa/CocoaWindow.mm
             src/Engine/Core/Platform/Cocoa/CocoaWindow.h
+            src/Engine/Core/Platform/Cocoa/AppDelegate.mm
+            src/Engine/Core/Platform/Cocoa/AppDelegate.h
     )
 elseif (WIN32)
     set(CARROT_PLATFORM_WIN32 ON CACHE INTERNAL "")
@@ -279,7 +281,7 @@ target_link_options(CarrotEngine PUBLIC
 )
 
 # ------------------------------------------------------------------------
-# macOS placeholders
+# macOS
 # ------------------------------------------------------------------------
 if(APPLE)
     set(CARROT_PLATFORM_COCOA ON CACHE INTERNAL "")
@@ -297,15 +299,15 @@ if(APPLE)
     )
 
     # Set source file that will have the defines applied to them, which must also include all metal-cpp headers
-    set(METAL_CPP_PRIVATE_IMPL src/set/file/here.cpp)
+    set(METAL_CPP_PRIVATE_IMPL src/Engine/RHI/Backends/Metal/MetalRHIContext.cpp)
 
     # Make this file contain the five PRIVATE_IMPLEMENTATION defines
     set_source_files_properties(${METAL_CPP_PRIVATE_IMPL}
             PROPERTIES COMPILE_DEFINITIONS
-            "NS_PRIVATE_IMPLEMENTATION;CA_PRIVATE_IMPLEMENTATION;MTL_PRIVATE_IMPLEMENTATION;MTK_PRIVATE_IMPLEMENTATION;APPKIT_PRIVATE_IMPLEMENTATION"
+            "NS_PRIVATE_IMPLEMENTATION;CA_PRIVATE_IMPLEMENTATION;MTL_PRIVATE_IMPLEMENTATION;MTK_PRIVATE_IMPLEMENTATION"#;APPKIT_PRIVATE_IMPLEMENTATION"
     )
 # ------------------------------------------------------------------------
-# Windows placeholders
+# Windows
 # ------------------------------------------------------------------------
 elseif(WIN32)
     find_package(Vulkan REQUIRED)

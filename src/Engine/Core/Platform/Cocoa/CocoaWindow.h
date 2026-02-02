@@ -4,6 +4,7 @@
 //
 
 #pragma once
+
 #include "Core/Platform/Window.h"
 
 namespace carrot::core::platform {
@@ -17,5 +18,8 @@ namespace carrot::core::platform {
         void set_should_close(bool should_close) noexcept override;
 
         [[nodiscard]] native_window_handle_t get_native_handle() const noexcept override;
+
+    private:
+        void* _controller{ nullptr };
     };
 } // nanamespace carrot::core::platform

@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <format>
+#include <memory>
 #include <mutex>
 #include <print>
 #include <source_location>

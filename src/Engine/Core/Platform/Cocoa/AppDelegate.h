@@ -22,7 +22,6 @@ namespace carrot::core::platform {
 - (instancetype)initWithInfo:(const carrot::core::platform::app_delegate_info_t &)info;
 
 - (void)applicationWillFinishLaunching:(NSNotification *)notification;
-- (void)applicationDidFinishLaunching:(NSNotification *)notification;
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender;
 - (void)windowWillClose:(NSNotification *)notification;
 - (NSWindow *)createAndReturnWindow;

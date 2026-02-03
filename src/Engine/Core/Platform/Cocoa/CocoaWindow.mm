@@ -9,12 +9,7 @@
 #include "Events/Events.h"
 #include "CocoaInputUtils.h"
 
-// Note: even though some of these includes appear to be unused, they must be included
-//       for private definitions needed for metal-cpp that are set in CMakeLists.txt
-#include <Foundation/Foundation.hpp>
-#include <Metal/Metal.hpp>
-#include <MetalKit/MetalKit.hpp>
-
+#include <AppKit/AppKit.h>
 
 namespace carrot::core::platform {
     cocoa_window_t::cocoa_window_t(const uint32_t width, const uint32_t height, const std::string_view title) noexcept
@@ -26,13 +21,13 @@ namespace carrot::core::platform {
         info._window_rect = CGRectMake(0.0, 0.0, static_cast<CGFloat>(_width), static_cast<CGFloat>(_height));
         info._window_title = title;
 
-        _controller = (void *)[[app_delegate_t class] alloc];
-        _controller = (void *)[(id)_controller initWithInfo:info];
+        _controller = static_cast<void*>([[app_delegate_t class] alloc]);
+        _controller = static_cast<void*>([(id)_controller initWithInfo:info]);
         _ns_window = [(id)_controller createAndReturnWindow];
 
         LOG_CORE_INFO("Creating window with size {}x{}, title \"{}\"", width, height, title);
 
-        NSApplication *app = [NSApplication sharedApplication];
+        NSApplication* app{ [NSApplication sharedApplication] };
         [app setDelegate:(id<NSApplicationDelegate>)_controller];
 
         [app finishLaunching];
@@ -42,91 +37,91 @@ namespace carrot::core::platform {
     {
         if (_controller)
         {
-            id delegate = (id)_controller;
+            id delegate{ (id)_controller };
             [delegate release];
         }
     }
 
     void cocoa_window_t::poll_events() noexcept
     {
-        @autoreleasepool {
-            NSApplication *app = [NSApplication sharedApplication];
+        @autoreleasepool
+        {
+            NSApplication* app{ [NSApplication sharedApplication] };
 
             for (;;)
             {
-                @autoreleasepool {
-                    NSEvent *event = [app nextEventMatchingMask:NSEventMaskAny
-                                                    untilDate:nil
-                                                       inMode:NSDefaultRunLoopMode
-                                                      dequeue:YES];
+                @autoreleasepool
+                {
+                    NSEvent* event{ [app nextEventMatchingMask:NSEventMaskAny
+                                         untilDate:nil
+                                         inMode:NSDefaultRunLoopMode
+                                         dequeue:YES] };
                     if (!event) break;
 
                     [app sendEvent:event];
 
-                    NSEventType type = [event type];
+                    NSEventType type{ [event type] };
                     switch (type)
                     {
                         case NSEventTypeKeyDown:
                         case NSEventTypeKeyUp:
                         {
-                            unichar c = [[event charactersIgnoringModifiers] characterAtIndex:0];
-                            // or use [event keyCode] directly if you want scan codes
-
-                            carrot::events::key_event_t e{};
-                            e._key    = carrot::input::to_carrot_key([event keyCode]);
+                            events::key_event_t e{ };
+                            e._key = input::to_carrot_key([event keyCode]);
                             e._action = (type == NSEventTypeKeyDown) ? events::key_action::press : events::key_action::release;
                             e._repeat = [event isARepeat];
-                            e._mods   = translate_modifier_flags([event modifierFlags]);
+                            e._mods = translate_modifier_flags([event modifierFlags]);
 
-                            _on_key.broadcast(e); // your multicast
+                            _on_key.broadcast(e);
                             break;
                         }
 
                         case NSEventTypeLeftMouseDown:
                         case NSEventTypeLeftMouseUp:
-                        {
-                            auto loc = [event locationInWindow];
-                            carrot::events::mouse_button_event_t e{};
-                            e._button = input::mouse_button::left;
-                            e._action = (type == NSEventTypeLeftMouseDown) ? events::key_action::press : events::key_action::release;
-                            e._pos    = { (float)loc.x, (float)(_height - loc.y) }; // flip Y ?
-                            _on_mouse_button.broadcast(e);
-                            break;
-                        }
-
                         case NSEventTypeRightMouseDown:
                         case NSEventTypeRightMouseUp:
+                        case NSEventTypeOtherMouseDown:
+                        case NSEventTypeOtherMouseUp:
                         {
-                            auto loc = [event locationInWindow];
-                            carrot::events::mouse_button_event_t e{};
-                            e._button = input::mouse_button::right;
-                            e._action = (type == NSEventTypeRightMouseDown) ? events::key_action::press : events::key_action::release;
-                            e._pos    = { (float)loc.x, (float)(_height - loc.y) };
+                            NSInteger button_num{ [event buttonNumber] };
+                            NSPoint loc{ [event locationInWindow] };
+
+                            events::mouse_button_event_t e{ };
+                            e._button = input::to_carrot_mouse_button(button_num);
+                            e._action = (type == NSEventTypeOtherMouseDown) ? events::key_action::press : events::key_action::release;
+                            e._pos = { static_cast<float>(loc.x), static_cast<float>(_height - loc.y) };
+
                             _on_mouse_button.broadcast(e);
                             break;
                         }
 
                         case NSEventTypeMouseMoved:
                         case NSEventTypeLeftMouseDragged:
+                        case NSEventTypeRightMouseDragged:
+                        case NSEventTypeOtherMouseDragged:
                         {
-                            auto loc = [event locationInWindow];
-                            // You usually need to keep last position yourself to compute delta
-                            carrot::events::mouse_moved_event_t e{};
-                            e._pos   = { (float)loc.x, (float)loc.y };
-                            e._delta = { (float)[event deltaX], (float)[event deltaY] };
+                            float dx{ static_cast<float>([event deltaX]) };
+                            float dy{ static_cast<float>([event deltaY]) };
+                            NSPoint loc{ [event locationInWindow] };
+
+                            events::mouse_moved_event_t e{ };
+                            e._delta = { dx, dy };
+                            e._pos = { static_cast<float>(loc.x), static_cast<float>(_height - loc.y) };
+
                             _on_mouse_moved.broadcast(e);
+
+                            _last_mouse_position = e._pos;
                             break;
                         }
 
                         case NSEventTypeScrollWheel:
                         {
-                            carrot::events::mouse_scrolled_event_t e{};
-                            e._delta = { (float)[event scrollingDeltaX], (float)[event scrollingDeltaY] };
+                            events::mouse_scrolled_event_t e{ };
+                            e._delta = { static_cast<float>([event scrollingDeltaX]), static_cast<float>([event scrollingDeltaY]) };
+
                             _on_mouse_scrolled.broadcast(e);
                             break;
                         }
-
-                        // Add more: other mouse, flagsChanged (modifiers only), etc.
 
                         default:
                             break;
@@ -134,7 +129,7 @@ namespace carrot::core::platform {
                 }
             }
 
-            NSEventModifierFlags currentFlags = [app currentEvent].modifierFlags;
+            NSEventModifierFlags currentFlags{ [app currentEvent].modifierFlags };
 
             if (currentFlags != _last_modifier_flags)
             {
@@ -180,7 +175,7 @@ namespace carrot::core::platform {
     {
         if (should_close)
         {
-            NSApplication *app = [NSApplication sharedApplication];
+            NSApplication* app{ [NSApplication sharedApplication] };
             [app terminate:nil];
         }
     }

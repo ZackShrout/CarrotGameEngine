@@ -25,5 +25,6 @@ namespace carrot::core::platform {
         void* _controller{ nullptr };
         id _ns_window{ nullptr };
         uint32_t _last_modifier_flags{ 0 };
+        chlm::float2 _last_mouse_position{ 0.f, 0.f };
     };
 } // nanamespace carrot::core::platform

@@ -53,7 +53,7 @@ namespace carrot::core::platform {
                 @autoreleasepool
                 {
                     NSEvent* event{ [app nextEventMatchingMask:NSEventMaskAny
-                                         untilDate:nil
+                                         untilDate:[NSDate distantPast]
                                          inMode:NSDefaultRunLoopMode
                                          dequeue:YES] };
                     if (!event) break;
@@ -86,9 +86,13 @@ namespace carrot::core::platform {
                             NSInteger button_num{ [event buttonNumber] };
                             NSPoint loc{ [event locationInWindow] };
 
+                            bool is_press{ (type == NSEventTypeLeftMouseDown  ||
+                                            type == NSEventTypeRightMouseDown ||
+                                            type == NSEventTypeOtherMouseDown) };
+
                             events::mouse_button_event_t e{ };
                             e._button = input::to_carrot_mouse_button(button_num);
-                            e._action = (type == NSEventTypeOtherMouseDown) ? events::key_action::press : events::key_action::release;
+                            e._action = is_press ? events::key_action::press : events::key_action::release;
                             e._pos = { static_cast<float>(loc.x), static_cast<float>(_height - loc.y) };
 
                             _on_mouse_button.broadcast(e);

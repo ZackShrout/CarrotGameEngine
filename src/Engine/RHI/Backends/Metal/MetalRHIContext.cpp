@@ -5,9 +5,9 @@
 
 #include "MetalRHIContext.h"
 
+#include "MetalDevice.h"
+#include "MetalCommandQueue.h"
 #include "Window/Window.h"
-
-#include <QuartzCore/CAMetalLayer.h>
 
 namespace carrot::rhi::metal {
     metal_rhi_context_t::metal_rhi_context_t(const rhi_desc_t& desc)
@@ -21,27 +21,20 @@ namespace carrot::rhi::metal {
             return;
         }
 
-        _device = _view->device();
-        if (!_device)
-        {
-            LOG_GRAPHICS_FATAL("MTKView has no Metal device!");
-            return;
-        }
+        _device = std::make_unique<metal_device_t>(_view->device());
+        CE_ASSERT(_device, "MTKView has no Metal device!");
 
-        _commandQueue = _device->newCommandQueue();
-        if (!_commandQueue)
-        {
-            LOG_GRAPHICS_FATAL("Failed to create Metal command queue!");
-            return;
-        }
+        _command_queue = std::make_unique<metal_command_queue_t>(_device->mtl_device()->newCommandQueue());
+        CE_ASSERT(_command_queue, "Failed to create Metal command queue!");
 
         LOG_GRAPHICS_INFO("Metal RHI context created successfully");
-        LOG_GRAPHICS_INFO("Device: {}", _device->name()->utf8String());
+        LOG_GRAPHICS_INFO("Device: {}", _device->mtl_device()->name()->utf8String());
     }
 
     metal_rhi_context_t::~metal_rhi_context_t()
     {
-
+        if (_command_queue) _command_queue.reset();
+        if (_device) _device.reset();
     }
 
     void metal_rhi_context_t::begin_frame()
@@ -72,7 +65,7 @@ namespace carrot::rhi::metal {
             1.0
         ));
 
-        MTL::CommandBuffer* cmdBuf = _commandQueue->commandBuffer();
+        MTL::CommandBuffer* cmdBuf = _command_queue->mtl_command_queue()->commandBuffer();
 
         MTL::RenderCommandEncoder* encoder = cmdBuf->renderCommandEncoder(rpd);
         if (encoder)
@@ -91,7 +84,7 @@ namespace carrot::rhi::metal {
 
     rhi_device_t* metal_rhi_context_t::get_device() const noexcept
     {
-        return nullptr;
+        return _device.get();
     }
 
     rhi_swapchain_t* metal_rhi_context_t::get_swapchain() const noexcept
@@ -101,11 +94,24 @@ namespace carrot::rhi::metal {
 
     rhi_command_queue_t* metal_rhi_context_t::get_command_queue() const noexcept
     {
-        return nullptr;
+        return _command_queue.get();
     }
 
     void metal_rhi_context_t::wait_idle()
     {
+        // NOTE: Metal doesn't have a direct function like Vulkan's vkDeviceWaitIdle, but we
+        //       can approximate it with a dummy command buffer that waits on completion
+        if (!_command_queue) return;
 
+        MTL::CommandQueue* native_queue{ _command_queue->mtl_command_queue() };
+        if (!native_queue) return;
+
+        NS::AutoreleasePool* pool{ NS::AutoreleasePool::alloc()->init() };
+
+        MTL::CommandBuffer* cmd{ native_queue->commandBuffer() };
+        cmd->commit();
+        cmd->waitUntilCompleted(); // blocks until GPU finishes this buffer
+
+        pool->release();
     }
 } // namespace carrot::rhi::metal

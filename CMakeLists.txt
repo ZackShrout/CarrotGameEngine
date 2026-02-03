@@ -93,6 +93,10 @@ if (APPLE)
             src/Engine/RHI/Backends/Metal/MetalCommon.h
             src/Engine/RHI/Backends/Metal/MetalRHIContext.cpp
             src/Engine/RHI/Backends/Metal/MetalRHIContext.h
+            src/Engine/RHI/Backends/Metal/MetalDevice.cpp
+            src/Engine/RHI/Backends/Metal/MetalDevice.h
+            src/Engine/RHI/Backends/Metal/MetalCommandQueue.cpp
+            src/Engine/RHI/Backends/Metal/MetalCommandQueue.h
     )
 elseif (WIN32)
     set(CARROT_PLATFORM_WIN32 ON CACHE INTERNAL "")

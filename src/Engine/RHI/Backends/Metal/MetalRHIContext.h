@@ -9,6 +9,9 @@
 #include "RHI/RHI.h"
 
 namespace carrot::rhi::metal {
+    class metal_command_queue_t;
+    class metal_device_t;
+
     class metal_rhi_context_t final : public rhi_context_t
     {
     public:
@@ -28,8 +31,8 @@ namespace carrot::rhi::metal {
         void wait_idle() override;
 
     private:
-        MTL::Device*        _device         { nullptr };
-        MTL::CommandQueue*  _commandQueue   { nullptr };
-        MTK::View*          _view           { nullptr };
+        std::unique_ptr<metal_device_t> _device;
+        std::unique_ptr<metal_command_queue_t> _command_queue;
+        MTK::View* _view{ nullptr };
     };
 } // namespace carrot::rhi::metal

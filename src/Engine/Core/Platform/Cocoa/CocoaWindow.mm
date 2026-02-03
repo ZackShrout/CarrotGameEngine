@@ -22,7 +22,7 @@ namespace carrot::core::platform {
         info._window_title = title;
 
         _controller = static_cast<void*>([[app_delegate_t class] alloc]);
-        _controller = static_cast<void*>([(id)_controller initWithInfo:info]);
+        _controller = static_cast<void*>([(id)_controller initWithInfo:info owner:this]);
         _ns_window = [(id)_controller createAndReturnWindow];
 
         LOG_CORE_INFO("Creating window with size {}x{}, title \"{}\"", width, height, title);
@@ -189,7 +189,7 @@ namespace carrot::core::platform {
         native_window_handle_t handle{ };
 
         handle.cocoa_t.ns_window = _ns_window;
-        handle.cocoa_t.metal_layer = nullptr;
+        handle.cocoa_t.mtk_view = _mtk_view;
 
         return handle;
     }

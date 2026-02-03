@@ -55,7 +55,7 @@ namespace carrot::core::platform {
         struct
         {
             void* ns_window; // NSWindow*
-            void* metal_layer; // CAMetalLayer*
+            void* mtk_view; // MTKView*
         } cocoa_t;
 #endif
     };

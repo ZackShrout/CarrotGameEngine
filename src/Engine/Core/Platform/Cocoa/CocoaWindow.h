@@ -21,8 +21,11 @@ namespace carrot::core::platform {
 
         [[nodiscard]] native_window_handle_t get_native_handle() const noexcept override;
 
+        void set_mtk_view(void* mtk_view) noexcept { _mtk_view = mtk_view; }
+
     private:
         void* _controller{ nullptr };
+        void* _mtk_view{ nullptr };
         id _ns_window{ nullptr };
         uint32_t _last_modifier_flags{ 0 };
         chlm::float2 _last_mouse_position{ 0.f, 0.f };

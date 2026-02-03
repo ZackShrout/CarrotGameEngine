@@ -15,11 +15,16 @@ namespace carrot::core::platform {
         std::string_view _window_title;
         CGRect           _window_rect;
     };
+
+    class cocoa_window_t;
 } // namespace carrot::core::platform
 
 @interface app_delegate_t : NSObject <NSApplicationDelegate, NSWindowDelegate>
+{
+    carrot::core::platform::cocoa_window_t* _owner;
+}
 
-- (instancetype)initWithInfo:(const carrot::core::platform::app_delegate_info_t &)info;
+- (instancetype)initWithInfo:(const carrot::core::platform::app_delegate_info_t &)info owner:(carrot::core::platform::cocoa_window_t*)owner;
 
 - (void)applicationWillFinishLaunching:(NSNotification *)notification;
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender;

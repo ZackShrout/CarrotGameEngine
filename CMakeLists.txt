@@ -89,8 +89,6 @@ if (APPLE)
             src/Engine/Core/Platform/Cocoa/CocoaWindow.h
             src/Engine/Core/Platform/Cocoa/AppDelegate.mm
             src/Engine/Core/Platform/Cocoa/AppDelegate.h
-            src/Engine/Core/Platform/Cocoa/WindowView.mm
-            src/Engine/Core/Platform/Cocoa/WindowView.h
             src/Engine/Core/Platform/Cocoa/CocoaInputUtils.h
             src/Engine/RHI/Backends/Metal/MetalCommon.h
             src/Engine/RHI/Backends/Metal/MetalRHIContext.cpp

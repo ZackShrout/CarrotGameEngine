@@ -26,5 +26,10 @@ namespace carrot::rhi::metal {
         [[nodiscard]] rhi_command_queue_t* get_command_queue() const noexcept override;
 
         void wait_idle() override;
+
+    private:
+        MTL::Device*        _device         { nullptr };
+        MTL::CommandQueue*  _commandQueue   { nullptr };
+        MTK::View*          _view           { nullptr };
     };
 } // namespace carrot::rhi::metal

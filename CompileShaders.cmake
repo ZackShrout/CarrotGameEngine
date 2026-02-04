@@ -106,6 +106,8 @@ function(compile_hlsl_to_metallib TARGET_NAME HLSL_FILE OUTPUT_DIR)
     cmake_path(SET DXIL_OUTPUT "${OUTPUT_DIR}/${OUTPUT_BASE}.dxil" NORMALIZE)
     cmake_path(SET METALLIB_OUTPUT "${OUTPUT_DIR}/${OUTPUT_BASE}.metallib" NORMALIZE)
 
+    cmake_path(SET JSON_OUTPUT "${OUTPUT_DIR}/${OUTPUT_BASE}.json" NORMALIZE)
+
     # Determine shader profile (same logic as SPIR-V version)
     set(PROFILE "vs_6_7")
     string(TOLOWER "${HLSL_FILE}" LOWER)
@@ -136,6 +138,7 @@ function(compile_hlsl_to_metallib TARGET_NAME HLSL_FILE OUTPUT_DIR)
             OUTPUT "${METALLIB_OUTPUT}"
             COMMAND ${METAL_SHADERCONVERTER_EXECUTABLE}
             "${DXIL_OUTPUT}" -o "${METALLIB_OUTPUT}"
+            --output-reflection-file=${JSON_OUTPUT}
             # Optional useful flags (see metal-shaderconverter --help):
             # --minimum-os-build-version 13.0     # e.g. target macOS 13+
             # --output-reflection-file "${METALLIB_OUTPUT}.json"   # if you want reflection data

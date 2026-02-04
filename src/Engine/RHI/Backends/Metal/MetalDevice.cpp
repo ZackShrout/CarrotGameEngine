@@ -27,12 +27,9 @@ namespace carrot::rhi::metal {
             return nullptr;
         }
 
-        MTL::CommandQueue* native_queue{ _device->newCommandQueue() };
-        if (!native_queue)
-        {
-            LOG_GRAPHICS_FATAL("Failed to create Metal command queue");
-            return nullptr;
-        }
+        MTL::CommandQueue* native_queue{ MTL_CHECK_FATAL(_device->newCommandQueue()) };
+
+        if (!native_queue) return nullptr;
 
         return new metal_command_queue_t{ native_queue };
     }

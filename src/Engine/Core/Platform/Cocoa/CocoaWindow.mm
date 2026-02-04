@@ -189,7 +189,7 @@ namespace carrot::core::platform {
         native_window_handle_t handle{ };
 
         handle.cocoa_t.ns_window = _ns_window;
-        handle.cocoa_t.mtk_view = _mtk_view;
+        handle.cocoa_t.metal_layer = _metal_layer;
 
         return handle;
     }

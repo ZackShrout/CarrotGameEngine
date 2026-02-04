@@ -67,63 +67,22 @@
     [_window makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
 
-    // === METAL KIT VIEW ===
-    MTKView* mtk_view{ [[MTKView alloc] initWithFrame:[_window contentRectForFrameRect:[_window frame]]
-                                                               device:MTLCreateSystemDefaultDevice()] };
+    NSView* content_view{ [[NSView alloc] initWithFrame:[_window contentRectForFrameRect:[_window frame]]] };
+    [_window setContentView:content_view];
+    [content_view setWantsLayer:YES];
 
-    mtk_view.device = MTLCreateSystemDefaultDevice();             // redundant but explicit
-    mtk_view.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
-    mtk_view.depthStencilPixelFormat = MTLPixelFormatInvalid;     // no depth for now (add later if needed)
-    mtk_view.sampleCount = 1;
-    mtk_view.preferredFramesPerSecond = 60;                        // or 0 = uncapped
-    mtk_view.clearColor = MTLClearColorMake(0.02, 0.2, 0.4, 1.0);
+    CAMetalLayer* metal_layer{ [CAMetalLayer layer] };
+    metal_layer.device = MTLCreateSystemDefaultDevice();
+    metal_layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
+    metal_layer.framebufferOnly = YES;
+    metal_layer.drawableSize = CGSizeMake(content_view.bounds.size.width, content_view.bounds.size.height);
 
-    // Important for polling-style engine (you call drawing manually):
-    mtk_view.paused = YES;                  // prevents automatic draw calls
-    mtk_view.enableSetNeedsDisplay = NO;    // we won't use setNeedsDisplay
-    mtk_view.autoResizeDrawable = YES;      // automatically updates drawableSize on resize
+    [content_view setLayer:metal_layer];
+    [_window makeFirstResponder:content_view];
 
-    [_window setContentView:mtk_view];
+    if (_owner) _owner->set_metal_layer(metal_layer);
 
-    //WindowView* view{ [[WindowView alloc] initWithFrame:[_window contentRectForFrameRect:[_window frame]]] };
-    //[_window setContentView:view];
-
-    NSTrackingAreaOptions options{ NSTrackingMouseEnteredAndExited |
-                                   NSTrackingMouseMoved |
-                                   NSTrackingActiveInKeyWindow |
-                                   NSTrackingInVisibleRect };
-
-    NSTrackingArea* trackingArea{ [[NSTrackingArea alloc] initWithRect:[mtk_view bounds]
-                                                          options:options
-                                                          owner:mtk_view
-                                                          userInfo:nil] };
-
-    [mtk_view addTrackingArea:trackingArea];
-    [trackingArea release];
-    [mtk_view updateTrackingAreas];
-
-    [mtk_view becomeFirstResponder];
-
-
-    //id<MTLDevice> device{ MTLCreateSystemDefaultDevice() };
-    //CAMetalLayer* layer{ [CAMetalLayer layer] };
-    //layer.device = device;
-    //layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-    //layer.framebufferOnly = YES;
-    //layer.displaySyncEnabled = YES; // vsync enabled
-    //
-    //view.layer = layer;
-    //view.wantsLayer = YES;
-    //
-    //CGRect initialRect{ _info._window_rect };
-    //CGFloat scale{ [_window backingScaleFactor] };          // usually from main screen if window not yet visible
-    //if (scale <= 0) scale = [[NSScreen mainScreen] backingScaleFactor];
-    //
-    //layer.drawableSize = CGSizeMake(CGRectGetWidth(initialRect) * scale, CGRectGetHeight(initialRect) * scale);
-
-    if (_owner) _owner->set_mtk_view(mtk_view);
-
-    [mtk_view release];
+    [content_view release];
 
     return _window;
 }

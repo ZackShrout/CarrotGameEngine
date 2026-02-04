@@ -28,6 +28,7 @@ namespace carrot::rhi::vulkan {
     // ─────────────────────────────────────────────────────────────────────────────────────────────────
     // Note: the next several structs are RAII wrappers designed to destroy their resource on scope exit
     // ─────────────────────────────────────────────────────────────────────────────────────────────────
+
     struct pipeline_t
     {
         VkDevice device{ VK_NULL_HANDLE };

@@ -12,7 +12,7 @@
 
 namespace carrot::rhi::metal {
     namespace {
-        struct PushConstants
+        struct push_constants
         {
             uint32_t frame_count;
         };
@@ -29,25 +29,24 @@ namespace carrot::rhi::metal {
             return;
         }
 
-
         MTL::Device* mtl_device{ static_cast<MTL::Device*>(metal_layer_get_device(_metal_layer)) };
         _device = std::make_unique<metal_device_t>(mtl_device);
         MTL_CHECK_FATAL(_device->mtl_device());
 
-        // if (desc.enable_debug_layers)
-        // {
-        //     setenv("MTL_API_VALIDATION", "1", 1);           // Enables Metal API validation (errors on misuse)
-        //     setenv("MTL_SHADER_VALIDATION", "1", 1);        // Validates shaders at runtime
-        //     setenv("METAL_DEVICE_WRAPPER_TYPE", "1", 1);    // Enables extra debug checks on device objects
-        //     setenv("MTL_DEBUG_LAYER", "1", 1);              // General debug layer (sometimes needed)
-        //
-        //     LOG_GRAPHICS_INFO("Metal validation layers enabled via environment variables");
-        // }
+        if (desc.enable_debug_layers)
+        {
+            setenv("MTL_API_VALIDATION", "1", 1);           // Enables Metal API validation (errors on misuse)
+            setenv("MTL_SHADER_VALIDATION", "1", 1);        // Validates shaders at runtime
+            setenv("METAL_DEVICE_WRAPPER_TYPE", "1", 1);    // Enables extra debug checks on device objects
+            setenv("MTL_DEBUG_LAYER", "1", 1);              // General debug layer (sometimes needed)
 
-        for (uint32_t i = 0; i < k_push_buffer_count; ++i)
+            LOG_GRAPHICS_INFO("Metal validation layers enabled via environment variables");
+        }
+
+        for (uint32_t i{ 0 }; i < k_push_buffer_count; ++i)
         {
             _push_buffers[i] = MTL_CHECK_FATAL(
-                _device->mtl_device()->newBuffer(sizeof(PushConstants), MTL::ResourceStorageModeShared)
+                _device->mtl_device()->newBuffer(sizeof(push_constants), MTL::ResourceStorageModeShared)
             );
         }
 
@@ -81,15 +80,13 @@ namespace carrot::rhi::metal {
             return;
         }
 
-        MTL::VertexDescriptor* vertex_desc = MTL::VertexDescriptor::alloc()->init();
+        MTL::VertexDescriptor* vertex_desc{ MTL::VertexDescriptor::alloc()->init() };
 
-        // Tell Metal we have a constant buffer at binding 0
-        auto* layout = vertex_desc->layouts()->object(0);
-        layout->setStride(sizeof(PushConstants)); // size of the struct
-        layout->setStepFunction(MTL::VertexStepFunctionConstant); // per-vertex? No — constant across vertices
+        MTL::VertexBufferLayoutDescriptor* layout{ vertex_desc->layouts()->object(0) };
+        layout->setStride(sizeof(push_constants));
+        layout->setStepFunction(MTL::VertexStepFunctionConstant);
         layout->setStepRate(1);
 
-        // Create pipeline descriptor
         MTL::RenderPipelineDescriptor* pipeline_desc{ MTL::RenderPipelineDescriptor::alloc()->init() };
         pipeline_desc->setVertexFunction(vertex_fn);
         pipeline_desc->setFragmentFunction(fragment_fn);
@@ -132,18 +129,16 @@ namespace carrot::rhi::metal {
     {
         dispatch_semaphore_wait(_frame_semaphore, DISPATCH_TIME_FOREVER);
 
-        NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+        NS::AutoreleasePool* pool{ NS::AutoreleasePool::alloc()->init() };
 
-        void* drawable_handle{ metal_next_drawable(_metal_layer) };
-        if (!drawable_handle)
+        CA::MetalDrawable* drawable{ static_cast<CA::MetalDrawable *>(metal_next_drawable(_metal_layer)) };
+        if (!drawable)
         {
             LOG_GRAPHICS_WARN("No drawable available - skipping frame!");
             dispatch_semaphore_signal(_frame_semaphore);
             pool->release();
             return;
         }
-
-        CA::MetalDrawable* drawable{ static_cast<CA::MetalDrawable *>(drawable_handle) };
 
         MTL::RenderPassDescriptor* rpd{ MTL::RenderPassDescriptor::alloc()->init() };
         if (!rpd)
@@ -153,32 +148,28 @@ namespace carrot::rhi::metal {
             return;
         }
 
-        // Clear to cornflower blue
-        auto* colorAttachment = rpd->colorAttachments()->object(0);
-        colorAttachment->setTexture(drawable->texture());
-        colorAttachment->setLoadAction(MTL::LoadActionClear);
-        colorAttachment->setStoreAction(MTL::StoreActionStore);
-        colorAttachment->setClearColor(MTL::ClearColor(
-            100.0 / 255.0, 149.0 / 255.0, 237.0 / 255.0, 1.0
-        ));
+        auto* color_attachment{ rpd->colorAttachments()->object(0) };
+        color_attachment->setTexture(drawable->texture());
+        color_attachment->setLoadAction(MTL::LoadActionClear);
+        color_attachment->setStoreAction(MTL::StoreActionStore);
+        color_attachment->setClearColor(MTL::ClearColor(0.02f, 0.02f, 0.04f, 1.0f));
 
-        MTL::CommandBuffer* cmdBuf = _command_queue->mtl_command_queue()->commandBuffer();
+        MTL::CommandBuffer* cmdBuf{ _command_queue->mtl_command_queue()->commandBuffer() };
         cmdBuf->addCompletedHandler([this](MTL::CommandBuffer* /*buffer*/) {
             dispatch_semaphore_signal(_frame_semaphore);
         });
 
-        MTL::RenderCommandEncoder* encoder = cmdBuf->renderCommandEncoder(rpd);
+        MTL::RenderCommandEncoder* encoder{ cmdBuf->renderCommandEncoder(rpd) };
 
         if (encoder && _triangle_pipeline)
         {
             encoder->setRenderPipelineState(_triangle_pipeline.state);
 
-            MTL::Buffer* current_buf = _push_buffers[_current_push_index];
+            MTL::Buffer* current_buf{ _push_buffers[_current_push_index] };
 
-            PushConstants* mapped = static_cast<PushConstants *>(current_buf->contents());
+            push_constants* mapped{ static_cast<push_constants *>(current_buf->contents()) };
             mapped->frame_count = _frame_counter++;
-            LOG_GRAPHICS_TRACE("Writing frame count {} to buffer {}", mapped->frame_count, _current_push_index);
-            current_buf->didModifyRange(NS::Range(0, sizeof(PushConstants)));
+            current_buf->didModifyRange(NS::Range(0, sizeof(push_constants)));
 
             encoder->setVertexBuffer(current_buf, 0, 2);
             encoder->drawPrimitives(MTL::PrimitiveTypeTriangle, static_cast<NS::UInteger>(0),

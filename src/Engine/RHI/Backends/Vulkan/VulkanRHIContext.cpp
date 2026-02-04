@@ -114,12 +114,12 @@ namespace carrot::rhi::vulkan {
 
         VkCommandBufferBeginInfo begin_info{ };
         begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT; // or 0 if you reuse
+        begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT; // or 0 if we reuse
 
         VK_CHECK_FATAL(vkBeginCommandBuffer(frame.command_buffer, &begin_info));
 
         // Begin render pass
-        constexpr VkClearValue clear_color{ { { 0.02f, 0.02f, 0.04f, 1.0f } } }; // nice dark background
+        constexpr VkClearValue clear_color{ { { 0.02f, 0.02f, 0.04f, 1.0f } } };
 
         VkRenderPassBeginInfo rp_begin{ };
         rp_begin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;

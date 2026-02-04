@@ -8,6 +8,7 @@
 #include "MetalDevice.h"
 #include "MetalCommandQueue.h"
 #include "MetalLayerBridge.h"
+#include "MetalSwapchain.h"
 #include "Window/Window.h"
 
 namespace carrot::rhi::metal {
@@ -51,6 +52,8 @@ namespace carrot::rhi::metal {
         }
 
         _frame_semaphore = dispatch_semaphore_create(k_max_frames_in_flight);
+
+        _swapchain = std::make_unique<metal_swapchain_t>(_device->mtl_device(), _metal_layer, desc.width, desc.height);
 
         _command_queue = std::make_unique<metal_command_queue_t>(
             MTL_CHECK_FATAL(_device->mtl_device()->newCommandQueue()));
@@ -118,6 +121,7 @@ namespace carrot::rhi::metal {
         }
 
         if (_command_queue) _command_queue.reset();
+        if (_swapchain) _swapchain.reset();
         if (_device) _device.reset();
     }
 
@@ -131,7 +135,9 @@ namespace carrot::rhi::metal {
 
         NS::AutoreleasePool* pool{ NS::AutoreleasePool::alloc()->init() };
 
-        CA::MetalDrawable* drawable{ static_cast<CA::MetalDrawable *>(metal_next_drawable(_metal_layer)) };
+        uint32_t image_index{ _swapchain->acquire_next_image(nullptr) };
+
+        const CA::MetalDrawable* drawable{ static_cast<CA::MetalDrawable *>(_swapchain->get_current_drawable()) };
         if (!drawable)
         {
             LOG_GRAPHICS_WARN("No drawable available - skipping frame!");
@@ -188,7 +194,6 @@ namespace carrot::rhi::metal {
         cmdBuf->commit();
 
         rpd->release();
-        metal_release_drawable(drawable);
         pool->release();
     }
 
@@ -201,7 +206,7 @@ namespace carrot::rhi::metal {
 
     rhi_swapchain_t* metal_rhi_context_t::get_swapchain() const noexcept
     {
-        return nullptr;
+        return _swapchain.get();
     }
 
     rhi_command_queue_t* metal_rhi_context_t::get_command_queue() const noexcept

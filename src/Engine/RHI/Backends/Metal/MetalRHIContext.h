@@ -10,6 +10,7 @@
 #include "RHI/RHI.h"
 
 namespace carrot::rhi::metal {
+    class metal_swapchain_t;
     class metal_command_queue_t;
     class metal_device_t;
 
@@ -33,6 +34,7 @@ namespace carrot::rhi::metal {
 
     private:
         std::unique_ptr<metal_device_t>         _device;
+        std::unique_ptr<metal_swapchain_t>      _swapchain;
         std::unique_ptr<metal_command_queue_t>  _command_queue;
         render_pipeline_state_t                 _triangle_pipeline;
 

@@ -100,6 +100,8 @@ if (APPLE)
             src/Engine/RHI/Backends/Metal/MetalCommandQueue.h
             src/Engine/RHI/Backends/Metal/MetalLayerBridge.mm
             src/Engine/RHI/Backends/Metal/MetalLayerBridge.h
+            src/Engine/RHI/Backends/Metal/MetalSwapchain.cpp
+            src/Engine/RHI/Backends/Metal/MetalSwapchain.h
     )
 elseif (WIN32)
     set(CARROT_PLATFORM_WIN32 ON CACHE INTERNAL "")

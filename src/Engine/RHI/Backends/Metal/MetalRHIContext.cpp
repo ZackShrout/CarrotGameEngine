@@ -154,18 +154,13 @@ namespace carrot::rhi::metal {
             return;
         }
 
-        auto* color_attachment{ rpd->colorAttachments()->object(0) };
-        color_attachment->setTexture(drawable->texture());
-        color_attachment->setLoadAction(MTL::LoadActionClear);
-        color_attachment->setStoreAction(MTL::StoreActionStore);
-        color_attachment->setClearColor(MTL::ClearColor(0.02f, 0.02f, 0.04f, 1.0f));
-
         MTL::CommandBuffer* cmdBuf{ _command_queue->mtl_command_queue()->commandBuffer() };
         cmdBuf->addCompletedHandler([this](MTL::CommandBuffer* /*buffer*/) {
             dispatch_semaphore_signal(_frame_semaphore);
         });
 
-        MTL::RenderCommandEncoder* encoder{ cmdBuf->renderCommandEncoder(rpd) };
+        _render_encoder.begin(cmdBuf, drawable, MTL::ClearColor(0.02f, 0.02f, 0.04f, 1.0f));
+        MTL::RenderCommandEncoder* encoder{ _render_encoder.encoder() };
 
         if (encoder && _triangle_pipeline)
         {
@@ -181,13 +176,13 @@ namespace carrot::rhi::metal {
             encoder->drawPrimitives(MTL::PrimitiveTypeTriangle, static_cast<NS::UInteger>(0),
                                     static_cast<NS::UInteger>(3));
 
-            encoder->endEncoding();
+            _render_encoder.end();
 
             _current_push_index = (_current_push_index + 1) % k_push_buffer_count;
         }
         else if (encoder)
         {
-            encoder->endEncoding();
+            _render_encoder.end();
         }
 
         cmdBuf->presentDrawable(drawable);

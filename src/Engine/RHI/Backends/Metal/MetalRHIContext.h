@@ -7,6 +7,7 @@
 
 #include "MetalCommon.h"
 #include "MetalCore.h"
+#include "MetalRenderEncoder.h"
 #include "RHI/RHI.h"
 
 namespace carrot::rhi::metal {
@@ -37,8 +38,8 @@ namespace carrot::rhi::metal {
         std::unique_ptr<metal_swapchain_t>      _swapchain;
         std::unique_ptr<metal_command_queue_t>  _command_queue;
         render_pipeline_state_t                 _triangle_pipeline;
-
-        void* _metal_layer{ nullptr };
+        metal_render_encoder_t                  _render_encoder;
+        void*                                   _metal_layer{ nullptr };
 
         static constexpr uint32_t k_push_buffer_count{ 3 };
         MTL::Buffer* _push_buffers[k_push_buffer_count] { nullptr };

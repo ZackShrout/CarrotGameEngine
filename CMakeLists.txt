@@ -85,11 +85,13 @@ if (APPLE)
     add_compile_definitions(CARROT_PLATFORM_COCOA=1)
     list(APPEND CARROT_ENGINE_SOURCES
             src/Engine/HotReload/ShaderWatcherApple.mm
+
             src/Engine/Core/Platform/Cocoa/CocoaWindow.mm
             src/Engine/Core/Platform/Cocoa/CocoaWindow.h
             src/Engine/Core/Platform/Cocoa/AppDelegate.mm
             src/Engine/Core/Platform/Cocoa/AppDelegate.h
             src/Engine/Core/Platform/Cocoa/CocoaInputUtils.h
+
             src/Engine/RHI/Backends/Metal/MetalCommon.h
             src/Engine/RHI/Backends/Metal/MetalCore.h
             src/Engine/RHI/Backends/Metal/MetalRHIContext.cpp
@@ -110,8 +112,10 @@ elseif (WIN32)
     add_compile_definitions(CARROT_PLATFORM_WIN32=1)
     list(APPEND CARROT_ENGINE_SOURCES
             src/Engine/HotReload/ShaderWatcherWindows.cpp
+
             src/Engine/Core/Platform/Win32/Win32Window.cpp
             src/Engine/Core/Platform/Win32/Win32Window.h
+
             src/Engine/RHI/Backends/Vulkan/VulkanDevice.cpp
             src/Engine/RHI/Backends/Vulkan/VulkanDevice.h
             src/Engine/RHI/Backends/Vulkan/VulkanSwapchain.cpp
@@ -126,6 +130,9 @@ elseif (WIN32)
             src/Engine/RHI/Backends/Vulkan/VulkanCore.h
             src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.cpp
             src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.h
+
+            src/Engine/RHI/Backends/DirectX12/DirectX12RHIContext.cpp
+            src/Engine/RHI/Backends/DirectX12/DirectX12RHIContext.h
     )
 elseif (UNIX)
     # Define the cache variable with a proper default value right away.
@@ -191,6 +198,7 @@ elseif (UNIX)
     # All Linux platforms get these
     list(APPEND CARROT_ENGINE_SOURCES
             src/Engine/HotReload/ShaderWatcherLinux.cpp
+
             src/Engine/RHI/Backends/Vulkan/VulkanDevice.cpp
             src/Engine/RHI/Backends/Vulkan/VulkanDevice.h
             src/Engine/RHI/Backends/Vulkan/VulkanSwapchain.cpp

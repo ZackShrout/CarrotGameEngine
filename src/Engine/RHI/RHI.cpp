@@ -10,6 +10,10 @@
 #elif defined(CARROT_PLATFORM_COCOA)
 #include "Backends/Metal/MetalRHIContext.h"
 #endif
+#if defined(CARROT_PLATFORM_WIN32)
+#include "Backends/DirectX12/DirectX12RHIContext.h"
+#endif
+
 #include "Common/CommonHeaders.h"
 
 namespace carrot::rhi {
@@ -28,8 +32,7 @@ namespace carrot::rhi {
 
             case graphics_api::direct_x12:
 #if defined(CARROT_PLATFORM_WIN32)
-                LOG_GRAPHICS_FATAL("Backend {} not implemented yet", graphics_api_to_string(desc.api));
-                return nullptr;
+                return std::make_unique<dx12::direct_x12_rhi_context_t>(desc);
 #else
                 LOG_GRAPHICS_FATAL("Backend {} only supported on Windows", graphics_api_to_string(desc.api));
                 return nullptr;

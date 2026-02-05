@@ -17,7 +17,7 @@ namespace carrot::renderer {
         LOG_GRAPHICS_INFO("Initializing Renderer...");
 
         rhi::rhi_desc_t desc{};
-        desc.api = rhi::graphics_api::vulkan;
+        desc.api = rhi::graphics_api::direct_x12;
         desc.enable_debug_layers = true;  // change via config later
         desc.width  = window::get_width();
         desc.height = window::get_height();

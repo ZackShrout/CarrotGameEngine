@@ -5,8 +5,11 @@
 
 #include "RHI/RHI.h"
 
+#if defined(CARROT_PLATFORM_WAYLAND) || defined(CARROT_PLATFORM_X11) || defined(CARROT_PLATFORM_WIN32)
 #include "Backends/Vulkan/VulkanRHIContext.h"
+#elif defined(CARROT_PLATFORM_COCOA)
 #include "Backends/Metal/MetalRHIContext.h"
+#endif
 #include "Common/CommonHeaders.h"
 
 namespace carrot::rhi {

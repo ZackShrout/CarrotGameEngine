@@ -12,10 +12,16 @@ struct PushConstants
     uint frameCount;
 };
 
-//[[vk::push_constant]]
-//PushConstants pc;               // ← this is the important change
+#if defined(VULKAN)
+
+[[vk::push_constant]]
+PushConstants pc;
+
+#else // METAL + DX12
 
 ConstantBuffer<PushConstants> pc : register(b0);
+
+#endif
 
 static const float2 positions[3] = {
     float2( 0.0, -0.8),

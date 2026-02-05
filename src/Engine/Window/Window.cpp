@@ -9,8 +9,6 @@
 
 #include <memory>
 
-#include "Core/Platform/Cocoa/CocoaWindow.h"
-
 #ifdef CARROT_PLATFORM_WIN32
 #include "Core/Platform/Win32/Win32Window.h"
 #elifdef CARROT_PLATFORM_WAYLAND

@@ -55,9 +55,10 @@ namespace carrot::core::platform {
         }
     } // anonymous namespace
 
-    win32_window_t::win32_window_t(const uint32_t width, const uint32_t height, std::string_view title) noexcept : _width{ width },
-        _height{ height }
+    win32_window_t::win32_window_t(const uint32_t width, const uint32_t height, std::string_view title) noexcept
     {
+        _width = width;
+        _height = height;
         _title = std::wstring(title.begin(), title.end());
 
         _hinstance = GetModuleHandleW(nullptr);

@@ -66,7 +66,7 @@ function(compile_hlsl_to_spirv TARGET_NAME HLSL_FILE OUTPUT_DIR)
             COMMAND ${CMAKE_COMMAND} -E make_directory "${OUTPUT_DIR}"
             COMMAND ${DXC_EXECUTABLE}
             -spirv -T ${PROFILE} -E main -fvk-use-scalar-layout -v
-            "${ABS_HLSL}" -Fo "${SPV_OUTPUT}"
+            "${ABS_HLSL}" -Fo "${SPV_OUTPUT}" -DVULKAN
             DEPENDS "${ABS_HLSL}"
             COMMENT "DXC → SPIR-V: ${OUTPUT_BASE} (${PROFILE})"
             VERBATIM
@@ -125,6 +125,7 @@ function(compile_hlsl_to_metallib TARGET_NAME HLSL_FILE OUTPUT_DIR)
             COMMAND ${CMAKE_COMMAND} -E make_directory "${OUTPUT_DIR}"
             COMMAND ${DXC_EXECUTABLE}
             -T ${PROFILE} -E main
+            -DMETAL
             # Add any other flags you need, e.g. -Zi for debug, -Od, etc.
             # -HV 2021   # HLSL version if needed
             "${ABS_HLSL}" -Fo "${DXIL_OUTPUT}"

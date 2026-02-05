@@ -39,13 +39,13 @@ namespace carrot::rhi::metal {
         std::unique_ptr<metal_command_queue_t>  _command_queue;
         render_pipeline_state_t                 _triangle_pipeline;
         metal_render_encoder_t                  _render_encoder;
-        void*                                   _metal_layer{ nullptr };
+        void*                                   _metal_layer{ nullptr }; // CAMetalLayer*
 
-        static constexpr uint32_t k_push_buffer_count{ 3 };
-        MTL::Buffer* _push_buffers[k_push_buffer_count] { nullptr };
-        uint32_t _current_push_index{ 0 };
-        uint32_t _frame_counter{ 0 };
+        static constexpr uint32_t               k_push_buffer_count{ 3 };
+        MTL::Buffer*                            _push_buffers[k_push_buffer_count] { nullptr };
+        uint32_t                                _current_push_index{ 0 };
+        uint32_t                                _frame_counter{ 0 };
 
-        dispatch_semaphore_t _frame_semaphore{ nullptr };
+        dispatch_semaphore_t                    _frame_semaphore{ nullptr };
     };
 } // namespace carrot::rhi::metal

@@ -5,14 +5,15 @@
 
 #pragma once
 
+#include "DirectX12Common.h"
 #include "RHI/RHI.h"
 
 namespace carrot::rhi::dx12 {
-    class direct_x12_rhi_context_t final : public rhi_context_t
+    class dx12_rhi_context_t final : public rhi_context_t
     {
     public:
-        explicit direct_x12_rhi_context_t(const rhi_desc_t& desc);
-        ~direct_x12_rhi_context_t() override;
+        explicit dx12_rhi_context_t(const rhi_desc_t& desc);
+        ~dx12_rhi_context_t() override;
 
         void begin_frame() override;
         void record_frame() override;

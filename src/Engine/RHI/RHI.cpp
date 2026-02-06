@@ -32,7 +32,7 @@ namespace carrot::rhi {
 
             case graphics_api::direct_x12:
 #if defined(CARROT_PLATFORM_WIN32)
-                return std::make_unique<dx12::direct_x12_rhi_context_t>(desc);
+                return std::make_unique<dx12::dx12_rhi_context_t>(desc);
 #else
                 LOG_GRAPHICS_FATAL("Backend {} only supported on Windows", graphics_api_to_string(desc.api));
                 return nullptr;

@@ -131,8 +131,20 @@ elseif (WIN32)
             src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.cpp
             src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.h
 
+            src/Engine/RHI/Backends/DirectX12/DirectX12Common.h
+            src/Engine/RHI/Backends/DirectX12/DirectX12Core.h
             src/Engine/RHI/Backends/DirectX12/DirectX12RHIContext.cpp
             src/Engine/RHI/Backends/DirectX12/DirectX12RHIContext.h
+            src/Engine/RHI/Backends/DirectX12/DirectX12Device.cpp
+            src/Engine/RHI/Backends/DirectX12/DirectX12Device.h
+            src/Engine/RHI/Backends/DirectX12/DirectX12CommandQueue.cpp
+            src/Engine/RHI/Backends/DirectX12/DirectX12CommandQueue.h
+            src/Engine/RHI/Backends/DirectX12/DirectX12Swapchain.cpp
+            src/Engine/RHI/Backends/DirectX12/DirectX12Swapchain.h
+            src/Engine/RHI/Backends/DirectX12/DirectX12CommandList.cpp
+            src/Engine/RHI/Backends/DirectX12/DirectX12CommandList.h
+            src/Engine/RHI/Backends/DirectX12/DirectX12Fence.cpp
+            src/Engine/RHI/Backends/DirectX12/DirectX12Fence.h
     )
 elseif (UNIX)
     # Define the cache variable with a proper default value right away.

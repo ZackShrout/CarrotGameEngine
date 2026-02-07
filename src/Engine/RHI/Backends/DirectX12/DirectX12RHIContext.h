@@ -6,9 +6,27 @@
 #pragma once
 
 #include "DirectX12Common.h"
+#include "DirectX12Core.h"
 #include "RHI/RHI.h"
 
+#include <array>
+
+
 namespace carrot::rhi::dx12 {
+    class dx12_device_t;
+    class dx12_command_queue_t;
+    class dx12_swapchain_t;
+    class dx12_fence_t;
+    class dx12_command_list_t;
+
+    struct dx12_frame_t
+    {
+        ID3D12CommandAllocator*                  allocator{ nullptr };
+        std::unique_ptr<dx12_command_list_t>     command_list;
+        std::unique_ptr<dx12_fence_t>            fence;
+        uint64_t                                 fence_value{ 0 };
+    };
+
     class dx12_rhi_context_t final : public rhi_context_t
     {
     public:
@@ -28,5 +46,12 @@ namespace carrot::rhi::dx12 {
         void wait_idle() override;
 
     private:
+        std::unique_ptr<dx12_device_t>                      _device;
+        std::unique_ptr<dx12_command_queue_t>               _graphics_queue;
+        std::unique_ptr<dx12_swapchain_t>                   _swapchain;
+
+        std::array<dx12_frame_t, k_max_frames_in_flight>    _frames;
+        uint32_t                                            _frame_index{ 0 };
+        uint32_t                                            _rtv_descriptor_stride{ 0 };
     };
 } // namespace carrot::rhi::dx12

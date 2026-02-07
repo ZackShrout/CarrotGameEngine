@@ -12,7 +12,7 @@ namespace carrot::rhi::dx12 {
     class dx12_command_queue_t final : public rhi_command_queue_t
     {
     public:
-        explicit dx12_command_queue_t(void* device);
+        explicit dx12_command_queue_t(ID3D12Device* device);
         ~dx12_command_queue_t() override;
 
         void submit(rhi_command_list_t* cmd_list,

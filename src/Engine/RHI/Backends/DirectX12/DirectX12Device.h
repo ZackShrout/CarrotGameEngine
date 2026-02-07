@@ -13,7 +13,7 @@ namespace carrot::rhi {
 }
 
 namespace carrot::rhi::dx12 {
-    class dx12_device_t final : rhi_device_t
+    class dx12_device_t final : public rhi_device_t
     {
     public:
         explicit dx12_device_t(const rhi_desc_t& desc);

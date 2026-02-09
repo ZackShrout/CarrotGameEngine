@@ -56,6 +56,11 @@ namespace carrot::rhi::dx12 {
     {
         wait_idle();
 
+        // NOTE: ESC-triggered shutdown currently races DX12 Present teardown.
+        //       Known issue: DXGI present can still be in-flight.
+        //       Workaround: close via window X button.
+        // TODO: unify shutdown sequencing across engine systems.
+
         for (uint32_t i{ 0 }; i < k_max_frames_in_flight; ++i)
         {
             dx12_frame_t& frame{ _frames[i] };
@@ -96,15 +101,28 @@ namespace carrot::rhi::dx12 {
         UINT stride = _device->id3d12_device()->GetDescriptorHandleIncrementSize(
             D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-        D3D12_RESOURCE_BARRIER barrier{};
-        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-
         float clear[]{ 0.02f, 0.02f, 0.04f, 1.0f };
 
         D3D12_CPU_DESCRIPTOR_HANDLE rtv = sc->get_current_rtv(stride);
 
+        ID3D12Resource* backbuffer = sc->get_backbuffer(sc->get_current_image_index());
+
+        D3D12_RESOURCE_BARRIER to_rtv{};
+        to_rtv.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        to_rtv.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        to_rtv.Transition.pResource = backbuffer;
+        to_rtv.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        to_rtv.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+        to_rtv.Transition.StateAfter  = D3D12_RESOURCE_STATE_RENDER_TARGET;
+
+        cmd->ResourceBarrier(1, &to_rtv);
+
         cmd->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
         cmd->ClearRenderTargetView(sc->get_current_rtv(stride), clear, 0, nullptr);
+
+        std::swap(to_rtv.Transition.StateBefore, to_rtv.Transition.StateAfter);
+
+        cmd->ResourceBarrier(1, &to_rtv);
     }
 
     void dx12_rhi_context_t::end_frame()
@@ -113,6 +131,7 @@ namespace carrot::rhi::dx12 {
         f.command_list->end_recording();
 
         _graphics_queue->submit(f.command_list.get(), f.fence.get(), nullptr, nullptr);
+        f.fence_value = f.fence->current_value();
         _swapchain->present(nullptr);
 
         _frame_index = (_frame_index + 1) % k_max_frames_in_flight;
@@ -140,7 +159,10 @@ namespace carrot::rhi::dx12 {
 
     void dx12_rhi_context_t::wait_idle()
     {
-        auto& f = _frames[_frame_index];
-        f.fence->wait(f.fence_value);
+        for (uint32_t i = 0; i < k_max_frames_in_flight; ++i)
+        {
+            auto& f = _frames[i];
+            f.fence->wait(f.fence_value);
+        }
     }
 } // namespace carrot::rhi::dx12

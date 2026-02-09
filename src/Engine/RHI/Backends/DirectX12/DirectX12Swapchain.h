@@ -44,6 +44,6 @@ namespace carrot::rhi::dx12 {
         uint32_t                                            _width{ 0 };
         uint32_t                                            _height{ 0 };
         uint32_t                                            _image_index{ 0 };
-        uint32_t                                            _image_count{ 0 };
+        uint32_t                                            _image_count{ k_max_frames_in_flight };
     };
 } // namespace carrot::rhi::dx12

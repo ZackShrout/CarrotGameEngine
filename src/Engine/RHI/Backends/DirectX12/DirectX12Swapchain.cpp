@@ -39,11 +39,6 @@ namespace carrot::rhi::dx12 {
         sc1->Release();
         factory->Release();
 
-
-
-
-
-
         D3D12_DESCRIPTOR_HEAP_DESC rtv{};
         rtv.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
         rtv.NumDescriptors = k_max_frames_in_flight;
@@ -54,58 +49,50 @@ namespace carrot::rhi::dx12 {
 
         for (uint32_t i = 0; i < k_max_frames_in_flight; ++i)
         {
-            ID3D12Resource* buf{ nullptr };
-            _swapchain->GetBuffer(i, IID_PPV_ARGS(&buf));
-            device->CreateRenderTargetView(buf, nullptr, handle);
+            hr = _swapchain->GetBuffer(i, IID_PPV_ARGS(&_backbuffers[i]));
+            if (FAILED(hr))
+                LOG_GRAPHICS_FATAL("Failed to get DX12 backbuffer {}", i);
+
+            device->CreateRenderTargetView(_backbuffers[i], nullptr, handle);
             handle.ptr += stride;
-            buf->Release();
         }
 
-
-
-
-
-
-
-
-        // _image_index = _swapchain->GetCurrentBackBufferIndex();
-        // _image_count = k_max_frames_in_flight;
-        //
-        // D3D12_DESCRIPTOR_HEAP_DESC rtv_heap_desc{};
-        // rtv_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-        // rtv_heap_desc.NumDescriptors = k_max_frames_in_flight;
-        //
-        //
-        // hr = device->CreateDescriptorHeap(&rtv_heap_desc, IID_PPV_ARGS(&_rtv_heap));
-        // if (FAILED(hr))
-        //     LOG_GRAPHICS_FATAL("Failed to create RTV heap");
-        //
-        //
-        // uint32_t rtv_stride{ device->GetDescriptorHandleIncrementSize(
-        // D3D12_DESCRIPTOR_HEAP_TYPE_RTV) };
-        //
-        // D3D12_CPU_DESCRIPTOR_HANDLE handle{ _rtv_heap->GetCPUDescriptorHandleForHeapStart() };
-        //
-        // for (uint32_t i{ 0 }; i < k_max_frames_in_flight; ++i)
-        // {
-        //     hr = _swapchain->GetBuffer(i, IID_PPV_ARGS(&_backbuffers[i]));
-        //     if (FAILED(hr))
-        //         LOG_GRAPHICS_FATAL("Failed to get DX12 backbuffer {}", i);
-        //
-        //     device->CreateRenderTargetView(_backbuffers[i], nullptr, handle);
-        //     handle.ptr += rtv_stride;
-        // }
+        _image_index = _swapchain->GetCurrentBackBufferIndex();
     }
 
     dx12_swapchain_t::~dx12_swapchain_t()
     {
-        if (_rtv_heap) _rtv_heap->Release();
-        if (_swapchain) _swapchain->Release();
+        for (auto& buf : _backbuffers)
+        {
+            if (buf)
+            {
+                buf->Release();
+                buf = nullptr;
+            }
+        }
+
+        if (_rtv_heap)
+        {
+            _rtv_heap->Release();
+            _rtv_heap = nullptr;
+        }
+
+        if (_swapchain)
+        {
+            _swapchain->Release();
+            _swapchain = nullptr;
+        }
     }
 
-    void dx12_swapchain_t::resize(uint32_t width, uint32_t height)
+    void dx12_swapchain_t::resize(const uint32_t width, const uint32_t height)
     {
-        // no-op
+        if (width == 0 || height == 0)
+            return;
+
+        _width = width;
+        _height = height;
+
+        // Full implementation comes later
     }
 
     uint32_t dx12_swapchain_t::acquire_next_image([[maybe_unused]] rhi_semaphore_t* signal_semaphore)
@@ -121,7 +108,8 @@ namespace carrot::rhi::dx12 {
 
     rhi_texture_t* dx12_swapchain_t::get_current_backbuffer() const
     {
-        return nullptr;
+        // Temporary until dx12_texture_t exists
+        return reinterpret_cast<rhi_texture_t*>(_backbuffers[_image_index]);
     }
 
     D3D12_CPU_DESCRIPTOR_HANDLE dx12_swapchain_t::get_current_rtv(const uint32_t stride) const noexcept

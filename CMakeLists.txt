@@ -69,6 +69,18 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Input/KeyCodes.h
         src/Engine/Input/PlatformKeyMapping.cpp
         src/Engine/Input/PlatformKeyMapping.h
+        src/Engine/Utils/JSON/JsonToken.h
+        src/Engine/Utils/JSON/JsonAST.h
+        src/Engine/Utils/JSON/JsonLexer.cpp
+        src/Engine/Utils/JSON/JsonLexer.h
+        src/Engine/Utils/JSON/JsonParser.cpp
+        src/Engine/Utils/JSON/JsonParser.h
+        src/Engine/Utils/JSON/JsonDocument.cpp
+        src/Engine/Utils/JSON/JsonDocument.h
+        src/Engine/Utils/File/FileUtils.cpp
+        src/Engine/Utils/File/FileUtils.h
+        src/Engine/Core/Memory/Arena.cpp
+        src/Engine/Core/Memory/Arena.h
 )
 
 # ------------------------------------------------------------------------

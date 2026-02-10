@@ -10,7 +10,12 @@
 #include "Utils/MulticastDelegate.h"
 #include "Window/Window.h"
 #include "Core/Application.h"
+#include "Core/Memory/Arena.h"
 #include "RHI/RHI.h"
+#include "Utils/File/FileUtils.h"
+#include "Utils/JSON/JsonDocument.h"
+#include "Utils/JSON/JsonLexer.h"
+#include "Utils/JSON/JsonParser.h"
 
 namespace carrot {
     namespace {
@@ -29,6 +34,12 @@ namespace carrot {
 
         core::logger_t::init();
         window::create_primary_window(width, height, "Carrot Engine – Month 1");
+
+        //-- JSON TESTS --
+        utils::json::json_document_t doc;
+        doc.parse_from_file("assets/Vraden.json");
+        utils::json::parser_t::dump(doc.root());
+        //-- END JSON TESTS
 
         _renderer = std::make_unique<renderer::renderer_t>();
 

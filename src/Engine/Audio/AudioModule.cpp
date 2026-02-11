@@ -20,16 +20,16 @@ namespace carrot::audio {
     {
         if (_is_initialized)
         {
-            LOG_CORE_WARN("Audio module already initialized");
+            LOG_AUDIO_WARN("Audio module already initialized");
             return;
         }
 
-        LOG_CORE_INFO("Initializing Audio Module...");
+        LOG_AUDIO_INFO("Initializing Audio Module...");
 
         _backend = create_audio_backend();
         if (!_backend)
         {
-            LOG_CORE_FATAL("create_audio_backend() returned nullptr");
+            LOG_AUDIO_FATAL("create_audio_backend() returned nullptr");
             return;
         }
 
@@ -38,7 +38,7 @@ namespace carrot::audio {
         const bool result{ _backend->init(_engine.get(), _config.sample_rate, _config.block_size, _config.channels) };
         if (!result)
         {
-            LOG_CORE_FATAL("Failed to initialize audio backend");
+            LOG_AUDIO_FATAL("Failed to initialize audio backend");
             return;
         }
 
@@ -53,7 +53,7 @@ namespace carrot::audio {
     {
         if (!_is_initialized) return;
 
-        LOG_CORE_INFO("Shutting down Audio Module...");
+        LOG_AUDIO_INFO("Shutting down Audio Module...");
 
         _backend->stop();
         _engine->shutdown();
@@ -62,6 +62,8 @@ namespace carrot::audio {
         _backend.reset();
 
         _is_initialized = false;
+
+        LOG_AUDIO_INFO("Audio Module shutdown complete");
     }
 
     // PRIVATE

@@ -56,5 +56,8 @@ namespace carrot::audio {
     private:
         audio_clock_t*  _clock{ nullptr };
         uint32_t        _channels{ 0 };
+
+        // ── Test oscillator (temporary) ─────────────────────────────
+        double _phase{ 0.0 };
     };
 } // namespace carrot::audio

@@ -92,10 +92,10 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Audio/AudioClock.h
         src/Engine/Audio/AudioModule.cpp
         src/Engine/Audio/AudioModule.h
+        src/Engine/Audio/Backend/AudioBackend.cpp
         src/Engine/Audio/Backend/AudioBackend.h
         src/Engine/Audio/Core/AudioEngine.cpp
         src/Engine/Audio/Core/AudioEngine.h
-        src/Engine/Audio/Backend/AudioBackend.cpp
         src/Engine/Audio/Backend/Null/NullAudioBackend.cpp
         src/Engine/Audio/Backend/Null/NullAudioBackend.h
 )
@@ -135,6 +135,9 @@ if (APPLE)
             src/Engine/RHI/Backends/Metal/MetalSwapchain.h
             src/Engine/RHI/Backends/Metal/MetalRenderEncoder.cpp
             src/Engine/RHI/Backends/Metal/MetalRenderEncoder.h
+
+            src/Engine/Audio/Backend/Apple/AppleAudioBackend.cpp
+            src/Engine/Audio/Backend/Apple/AppleAudioBackend.h
     )
 elseif (WIN32)
     set(CARROT_PLATFORM_WIN32 ON CACHE INTERNAL "")
@@ -360,6 +363,9 @@ if(APPLE)
             "-framework AppKit"
             "-framework QuartzCore"
             "-framework CoreServices"
+            "-framework CoreAudio"
+            "-framework AudioUnit"
+            "-framework AudioToolbox"
     )
 
     # Set source file that will have the defines applied to them, which must also include all metal-cpp headers

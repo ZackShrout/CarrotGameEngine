@@ -89,6 +89,15 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Utils/JSON/Public/JsonArrayView.h
         src/Engine/EngineConfig.cpp
         src/Engine/EngineConfig.h
+        src/Engine/Audio/AudioClock.h
+        src/Engine/Audio/AudioModule.cpp
+        src/Engine/Audio/AudioModule.h
+        src/Engine/Audio/Backend/AudioBackend.h
+        src/Engine/Audio/Core/AudioEngine.cpp
+        src/Engine/Audio/Core/AudioEngine.h
+        src/Engine/Audio/Backend/AudioBackend.cpp
+        src/Engine/Audio/Backend/Null/NullAudioBackend.cpp
+        src/Engine/Audio/Backend/Null/NullAudioBackend.h
 )
 
 # ------------------------------------------------------------------------

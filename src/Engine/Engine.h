@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "Audio/AudioModule.h"
 #include "Common/CommonHeaders.h"
 #include "Renderer/Renderer.h"
 #include "Utils/MulticastDelegate.h"
@@ -42,7 +43,10 @@ namespace carrot {
         bool                                    _should_quit{ false };
         float                                   _delta_time{ 0.f };
         uint32_t                                _current_fps{ 0 };
+
         std::unique_ptr<renderer::renderer_t>   _renderer{ nullptr };
+        std::unique_ptr<audio::audio_module_t>  _audio_module{ nullptr };
+
         on_tick_t                               _on_tick;
     };
 } // namespace carrot

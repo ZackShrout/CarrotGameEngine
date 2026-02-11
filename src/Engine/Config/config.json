@@ -3,5 +3,10 @@
   "graphics": {
     "api": "default",
     "debug_layers": "default"
+  },
+  "audio": {
+    "sample_rate": 48000,
+    "block_size": 512,
+    "channels": 2
   }
 }

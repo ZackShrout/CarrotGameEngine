@@ -11,29 +11,15 @@
 namespace carrot::renderer {
     // PUBLIC
 
-    void renderer_t::shutdown()
-    {
-        if (!_is_initialized)
-            return;
-
-        LOG_GRAPHICS_INFO("Shutting down Renderer...");
-
-        destroy_common_resources();
-        _rhi.reset();
-
-        _is_initialized = false;
-        LOG_GRAPHICS_INFO("Renderer shutdown complete");
-    }
-
-    void renderer_t::init(const engine_config_t& config)
+    void renderer_t::init()
     {
         if (_is_initialized) return;
 
         LOG_GRAPHICS_INFO("Initializing Renderer...");
 
         rhi::rhi_desc_t desc{};
-        desc.api = config.graphics.api;
-        desc.enable_debug_layers = config.graphics.enable_debug_layers;
+        desc.api = _config.api;
+        desc.enable_debug_layers = _config.enable_debug_layers;
         desc.width  = window::get_width();
         desc.height = window::get_height();
 
@@ -48,6 +34,20 @@ namespace carrot::renderer {
 
         _is_initialized = true;
         LOG_GRAPHICS_INFO("Renderer initialized successfully (backend: {})", carrot::rhi::graphics_api_to_string(desc.api));
+    }
+
+    void renderer_t::shutdown()
+    {
+        if (!_is_initialized)
+            return;
+
+        LOG_GRAPHICS_INFO("Shutting down Renderer...");
+
+        destroy_common_resources();
+        _rhi.reset();
+
+        _is_initialized = false;
+        LOG_GRAPHICS_INFO("Renderer shutdown complete");
     }
 
     void renderer_t::begin_frame()

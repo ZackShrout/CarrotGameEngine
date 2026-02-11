@@ -15,9 +15,17 @@ namespace carrot {
         bool enable_debug_layers;
     };
 
+    struct engine_audio_config_t
+    {
+        uint32_t sample_rate;
+        uint32_t block_size;
+        uint32_t channels;
+    };
+
     struct engine_config_t
     {
         engine_graphics_config_t graphics;
+        engine_audio_config_t audio;
     };
 
     engine_config_t load_engine_config();

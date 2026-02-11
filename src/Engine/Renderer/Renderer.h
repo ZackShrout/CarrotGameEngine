@@ -32,13 +32,11 @@ namespace carrot::renderer {
     public:
         CARROT_MODULE_NAME("Renderer")
 
-        explicit renderer_t(const engine_config_t& config) { init(config); }
+        explicit renderer_t(const engine_graphics_config_t& config) : _config{ config } { init(); }
         ~renderer_t() override { shutdown(); }
 
-        void init() override {}
+        void init() override;
         void shutdown() override;
-
-        void init(const engine_config_t& config);
 
         // Main loop integration
         void begin_frame();
@@ -58,6 +56,8 @@ namespace carrot::renderer {
         [[nodiscard]] rhi::rhi_context_t* get_rhi() const noexcept { return _rhi.get(); }
 
     private:
+        engine_graphics_config_t _config;
+
         std::unique_ptr<rhi::rhi_context_t> _rhi;
 
         uint64_t _frame_index{ 0 };

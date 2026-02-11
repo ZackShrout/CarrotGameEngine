@@ -32,7 +32,10 @@ namespace carrot {
         window::create_primary_window(width, height, "Carrot Engine – Month 1");
 
         engine_config_t config{ load_engine_config() };
-        _renderer = std::make_unique<renderer::renderer_t>(config);
+
+        _renderer = std::make_unique<renderer::renderer_t>(config.graphics);
+        _audio_module = std::make_unique<audio::audio_module_t>(config.audio);
+        _audio_module->init();
 
         LOG_CORE_INFO("Carrot Engine Initialized (Pure RHI Mode)");
     }
@@ -42,6 +45,8 @@ namespace carrot {
         LOG_CORE_INFO("Shutting down...");
 
         hot_reload::shader_watcher_t::shutdown();
+        _audio_module->shutdown();
+        _audio_module.reset();
         _renderer.reset();
         window::destroy_primary_window();
         core::logger_t::shutdown();

@@ -7,6 +7,7 @@
 
 #include "Audio/AudioClock.h"
 #include "Audio/Backend/AudioBackend.h"
+#include "AudioCommandQueue.h"
 
 #include <cstdint>
 
@@ -53,12 +54,21 @@ namespace carrot::audio {
          */
         void render(float* output, uint32_t frame_count, uint32_t channel_count) noexcept override;
 
+        bool enqueue_command(const audio_command_t& cmd) noexcept;
+
     private:
+        void consume_commands() noexcept;
+
         audio_clock_t*  _clock{ nullptr };
         uint32_t        _channels{ 0 };
 
-        // ── Test oscillator (temporary) ─────────────────────────────
-        double _phase{ 0.0 };
+        audio_command_queue_t<256> _command_queue;
+
+        // ── Test sine state (temporary) ─────────────────────────────
+        bool   _sine_active{ false };
+        double _sine_phase{ 0.0 };
         double _sweep_time{ 0.0 };
+        double _sine_freq{ 440.0 };
+        float  _sine_gain{ 0.2f };
     };
 } // namespace carrot::audio

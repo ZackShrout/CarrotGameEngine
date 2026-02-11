@@ -10,14 +10,15 @@
 #include "EngineConfig.h"
 #include "Audio/Backend/AudioBackend.h"
 #include "Audio/Core/AudioEngine.h"
+#include "Audio/Core/AudioCommand.h"
 
 #include <memory>
 #include <thread>
 
 namespace carrot::audio {
     struct audio_backend_t;
-    struct audio_engine_t;
-    struct audio_command_queue_t;
+    class audio_engine_t;
+    // class audio_command_queue_t;
 
     /**
      * @brief Top-level audio subsystem module.
@@ -68,6 +69,8 @@ namespace carrot::audio {
          * @note Must leave the module in a state where init() may be called again.
          */
         void shutdown() override;
+
+        [[nodiscard]] audio_engine_t& engine() const noexcept { return *_engine; }
 
     private:
         /**

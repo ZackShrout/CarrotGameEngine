@@ -17,10 +17,51 @@
 #include "Common/CommonHeaders.h"
 
 namespace carrot::rhi {
+    namespace {
+        bool is_api_supported(graphics_api api)
+        {
+#if defined(CARROT_PLATFORM_WAYLAND) || defined(CARROT_PLATFORM_X11)
+            return api == graphics_api::vulkan;
+#elif defined(CARROT_PLATFORM_WIN32)
+            return api == graphics_api::direct_x12 || api == graphics_api::vulkan;
+#elif defined(CARROT_PLATFORM_COCOA)
+            return api == graphics_api::metal;
+#endif
+        }
+
+        graphics_api choose_default_api()
+        {
+#if defined(CARROT_PLATFORM_WAYLAND) || defined(CARROT_PLATFORM_X11)
+            return graphics_api::vulkan;
+#elif defined(CARROT_PLATFORM_WIN32)
+            return graphics_api::direct_x12;
+#elif defined(CARROT_PLATFORM_COCOA)
+            return graphics_api::metal;
+#endif
+        }
+
+        graphics_api resolve_graphics_api(const rhi_desc_t& desc)
+        {
+            if (desc.api == graphics_api::default_api)
+                return choose_default_api();
+
+            if (!is_api_supported(desc.api))
+            {
+                LOG_GRAPHICS_WARN(
+                    "Configured graphics API {} is not supported. Falling back.",
+                    graphics_api_to_string(desc.api)
+                );
+                return choose_default_api();
+            }
+
+            return desc.api;
+        }
+
+    } // anonymous namespace
 
     std::unique_ptr<rhi_context_t> create_rhi_context(const rhi_desc_t& desc)
     {
-        switch (desc.api)
+        switch (resolve_graphics_api(desc))
         {
             case graphics_api::vulkan:
 #if defined(CARROT_PLATFORM_WAYLAND) || defined(CARROT_PLATFORM_X11) || defined(CARROT_PLATFORM_WIN32)

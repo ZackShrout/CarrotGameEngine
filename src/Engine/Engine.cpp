@@ -35,13 +35,8 @@ namespace carrot {
         core::logger_t::init();
         window::create_primary_window(width, height, "Carrot Engine – Month 1");
 
-        //-- JSON TESTS --
-        utils::json::json_document_t doc;
-        doc.parse_from_file("assets/Vraden.json");
-        utils::json::parser_t::dump(doc.root());
-        //-- END JSON TESTS
-
-        _renderer = std::make_unique<renderer::renderer_t>();
+        engine_config_t config{ load_engine_config() };
+        _renderer = std::make_unique<renderer::renderer_t>(config);
 
         LOG_CORE_INFO("Carrot Engine Initialized (Pure RHI Mode)");
     }

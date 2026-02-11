@@ -19,9 +19,9 @@ namespace carrot::rhi {
     class rhi_swapchain_t;
     class rhi_device_t;
 
-    enum class graphics_api { vulkan, direct_x12, metal, count };
+    enum class graphics_api { vulkan, direct_x12, metal, default_api, count };
 
-    [[nodiscard]] static std::string_view graphics_api_to_string(graphics_api api) noexcept
+    [[nodiscard]] static std::string_view graphics_api_to_string(const graphics_api api) noexcept
     {
         switch (api)
         {
@@ -34,7 +34,7 @@ namespace carrot::rhi {
 
     struct rhi_desc_t
     {
-        graphics_api api{ graphics_api::vulkan };
+        graphics_api api{ graphics_api::default_api };
         uint32_t width{ 1280 };
         uint32_t height{ 720 };
         bool enable_debug_layers{ true };

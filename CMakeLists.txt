@@ -81,6 +81,14 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Utils/File/FileUtils.h
         src/Engine/Core/Memory/Arena.cpp
         src/Engine/Core/Memory/Arena.h
+        src/Engine/Utils/JSON/JsonObjectView.cpp
+        src/Engine/Utils/JSON/JsonObjectView.h
+        src/Engine/Utils/JSON/JsonValueView.cpp
+        src/Engine/Utils/JSON/JsonValueView.h
+        src/Engine/Utils/JSON/JsonArrayView.cpp
+        src/Engine/Utils/JSON/JsonArrayView.h
+        src/Engine/EngineConfig.cpp
+        src/Engine/EngineConfig.h
 )
 
 # ------------------------------------------------------------------------
@@ -438,12 +446,16 @@ else()
 endif()
 
 # ------------------------------------------------------------------------
-# Asset copying
+# Asset and Config copying
 # ------------------------------------------------------------------------
 add_custom_command(TARGET CarrotSandbox POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/src/Engine/Assets
         $<TARGET_FILE_DIR:CarrotSandbox>/assets
+
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/src/Engine/Config
+        $<TARGET_FILE_DIR:CarrotSandbox>/config
 )
 
 # ------------------------------------------------------------------------

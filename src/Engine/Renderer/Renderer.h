@@ -7,6 +7,7 @@
 
 #include "Core/Module.h"
 #include "RHI/RHI.h"
+#include "EngineConfig.h"
 
 namespace carrot::renderer {
     struct sprite_draw_info_t
@@ -31,11 +32,13 @@ namespace carrot::renderer {
     public:
         CARROT_MODULE_NAME("Renderer")
 
-        renderer_t() { init(); }
+        explicit renderer_t(const engine_config_t& config) { init(config); }
         ~renderer_t() override { shutdown(); }
 
-        void init() override;
+        void init() override {}
         void shutdown() override;
+
+        void init(const engine_config_t& config);
 
         // Main loop integration
         void begin_frame();

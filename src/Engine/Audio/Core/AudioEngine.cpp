@@ -9,10 +9,18 @@
 
 #include <cstring>
 
+#define CARROT_TEST_TONE 0
+#define CARROT_TEST_SWEEP 1
+
 namespace carrot::audio {
     namespace {
-        constexpr bool   k_enable_test_tone{ true };
+        constexpr bool k_enable_test_tone{ CARROT_TEST_TONE };
+        constexpr bool k_enable_test_sweep{ CARROT_TEST_SWEEP };
+
         constexpr double k_test_frequency{ 440.0 }; // A4
+        constexpr double k_start_freq{ 20.0 };
+        constexpr double k_end_freq{ 20000.0 };
+        constexpr double k_duration{ 10.0 }; // seconds
     } // anonymous namespace
     void audio_engine_t::init(audio_clock_t* clock, const uint32_t channels) noexcept
     {
@@ -31,28 +39,57 @@ namespace carrot::audio {
     {
         _clock->advance();
 
-        if constexpr (!k_enable_test_tone)
+        if constexpr (k_enable_test_tone)
         {
-            const uint32_t total = frame_count * channel_count;
-            for (uint32_t i = 0; i < total; ++i)
-                output[i] = 0.0f;
+            const double sample_rate{ static_cast<double>(_clock->sample_rate()) };
+            const double phase_inc{ chlm::pi_2 * k_test_frequency / sample_rate };
+            uint32_t index{ 0 };
+
+            for (uint32_t frame{ 0 }; frame < frame_count; ++frame)
+            {
+                const float sample{ .2f * static_cast<float>(std::sin(_phase)) };
+
+                _phase += phase_inc;
+                if (_phase >= chlm::pi_2)
+                    _phase -= chlm::pi_2;
+
+                for (uint32_t ch = 0; ch < channel_count; ++ch)
+                    output[index++] = sample;
+            }
+
             return;
         }
 
-        const double sample_rate{ static_cast<double>(_clock->sample_rate()) };
-        const double phase_inc{ chlm::pi_2 * k_test_frequency / sample_rate };
-        uint32_t index{ 0 };
-
-        for (uint32_t frame = 0; frame < frame_count; ++frame)
+        if constexpr (k_enable_test_sweep)
         {
-            const float sample{ .2f * static_cast<float>(std::sin(_phase)) };
+            const double sample_rate{ static_cast<double>(_clock->sample_rate()) };
+            const double dt{ 1.0 / sample_rate };
+            uint32_t index{ 0 };
 
-            _phase += phase_inc;
-            if (_phase >= chlm::pi_2)
-                _phase -= chlm::pi_2;
+            for (uint32_t frame{ 0 }; frame < frame_count; ++frame)
+            {
+                const double t{ _sweep_time / k_duration };
+                const double freq{ k_start_freq * std::pow(k_end_freq / k_start_freq, t) };
+                const double phase_inc{ chlm::pi_2 * freq * dt };
+                const float sample{ 0.2f * static_cast<float>(std::sin(_phase)) };
 
-            for (uint32_t ch = 0; ch < channel_count; ++ch)
-                output[index++] = sample;
+                _phase += phase_inc;
+                if (_phase >= chlm::pi_2)
+                    _phase -= chlm::pi_2;
+
+                _sweep_time += dt;
+                if (_sweep_time > k_duration)
+                    _sweep_time = k_duration;
+
+                for (uint32_t ch = 0; ch < channel_count; ++ch)
+                    output[index++] = sample;
+            }
+
+            return;
         }
+
+        const uint32_t total = frame_count * channel_count;
+        for (uint32_t i = 0; i < total; ++i)
+            output[i] = 0.0f;
     }
 } // namespace carrot::audio

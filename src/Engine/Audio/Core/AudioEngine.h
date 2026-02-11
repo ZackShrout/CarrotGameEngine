@@ -59,5 +59,6 @@ namespace carrot::audio {
 
         // ── Test oscillator (temporary) ─────────────────────────────
         double _phase{ 0.0 };
+        double _sweep_time{ 0.0 };
     };
 } // namespace carrot::audio

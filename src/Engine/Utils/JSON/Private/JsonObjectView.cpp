@@ -3,9 +3,10 @@
 // Copyright (c) 2026 BunnySoft. All rights reserved.
 //
 
-#include "JsonObjectView.h"
+#include "Utils/JSON/Public/JsonObjectView.h"
 
-#include "JsonArrayView.h"
+#include "JsonAST.h"
+#include "Utils/JSON/Public/JsonArrayView.h"
 #include "Common/CommonHeaders.h"
 
 namespace carrot::utils::json {
@@ -38,6 +39,16 @@ namespace carrot::utils::json {
         return _value->object.count;
     }
 
+    void json_object_view_t::iterator::operator++()
+    {
+        _entry = _entry->next;
+    }
+
+    std::pair<std::string_view, json_value_view_t> json_object_view_t::iterator::operator*() const
+    {
+        return { _entry->key, json_value_view_t{ _entry->value } };
+    }
+
     json_object_view_t::iterator json_object_view_t::begin() const
     {
         return iterator{ _value->object.head };
@@ -46,6 +57,30 @@ namespace carrot::utils::json {
     json_object_view_t::iterator json_object_view_t::end() const
     {
         return iterator{ nullptr };
+    }
+
+    json_value_view_t json_object_view_t::require(std::string_view key) const
+    {
+        json_value_view_t v{ get(key) };
+        CE_ASSERT(v, "Missing required JSON key '{}'", key);
+
+        return v;
+    }
+
+    json_object_view_t json_object_view_t::require_object(std::string_view key) const
+    {
+        json_value_view_t v{ require(key) };
+        CE_ASSERT(v.is_object(), "Key '{}' must be an object", key);
+
+        return v.as_object();
+    }
+
+    json_array_view_t json_object_view_t::require_array(std::string_view key) const
+    {
+        json_value_view_t v{ require(key) };
+        CE_ASSERT(v.is_array(), "Key '{}' must be an array", key);
+
+        return v.as_array();
     }
 
     std::string_view json_object_view_t::get_string(std::string_view key) const

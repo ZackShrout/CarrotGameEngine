@@ -5,12 +5,11 @@
 
 #pragma once
 
-#include "JsonAST.h"
 #include "JsonValueView.h"
 
-#include <cstdint>
-
 namespace carrot::utils::json {
+    struct json_array_entry_t;
+
     class json_array_view_t
     {
     public:
@@ -25,12 +24,8 @@ namespace carrot::utils::json {
             explicit iterator(const json_array_entry_t* e) : _entry(e) {}
 
             bool operator!=(const iterator& other) const { return _entry != other._entry; }
-            void operator++() { _entry = _entry->next; }
-
-            json_value_view_t operator*() const
-            {
-                return json_value_view_t{ _entry->value };
-            }
+            void operator++();
+            json_value_view_t operator*() const;
 
         private:
             const json_array_entry_t* _entry;

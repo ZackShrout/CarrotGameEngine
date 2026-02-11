@@ -3,13 +3,44 @@
 // Copyright (c) 2026 BunnySoft. All rights reserved.
 //
 
-#include "JsonValueView.h"
+#include "../Public/JsonValueView.h"
 
-#include "JsonObjectView.h"
-#include "JsonArrayView.h"
+#include "JsonAST.h"
+#include "Utils/JSON/Public/JsonObjectView.h"
+#include "Utils/JSON/Public/JsonArrayView.h"
 #include "Common/CommonHeaders.h"
 
 namespace carrot::utils::json {
+    bool json_value_view_t::is_object() const
+    {
+        return _value && _value->type == json_type::object;
+    }
+
+    bool json_value_view_t::is_array() const
+    {
+        return _value && _value->type == json_type::array;
+    }
+
+    bool json_value_view_t::is_string() const
+    {
+        return _value && _value->type == json_type::string;
+    }
+
+    bool json_value_view_t::is_number() const
+    {
+        return _value && _value->type == json_type::number;
+    }
+
+    bool json_value_view_t::is_bool() const
+    {
+        return _value && _value->type == json_type::boolean;
+    }
+
+    bool json_value_view_t::is_null() const
+    {
+        return !_value || _value->type == json_type::null_value;
+    }
+
     std::string_view json_value_view_t::as_string_or(const std::string_view fallback) const
     {
         return is_string() ? _value->string : fallback;

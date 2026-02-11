@@ -5,26 +5,26 @@
 
 #include "EngineConfig.h"
 
-#include "Utils/Json/JsonDocument.h"
+#include "Utils/JSON/Public/JsonDocument.h"
+
+#include <span>
 
 namespace carrot {
     namespace {
-        rhi::graphics_api parse_graphics_api(std::string_view s)
-        {
-            if (s == "default") return rhi::graphics_api::default_api;
-            if (s == "direct_x12")    return rhi::graphics_api::direct_x12;
-            if (s == "vulkan")  return rhi::graphics_api::vulkan;
-            if (s == "metal")   return rhi::graphics_api::metal;
+        using utils::json::json_enum_entry_t;
 
-            LOG_CORE_FATAL("Unknown graphics API '{}'", s);
-            // return rhi::graphics_api::default_api;
-            return rhi::graphics_api::direct_x12;
-        }
+        constexpr json_enum_entry_t<rhi::graphics_api> graphics_api_map[]{
+            { "direct_x12", rhi::graphics_api::direct_x12 },
+            { "vulkan", rhi::graphics_api::vulkan },
+            { "metal", rhi::graphics_api::metal },
+        };
+
+        using graphics_api_map_t = std::span<const json_enum_entry_t<rhi::graphics_api>>;
     }
 
     engine_config_t load_engine_config()
     {
-        engine_config_t config{};
+        engine_config_t config{ };
 
         utils::json::json_document_t doc;
         if (!doc.parse_from_file("config/config.json"))
@@ -32,29 +32,25 @@ namespace carrot {
             LOG_CORE_WARN("Using default engine configuration");
             config.graphics.api = rhi::graphics_api::default_api;
             config.graphics.enable_debug_layers = true;
+
             return config;
         }
 
         const utils::json::json_object_view_t root{ doc.root().as_object() };
-        const utils::json::json_object_view_t graphics{ root.get_object("graphics") };
 
-        // api
-        const std::string_view api_str{ graphics.get_string_or("api", "default") };
-        config.graphics.api = parse_graphics_api(api_str);
+        const int version{ static_cast<int>(root.get_number_or("version", 1)) };
+        if (version != 1)
+        {
+            LOG_CORE_FATAL("Unsupported engine config version {} (expected 1)", version);
+        }
 
-        // debug layers
-        const utils::json::json_value_view_t debug_value{ graphics.get("debug_layers") };
-        if (!debug_value || debug_value.as_string_or("") == "default")
-        {
-            config.graphics.enable_debug_layers = true;
-        }
-        else
-        {
-            config.graphics.enable_debug_layers = debug_value.as_bool();
-        }
+        const utils::json::json_object_view_t graphics{ root.require_object("graphics") };
+
+        config.graphics.api = graphics.get_enum("api", graphics_api_map_t{ graphics_api_map },
+                                                rhi::graphics_api::default_api);
+        config.graphics.enable_debug_layers = graphics.get_bool_or("debug_layers", true);
 
         return config;
     }
-
 } // namespace carrot
 

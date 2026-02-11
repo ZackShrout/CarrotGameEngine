@@ -8,6 +8,7 @@
 #pragma once
 
 #include "JsonToken.h"
+
 #include <string_view>
 
 namespace carrot::utils::json {
@@ -21,14 +22,14 @@ namespace carrot::utils::json {
         [[nodiscard]] std::string_view source() const noexcept { return _source; }
 
     private:
-        char peek() const;
+        [[nodiscard]] char peek() const;
         char advance();
         bool match(char expected);
 
         void skip_whitespace();
 
-        token_t make_token(token_type type) const;
-        token_t make_error_token() const;
+        [[nodiscard]] token_t make_token(token_type type) const;
+        [[nodiscard]] token_t make_error_token() const;
 
         token_t lex_string();
         token_t lex_number();

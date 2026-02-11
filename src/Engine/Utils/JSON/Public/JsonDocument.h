@@ -50,8 +50,6 @@ namespace carrot::utils::json {
         void reset();
 
         // Root access
-        // [[nodiscard]] const json_value_t* root() const { return _root; }
-        // json_value_t* root() { return _root; }
         [[nodiscard]] json_value_view_t root() const { return json_value_view_t{ _root }; }
 
         [[nodiscard]] bool valid() const { return _root != nullptr; }

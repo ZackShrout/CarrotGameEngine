@@ -3,8 +3,9 @@
 // Copyright (c) 2026 BunnySoft. All rights reserved.
 //
 
-#include "JsonArrayView.h"
+#include "Utils/JSON//Public/JsonArrayView.h"
 
+#include "JsonAST.h"
 #include "Common/CommonHeaders.h"
 
 namespace carrot::utils::json {
@@ -28,6 +29,16 @@ namespace carrot::utils::json {
         }
 
         return json_value_view_t{ nullptr }; // unreachable if count is correct
+    }
+
+    void json_array_view_t::iterator::operator++()
+    {
+        _entry = _entry->next;
+    }
+
+    json_value_view_t json_array_view_t::iterator::operator*() const
+    {
+        return json_value_view_t{ _entry->value };
     }
 
     json_array_view_t::iterator json_array_view_t::begin() const

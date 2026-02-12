@@ -5,6 +5,7 @@
 
 #include "Engine.h"
 
+#include "Audio/Sample/WavLoader.h"
 #include "Debug/DebugOverlay.h"
 #include "HotReload/ShaderWatcher.h"
 #include "Utils/MulticastDelegate.h"
@@ -38,24 +39,24 @@ namespace carrot {
         _audio_module->init();
 
         audio::audio_command_t cmd{};
-        cmd.type = audio::audio_command_type::play_sine;
-        cmd.play_sine.frequency = 660.0f;
-        cmd.play_sine.gain = 0.2f;
-
-        _audio_module->engine().enqueue_command(cmd);
-
-        cmd.type = audio::audio_command_type::play_sine;
-        cmd.play_sine.frequency = 440.0f;
-        cmd.play_sine.gain = 0.2f;
-
-        _audio_module->engine().enqueue_command(cmd);
-
-        cmd.type = audio::audio_command_type::play_sine;
-        cmd.play_sine.frequency = 523.0f;
-        // cmd.play_sine.frequency = 554.0f;
-        cmd.play_sine.gain = 0.2f;
-
-        _audio_module->engine().enqueue_command(cmd);
+        // cmd.type = audio::audio_command_type::play_sine;
+        // cmd.play_sine.frequency = 660.0f;
+        // cmd.play_sine.gain = 0.2f;
+        //
+        // _audio_module->engine().enqueue_command(cmd);
+        //
+        // cmd.type = audio::audio_command_type::play_sine;
+        // cmd.play_sine.frequency = 440.0f;
+        // cmd.play_sine.gain = 0.2f;
+        //
+        // _audio_module->engine().enqueue_command(cmd);
+        //
+        // cmd.type = audio::audio_command_type::play_sine;
+        // cmd.play_sine.frequency = 523.0f;
+        // // cmd.play_sine.frequency = 554.0f;
+        // cmd.play_sine.gain = 0.2f;
+        //
+        // _audio_module->engine().enqueue_command(cmd);
 
         cmd.type = audio::audio_command_type::set_bus_gain;
         cmd.set_bus_gain.bus = audio::audio_bus_id::sfx;
@@ -66,6 +67,12 @@ namespace carrot {
         cmd.type = audio::audio_command_type::set_voice_gain;
         cmd.set_voice_gain.voice_index = 0;
         cmd.set_voice_gain.gain = 0.2f;
+
+        _audio_module->engine().enqueue_command(cmd);
+
+        cmd.type = audio::audio_command_type::play_sample;
+        cmd.play_sample.sample = audio::load_wav_file("assets/Audio/Victory!.wav");
+        cmd.play_sample.gain = 2.f;
 
         _audio_module->engine().enqueue_command(cmd);
 

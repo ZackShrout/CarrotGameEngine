@@ -10,7 +10,6 @@
 #include "EngineConfig.h"
 #include "Audio/Backend/AudioBackend.h"
 #include "Audio/Core/AudioEngine.h"
-#include "Audio/Core/AudioCommand.h"
 
 #include <memory>
 #include <thread>
@@ -18,7 +17,6 @@
 namespace carrot::audio {
     struct audio_backend_t;
     class audio_engine_t;
-    // class audio_command_queue_t;
 
     /**
      * @brief Top-level audio subsystem module.
@@ -73,23 +71,11 @@ namespace carrot::audio {
         [[nodiscard]] audio_engine_t& engine() const noexcept { return *_engine; }
 
     private:
-        /**
-         * @brief Entry point for the audio thread.
-         *
-         * Runs the real-time audio loop, processing audio blocks and advancing
-         * the audio clock. This function must be fully real-time safe.
-         */
-        void audio_thread_main() noexcept;
-
         engine_audio_config_t                   _config;
 
         std::unique_ptr<audio_backend_t>        _backend;
         std::unique_ptr<audio_engine_t>         _engine;
-        // std::unique_ptr<audio_command_queue_t>  _command_queue;
 
         audio_clock_t                           _clock;
-
-        std::thread                             _audio_thread;
-        bool                                    _should_run{ false };
     };
 } // namespace carrot::audio

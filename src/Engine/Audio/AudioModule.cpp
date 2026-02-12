@@ -9,11 +9,6 @@
 #include "Audio/Core/AudioEngine.h"
 
 namespace carrot::audio {
-    namespace {
-
-    } // anonymous namespace
-    // PUBLIC
-
     audio_module_t::audio_module_t(const engine_audio_config_t& config) : _config{ config } {}
 
     void audio_module_t::init()
@@ -35,8 +30,7 @@ namespace carrot::audio {
 
         _engine = std::make_unique<audio_engine_t>();
 
-        const bool result{ _backend->init(_engine.get(), _config.sample_rate, _config.block_size, _config.channels) };
-        if (!result)
+        if (!_backend->init(_engine.get(), _config.sample_rate, _config.block_size, _config.channels))
         {
             LOG_AUDIO_FATAL("Failed to initialize audio backend");
             return;
@@ -65,8 +59,4 @@ namespace carrot::audio {
 
         LOG_AUDIO_INFO("Audio Module shutdown complete");
     }
-
-    // PRIVATE
-
-    void audio_module_t::audio_thread_main() noexcept {}
 } // namespace carrot::audio

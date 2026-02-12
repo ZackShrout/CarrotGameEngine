@@ -113,6 +113,7 @@ namespace carrot::audio {
                             v->gain = cmd.play_sine.gain;
                             v->phase = 0.0;
                             v->phase_inc = chlm::pi_2 * v->frequency / static_cast<double>(_clock->sample_rate());
+                            v->bus = cmd.play_sine.bus;
 
                             activate_voice(*v);
                         }
@@ -130,6 +131,7 @@ namespace carrot::audio {
                             v->gain = cmd.play_sample.gain;
                             v->sample = cmd.play_sample.sample;
                             v->sample_cursor = 0;
+                            v->bus = cmd.play_sample.bus;
 
                             activate_voice(*v);
                         }

@@ -40,12 +40,14 @@ namespace carrot::audio {
     {
         float frequency;
         float gain;
+        audio_bus_id bus;
     };
 
     struct play_sample_cmd
     {
         const audio_sample_t* sample;
         float gain;
+        audio_bus_id bus;
     };
 
     struct set_bus_gain_cmd

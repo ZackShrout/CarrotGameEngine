@@ -73,6 +73,13 @@ namespace carrot {
         cmd.type = audio::audio_command_type::play_sample;
         cmd.play_sample.sample = audio::load_wav_file("assets/Audio/Victory!.wav");
         cmd.play_sample.gain = 2.f;
+        cmd.play_sample.bus = audio::audio_bus_id::music;
+
+        _audio_module->engine().enqueue_command(cmd);
+
+        cmd.type = audio::audio_command_type::set_bus_solo;
+        cmd.set_bus_solo.bus = audio::audio_bus_id::music;
+        cmd.set_bus_solo.enabled = true;
 
         _audio_module->engine().enqueue_command(cmd);
 

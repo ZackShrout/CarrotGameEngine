@@ -99,7 +99,6 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Audio/Backend/Null/NullAudioBackend.cpp
         src/Engine/Audio/Backend/Null/NullAudioBackend.h
         src/Engine/Audio/Core/AudioCommand.h
-        src/Engine/Audio/Core/AudioCommandQueue.cpp
         src/Engine/Audio/Core/AudioCommandQueue.h
         src/Engine/Audio/Voice/Voice.h
         src/Engine/Audio/Core/AudioCore.h

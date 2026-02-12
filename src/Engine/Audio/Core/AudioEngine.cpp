@@ -28,28 +28,37 @@ namespace carrot::audio {
         _clock->advance();
         consume_commands();
 
-        if (!_sine_active)
-        {
-            const uint32_t total{ frame_count * channel_count };
-            for (uint32_t i = 0; i < total; ++i)
-                output[i] = 0.0f;
-            return;
-        }
+        // if (!_sine_active)
+        // {
+        //     const uint32_t total{ frame_count * channel_count };
+        //     for (uint32_t i = 0; i < total; ++i)
+        //         output[i] = 0.0f;
+        //     return;
+        // }
 
         const double sample_rate{ static_cast<double>(_clock->sample_rate()) };
-        const double phase_inc{ chlm::pi_2 * _sine_freq / sample_rate };
         uint32_t index{ 0 };
 
-        for (uint32_t frame = 0; frame < frame_count; ++frame)
+        for (uint32_t frame{ 0 }; frame < frame_count; ++frame)
         {
-            const float sample{ _sine_gain * static_cast<float>(std::sin(_sine_phase)) };
+            float mixed{ 0.f };
 
-            _sine_phase += phase_inc;
-            if (_sine_phase >= chlm::pi_2)
-                _sine_phase -= chlm::pi_2;
+            for (auto& voice : _voices)
+            {
+                if (!voice.active)
+                    continue;
+
+                const double phase_inc{ chlm::pi_2 * voice.frequency / sample_rate };
+
+                mixed += voice.gain * static_cast<float>(std::sin(voice.phase));
+
+                voice.phase += phase_inc;
+                if (voice.phase >= chlm::pi_2)
+                    voice.phase -= chlm::pi_2;
+            }
 
             for (uint32_t ch = 0; ch < channel_count; ++ch)
-                output[index++] = sample;
+                output[index++] = mixed;
         }
     }
 
@@ -69,11 +78,20 @@ namespace carrot::audio {
             switch (cmd.type)
             {
                 case audio_command_type::play_sine:
-                    _sine_active = true;
-                    _sine_freq = cmd.play_sine.frequency;
-                    _sine_gain = cmd.play_sine.gain;
-                    _sine_phase = 0.0;
+                {
+                    for (auto& voice : _voices)
+                    {
+                        if (!voice.active)
+                        {
+                            voice.active    = true;
+                            voice.frequency = cmd.play_sine.frequency;
+                            voice.gain      = cmd.play_sine.gain;
+                            voice.phase     = 0.0;
+                            break;
+                        }
+                    }
                     break;
+                }
 
                 case audio_command_type::stop_all:
                     _sine_active = false;

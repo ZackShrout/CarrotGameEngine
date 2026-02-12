@@ -8,8 +8,8 @@
 #include "Audio/AudioClock.h"
 #include "Audio/Backend/AudioBackend.h"
 #include "AudioCommandQueue.h"
-
-#include <cstdint>
+#include "Voice.h"
+#include "Audio/Core/AudioCore.h"
 
 namespace carrot::audio {
     /**
@@ -59,16 +59,17 @@ namespace carrot::audio {
     private:
         void consume_commands() noexcept;
 
-        audio_clock_t*  _clock{ nullptr };
-        uint32_t        _channels{ 0 };
+        audio_clock_t* _clock{ nullptr };
+        uint32_t _channels{ 0 };
 
         audio_command_queue_t<256> _command_queue;
+        voice_t _voices[k_max_voices]{ };
 
         // ── Test sine state (temporary) ─────────────────────────────
-        bool   _sine_active{ false };
+        bool _sine_active{ false };
         double _sine_phase{ 0.0 };
         double _sweep_time{ 0.0 };
         double _sine_freq{ 440.0 };
-        float  _sine_gain{ 0.2f };
+        float _sine_gain{ 0.2f };
     };
 } // namespace carrot::audio

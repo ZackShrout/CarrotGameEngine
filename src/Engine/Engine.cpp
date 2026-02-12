@@ -44,6 +44,20 @@ namespace carrot {
 
         _audio_module->engine().enqueue_command(cmd);
 
+        cmd.type = audio::audio_command_type::play_sine;
+        cmd.play_sine.frequency = 440.0f;
+        cmd.play_sine.gain = 0.2f;
+
+        _audio_module->engine().enqueue_command(cmd);
+
+        cmd.type = audio::audio_command_type::play_sine;
+        cmd.play_sine.frequency = 523.0f;
+        // cmd.play_sine.frequency = 554.0f;
+        cmd.play_sine.gain = 0.2f;
+
+        _audio_module->engine().enqueue_command(cmd);
+
+
         LOG_CORE_INFO("Carrot Engine Initialized (Pure RHI Mode)");
     }
 

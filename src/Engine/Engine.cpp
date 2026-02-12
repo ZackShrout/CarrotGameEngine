@@ -142,6 +142,19 @@ namespace carrot {
             _fps_timer -= 1.0f;
         }
 
+        // if (_frame_counter % 10 == 0)
+        // {
+        //     for (uint32_t i = 0; i < 32; ++i)
+        //     {
+        //         audio::audio_command_t cmd{};
+        //         cmd.type = audio::audio_command_type::play_sine;
+        //         cmd.play_sine.frequency = 220.0f + (i * 10.0f);
+        //         cmd.play_sine.gain = 0.1f;
+        //
+        //         _audio_module->engine().enqueue_command(cmd);
+        //     }
+        // }
+
         // debug::text(20.f, 30.f, "FPS: %u", _current_fps);
         // debug::text(20.f, 65.f, "Frame: %.3f ms", _delta_time * 1000.f);
 

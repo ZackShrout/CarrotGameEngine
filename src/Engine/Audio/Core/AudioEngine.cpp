@@ -8,6 +8,14 @@
 #include <chlm/CarrotHLM.h>
 
 namespace carrot::audio {
+    namespace {
+        constexpr envelope_params_t k_default_env{
+            .attack_seconds = 0.01f,
+            .decay_seconds = 0.1f,
+            .sustain_level = 0.8f,
+            .release_seconds = 0.2f
+        };
+    } // anonymous namespace
     // PUBLIC
 
     void audio_engine_t::init(audio_clock_t* clock, const uint32_t channels) noexcept
@@ -41,18 +49,28 @@ namespace carrot::audio {
 
         for (uint32_t frame{ 0 }; frame < frame_count; ++frame)
         {
+            ++_current_frame;
+
             float mixed{ 0.f };
 
             for (auto& voice : _voices)
             {
-                if (!voice.active)
+                if (voice.state == voice_state::idle)
                     continue;
 
-                const double phase_inc{ chlm::pi_2 * voice.frequency / sample_rate };
+                const float env = envelope_tick(voice.envelope);
 
-                mixed += voice.gain * static_cast<float>(std::sin(voice.phase));
+                if (env <= 0.0f)
+                {
+                    voice.state = voice_state::idle;
+                    continue;
+                }
 
-                voice.phase += phase_inc;
+                mixed += voice.gain
+                       * static_cast<float>(std::sin(voice.phase))
+                       * env;
+
+                voice.phase += voice.phase_inc;
                 if (voice.phase >= chlm::pi_2)
                     voice.phase -= chlm::pi_2;
             }
@@ -79,17 +97,45 @@ namespace carrot::audio {
             {
                 case audio_command_type::play_sine:
                 {
-                    for (auto& voice : _voices)
+                    voice_t* chosen = nullptr;
+
+                    // 1. Prefer idle
+                    for (auto& v: _voices)
                     {
-                        if (!voice.active)
+                        if (v.state == voice_state::idle)
                         {
-                            voice.active    = true;
-                            voice.frequency = cmd.play_sine.frequency;
-                            voice.gain      = cmd.play_sine.gain;
-                            voice.phase     = 0.0;
+                            chosen = &v;
                             break;
                         }
                     }
+
+                    // 2. Steal if needed
+                    if (!chosen)
+                    {
+                        chosen = choose_voice_to_steal();
+
+                        if (chosen && chosen->state != voice_state::releasing)
+                        {
+                            envelope_note_off(chosen->envelope, static_cast<float>(_clock->sample_rate()),
+                                              k_default_env.release_seconds);
+                            chosen->state = voice_state::releasing;
+                        }
+                    }
+
+                    // 3. If we got a slot, (re)initialize
+                    if (chosen && chosen->state == voice_state::idle)
+                    {
+                        chosen->frequency = cmd.play_sine.frequency;
+                        chosen->gain = cmd.play_sine.gain;
+                        chosen->phase = 0.0;
+                        chosen->phase_inc = chlm::pi_2 * chosen->frequency / static_cast<double>(_clock->sample_rate());
+                        chosen->start_frame = _current_frame;
+
+                        envelope_note_on(chosen->envelope, k_default_env, static_cast<float>(_clock->sample_rate()));
+
+                        chosen->state = voice_state::active;
+                    }
+
                     break;
                 }
 
@@ -98,5 +144,25 @@ namespace carrot::audio {
                     break;
             }
         }
+    }
+
+    voice_t* audio_engine_t::choose_voice_to_steal() noexcept
+    {
+        voice_t* chosen{ nullptr };
+        uint64_t oldest{ UINT64_MAX };
+
+        for (auto& v: _voices)
+        {
+            if (v.state == voice_state::active || v.state == voice_state::releasing)
+            {
+                if (v.start_frame < oldest)
+                {
+                    oldest = v.start_frame;
+                    chosen = &v;
+                }
+            }
+        }
+
+        return chosen;
     }
 } // namespace carrot::audio

@@ -8,7 +8,7 @@
 #include "Audio/AudioClock.h"
 #include "Audio/Backend/AudioBackend.h"
 #include "AudioCommandQueue.h"
-#include "Voice.h"
+#include "Audio/Voice/Voice.h"
 #include "Audio/Core/AudioCore.h"
 
 namespace carrot::audio {
@@ -58,9 +58,11 @@ namespace carrot::audio {
 
     private:
         void consume_commands() noexcept;
+        voice_t* choose_voice_to_steal() noexcept;
 
         audio_clock_t* _clock{ nullptr };
         uint32_t _channels{ 0 };
+        uint64_t _current_frame{ 0 };
 
         audio_command_queue_t<256> _command_queue;
         voice_t _voices[k_max_voices]{ };

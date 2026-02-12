@@ -12,7 +12,6 @@
 #include "Window/Window.h"
 #include "Core/Application.h"
 #include "RHI/RHI.h"
-#include "Utils/JSON/Public/JsonDocument.h"
 
 namespace carrot {
     namespace {
@@ -80,6 +79,12 @@ namespace carrot {
         cmd.type = audio::audio_command_type::set_bus_solo;
         cmd.set_bus_solo.bus = audio::audio_bus_id::music;
         cmd.set_bus_solo.enabled = true;
+
+        _audio_module->engine().enqueue_command(cmd);
+
+        cmd.type = audio:: audio_command_type::set_bus_pan;
+        cmd.set_bus_pan.bus = audio::audio_bus_id::music;
+        cmd.set_bus_pan.pan = 0.f;
 
         _audio_module->engine().enqueue_command(cmd);
 

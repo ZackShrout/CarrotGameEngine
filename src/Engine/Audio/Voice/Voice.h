@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "Envelope.h"
+#include "Audio/DSP/Envelope.h"
 #include "Audio/Mixer/AudioBus.h"
 #include "Audio/Sample/AudioSample.h"
 
@@ -35,6 +35,8 @@ namespace carrot::audio {
         voice_state state{ voice_state::idle };
         voice_type type{ voice_type::sine };
         audio_bus_id bus{ audio_bus_id::sfx };
+
+        float pan{ 0.f }; // -1 = left, 0 = center, +1 = right
 
         const audio_sample_t* sample{ nullptr };
         uint32_t sample_cursor{};

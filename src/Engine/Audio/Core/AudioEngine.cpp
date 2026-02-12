@@ -7,6 +7,8 @@
 
 #include <chlm/CarrotHLM.h>
 
+#include "Audio/DSP/Pan.h"
+
 namespace carrot::audio {
     namespace {
         constexpr envelope_params_t k_default_env{
@@ -66,11 +68,17 @@ namespace carrot::audio {
                 if (raw == 0.0f)
                     continue;
 
+                float pan_l{ 1.f };
+                float pan_r{ 1.f };
+                compute_pan_gains(voice.pan, pan_l, pan_r);
+
                 const float sample{ raw * voice.gain * env };
                 float* bus{ _mixer.bus_buffer(voice.bus) };
 
-                for (uint32_t ch = 0; ch < _channels; ++ch)
-                    bus[index + ch] += sample;
+                // stereo output assumed for now
+                bus[index + 0] += sample * pan_l;
+                bus[index + 1] += sample * pan_r;
+
             }
 
             index += _channels;
@@ -154,6 +162,20 @@ namespace carrot::audio {
                 case audio_command_type::set_bus_solo:
                     _mixer.set_bus_solo(cmd.set_bus_solo.bus, cmd.set_bus_solo.enabled);
                     break;
+
+                case audio_command_type::set_bus_pan:
+                    _mixer.set_bus_pan(cmd.set_bus_pan.bus, cmd.set_bus_pan.pan);
+                    break;
+
+                case audio_command_type::set_voice_pan:
+                {
+                    const uint32_t id{ cmd.set_voice_pan.voice_index };
+
+                    if (id < std::size(_voices))
+                        _voices[id].pan = cmd.set_voice_pan.pan;
+
+                    break;
+                }
 
                 case audio_command_type::set_voice_gain:
                 {

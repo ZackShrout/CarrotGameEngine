@@ -25,6 +25,8 @@ namespace carrot::audio {
      *
      * @note
      * This object is accessed exclusively from the audio thread after startup.
+     * The audio backend owns the real-time audio thread.
+     * audio_engine_t::render() is always invoked from that thread.
      */
     class audio_engine_t final : public audio_callback_t
     {

@@ -102,8 +102,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Audio/Core/AudioCommandQueue.h
         src/Engine/Audio/Voice/Voice.h
         src/Engine/Audio/Core/AudioCore.h
-        src/Engine/Audio/Voice/Envelope.cpp
-        src/Engine/Audio/Voice/Envelope.h
+        src/Engine/Audio/DSP/Envelope.cpp
+        src/Engine/Audio/DSP/Envelope.h
         src/Engine/Audio/Mixer/AudioBus.h
         src/Engine/Audio/Mixer/AudioRouting.h
         src/Engine/Audio/Mixer/AudioMixer.cpp
@@ -111,6 +111,7 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Audio/Sample/AudioSample.h
         src/Engine/Audio/Sample/WavLoader.cpp
         src/Engine/Audio/Sample/WavLoader.h
+        src/Engine/Audio/DSP/Pan.h
 )
 
 # ------------------------------------------------------------------------

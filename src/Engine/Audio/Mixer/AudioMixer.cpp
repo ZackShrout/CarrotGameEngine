@@ -7,6 +7,8 @@
 
 #include <cstring>
 
+#include "Audio/DSP/Pan.h"
+
 namespace carrot::audio {
     void audio_mixer_t::init(const uint32_t max_frames, const uint32_t channels) noexcept
     {
@@ -63,8 +65,17 @@ namespace carrot::audio {
         const uint32_t total{ frame_count * _channels };
         const float gain{ src.gain };
 
-        for (uint32_t i = 0; i < total; ++i)
-            dst.buffer[i] += src.buffer[i] * gain;
+        float pan_l{ 1.f };
+        float pan_r{ 1.f };
+        compute_pan_gains(src.pan, pan_l, pan_r);
+
+        for (uint32_t frame{ 0 }; frame < frame_count; ++frame)
+        {
+            const uint32_t i{ frame * _channels };
+
+            dst.buffer[i + 0] += src.buffer[i + 0] * gain * pan_l;
+            dst.buffer[i + 1] += src.buffer[i + 1] * gain * pan_r;
+        }
     }
 
     // PRIVATE

@@ -23,6 +23,7 @@ namespace carrot::audio {
         bool muted{ false };
         bool soloed{ false };
         float gain{ 1.0f };
+        float pan{ 0.f }; // subgroup pan
         float* buffer{ nullptr }; // interleaved
     };
 } // namespace carrot::audio

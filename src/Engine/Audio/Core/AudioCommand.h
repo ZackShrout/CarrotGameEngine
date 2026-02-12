@@ -30,7 +30,10 @@ namespace carrot::audio {
         set_bus_mute,
         set_bus_solo,
 
-        set_voice_gain
+        set_bus_pan,
+        set_voice_pan,
+
+        set_voice_gain,
     };
 
     /**
@@ -62,6 +65,18 @@ namespace carrot::audio {
         bool enabled;
     };
 
+    struct set_bus_pan_cmd
+    {
+        audio_bus_id bus;
+        float pan;
+    };
+
+    struct set_voice_pan_cmd
+    {
+        uint32_t voice_index;
+        float pan;
+    };
+
     struct set_voice_gain_cmd
     {
         uint32_t voice_index;
@@ -84,6 +99,8 @@ namespace carrot::audio {
             set_bus_gain_cmd set_bus_gain;
             set_bus_flag_cmd set_bus_mute;
             set_bus_flag_cmd set_bus_solo;
+            set_bus_pan_cmd set_bus_pan;
+            set_voice_pan_cmd set_voice_pan;
             set_voice_gain_cmd set_voice_gain;
         };
     };

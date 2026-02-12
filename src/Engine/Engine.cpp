@@ -63,16 +63,16 @@ namespace carrot {
 
         _audio_module->engine().enqueue_command(cmd);
 
-        cmd.type = audio::audio_command_type::set_voice_gain;
-        cmd.set_voice_gain.voice_index = 0;
-        cmd.set_voice_gain.gain = 0.2f;
-
-        _audio_module->engine().enqueue_command(cmd);
-
         cmd.type = audio::audio_command_type::play_sample;
         cmd.play_sample.sample = audio::load_wav_file("assets/Audio/Victory!.wav");
         cmd.play_sample.gain = 2.f;
         cmd.play_sample.bus = audio::audio_bus_id::music;
+
+        _audio_module->engine().enqueue_command(cmd);
+
+        cmd.type = audio::audio_command_type::set_voice_gain;
+        cmd.set_voice_gain.voice_index = 0;
+        cmd.set_voice_gain.gain = 1.f;
 
         _audio_module->engine().enqueue_command(cmd);
 

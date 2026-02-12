@@ -8,6 +8,8 @@
 #include <cstdint>
 #include <type_traits>
 
+#include "Audio/Mixer/AudioBus.h"
+
 namespace carrot::audio {
     /**
      * @brief Audio command types sent from game thread to audio thread.
@@ -21,6 +23,12 @@ namespace carrot::audio {
     {
         play_sine, // test command
         stop_all,
+
+        set_bus_gain,
+        set_bus_mute,
+        set_bus_solo,
+
+        set_voice_gain
     };
 
     /**
@@ -29,6 +37,24 @@ namespace carrot::audio {
     struct audio_cmd_play_sine
     {
         float frequency;
+        float gain;
+    };
+
+    struct set_bus_gain_cmd
+    {
+        audio_bus_id bus;
+        float gain;
+    };
+
+    struct set_bus_flag_cmd
+    {
+        audio_bus_id bus;
+        bool enabled;
+    };
+
+    struct set_voice_gain_cmd
+    {
+        uint32_t voice_index;
         float gain;
     };
 
@@ -44,6 +70,10 @@ namespace carrot::audio {
         union
         {
             audio_cmd_play_sine play_sine;
+            set_bus_gain_cmd set_bus_gain;
+            set_bus_flag_cmd set_bus_mute;
+            set_bus_flag_cmd set_bus_solo;
+            set_voice_gain_cmd set_voice_gain;
         };
     };
 

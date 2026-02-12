@@ -20,6 +20,8 @@ namespace carrot::audio {
 
     struct audio_bus_t
     {
+        bool muted{ false };
+        bool soloed{ false };
         float gain{ 1.0f };
         float* buffer{ nullptr }; // interleaved
     };

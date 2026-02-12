@@ -148,6 +148,27 @@ namespace carrot::audio {
                 case audio_command_type::stop_all:
                     _sine_active = false;
                     break;
+
+                case audio_command_type::set_bus_gain:
+                    _mixer.set_bus_gain(cmd.set_bus_gain.bus, cmd.set_bus_gain.gain);
+                    break;
+
+                case audio_command_type::set_bus_mute:
+                    _mixer.set_bus_mute(cmd.set_bus_mute.bus, cmd.set_bus_mute.enabled);
+                    break;
+
+                case audio_command_type::set_bus_solo:
+                    _mixer.set_bus_solo(cmd.set_bus_solo.bus, cmd.set_bus_solo.enabled);
+                    break;
+
+                case audio_command_type::set_voice_gain:
+                {
+                    const uint32_t id = cmd.set_voice_gain.voice_index;
+                    if (id < std::size(_voices))
+                        _voices[id].gain = cmd.set_voice_gain.gain;
+
+                    break;
+                }
             }
         }
     }

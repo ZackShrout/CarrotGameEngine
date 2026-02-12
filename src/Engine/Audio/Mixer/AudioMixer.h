@@ -23,7 +23,13 @@ namespace carrot::audio {
 
         void mix_bus_into_master(audio_bus_id id, uint32_t frame_count) const noexcept;
 
+        void set_bus_gain(audio_bus_id id, const float gain) noexcept { _buses[static_cast<size_t>(id)].gain = gain; }
+        void set_bus_mute(audio_bus_id id, const bool muted) noexcept { _buses[static_cast<size_t>(id)].muted = muted; }
+        void set_bus_solo(audio_bus_id id, const bool soloed) noexcept { _buses[static_cast<size_t>(id)].soloed = soloed; }
+
     private:
+        [[nodiscard]] bool any_bus_soloed() const noexcept;
+
         std::array<audio_bus_t, static_cast<size_t>(audio_bus_id::count)> _buses{ };
 
         uint32_t _channels{ 0 };

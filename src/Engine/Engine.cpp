@@ -57,6 +57,17 @@ namespace carrot {
 
         _audio_module->engine().enqueue_command(cmd);
 
+        cmd.type = audio::audio_command_type::set_bus_gain;
+        cmd.set_bus_gain.bus = audio::audio_bus_id::sfx;
+        cmd.set_bus_gain.gain = 1.f;
+
+        _audio_module->engine().enqueue_command(cmd);
+
+        cmd.type = audio::audio_command_type::set_voice_gain;
+        cmd.set_voice_gain.voice_index = 0;
+        cmd.set_voice_gain.gain = 0.2f;
+
+        _audio_module->engine().enqueue_command(cmd);
 
         LOG_CORE_INFO("Carrot Engine Initialized (Pure RHI Mode)");
     }

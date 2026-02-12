@@ -53,14 +53,33 @@ namespace carrot::audio {
         if (id == audio_bus_id::master)
             return;
 
-        const uint32_t total{ frame_count * _channels };
-
         const audio_bus_t& src{ _buses[static_cast<size_t>(id)] };
         const audio_bus_t& dst{ _buses[static_cast<size_t>(audio_bus_id::master)] };
 
+        if (src.muted) return;
+
+        if (!src.soloed && any_bus_soloed()) return;
+
+        const uint32_t total{ frame_count * _channels };
         const float gain{ src.gain };
 
         for (uint32_t i = 0; i < total; ++i)
             dst.buffer[i] += src.buffer[i] * gain;
+    }
+
+    // PRIVATE
+
+    bool audio_mixer_t::any_bus_soloed() const noexcept
+    {
+        for (size_t i{ 0 }; i < _buses.size(); ++i)
+        {
+            if (static_cast<audio_bus_id>(i) == audio_bus_id::master)
+                continue;
+
+            if (_buses[i].soloed)
+                return true;
+        }
+
+        return false;
     }
 } // namespace carrot::audio

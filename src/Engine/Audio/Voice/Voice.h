@@ -6,6 +6,7 @@
 #pragma once
 
 #include "Envelope.h"
+#include "Audio/Mixer/AudioBus.h"
 
 namespace carrot::audio {
     enum class voice_state : uint8_t
@@ -23,6 +24,8 @@ namespace carrot::audio {
     struct voice_t
     {
         voice_state state{ voice_state::idle };
+
+        audio_bus_id bus{ audio_bus_id::sfx };
 
         double phase{ 0.0 };
         double frequency{ 440.0 };

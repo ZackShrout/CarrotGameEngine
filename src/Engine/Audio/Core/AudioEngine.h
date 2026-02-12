@@ -10,6 +10,7 @@
 #include "AudioCommandQueue.h"
 #include "Audio/Voice/Voice.h"
 #include "Audio/Core/AudioCore.h"
+#include "Audio/Mixer/AudioMixer.h"
 
 namespace carrot::audio {
     /**
@@ -61,6 +62,7 @@ namespace carrot::audio {
         voice_t* choose_voice_to_steal() noexcept;
 
         audio_clock_t* _clock{ nullptr };
+        audio_mixer_t _mixer{ };
         uint32_t _channels{ 0 };
         uint64_t _current_frame{ 0 };
 

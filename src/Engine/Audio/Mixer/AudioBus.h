@@ -1,0 +1,26 @@
+//
+// Created by Zack Shrout on 2/11/26.
+// Copyright (c) 2026 BunnySoft. All rights reserved.
+//
+
+#pragma once
+
+#include <cstdint>
+
+namespace carrot::audio {
+    enum class audio_bus_id : uint8_t
+    {
+        master,
+        music,
+        sfx,
+        ui,
+
+        count
+    };
+
+    struct audio_bus_t
+    {
+        float gain{ 1.0f };
+        float* buffer{ nullptr }; // interleaved
+    };
+} // namespace carrot::audio

@@ -105,6 +105,10 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Audio/Core/AudioCore.h
         src/Engine/Audio/Voice/Envelope.cpp
         src/Engine/Audio/Voice/Envelope.h
+        src/Engine/Audio/Mixer/AudioBus.h
+        src/Engine/Audio/Mixer/AudioRouting.h
+        src/Engine/Audio/Mixer/AudioMixer.cpp
+        src/Engine/Audio/Mixer/AudioMixer.h
 )
 
 # ------------------------------------------------------------------------

@@ -23,10 +23,14 @@ namespace carrot::audio {
         _clock = clock;
         _channels = channels;
         _sine_phase = 0.0;
+        _current_frame = 0;
+
+        _mixer.init(clock->block_size(), channels);
     }
 
     void audio_engine_t::shutdown() noexcept
     {
+        _mixer.shutdown();
         _clock = nullptr;
         _channels = 0;
     }
@@ -35,30 +39,20 @@ namespace carrot::audio {
     {
         _clock->advance();
         consume_commands();
+        _mixer.clear(frame_count);
 
-        // if (!_sine_active)
-        // {
-        //     const uint32_t total{ frame_count * channel_count };
-        //     for (uint32_t i = 0; i < total; ++i)
-        //         output[i] = 0.0f;
-        //     return;
-        // }
-
-        const double sample_rate{ static_cast<double>(_clock->sample_rate()) };
         uint32_t index{ 0 };
 
         for (uint32_t frame{ 0 }; frame < frame_count; ++frame)
         {
             ++_current_frame;
 
-            float mixed{ 0.f };
-
             for (auto& voice : _voices)
             {
                 if (voice.state == voice_state::idle)
                     continue;
 
-                const float env = envelope_tick(voice.envelope);
+                const float env{ envelope_tick(voice.envelope) };
 
                 if (env <= 0.0f)
                 {
@@ -66,18 +60,30 @@ namespace carrot::audio {
                     continue;
                 }
 
-                mixed += voice.gain
-                       * static_cast<float>(std::sin(voice.phase))
-                       * env;
+                const float sample{ voice.gain * static_cast<float>(std::sin(voice.phase)) * env };
 
                 voice.phase += voice.phase_inc;
                 if (voice.phase >= chlm::pi_2)
                     voice.phase -= chlm::pi_2;
+
+                float* bus{ _mixer.bus_buffer(voice.bus) };
+
+                for (uint32_t ch = 0; ch < _channels; ++ch)
+                    bus[index + ch] += sample;
             }
 
-            for (uint32_t ch = 0; ch < channel_count; ++ch)
-                output[index++] = mixed;
+            index += _channels;
         }
+
+        _mixer.mix_bus_into_master(audio_bus_id::music, frame_count);
+        _mixer.mix_bus_into_master(audio_bus_id::sfx, frame_count);
+        _mixer.mix_bus_into_master(audio_bus_id::ui, frame_count);
+
+        const float* master{ _mixer.master_buffer() };
+        const uint32_t total{ frame_count * channel_count };
+
+        for (uint32_t i = 0; i < total; ++i)
+            output[i] = master[i];
     }
 
     bool audio_engine_t::enqueue_command(const audio_command_t& cmd) noexcept

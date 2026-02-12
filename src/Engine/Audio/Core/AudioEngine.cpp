@@ -16,6 +16,7 @@ namespace carrot::audio {
             .release_seconds = 0.2f
         };
     } // anonymous namespace
+
     // PUBLIC
 
     void audio_engine_t::init(audio_clock_t* clock, const uint32_t channels) noexcept
@@ -60,12 +61,12 @@ namespace carrot::audio {
                     continue;
                 }
 
-                const float sample{ voice.gain * static_cast<float>(std::sin(voice.phase)) * env };
+                const float raw{ voice_next_sample(voice, _clock->sample_rate()) };
 
-                voice.phase += voice.phase_inc;
-                if (voice.phase >= chlm::pi_2)
-                    voice.phase -= chlm::pi_2;
+                if (raw == 0.0f)
+                    continue;
 
+                const float sample{ raw * voice.gain * env };
                 float* bus{ _mixer.bus_buffer(voice.bus) };
 
                 for (uint32_t ch = 0; ch < _channels; ++ch)
@@ -103,45 +104,36 @@ namespace carrot::audio {
             {
                 case audio_command_type::play_sine:
                 {
-                    voice_t* chosen = nullptr;
-
-                    // 1. Prefer idle
-                    for (auto& v: _voices)
+                    if (voice_t* v{ acquire_voice() })
                     {
-                        if (v.state == voice_state::idle)
+                        if (v->state == voice_state::idle)
                         {
-                            chosen = &v;
-                            break;
+                            v->type = voice_type::sine;
+                            v->frequency = cmd.play_sine.frequency;
+                            v->gain = cmd.play_sine.gain;
+                            v->phase = 0.0;
+                            v->phase_inc = chlm::pi_2 * v->frequency / static_cast<double>(_clock->sample_rate());
+
+                            activate_voice(*v);
                         }
                     }
+                    break;
+                }
 
-                    // 2. Steal if needed
-                    if (!chosen)
+                case audio_command_type::play_sample:
+                {
+                    if (voice_t* v{ acquire_voice() })
                     {
-                        chosen = choose_voice_to_steal();
-
-                        if (chosen && chosen->state != voice_state::releasing)
+                        if (v->state == voice_state::idle)
                         {
-                            envelope_note_off(chosen->envelope, static_cast<float>(_clock->sample_rate()),
-                                              k_default_env.release_seconds);
-                            chosen->state = voice_state::releasing;
+                            v->type = voice_type::sample;
+                            v->gain = cmd.play_sample.gain;
+                            v->sample = cmd.play_sample.sample;
+                            v->sample_cursor = 0;
+
+                            activate_voice(*v);
                         }
                     }
-
-                    // 3. If we got a slot, (re)initialize
-                    if (chosen && chosen->state == voice_state::idle)
-                    {
-                        chosen->frequency = cmd.play_sine.frequency;
-                        chosen->gain = cmd.play_sine.gain;
-                        chosen->phase = 0.0;
-                        chosen->phase_inc = chlm::pi_2 * chosen->frequency / static_cast<double>(_clock->sample_rate());
-                        chosen->start_frame = _current_frame;
-
-                        envelope_note_on(chosen->envelope, k_default_env, static_cast<float>(_clock->sample_rate()));
-
-                        chosen->state = voice_state::active;
-                    }
-
                     break;
                 }
 
@@ -173,6 +165,8 @@ namespace carrot::audio {
         }
     }
 
+    // PRIVATE
+
     voice_t* audio_engine_t::choose_voice_to_steal() noexcept
     {
         voice_t* chosen{ nullptr };
@@ -191,5 +185,35 @@ namespace carrot::audio {
         }
 
         return chosen;
+    }
+
+    voice_t* audio_engine_t::acquire_voice() noexcept
+    {
+        // 1. Prefer idle
+        for (auto& v : _voices)
+        {
+            if (v.state == voice_state::idle)
+                return &v;
+        }
+
+        // 2. Steal
+        voice_t* v{ choose_voice_to_steal() };
+        if (!v)
+            return nullptr;
+
+        if (v->state != voice_state::releasing)
+        {
+            envelope_note_off(v->envelope, static_cast<float>(_clock->sample_rate()), k_default_env.release_seconds);
+            v->state = voice_state::releasing;
+        }
+
+        return v;
+    }
+
+    void audio_engine_t::activate_voice(voice_t& voice) const noexcept
+    {
+        voice.start_frame = _current_frame;
+        envelope_note_on(voice.envelope, k_default_env, static_cast<float>(_clock->sample_rate()));
+        voice.state = voice_state::active;
     }
 } // namespace carrot::audio

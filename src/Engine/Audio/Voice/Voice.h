@@ -7,13 +7,22 @@
 
 #include "Envelope.h"
 #include "Audio/Mixer/AudioBus.h"
+#include "Audio/Sample/AudioSample.h"
+
+#include <chlm/Core.h>
 
 namespace carrot::audio {
     enum class voice_state : uint8_t
     {
-        idle,       // free slot
-        active,     // playing normally
-        releasing,  // stolen / note-off, fading out
+        idle,
+        active,
+        releasing,
+    };
+
+    enum class voice_type : uint8_t
+    {
+        sine,
+        sample,
     };
 
     /**
@@ -24,8 +33,11 @@ namespace carrot::audio {
     struct voice_t
     {
         voice_state state{ voice_state::idle };
-
+        voice_type type{ voice_type::sine };
         audio_bus_id bus{ audio_bus_id::sfx };
+
+        const audio_sample_t* sample{ nullptr };
+        uint32_t sample_cursor{};
 
         double phase{ 0.0 };
         double frequency{ 440.0 };
@@ -36,4 +48,32 @@ namespace carrot::audio {
 
         envelope_t envelope;
     };
+
+    inline float voice_next_sample(voice_t& voice, [[maybe_unused]] const double sample_rate) noexcept
+    {
+        switch (voice.type)
+        {
+            case voice_type::sine:
+            {
+                const float s{ static_cast<float>(std::sin(voice.phase)) };
+                voice.phase += voice.phase_inc;
+                if (voice.phase >= chlm::pi_2)
+                    voice.phase -= chlm::pi_2;
+                return s;
+            }
+
+            case voice_type::sample:
+            {
+                if (voice.sample_cursor >= voice.sample->frame_count)
+                    return 0.0f;
+
+                const uint32_t idx{ voice.sample_cursor++ * voice.sample->channels };
+
+                return voice.sample->data[idx];
+            }
+        }
+
+        return 0.0f;
+    }
+
 } // namespace carrot::audio

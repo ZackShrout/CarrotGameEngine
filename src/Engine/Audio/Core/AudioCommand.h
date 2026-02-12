@@ -9,6 +9,7 @@
 #include <type_traits>
 
 #include "Audio/Mixer/AudioBus.h"
+#include "Audio/Sample/AudioSample.h"
 
 namespace carrot::audio {
     /**
@@ -21,7 +22,8 @@ namespace carrot::audio {
      */
     enum class audio_command_type : uint8_t
     {
-        play_sine, // test command
+        play_sine,
+        play_sample,
         stop_all,
 
         set_bus_gain,
@@ -37,6 +39,12 @@ namespace carrot::audio {
     struct audio_cmd_play_sine
     {
         float frequency;
+        float gain;
+    };
+
+    struct play_sample_cmd
+    {
+        const audio_sample_t* sample;
         float gain;
     };
 
@@ -70,6 +78,7 @@ namespace carrot::audio {
         union
         {
             audio_cmd_play_sine play_sine;
+            play_sample_cmd play_sample;
             set_bus_gain_cmd set_bus_gain;
             set_bus_flag_cmd set_bus_mute;
             set_bus_flag_cmd set_bus_solo;

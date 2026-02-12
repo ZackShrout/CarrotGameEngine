@@ -10,6 +10,7 @@
 
 #include "Audio/Mixer/AudioBus.h"
 #include "Audio/Sample/AudioSample.h"
+#include "Audio/Voice/Voice.h"
 
 namespace carrot::audio {
     /**
@@ -34,6 +35,8 @@ namespace carrot::audio {
         set_voice_pan,
 
         set_voice_gain,
+        set_voice_spatial,
+        set_voice_position,
     };
 
     /**
@@ -83,6 +86,20 @@ namespace carrot::audio {
         float gain;
     };
 
+    struct set_voice_spatial_cmd
+    {
+        uint32_t voice_index;
+        spatial_mode mode;
+    };
+
+    struct set_voice_position_cmd
+    {
+        uint32_t voice_index;
+        float x;
+        float y;
+        float z;
+    };
+
     /**
      * @brief Single audio command.
      *
@@ -102,6 +119,8 @@ namespace carrot::audio {
             set_bus_pan_cmd set_bus_pan;
             set_voice_pan_cmd set_voice_pan;
             set_voice_gain_cmd set_voice_gain;
+            set_voice_spatial_cmd set_voice_spatial;
+            set_voice_position_cmd set_voice_position;
         };
     };
 

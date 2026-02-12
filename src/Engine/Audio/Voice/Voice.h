@@ -12,6 +12,13 @@
 #include <chlm/Core.h>
 
 namespace carrot::audio {
+    enum class spatial_mode : uint8_t
+    {
+        none, // no distance, no pan override
+        planar, // X/Y distance only
+        full_3d
+    };
+
     enum class voice_state : uint8_t
     {
         idle,
@@ -35,19 +42,26 @@ namespace carrot::audio {
         voice_state state{ voice_state::idle };
         voice_type type{ voice_type::sine };
         audio_bus_id bus{ audio_bus_id::sfx };
+        spatial_mode spatial{ spatial_mode::none };
 
         float pan{ 0.f }; // -1 = left, 0 = center, +1 = right
+        float gain{ 0.2f };
+
+        float pos_x{ 0.f };
+        float pos_y{ 0.f };
+        float pos_z{ 0.f }; // unused for planar
+
+        float max_distance{ 50.f }; // world units
+        float ref_distance{ 1.f }; // near-field
 
         const audio_sample_t* sample{ nullptr };
-        uint32_t sample_cursor{};
+        uint32_t sample_cursor{ };
 
         double phase{ 0.0 };
         double frequency{ 440.0 };
         double phase_inc{ 0.0 };
-        float  gain{ 0.2f };
 
         uint64_t start_frame{ 0 };
-
         envelope_t envelope;
     };
 
@@ -77,5 +91,4 @@ namespace carrot::audio {
 
         return 0.0f;
     }
-
 } // namespace carrot::audio

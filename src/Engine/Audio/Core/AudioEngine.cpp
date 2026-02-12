@@ -17,6 +17,14 @@ namespace carrot::audio {
             .sustain_level = 0.8f,
             .release_seconds = 0.2f
         };
+
+        float distance_attenuation(const float distance, const float ref_distance, const float max_distance) noexcept
+        {
+            if (distance <= ref_distance) return 1.f;
+            if (distance >= max_distance) return 0.f;
+
+            return ref_distance / distance;
+        }
     } // anonymous namespace
 
     // PUBLIC
@@ -68,11 +76,30 @@ namespace carrot::audio {
                 if (raw == 0.0f)
                     continue;
 
+                float distance_gain{ 1.f };
+
+                if (voice.spatial != spatial_mode::none)
+                {
+                    const float dx{ voice.pos_x - _listener.x };
+                    const float dy{ voice.pos_y - _listener.y };
+
+                    float dist_sq{ dx * dx + dy * dy };
+
+                    if (voice.spatial == spatial_mode::full_3d)
+                    {
+                        const float dz{ voice.pos_z - _listener.z };
+                        dist_sq += dz * dz;
+                    }
+
+                    const float distance{ std::sqrt(dist_sq) };
+                    distance_gain = distance_attenuation(distance, voice.ref_distance, voice.max_distance);
+                }
+
                 float pan_l{ 1.f };
                 float pan_r{ 1.f };
                 compute_pan_gains(voice.pan, pan_l, pan_r);
 
-                const float sample{ raw * voice.gain * env };
+                const float sample{ raw * voice.gain * env * distance_gain };
                 float* bus{ _mixer.bus_buffer(voice.bus) };
 
                 // stereo output assumed for now
@@ -179,9 +206,31 @@ namespace carrot::audio {
 
                 case audio_command_type::set_voice_gain:
                 {
-                    const uint32_t id = cmd.set_voice_gain.voice_index;
+                    const uint32_t id{ cmd.set_voice_gain.voice_index };
                     if (id < std::size(_voices))
                         _voices[id].gain = cmd.set_voice_gain.gain;
+
+                    break;
+                }
+
+                case audio_command_type::set_voice_spatial:
+                {
+                    const uint32_t id{ cmd.set_voice_spatial.voice_index };
+                    if (id < std::size(_voices))
+                        _voices[id].spatial = cmd.set_voice_spatial.mode;
+
+                    break;
+                }
+
+                case audio_command_type::set_voice_position:
+                {
+                    const uint32_t id{ cmd.set_voice_position.voice_index };
+                    if (id < std::size(_voices))
+                    {
+                        _voices[id].pos_x = cmd.set_voice_position.x;
+                        _voices[id].pos_y = cmd.set_voice_position.y;
+                        _voices[id].pos_z = cmd.set_voice_position.z;
+                    }
 
                     break;
                 }

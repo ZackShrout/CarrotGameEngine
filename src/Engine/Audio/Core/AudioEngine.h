@@ -13,6 +13,13 @@
 #include "Audio/Mixer/AudioMixer.h"
 
 namespace carrot::audio {
+    struct audio_listener_t
+    {
+        float x{ 0.f };
+        float y{ 0.f };
+        float z{ 0.f };
+    };
+
     /**
      * @brief Core audio engine executed on the audio thread.
      *
@@ -69,6 +76,9 @@ namespace carrot::audio {
         audio_mixer_t _mixer{ };
         uint32_t _channels{ 0 };
         uint64_t _current_frame{ 0 };
+
+        // NOTE: This will later come from camera/ECS/etc...
+        audio_listener_t _listener{ };
 
         audio_command_queue_t<256> _command_queue;
         voice_t _voices[k_max_voices]{ };

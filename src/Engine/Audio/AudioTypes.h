@@ -5,6 +5,9 @@
 
 #pragma once
 
+#include <cstdint>
+#include <chlm/CarrotHLM.h>
+
 namespace carrot::audio {
     /**
      * @brief Defines how a sound is spatialized in the world.
@@ -67,26 +70,45 @@ namespace carrot::audio {
         exponential
     };
 
-    enum class voice_state : uint8_t
+    /**
+     * @brief Per-playback override parameters for sound playback.
+     *
+     * These parameters allow callers to override selected aspects
+     * of a sound asset without modifying the asset itself.
+     *
+     * Any value left at default will fall back to the sound asset's
+     * configuration.
+     */
+    struct sound_play_params_t
     {
-        idle,
-        active,
-        releasing,
-    };
+        /** @brief Gain multiplier applied on top of asset gain. */
+        float gain{ 1.0f };
 
-    enum class voice_type : uint8_t
-    {
-        sine,
-        sample,
-    };
+        /** @brief Pitch multiplier applied on top of asset pitch. */
+        float pitch{ 1.0f };
 
-    enum class audio_bus_id : uint8_t
-    {
-        master,
-        music,
-        sfx,
-        ui,
+        /**
+         * @brief Stereo pan override.
+         *
+         * Range: -1.0 (left) to +1.0 (right).
+         */
+        float pan{ 0.0f };
 
-        count
+        /**
+         * @brief Optional spatial mode override.
+         *
+         * Only applied if override_spatial is true.
+         */
+        spatial_mode spatial_override{ spatial_mode::none };
+
+        /** @brief Enables spatial mode override. */
+        bool override_spatial{ false };
+
+        /**
+         * @brief World-space position of the sound.
+         *
+         * Used for planar and 3D spatialization modes.
+         */
+        chlm::float3 position{ 0.0f, 0.0f, 0.0f };
     };
 } // namespace carrot::audio

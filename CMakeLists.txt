@@ -116,6 +116,9 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Audio/AudioTypes.h
         src/Engine/Audio/Assets/SoundAsset.cpp
         src/Engine/Audio/Assets/SoundAsset.h
+        src/Engine/Audio/Audio.cpp
+        src/Engine/Audio/Core/AudioService.h
+        src/Engine/Audio/Core/AudioService.cpp
 )
 
 # ------------------------------------------------------------------------

@@ -81,14 +81,14 @@ namespace carrot::audio {
 
                 if (voice.spatial != spatial_mode::none)
                 {
-                    const float dx{ voice.pos_x - _listener.position.x };
-                    const float dy{ voice.pos_y - _listener.position.y };
+                    const float dx{ voice.position.x - _listener.position.x };
+                    const float dy{ voice.position.y - _listener.position.y };
 
                     float dist_sq{ dx * dx + dy * dy };
 
                     if (voice.spatial == spatial_mode::full_3d)
                     {
-                        const float dz{ voice.pos_z - _listener.position.z };
+                        const float dz{ voice.position.z - _listener.position.z };
                         dist_sq += dz * dz;
                     }
 
@@ -187,6 +187,24 @@ namespace carrot::audio {
                     break;
                 }
 
+                case audio_command_type::play_sound:
+                {
+                    if (voice_t* v{ acquire_voice() })
+                    {
+                        v->type = voice_type::sample;
+                        v->sample = cmd.play_sound.sample;
+                        v->gain = cmd.play_sound.gain;
+                        v->pan = cmd.play_sound.pan;
+                        v->bus = cmd.play_sound.bus;
+
+                        v->spatial = cmd.play_sound.spatial;
+                        v->position = cmd.play_sound.position;
+
+                        activate_voice(*v);
+                    }
+                    break;
+                }
+
                 case audio_command_type::stop_all:
                     _sine_active = false;
                     break;
@@ -240,9 +258,9 @@ namespace carrot::audio {
                     const uint32_t id{ cmd.set_voice_position.voice_index };
                     if (id < std::size(_voices))
                     {
-                        _voices[id].pos_x = cmd.set_voice_position.x;
-                        _voices[id].pos_y = cmd.set_voice_position.y;
-                        _voices[id].pos_z = cmd.set_voice_position.z;
+                        _voices[id].position.x = cmd.set_voice_position.x;
+                        _voices[id].position.y = cmd.set_voice_position.y;
+                        _voices[id].position.z = cmd.set_voice_position.z;
                     }
 
                     break;

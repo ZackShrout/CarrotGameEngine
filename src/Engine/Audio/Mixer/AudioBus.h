@@ -8,6 +8,16 @@
 #include <cstdint>
 
 namespace carrot::audio {
+    enum class audio_bus_id : uint8_t
+    {
+        master,
+        music,
+        sfx,
+        ui,
+
+        count
+    };
+
     struct audio_bus_t
     {
         bool muted{ false };

@@ -5,6 +5,26 @@
 
 #pragma once
 
-namespace carrot::audio {
+#include "AudioTypes.h"
+#include "Assets/SoundAsset.h"
+#include "Core/AudioService.h"
 
+namespace carrot::audio {
+    /**
+     * @brief Plays a sound using its default configuration.
+     *
+     * Creates a new voice instance and begins playback immediately.
+     *
+     * @param asset Sound asset to play
+     */
+    void play(const sound_asset_t& asset) noexcept;
+
+    /**
+     * @brief Plays a sound with explicit playback parameters.
+     *
+     * @param asset Sound asset to play
+     * @param params Playback override parameters
+     */
+    void play(const sound_asset_t& asset, const sound_play_params_t& params) noexcept;
 } // namespace carrot::audio
+

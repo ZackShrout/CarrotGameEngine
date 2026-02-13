@@ -5,6 +5,7 @@
 
 #include "Engine.h"
 
+#include "Audio/Audio.h"
 #include "Audio/Sample/WavLoader.h"
 #include "Debug/DebugOverlay.h"
 #include "HotReload/ShaderWatcher.h"
@@ -15,11 +16,11 @@
 
 namespace carrot {
     namespace {
-        uint64_t                                    _last_tick_time{ 0 };
-        uint32_t                                    _frame_counter{ 0 };
-        float                                       _fps_timer{ 0.f };
-        bool                                        _debug_overlay_initialized{ false };
-        core::ce_application_t*                     _application{ nullptr };
+        uint64_t _last_tick_time{ 0 };
+        uint32_t _frame_counter{ 0 };
+        float _fps_timer{ 0.f };
+        bool _debug_overlay_initialized{ false };
+        core::ce_application_t* _application{ nullptr };
     } // anonymous namespace
 
     // PUBLIC
@@ -36,60 +37,75 @@ namespace carrot {
         _renderer = std::make_unique<renderer::renderer_t>(config.graphics);
         _audio_module = std::make_unique<audio::audio_module_t>(config.audio);
         _audio_module->init();
+        audio::audio_service_t::provide(_audio_module.get());
 
-        audio::audio_command_t cmd{};
-        cmd.type = audio::audio_command_type::play_sine;
-        cmd.play_sine.frequency = 660.0f;
-        cmd.play_sine.gain = 0.2f;
-        cmd.play_sine.bus = audio::audio_bus_id::sfx;
+        // audio::audio_command_t cmd{};
+        // cmd.type = audio::audio_command_type::play_sine;
+        // cmd.play_sine.frequency = 660.0f;
+        // cmd.play_sine.gain = 0.2f;
+        // cmd.play_sine.bus = audio::audio_bus_id::sfx;
+        //
+        // _audio_module->engine().enqueue_command(cmd);
+        //
+        // cmd.type = audio::audio_command_type::play_sine;
+        // cmd.play_sine.frequency = 440.0f;
+        // cmd.play_sine.gain = 0.2f;
+        // cmd.play_sine.bus = audio::audio_bus_id::sfx;
+        //
+        // _audio_module->engine().enqueue_command(cmd);
+        //
+        // cmd.type = audio::audio_command_type::play_sine;
+        // cmd.play_sine.frequency = 523.0f;
+        // // cmd.play_sine.frequency = 554.0f;
+        // cmd.play_sine.gain = 0.2f;
+        // cmd.play_sine.bus = audio::audio_bus_id::sfx;
+        //
+        // _audio_module->engine().enqueue_command(cmd);
+        //
+        // cmd.type = audio::audio_command_type::set_bus_gain;
+        // cmd.set_bus_gain.bus = audio::audio_bus_id::sfx;
+        // cmd.set_bus_gain.gain = 1.f;
+        //
+        // _audio_module->engine().enqueue_command(cmd);
+        //
+        // cmd.type = audio::audio_command_type::play_sample;
+        // cmd.play_sample.sample = audio::load_wav_file("assets/Audio/Victory!.wav");
+        // cmd.play_sample.gain = 2.f;
+        // cmd.play_sample.bus = audio::audio_bus_id::music;
+        //
+        // _audio_module->engine().enqueue_command(cmd);
+        //
+        // cmd.type = audio::audio_command_type::set_voice_gain;
+        // cmd.set_voice_gain.voice_index = 0;
+        // cmd.set_voice_gain.gain = 1.f;
+        //
+        // _audio_module->engine().enqueue_command(cmd);
+        //
+        // cmd.type = audio::audio_command_type::set_bus_solo;
+        // cmd.set_bus_solo.bus = audio::audio_bus_id::music;
+        // cmd.set_bus_solo.enabled = true;
+        //
+        // _audio_module->engine().enqueue_command(cmd);
+        //
+        // cmd.type = audio:: audio_command_type::set_bus_pan;
+        // cmd.set_bus_pan.bus = audio::audio_bus_id::music;
+        // cmd.set_bus_pan.pan = 0.f;
+        //
+        // _audio_module->engine().enqueue_command(cmd);
 
-        _audio_module->engine().enqueue_command(cmd);
+        static audio::audio_sample_t* sound{ audio::load_wav_file("assets/Audio/Victory!.wav") };
 
-        cmd.type = audio::audio_command_type::play_sine;
-        cmd.play_sine.frequency = 440.0f;
-        cmd.play_sine.gain = 0.2f;
-        cmd.play_sine.bus = audio::audio_bus_id::sfx;
+        static audio::sound_asset_t test_sound{
+            .sample = sound,
+            .bus = audio::audio_bus_id::music,
+            .gain = 1.0f,
+            .spatial = audio::spatial_mode::none,
+            .distance = audio::distance_model::linear,
+            .min_distance = 1.0f,
+            .max_distance = 25.0f
+        };
 
-        _audio_module->engine().enqueue_command(cmd);
-
-        cmd.type = audio::audio_command_type::play_sine;
-        cmd.play_sine.frequency = 523.0f;
-        // cmd.play_sine.frequency = 554.0f;
-        cmd.play_sine.gain = 0.2f;
-        cmd.play_sine.bus = audio::audio_bus_id::sfx;
-
-        _audio_module->engine().enqueue_command(cmd);
-
-        cmd.type = audio::audio_command_type::set_bus_gain;
-        cmd.set_bus_gain.bus = audio::audio_bus_id::sfx;
-        cmd.set_bus_gain.gain = 1.f;
-
-        _audio_module->engine().enqueue_command(cmd);
-
-        cmd.type = audio::audio_command_type::play_sample;
-        cmd.play_sample.sample = audio::load_wav_file("assets/Audio/Victory!.wav");
-        cmd.play_sample.gain = 2.f;
-        cmd.play_sample.bus = audio::audio_bus_id::music;
-
-        _audio_module->engine().enqueue_command(cmd);
-
-        cmd.type = audio::audio_command_type::set_voice_gain;
-        cmd.set_voice_gain.voice_index = 0;
-        cmd.set_voice_gain.gain = 1.f;
-
-        _audio_module->engine().enqueue_command(cmd);
-
-        cmd.type = audio::audio_command_type::set_bus_solo;
-        cmd.set_bus_solo.bus = audio::audio_bus_id::music;
-        cmd.set_bus_solo.enabled = true;
-
-        _audio_module->engine().enqueue_command(cmd);
-
-        cmd.type = audio:: audio_command_type::set_bus_pan;
-        cmd.set_bus_pan.bus = audio::audio_bus_id::music;
-        cmd.set_bus_pan.pan = 0.f;
-
-        _audio_module->engine().enqueue_command(cmd);
+        audio::play(test_sound, { .position = { 5.0f, 0.0f, 0.0f } });
 
         LOG_CORE_INFO("Carrot Engine Initialized (Pure RHI Mode)");
     }
@@ -120,7 +136,7 @@ namespace carrot {
         // Bind window events
         main_window._on_window_resized += BIND_LAMBDA([this](const events::window_resized_t& e) {
             _renderer->get_rhi()->resize(e._width, e._height);
-        });
+            });
 
         // Bind input events
         main_window._on_key += BIND_MEMBER(_application, on_key);

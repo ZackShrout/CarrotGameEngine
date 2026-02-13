@@ -25,6 +25,7 @@ namespace carrot::audio {
     {
         play_sine,
         play_sample,
+        play_sound,
         stop_all,
 
         set_bus_gain,
@@ -38,6 +39,15 @@ namespace carrot::audio {
         set_voice_spatial,
         set_voice_position,
     };
+
+    // play_sound,
+    // stop_all,
+    //
+    // set_bus_gain,
+    // set_bus_mute,
+    // set_bus_solo,
+    //
+    // set_voice_gain
 
     /**
      * @brief Payload for a play_sine command.
@@ -54,6 +64,25 @@ namespace carrot::audio {
         const audio_sample_t* sample;
         float gain;
         audio_bus_id bus;
+    };
+
+    struct play_sound_cmd
+    {
+        const audio_sample_t* sample;
+
+        audio_bus_id bus;
+
+        spatial_mode spatial;
+
+        float gain;
+        float pitch;
+        float pan;
+
+        distance_model distance;
+        float min_distance;
+        float max_distance;
+
+        chlm::float3 position;
     };
 
     struct set_bus_gain_cmd
@@ -113,6 +142,7 @@ namespace carrot::audio {
         {
             audio_cmd_play_sine play_sine;
             play_sample_cmd play_sample;
+            play_sound_cmd play_sound;
             set_bus_gain_cmd set_bus_gain;
             set_bus_flag_cmd set_bus_mute;
             set_bus_flag_cmd set_bus_solo;

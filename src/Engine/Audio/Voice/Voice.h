@@ -13,6 +13,19 @@
 #include <chlm/Core.h>
 
 namespace carrot::audio {
+    enum class voice_state : uint8_t
+    {
+        idle,
+        active,
+        releasing,
+    };
+
+    enum class voice_type : uint8_t
+    {
+        sine,
+        sample,
+    };
+
     /**
      * @brief Single active audio voice.
      *
@@ -28,9 +41,7 @@ namespace carrot::audio {
         float pan{ 0.f }; // -1 = left, 0 = center, +1 = right
         float gain{ 0.2f };
 
-        float pos_x{ 0.f };
-        float pos_y{ 0.f };
-        float pos_z{ 0.f }; // unused for planar
+        chlm::float3 position{ 0.f };
 
         float max_distance{ 50.f }; // world units
         float ref_distance{ 1.f }; // near-field

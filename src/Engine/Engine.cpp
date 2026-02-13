@@ -38,24 +38,27 @@ namespace carrot {
         _audio_module->init();
 
         audio::audio_command_t cmd{};
-        // cmd.type = audio::audio_command_type::play_sine;
-        // cmd.play_sine.frequency = 660.0f;
-        // cmd.play_sine.gain = 0.2f;
-        //
-        // _audio_module->engine().enqueue_command(cmd);
-        //
-        // cmd.type = audio::audio_command_type::play_sine;
-        // cmd.play_sine.frequency = 440.0f;
-        // cmd.play_sine.gain = 0.2f;
-        //
-        // _audio_module->engine().enqueue_command(cmd);
-        //
-        // cmd.type = audio::audio_command_type::play_sine;
-        // cmd.play_sine.frequency = 523.0f;
-        // // cmd.play_sine.frequency = 554.0f;
-        // cmd.play_sine.gain = 0.2f;
-        //
-        // _audio_module->engine().enqueue_command(cmd);
+        cmd.type = audio::audio_command_type::play_sine;
+        cmd.play_sine.frequency = 660.0f;
+        cmd.play_sine.gain = 0.2f;
+        cmd.play_sine.bus = audio::audio_bus_id::sfx;
+
+        _audio_module->engine().enqueue_command(cmd);
+
+        cmd.type = audio::audio_command_type::play_sine;
+        cmd.play_sine.frequency = 440.0f;
+        cmd.play_sine.gain = 0.2f;
+        cmd.play_sine.bus = audio::audio_bus_id::sfx;
+
+        _audio_module->engine().enqueue_command(cmd);
+
+        cmd.type = audio::audio_command_type::play_sine;
+        cmd.play_sine.frequency = 523.0f;
+        // cmd.play_sine.frequency = 554.0f;
+        cmd.play_sine.gain = 0.2f;
+        cmd.play_sine.bus = audio::audio_bus_id::sfx;
+
+        _audio_module->engine().enqueue_command(cmd);
 
         cmd.type = audio::audio_command_type::set_bus_gain;
         cmd.set_bus_gain.bus = audio::audio_bus_id::sfx;

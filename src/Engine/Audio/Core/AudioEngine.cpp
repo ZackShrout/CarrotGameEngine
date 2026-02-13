@@ -77,27 +77,40 @@ namespace carrot::audio {
                     continue;
 
                 float distance_gain{ 1.f };
+                float spatial_pan{ 0.f };
 
                 if (voice.spatial != spatial_mode::none)
                 {
-                    const float dx{ voice.pos_x - _listener.x };
-                    const float dy{ voice.pos_y - _listener.y };
+                    const float dx{ voice.pos_x - _listener.position.x };
+                    const float dy{ voice.pos_y - _listener.position.y };
 
                     float dist_sq{ dx * dx + dy * dy };
 
                     if (voice.spatial == spatial_mode::full_3d)
                     {
-                        const float dz{ voice.pos_z - _listener.z };
+                        const float dz{ voice.pos_z - _listener.position.z };
                         dist_sq += dz * dz;
                     }
 
                     const float distance{ std::sqrt(dist_sq) };
                     distance_gain = distance_attenuation(distance, voice.ref_distance, voice.max_distance);
+
+                    if (voice.spatial == spatial_mode::planar)
+                    {
+                        const float effective_distance{ std::max(distance, voice.ref_distance) };
+                        spatial_pan = dx / effective_distance;
+                        chlm::clamp(spatial_pan, -1.f, 1.f);
+                    }
                 }
+
+                float final_pan{ voice.pan };
+
+                if (voice.spatial == spatial_mode::planar)
+                    final_pan += spatial_pan;
 
                 float pan_l{ 1.f };
                 float pan_r{ 1.f };
-                compute_pan_gains(voice.pan, pan_l, pan_r);
+                compute_pan_gains(final_pan, pan_l, pan_r);
 
                 const float sample{ raw * voice.gain * env * distance_gain };
                 float* bus{ _mixer.bus_buffer(voice.bus) };

@@ -15,9 +15,8 @@
 namespace carrot::audio {
     struct audio_listener_t
     {
-        float x{ 0.f };
-        float y{ 0.f };
-        float z{ 0.f };
+        chlm::float3 position{ 0.f, 0.f, 0.f };
+        chlm::float3 forward { 0.f, 1.f, 0.f }; // normalized
     };
 
     /**

@@ -89,7 +89,7 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Utils/JSON/Public/JsonArrayView.h
         src/Engine/EngineConfig.cpp
         src/Engine/EngineConfig.h
-        src/Engine/Audio/AudioClock.h
+        src/Engine/Audio/Core/AudioClock.h
         src/Engine/Audio/AudioModule.cpp
         src/Engine/Audio/AudioModule.h
         src/Engine/Audio/Backend/AudioBackend.cpp
@@ -112,6 +112,10 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Audio/Sample/WavLoader.cpp
         src/Engine/Audio/Sample/WavLoader.h
         src/Engine/Audio/DSP/Pan.h
+        src/Engine/Audio/Audio.h
+        src/Engine/Audio/AudioTypes.h
+        src/Engine/Audio/Assets/SoundAsset.cpp
+        src/Engine/Audio/Assets/SoundAsset.h
 )
 
 # ------------------------------------------------------------------------

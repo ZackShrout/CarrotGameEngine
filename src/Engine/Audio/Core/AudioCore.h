@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "Audio/AudioTypes.h"
+
 #include <cstdint>
 
 namespace carrot::audio {

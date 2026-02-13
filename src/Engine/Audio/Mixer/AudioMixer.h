@@ -6,6 +6,7 @@
 #pragma once
 
 #include "AudioBus.h"
+#include "Audio/Core/AudioCore.h"
 
 #include <array>
 

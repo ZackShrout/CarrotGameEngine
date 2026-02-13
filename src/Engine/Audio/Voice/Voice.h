@@ -8,30 +8,11 @@
 #include "Audio/DSP/Envelope.h"
 #include "Audio/Mixer/AudioBus.h"
 #include "Audio/Sample/AudioSample.h"
+#include "Audio/Core/AudioCore.h"
 
 #include <chlm/Core.h>
 
 namespace carrot::audio {
-    enum class spatial_mode : uint8_t
-    {
-        none, // no distance, no pan override
-        planar, // X/Y distance only
-        full_3d
-    };
-
-    enum class voice_state : uint8_t
-    {
-        idle,
-        active,
-        releasing,
-    };
-
-    enum class voice_type : uint8_t
-    {
-        sine,
-        sample,
-    };
-
     /**
      * @brief Single active audio voice.
      *

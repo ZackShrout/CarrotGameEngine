@@ -46,7 +46,9 @@ namespace carrot::audio {
          * The sound exists in full 3D space relative to the listener.
          * Future implementations may include HRTF, cones, and occlusion.
          */
-        full_3d
+        full_3d,
+
+        unknown
     };
 
     /**
@@ -67,7 +69,9 @@ namespace carrot::audio {
         inverse,
 
         /** @brief Exponential attenuation for steeper falloff. */
-        exponential
+        exponential,
+
+        unknown
     };
 
     /**
@@ -111,4 +115,23 @@ namespace carrot::audio {
          */
         chlm::float3 position{ 0.0f, 0.0f, 0.0f };
     };
+
+    inline spatial_mode spatial_mode_from_string(const std::string_view mode)
+    {
+        if (mode == "none") return spatial_mode::none;
+        if (mode == "planar") return spatial_mode::planar;
+        if (mode == "full_3d") return spatial_mode::full_3d;
+
+        return spatial_mode::unknown;
+    }
+
+    inline distance_model distance_model_from_string(const std::string_view model)
+    {
+        if (model == "none") return distance_model::none;
+        if (model == "linear") return distance_model::linear;
+        if (model == "inverse") return distance_model::inverse;
+        if (model == "exponential") return distance_model::exponential;
+
+        return distance_model::unknown;
+    }
 } // namespace carrot::audio

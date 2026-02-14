@@ -19,13 +19,13 @@ namespace carrot::audio {
         }
     } // anonymous namespace
 
-    void play(const sound_asset_t& asset) noexcept
+    void play(const assets::audio_asset_t& asset) noexcept
     {
         sound_play_params_t params{ };
         play(asset, params);
     }
 
-    void play(const sound_asset_t& asset, const sound_play_params_t& params) noexcept
+    void play(const assets::audio_asset_t& asset, const sound_play_params_t& params) noexcept
     {
         audio_command_t cmd{ };
         cmd.type = audio_command_type::play_sound;

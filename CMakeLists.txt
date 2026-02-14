@@ -104,6 +104,7 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Audio/Core/AudioCore.h
         src/Engine/Audio/DSP/Envelope.cpp
         src/Engine/Audio/DSP/Envelope.h
+        src/Engine/Audio/DSP/Pan.h
         src/Engine/Audio/Mixer/AudioBus.h
         src/Engine/Audio/Mixer/AudioRouting.h
         src/Engine/Audio/Mixer/AudioMixer.cpp
@@ -111,14 +112,20 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Audio/Sample/AudioSample.h
         src/Engine/Audio/Sample/WavLoader.cpp
         src/Engine/Audio/Sample/WavLoader.h
-        src/Engine/Audio/DSP/Pan.h
         src/Engine/Audio/Audio.h
-        src/Engine/Audio/AudioTypes.h
-        src/Engine/Audio/Assets/SoundAsset.cpp
-        src/Engine/Audio/Assets/SoundAsset.h
         src/Engine/Audio/Audio.cpp
+        src/Engine/Audio/AudioTypes.h
         src/Engine/Audio/Core/AudioService.h
         src/Engine/Audio/Core/AudioService.cpp
+        src/Engine/Assets/AssetID.h
+        src/Engine/Assets/AssetHandle.h
+        src/Engine/Assets/AssetRegistry.h
+        src/Engine/Assets/AssetDatabase.h
+        src/Engine/Assets/Audio/AudioAsset.h
+        src/Engine/Assets/Audio/AudioAssetRegistry.cpp
+        src/Engine/Assets/Audio/AudioAssetRegistry.h
+        src/Engine/Assets/Audio/AudioAssetImporter.cpp
+        src/Engine/Assets/Audio/AudioAssetImporter.h
 )
 
 # ------------------------------------------------------------------------
@@ -480,19 +487,6 @@ else()
         compile_hlsl_to_spirv(CarrotSandbox "${REL_SHADER}" "${SHADER_OUTPUT_DIR}")
     endforeach()
 endif()
-
-# ------------------------------------------------------------------------
-# Asset and Config copying
-# ------------------------------------------------------------------------
-add_custom_command(TARGET CarrotSandbox POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_SOURCE_DIR}/src/Engine/Assets
-        $<TARGET_FILE_DIR:CarrotSandbox>/assets
-
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_SOURCE_DIR}/src/Engine/Config
-        $<TARGET_FILE_DIR:CarrotSandbox>/config
-)
 
 # ------------------------------------------------------------------------
 # Output

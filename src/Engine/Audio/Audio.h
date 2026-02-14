@@ -6,7 +6,7 @@
 #pragma once
 
 #include "AudioTypes.h"
-#include "Assets/SoundAsset.h"
+#include "Assets/Audio/AudioAsset.h"
 #include "Core/AudioService.h"
 
 namespace carrot::audio {
@@ -17,7 +17,7 @@ namespace carrot::audio {
      *
      * @param asset Sound asset to play
      */
-    void play(const sound_asset_t& asset) noexcept;
+    void play(const assets::audio_asset_t& asset) noexcept;
 
     /**
      * @brief Plays a sound with explicit playback parameters.
@@ -25,6 +25,6 @@ namespace carrot::audio {
      * @param asset Sound asset to play
      * @param params Playback override parameters
      */
-    void play(const sound_asset_t& asset, const sound_play_params_t& params) noexcept;
+    void play(const assets::audio_asset_t& asset, const sound_play_params_t& params) noexcept;
 } // namespace carrot::audio
 

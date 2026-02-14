@@ -121,7 +121,7 @@ namespace carrot::core {
         // Default enabled categories
         static constexpr log_category default_categories{
             log_category::core | log_category::graphics | log_category::audio | log_category::physics |
-            log_category::input | log_category::ui
+            log_category::input | log_category::ui | log_category::asset
         };
 
     private:

@@ -9,6 +9,8 @@
 
 #include <span>
 
+#include "Utils/File/FileUtils.h"
+
 namespace carrot {
     namespace {
         using utils::json::json_enum_entry_t;
@@ -27,7 +29,7 @@ namespace carrot {
         engine_config_t config{ };
 
         utils::json::json_document_t doc;
-        if (!doc.parse_from_file("config/config.json"))
+        if (!doc.parse_from_file(utils::file::resolve_asset_path("config/config.json").data()))
         {
             LOG_CORE_WARN("Using default engine configuration");
             config.graphics.api = rhi::graphics_api::default_api;

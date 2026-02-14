@@ -10,9 +10,11 @@
 #include "Debug/DebugOverlay.h"
 #include "HotReload/ShaderWatcher.h"
 #include "Utils/MulticastDelegate.h"
+#include "Utils/File/FileUtils.h"
 #include "Window/Window.h"
 #include "Core/Application.h"
 #include "RHI/RHI.h"
+#include "Assets/Audio/AudioAssetImporter.h"
 
 namespace carrot {
     namespace {
@@ -35,77 +37,25 @@ namespace carrot {
         engine_config_t config{ load_engine_config() };
 
         _renderer = std::make_unique<renderer::renderer_t>(config.graphics);
+
         _audio_module = std::make_unique<audio::audio_module_t>(config.audio);
         _audio_module->init();
         audio::audio_service_t::provide(_audio_module.get());
 
-        // audio::audio_command_t cmd{};
-        // cmd.type = audio::audio_command_type::play_sine;
-        // cmd.play_sine.frequency = 660.0f;
-        // cmd.play_sine.gain = 0.2f;
-        // cmd.play_sine.bus = audio::audio_bus_id::sfx;
-        //
-        // _audio_module->engine().enqueue_command(cmd);
-        //
-        // cmd.type = audio::audio_command_type::play_sine;
-        // cmd.play_sine.frequency = 440.0f;
-        // cmd.play_sine.gain = 0.2f;
-        // cmd.play_sine.bus = audio::audio_bus_id::sfx;
-        //
-        // _audio_module->engine().enqueue_command(cmd);
-        //
-        // cmd.type = audio::audio_command_type::play_sine;
-        // cmd.play_sine.frequency = 523.0f;
-        // // cmd.play_sine.frequency = 554.0f;
-        // cmd.play_sine.gain = 0.2f;
-        // cmd.play_sine.bus = audio::audio_bus_id::sfx;
-        //
-        // _audio_module->engine().enqueue_command(cmd);
-        //
-        // cmd.type = audio::audio_command_type::set_bus_gain;
-        // cmd.set_bus_gain.bus = audio::audio_bus_id::sfx;
-        // cmd.set_bus_gain.gain = 1.f;
-        //
-        // _audio_module->engine().enqueue_command(cmd);
-        //
-        // cmd.type = audio::audio_command_type::play_sample;
-        // cmd.play_sample.sample = audio::load_wav_file("assets/Audio/Victory!.wav");
-        // cmd.play_sample.gain = 2.f;
-        // cmd.play_sample.bus = audio::audio_bus_id::music;
-        //
-        // _audio_module->engine().enqueue_command(cmd);
-        //
-        // cmd.type = audio::audio_command_type::set_voice_gain;
-        // cmd.set_voice_gain.voice_index = 0;
-        // cmd.set_voice_gain.gain = 1.f;
-        //
-        // _audio_module->engine().enqueue_command(cmd);
-        //
-        // cmd.type = audio::audio_command_type::set_bus_solo;
-        // cmd.set_bus_solo.bus = audio::audio_bus_id::music;
-        // cmd.set_bus_solo.enabled = true;
-        //
-        // _audio_module->engine().enqueue_command(cmd);
-        //
-        // cmd.type = audio:: audio_command_type::set_bus_pan;
-        // cmd.set_bus_pan.bus = audio::audio_bus_id::music;
-        // cmd.set_bus_pan.pan = 0.f;
-        //
-        // _audio_module->engine().enqueue_command(cmd);
+        // Start Audio Tests
+        assets::audio_asset_registry_t audio_asset_registry;
 
-        static audio::audio_sample_t* sound{ audio::load_wav_file("assets/Audio/Victory!.wav") };
+        std::string_view path{ "assets/audio/victory.audio.json" };
+        utils::json::json_document_t doc;
 
-        static audio::sound_asset_t test_sound{
-            .sample = sound,
-            .bus = audio::audio_bus_id::music,
-            .gain = 1.0f,
-            .spatial = audio::spatial_mode::none,
-            .distance = audio::distance_model::linear,
-            .min_distance = 1.0f,
-            .max_distance = 25.0f
-        };
+        if (!doc.parse_from_file(utils::file::resolve_asset_path(path).data()))
+            LOG_ASSET_ERROR("Failed to parse audio asset file '{}'", path);
 
-        audio::play(test_sound, { .position = { 5.0f, 0.0f, 0.0f } });
+        assets::audio_asset_importer_t::import(doc, audio_asset_registry);
+        assets::audio_asset_handle asset_id{ audio_asset_registry.find(assets::make_asset_id("music.victory")) };
+
+        audio::play(*audio_asset_registry.get(asset_id));
+        // End Audio Tests
 
         LOG_CORE_INFO("Carrot Engine Initialized (Pure RHI Mode)");
     }

@@ -1,0 +1,12 @@
+{
+  "id": "music.victory",
+  "file": "assets/audio/Victory!.wav",
+
+  "bus": "music",
+  "gain": 1.0,
+
+  "looping": false,
+
+  "spatial": "none",
+  "streamed": false
+}

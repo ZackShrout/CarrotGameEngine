@@ -6,6 +6,8 @@
   "gain": 1.0,
 
   "looping": true,
+  "loop_start": 0,
+  "loop_end": 765500,
 
   "spatial": "none",
   "streamed": false

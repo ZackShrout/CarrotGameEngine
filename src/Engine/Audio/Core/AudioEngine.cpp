@@ -162,9 +162,9 @@ namespace carrot::audio {
                         v->gain = cmd.play_sound.gain;
                         v->pan = cmd.play_sound.pan;
                         v->bus = cmd.play_sound.bus;
-                        v->looping = true;
-                        v->loop_start = 0;
-                        v->loop_end = 0;
+                        v->looping = cmd.play_sound.looping;
+                        v->loop_start = cmd.play_sound.loop_start;
+                        v->loop_end = cmd.play_sound.loop_end;
 
                         v->spatial = cmd.play_sound.spatial;
                         v->position = cmd.play_sound.position;

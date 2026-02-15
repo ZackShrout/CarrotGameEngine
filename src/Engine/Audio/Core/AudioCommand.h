@@ -57,6 +57,10 @@ namespace carrot::audio {
         float max_distance;
 
         chlm::float3 position;
+
+        bool looping;
+        uint32_t loop_start;
+        uint32_t loop_end;
     };
 
     struct set_bus_gain_cmd

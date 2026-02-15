@@ -52,6 +52,10 @@ namespace carrot::audio {
         cmd.play_sound.max_distance = asset.max_distance;
         cmd.play_sound.position = params.position;
 
+        cmd.play_sound.looping = asset.looping;
+        cmd.play_sound.loop_start = asset.loop_start;
+        cmd.play_sound.loop_end = asset.loop_end;
+
         // ── Enqueue ──────────────────────────────
         audio.engine().enqueue_command(cmd);
     }

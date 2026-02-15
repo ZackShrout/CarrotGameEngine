@@ -19,7 +19,7 @@ namespace carrot::assets {
 
         if (!id.data() || !file.data())
         {
-            LOG_ASSET_ERROR("AudioAssetImporter: missing required 'id' or 'file'");
+            LOG_ASSET_ERROR("Missing required 'id' or 'file'");
             return false;
         }
 
@@ -27,7 +27,7 @@ namespace carrot::assets {
 
         if (registry.contains(asset_id))
         {
-            LOG_ASSET_ERROR("AudioAssetImporter: duplicate audio asset id '{}'", id);
+            LOG_ASSET_ERROR("Duplicate audio asset id '{}'", id);
             return false;
         }
 
@@ -38,7 +38,7 @@ namespace carrot::assets {
 
         if (!std::filesystem::exists(resolved_path))
         {
-            LOG_ASSET_ERROR("AudioAssetImporter: audio file not found '{}'", resolved_path);
+            LOG_ASSET_ERROR("Audio file not found '{}'", resolved_path);
             return false;
         }
 
@@ -54,7 +54,7 @@ namespace carrot::assets {
 
             if (!sample)
             {
-                LOG_ASSET_ERROR("AudioAssetImporter: failed to load sample '{}'", resolved_path);
+                LOG_ASSET_ERROR("Failed to load sample '{}'", resolved_path);
                 return false;
             }
         }

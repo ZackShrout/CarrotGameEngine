@@ -60,14 +60,14 @@ namespace carrot::audio {
         const auto handle{ registry.find(id) };
         if (!handle)
         {
-            LOG_AUDIO_ERROR("audio::play(): unknown audio asset '{}'", asset_name);
+            LOG_AUDIO_ERROR("Unknown audio asset '{}'", asset_name);
             return;
         }
 
         const assets::audio_asset_t* asset{ registry.get(handle) };
         if (!asset)
         {
-            LOG_AUDIO_ERROR("audio::play(): failed to resolve asset '{}'", asset_name);
+            LOG_AUDIO_ERROR("Failed to resolve asset '{}'", asset_name);
             return;
         }
 

@@ -5,6 +5,8 @@
 
 #include "Audio.h"
 #include "AudioModule.h"
+#include "Assets/Audio/AudioAssetRegistry.h"
+#include "Assets/AssetService.h"
 
 namespace carrot::audio {
     namespace {
@@ -48,5 +50,27 @@ namespace carrot::audio {
 
         // ── Enqueue ──────────────────────────────
         audio_service_t::get().engine().enqueue_command(cmd);
+    }
+
+    void play(std::string_view asset_name)
+    {
+        const assets::audio_asset_registry_t& registry{ assets::asset_service_t::audio() };
+        const assets::asset_id_t id{ assets::make_asset_id(asset_name) };
+
+        const auto handle{ registry.find(id) };
+        if (!handle)
+        {
+            LOG_AUDIO_ERROR("audio::play(): unknown audio asset '{}'", asset_name);
+            return;
+        }
+
+        const assets::audio_asset_t* asset{ registry.get(handle) };
+        if (!asset)
+        {
+            LOG_AUDIO_ERROR("audio::play(): failed to resolve asset '{}'", asset_name);
+            return;
+        }
+
+        play(*asset);
     }
 } // namespace carrot::audio

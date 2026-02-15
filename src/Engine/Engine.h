@@ -5,7 +5,10 @@
 
 #pragma once
 
+#include "Assets/AssetService.h"
+#include "Assets/Audio/AudioAssetRegistry.h"
 #include "Audio/AudioModule.h"
+#include "Audio/Core/AudioService.h"
 #include "Common/CommonHeaders.h"
 #include "Renderer/Renderer.h"
 #include "Utils/MulticastDelegate.h"
@@ -40,13 +43,15 @@ namespace carrot {
     private:
         void tick();
 
-        bool                                    _should_quit{ false };
-        float                                   _delta_time{ 0.f };
-        uint32_t                                _current_fps{ 0 };
+        bool                                            _should_quit{ false };
+        float                                           _delta_time{ 0.f };
+        uint32_t                                        _current_fps{ 0 };
 
-        std::unique_ptr<renderer::renderer_t>   _renderer{ nullptr };
-        std::unique_ptr<audio::audio_module_t>  _audio_module{ nullptr };
+        std::unique_ptr<renderer::renderer_t>           _renderer{ nullptr };
+        std::unique_ptr<audio::audio_module_t>          _audio_module{ nullptr };
 
-        on_tick_t                               _on_tick;
+        std::unique_ptr<assets::audio_asset_registry_t> _audio_asset_registry{ nullptr };
+
+        on_tick_t                                       _on_tick;
     };
 } // namespace carrot

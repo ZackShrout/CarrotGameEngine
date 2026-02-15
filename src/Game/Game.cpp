@@ -5,9 +5,15 @@
 
 #include "Game.h"
 
+#include "Audio/Audio.h"
 #include "Window/Window.h"
 
 namespace sandbox {
+    void sandbox_t::start()
+    {
+        carrot::audio::play("music.victory");
+    }
+
     void sandbox_t::on_tick(const float delta_time)
     {
         // Just some silly stuff to show ourselves that the on_tick function is hooked up from within the engine

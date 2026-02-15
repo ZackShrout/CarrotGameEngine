@@ -26,5 +26,12 @@ namespace carrot::audio {
      * @param params Playback override parameters
      */
     void play(const assets::audio_asset_t& asset, const sound_play_params_t& params) noexcept;
+
+    /**
+     * @brief Play an audio asset by string ID using its authored defaults.
+     *
+     * @param asset_name Stable asset identifier (e.g. "sfx.beep").
+     */
+    void play(std::string_view asset_name);
 } // namespace carrot::audio
 

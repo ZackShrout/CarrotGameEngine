@@ -16,6 +16,8 @@ namespace carrot::core {
     public:
         DISABLE_COPY_AND_MOVE(ce_application_t)
 
+        virtual void start() {}
+
         // ───────────────────────────────────────────────
         // Window events
         // ───────────────────────────────────────────────

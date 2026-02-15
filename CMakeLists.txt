@@ -126,6 +126,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/Audio/AudioAssetRegistry.h
         src/Engine/Assets/Audio/AudioAssetImporter.cpp
         src/Engine/Assets/Audio/AudioAssetImporter.h
+        src/Engine/Assets/AssetService.cpp
+        src/Engine/Assets/AssetService.h
 )
 
 # ------------------------------------------------------------------------

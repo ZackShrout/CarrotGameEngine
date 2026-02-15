@@ -5,6 +5,7 @@
 
 #include "Engine.h"
 
+#include "Assets/AssetService.h"
 #include "Audio/Audio.h"
 #include "Audio/Sample/WavLoader.h"
 #include "Debug/DebugOverlay.h"
@@ -36,25 +37,27 @@ namespace carrot {
 
         engine_config_t config{ load_engine_config() };
 
+        // RENDERER
         _renderer = std::make_unique<renderer::renderer_t>(config.graphics);
 
+        // AUDIO
         _audio_module = std::make_unique<audio::audio_module_t>(config.audio);
         _audio_module->init();
         audio::audio_service_t::provide(_audio_module.get());
 
-        // Start Audio Tests
-        assets::audio_asset_registry_t audio_asset_registry;
+        _audio_asset_registry = std::make_unique<assets::audio_asset_registry_t>();
+        assets::asset_service_t::provide(_audio_asset_registry.get());
 
+        // Start Audio Tests
         std::string_view path{ "assets/audio/victory.audio.json" };
         utils::json::json_document_t doc;
 
         if (!doc.parse_from_file(utils::file::resolve_asset_path(path).data()))
             LOG_ASSET_ERROR("Failed to parse audio asset file '{}'", path);
 
-        assets::audio_asset_importer_t::import(doc, audio_asset_registry);
-        assets::audio_asset_handle asset_id{ audio_asset_registry.find(assets::make_asset_id("music.victory")) };
+        assets::audio_asset_importer_t::import(doc, *_audio_asset_registry);
 
-        audio::play(*audio_asset_registry.get(asset_id));
+        // audio::play("music.victory");
         // End Audio Tests
 
         LOG_CORE_INFO("Carrot Engine Initialized (Pure RHI Mode)");
@@ -65,6 +68,7 @@ namespace carrot {
         LOG_CORE_INFO("Shutting down...");
 
         hot_reload::shader_watcher_t::shutdown();
+        _audio_asset_registry.reset();
         _audio_module->shutdown();
         _audio_module.reset();
         _renderer.reset();
@@ -93,6 +97,9 @@ namespace carrot {
         main_window._on_mouse_button += BIND_MEMBER(_application, on_mouse_button);
         main_window._on_mouse_moved += BIND_MEMBER(_application, on_mouse_moved);
         main_window._on_mouse_scrolled += BIND_MEMBER(_application, on_mouse_scrolled);
+
+        LOG_CORE_INFO("Starting application...");
+        _application->start();
 
         while (!_should_quit && !main_window.should_close())
         {

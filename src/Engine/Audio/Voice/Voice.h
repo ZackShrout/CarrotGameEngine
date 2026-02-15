@@ -12,6 +12,8 @@
 
 #include <chlm/Core.h>
 
+#include "VoiceHandle.h"
+
 namespace carrot::audio {
     enum class voice_state : uint8_t
     {
@@ -22,7 +24,6 @@ namespace carrot::audio {
 
     enum class voice_type : uint8_t
     {
-        sine,
         sample,
     };
 
@@ -34,9 +35,12 @@ namespace carrot::audio {
     struct voice_t
     {
         voice_state state{ voice_state::idle };
-        voice_type type{ voice_type::sine };
+        voice_type type{ voice_type::sample };
         audio_bus_id bus{ audio_bus_id::sfx };
         spatial_mode spatial{ spatial_mode::none };
+
+        uint32_t generation{ 0 };
+        voice_handle_t handle{ };
 
         float pan{ 0.f }; // -1 = left, 0 = center, +1 = right
         float gain{ 0.2f };
@@ -49,9 +53,9 @@ namespace carrot::audio {
         const audio_sample_t* sample{ nullptr };
         uint32_t sample_cursor{ };
 
-        double phase{ 0.0 };
-        double frequency{ 440.0 };
-        double phase_inc{ 0.0 };
+        bool looping{ false };
+        uint32_t loop_start{ 0 };
+        uint32_t loop_end{ 0 }; // 0 = end of sample
 
         uint64_t start_frame{ 0 };
         envelope_t envelope;
@@ -61,19 +65,24 @@ namespace carrot::audio {
     {
         switch (voice.type)
         {
-            case voice_type::sine:
-            {
-                const float s{ static_cast<float>(std::sin(voice.phase)) };
-                voice.phase += voice.phase_inc;
-                if (voice.phase >= chlm::pi_2)
-                    voice.phase -= chlm::pi_2;
-                return s;
-            }
-
             case voice_type::sample:
             {
-                if (voice.sample_cursor >= voice.sample->frame_count)
-                    return 0.0f;
+                const uint32_t sample_end{
+                    voice.looping && voice.loop_end > 0 ? voice.loop_end : voice.sample->frame_count
+                };
+
+                if (voice.sample_cursor >= sample_end)
+                {
+                    if (voice.looping)
+                    {
+                        voice.sample_cursor = voice.loop_start;
+                    }
+                    else
+                    {
+                        voice.state = voice_state::releasing;
+                        return 0.0f;
+                    }
+                }
 
                 const uint32_t idx{ voice.sample_cursor++ * voice.sample->channels };
 

@@ -59,4 +59,43 @@ namespace carrot::audio {
 
         LOG_AUDIO_INFO("Audio Module shutdown complete");
     }
+
+    voice_handle_t audio_module_t::allocate_voice_handle() noexcept
+    {
+        uint32_t index;
+
+        if (!_free_slots.empty())
+        {
+            index = _free_slots.back();
+            _free_slots.pop_back();
+        }
+        else
+        {
+            index = static_cast<uint32_t>(_voice_slots.size());
+            _voice_slots.emplace_back();
+        }
+
+        voice_slot_t& slot{ _voice_slots[index] };
+        slot.active = true;
+
+        return {
+            .index = index,
+            .generation = slot.generation
+        };
+    }
+
+    void audio_module_t::release_voice_handle(const voice_handle_t handle) noexcept
+    {
+        if (handle.index >= _voice_slots.size())
+            return;
+
+        voice_slot_t& slot{ _voice_slots[handle.index] };
+
+        if (slot.generation != handle.generation)
+            return; // stale handle
+
+        slot.active = false;
+        slot.generation++;
+        _free_slots.push_back(handle.index);
+    }
 } // namespace carrot::audio

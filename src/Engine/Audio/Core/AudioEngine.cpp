@@ -150,52 +150,21 @@ namespace carrot::audio {
         {
             switch (cmd.type)
             {
-                case audio_command_type::play_sine:
-                {
-                    if (voice_t* v{ acquire_voice() })
-                    {
-                        if (v->state == voice_state::idle)
-                        {
-                            v->type = voice_type::sine;
-                            v->frequency = cmd.play_sine.frequency;
-                            v->gain = cmd.play_sine.gain;
-                            v->phase = 0.0;
-                            v->phase_inc = chlm::pi_2 * v->frequency / static_cast<double>(_clock->sample_rate());
-                            v->bus = cmd.play_sine.bus;
-
-                            activate_voice(*v);
-                        }
-                    }
-                    break;
-                }
-
-                case audio_command_type::play_sample:
-                {
-                    if (voice_t* v{ acquire_voice() })
-                    {
-                        if (v->state == voice_state::idle)
-                        {
-                            v->type = voice_type::sample;
-                            v->gain = cmd.play_sample.gain;
-                            v->sample = cmd.play_sample.sample;
-                            v->sample_cursor = 0;
-                            v->bus = cmd.play_sample.bus;
-
-                            activate_voice(*v);
-                        }
-                    }
-                    break;
-                }
-
                 case audio_command_type::play_sound:
                 {
                     if (voice_t* v{ acquire_voice() })
                     {
+                        v->generation++;
+                        v->handle = cmd.play_sound.handle;
+                        v->handle.generation = v->generation;
                         v->type = voice_type::sample;
                         v->sample = cmd.play_sound.sample;
                         v->gain = cmd.play_sound.gain;
                         v->pan = cmd.play_sound.pan;
                         v->bus = cmd.play_sound.bus;
+                        v->looping = true;
+                        v->loop_start = 0;
+                        v->loop_end = 0;
 
                         v->spatial = cmd.play_sound.spatial;
                         v->position = cmd.play_sound.position;
@@ -237,30 +206,42 @@ namespace carrot::audio {
 
                 case audio_command_type::set_voice_gain:
                 {
-                    const uint32_t id{ cmd.set_voice_gain.voice_index };
-                    if (id < std::size(_voices))
-                        _voices[id].gain = cmd.set_voice_gain.gain;
+                    const voice_handle_t& h{ cmd.set_voice_gain.handle };
+                    if (h.index < std::size(_voices))
+                    {
+                        voice_t& v{ _voices[h.index] };
+                        if (v.generation == h.generation)
+                            v.gain = cmd.set_voice_gain.gain;
+                    }
 
                     break;
                 }
 
                 case audio_command_type::set_voice_spatial:
                 {
-                    const uint32_t id{ cmd.set_voice_spatial.voice_index };
-                    if (id < std::size(_voices))
-                        _voices[id].spatial = cmd.set_voice_spatial.mode;
+                    const voice_handle_t& h{ cmd.set_voice_spatial.handle };
+                    if (h.index < std::size(_voices))
+                    {
+                        voice_t& v{ _voices[h.index] };
+                        if (v.generation == h.generation)
+                            v.spatial = cmd.set_voice_spatial.mode;
+                    }
 
                     break;
                 }
 
                 case audio_command_type::set_voice_position:
                 {
-                    const uint32_t id{ cmd.set_voice_position.voice_index };
-                    if (id < std::size(_voices))
+                    const voice_handle_t& h{ cmd.set_voice_position.handle };
+                    if (h.index < std::size(_voices))
                     {
-                        _voices[id].position.x = cmd.set_voice_position.x;
-                        _voices[id].position.y = cmd.set_voice_position.y;
-                        _voices[id].position.z = cmd.set_voice_position.z;
+                        voice_t& v{ _voices[h.index] };
+                        if (v.generation == h.generation)
+                        {
+                            v.position.x = cmd.set_voice_position.x;
+                            v.position.y = cmd.set_voice_position.y;
+                            v.position.z = cmd.set_voice_position.z;
+                        }
                     }
 
                     break;

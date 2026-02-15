@@ -29,8 +29,12 @@ namespace carrot::audio {
 
     void play(const assets::audio_asset_t& asset, const sound_play_params_t& params) noexcept
     {
+        audio_module_t& audio{ audio_service_t::get() };
+        voice_handle_t handle{ audio.allocate_voice_handle() };
+
         audio_command_t cmd{ };
         cmd.type = audio_command_type::play_sound;
+        cmd.play_sound.handle = handle;
 
         // ── Sample / Routing ─────────────────────
         cmd.play_sound.sample = asset.sample;
@@ -49,7 +53,7 @@ namespace carrot::audio {
         cmd.play_sound.position = params.position;
 
         // ── Enqueue ──────────────────────────────
-        audio_service_t::get().engine().enqueue_command(cmd);
+        audio.engine().enqueue_command(cmd);
     }
 
     void play(std::string_view asset_name)

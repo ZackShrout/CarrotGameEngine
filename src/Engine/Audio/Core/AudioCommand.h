@@ -11,6 +11,7 @@
 #include "Audio/Mixer/AudioBus.h"
 #include "Audio/Sample/AudioSample.h"
 #include "Audio/Voice/Voice.h"
+#include "Audio/Voice/VoiceHandle.h"
 
 namespace carrot::audio {
     /**
@@ -23,8 +24,6 @@ namespace carrot::audio {
      */
     enum class audio_command_type : uint8_t
     {
-        play_sine,
-        play_sample,
         play_sound,
         stop_all,
 
@@ -40,37 +39,12 @@ namespace carrot::audio {
         set_voice_position,
     };
 
-    // play_sound,
-    // stop_all,
-    //
-    // set_bus_gain,
-    // set_bus_mute,
-    // set_bus_solo,
-    //
-    // set_voice_gain
-
-    /**
-     * @brief Payload for a play_sine command.
-     */
-    struct audio_cmd_play_sine
-    {
-        float frequency;
-        float gain;
-        audio_bus_id bus;
-    };
-
-    struct play_sample_cmd
-    {
-        const audio_sample_t* sample;
-        float gain;
-        audio_bus_id bus;
-    };
-
     struct play_sound_cmd
     {
         const audio_sample_t* sample;
 
         audio_bus_id bus;
+        voice_handle_t handle;
 
         spatial_mode spatial;
 
@@ -87,43 +61,47 @@ namespace carrot::audio {
 
     struct set_bus_gain_cmd
     {
-        audio_bus_id bus;
+        audio_bus_id bus{ };
         float gain;
     };
 
     struct set_bus_flag_cmd
     {
-        audio_bus_id bus;
+        audio_bus_id bus{ };
         bool enabled;
     };
 
     struct set_bus_pan_cmd
     {
-        audio_bus_id bus;
+        audio_bus_id bus{ };
         float pan;
     };
 
     struct set_voice_pan_cmd
     {
         uint32_t voice_index;
+        voice_handle_t handle{ };
         float pan;
     };
 
     struct set_voice_gain_cmd
     {
         uint32_t voice_index;
+        voice_handle_t handle{ };
         float gain;
     };
 
     struct set_voice_spatial_cmd
     {
         uint32_t voice_index;
+        voice_handle_t handle{ };
         spatial_mode mode;
     };
 
     struct set_voice_position_cmd
     {
         uint32_t voice_index;
+        voice_handle_t handle{ };
         float x;
         float y;
         float z;
@@ -140,8 +118,6 @@ namespace carrot::audio {
 
         union
         {
-            audio_cmd_play_sine play_sine;
-            play_sample_cmd play_sample;
             play_sound_cmd play_sound;
             set_bus_gain_cmd set_bus_gain;
             set_bus_flag_cmd set_bus_mute;

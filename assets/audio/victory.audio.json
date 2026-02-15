@@ -5,7 +5,7 @@
   "bus": "music",
   "gain": 1.0,
 
-  "looping": false,
+  "looping": true,
 
   "spatial": "none",
   "streamed": false

@@ -68,6 +68,9 @@ namespace carrot::audio {
          */
         void shutdown() override;
 
+        voice_handle_t allocate_voice_handle() noexcept;
+        void release_voice_handle(voice_handle_t handle) noexcept;
+
         [[nodiscard]] audio_engine_t& engine() const noexcept { return *_engine; }
 
     private:
@@ -77,5 +80,14 @@ namespace carrot::audio {
         std::unique_ptr<audio_engine_t>         _engine;
 
         audio_clock_t                           _clock;
+
+        struct voice_slot_t
+        {
+            uint32_t generation{ 1 };
+            bool active{ false };
+        };
+
+        std::vector<voice_slot_t>               _voice_slots;
+        std::vector<uint32_t>                   _free_slots;
     };
 } // namespace carrot::audio

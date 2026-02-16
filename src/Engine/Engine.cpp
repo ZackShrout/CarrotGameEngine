@@ -148,6 +148,9 @@ namespace carrot {
             _fps_timer -= 1.0f;
         }
 
+        _audio_module->update(_delta_time);
+
+
         // debug::text(20.f, 30.f, "FPS: %u", _current_fps);
         // debug::text(20.f, 65.f, "Frame: %.3f ms", _delta_time * 1000.f);
 

@@ -55,6 +55,8 @@ namespace carrot::audio {
          */
         void init() override;
 
+        void update(const float delta_time) noexcept override;
+
         /**
          * @brief Shuts down the audio subsystem.
          *

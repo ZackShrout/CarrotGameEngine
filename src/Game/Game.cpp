@@ -9,9 +9,13 @@
 #include "Window/Window.h"
 
 namespace sandbox {
+    namespace {
+        carrot::audio::voice_handle_t handle;
+    }
+
     void sandbox_t::start()
     {
-        carrot::audio::play("music.victory");
+        handle = carrot::audio::play("music.victory");
     }
 
     void sandbox_t::on_tick(const float delta_time)
@@ -19,14 +23,30 @@ namespace sandbox {
         // Just some silly stuff to show ourselves that the on_tick function is hooked up from within the engine
         static float seconds_counter{ 0.0f };
         static int seconds{ 0 };
+        static bool played{ false };
         seconds_counter += delta_time;
 
-        if (seconds_counter >= 2.0f)
+        if (seconds_counter >= 1.0f)
         {
             seconds++;
             seconds_counter = 0.0f;
             LOG_CORE_INFO("Seconds: {}", seconds);
         }
+
+        if (seconds == 10)
+            carrot::audio::stop(handle);
+
+        if (seconds == 11 && !played)
+        {
+            handle = carrot::audio::play("music.victory");
+            played = true;
+        }
+
+        if (seconds == 16)
+            carrot::audio::pause(handle);
+
+        if (seconds == 21)
+            carrot::audio::resume(handle);
     }
 
     void sandbox_t::on_key(const carrot::events::key_event_t& e)

@@ -58,8 +58,19 @@ namespace carrot::audio {
         {
             ++_current_frame;
 
-            for (auto& voice : _voices)
+            for (auto& voice: _voices)
             {
+                if (voice.state == voice_state::idle && voice.handle.is_valid())
+                {
+                    audio_event_t evt{ };
+                    evt.type = audio_event_type::voice_finished;
+                    evt.handle = voice.handle;
+
+                    _event_queue.push(evt);
+
+                    voice.handle = voice_handle_t::invalid();
+                }
+
                 if (voice.state == voice_state::idle)
                     continue;
 
@@ -118,7 +129,6 @@ namespace carrot::audio {
                 // stereo output assumed for now
                 bus[index + 0] += sample * pan_l;
                 bus[index + 1] += sample * pan_r;
-
             }
 
             index += _channels;
@@ -140,6 +150,11 @@ namespace carrot::audio {
         return _command_queue.push(cmd);
     }
 
+    bool audio_engine_t::pop_event(audio_event_t& out) noexcept
+    {
+        return _event_queue.pop(out);
+    }
+
     // PRIVATE
 
     void audio_engine_t::consume_commands() noexcept
@@ -152,25 +167,27 @@ namespace carrot::audio {
             {
                 case audio_command_type::play_sound:
                 {
-                    if (voice_t* v{ acquire_voice() })
-                    {
-                        v->generation++;
-                        v->handle = cmd.play_sound.handle;
-                        v->handle.generation = v->generation;
-                        v->type = voice_type::sample;
-                        v->sample = cmd.play_sound.sample;
-                        v->gain = cmd.play_sound.gain;
-                        v->pan = cmd.play_sound.pan;
-                        v->bus = cmd.play_sound.bus;
-                        v->looping = cmd.play_sound.looping;
-                        v->loop_start = cmd.play_sound.loop_start;
-                        v->loop_end = cmd.play_sound.loop_end;
+                    if (cmd.play_sound.handle.index >= std::size(_voices)) break;
 
-                        v->spatial = cmd.play_sound.spatial;
-                        v->position = cmd.play_sound.position;
+                    voice_t& voice{ _voices[cmd.play_sound.handle.index] };
+                    voice.generation++;
+                    voice.handle = cmd.play_sound.handle;
+                    voice.generation = cmd.play_sound.handle.generation;
+                    voice.type = voice_type::sample;
+                    voice.sample = cmd.play_sound.sample;
+                    voice.sample_cursor = 0;
+                    voice.gain = cmd.play_sound.gain;
+                    voice.pan = cmd.play_sound.pan;
+                    voice.bus = cmd.play_sound.bus;
+                    voice.looping = cmd.play_sound.looping;
+                    voice.loop_start = cmd.play_sound.loop_start;
+                    voice.loop_end = cmd.play_sound.loop_end;
 
-                        activate_voice(*v);
-                    }
+                    voice.spatial = cmd.play_sound.spatial;
+                    voice.position = cmd.play_sound.position;
+
+                    activate_voice(voice);
+
                     break;
                 }
 
@@ -191,6 +208,24 @@ namespace carrot::audio {
                     if (voice_t* v{ find_voice(cmd.resume_voice.handle) })
                         v->paused = false;
 
+                    break;
+                }
+
+                case audio_command_type::stop_voice:
+                {
+                    if (voice_t* v{ find_voice(cmd.stop_voice.handle) })
+                    {
+                        if (v->state == voice_state::active)
+                        {
+                            envelope_note_off(v->envelope, static_cast<float>(_clock->sample_rate()),
+                                              k_default_env.release_seconds);
+
+                            v->state = voice_state::releasing;
+                        }
+
+                        // Unpause so release can run
+                        v->paused = false;
+                    }
                     break;
                 }
 
@@ -269,29 +304,6 @@ namespace carrot::audio {
         }
 
         return chosen;
-    }
-
-    voice_t* audio_engine_t::acquire_voice() noexcept
-    {
-        // 1. Prefer idle
-        for (auto& v : _voices)
-        {
-            if (v.state == voice_state::idle)
-                return &v;
-        }
-
-        // 2. Steal
-        voice_t* v{ choose_voice_to_steal() };
-        if (!v)
-            return nullptr;
-
-        if (v->state != voice_state::releasing)
-        {
-            envelope_note_off(v->envelope, static_cast<float>(_clock->sample_rate()), k_default_env.release_seconds);
-            v->state = voice_state::releasing;
-        }
-
-        return v;
     }
 
     voice_t* audio_engine_t::find_voice(const voice_handle_t& handle) noexcept

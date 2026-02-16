@@ -43,6 +43,20 @@ namespace carrot::audio {
         _is_initialized = true;
     }
 
+    void audio_module_t::update([[maybe_unused]] const float delta_time) noexcept
+    {
+        audio_event_t evt;
+        while (_engine->pop_event(evt))
+        {
+            switch (evt.type)
+            {
+                case audio_event_type::voice_finished:
+                    release_voice_handle(evt.handle);
+                    break;
+            }
+        }
+    }
+
     void audio_module_t::shutdown()
     {
         if (!_is_initialized) return;

@@ -103,4 +103,14 @@ namespace carrot::audio {
 
         audio.engine().enqueue_command(cmd);
     }
+
+    void stop(voice_handle_t handle) noexcept
+    {
+        audio_module_t& audio{ audio_service_t::get() };
+        audio_command_t cmd{};
+        cmd.type = audio_command_type::stop_voice;
+        cmd.stop_voice.handle = handle;
+
+        audio.engine().enqueue_command(cmd);
+    }
 } // namespace carrot::audio

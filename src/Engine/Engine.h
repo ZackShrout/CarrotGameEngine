@@ -45,6 +45,7 @@ namespace carrot {
 
         bool                                            _should_quit{ false };
         float                                           _delta_time{ 0.f };
+        std::chrono::time_point<std::chrono::steady_clock>                                           _last_time_point{ };
         uint32_t                                        _current_fps{ 0 };
 
         std::unique_ptr<renderer::renderer_t>           _renderer{ nullptr };

@@ -129,6 +129,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/AssetService.cpp
         src/Engine/Assets/AssetService.h
         src/Engine/Audio/Voice/VoiceHandle.h
+        src/Engine/Audio/Core/AudioEvent.h
+        src/Engine/Audio/Core/AudioEventQueue.h
 )
 
 # ------------------------------------------------------------------------

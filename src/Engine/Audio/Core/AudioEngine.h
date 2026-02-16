@@ -8,6 +8,7 @@
 #include "AudioClock.h"
 #include "Audio/Backend/AudioBackend.h"
 #include "AudioCommandQueue.h"
+#include "AudioEventQueue.h"
 #include "Audio/Voice/Voice.h"
 #include "Audio/Core/AudioCore.h"
 #include "Audio/Mixer/AudioMixer.h"
@@ -64,11 +65,11 @@ namespace carrot::audio {
         void render(float* output, uint32_t frame_count, uint32_t channel_count) noexcept override;
 
         bool enqueue_command(const audio_command_t& cmd) noexcept;
+        bool pop_event(audio_event_t& out) noexcept;
 
     private:
         void consume_commands() noexcept;
         voice_t* choose_voice_to_steal() noexcept;
-        voice_t* acquire_voice() noexcept;
         voice_t* find_voice(const voice_handle_t& handle) noexcept;
         void activate_voice(voice_t& voice) const noexcept;
 
@@ -81,6 +82,7 @@ namespace carrot::audio {
         audio_listener_t _listener{ };
 
         audio_command_queue_t<256> _command_queue;
+        audio_event_queue_t<256> _event_queue;
         voice_t _voices[k_max_voices]{ };
 
         // ── Test sine state (temporary) ─────────────────────────────

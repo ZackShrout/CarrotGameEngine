@@ -38,8 +38,12 @@ namespace carrot::audio {
      */
     voice_handle_t play(std::string_view asset_name);
 
+
     void pause(voice_handle_t handle) noexcept;
 
 
     void resume(voice_handle_t handle) noexcept;
+
+
+    void stop(voice_handle_t handle) noexcept;
 } // namespace carrot::audio

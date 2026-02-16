@@ -27,6 +27,10 @@ namespace carrot::audio {
         play_sound,
         stop_all,
 
+        pause_voice,
+        resume_voice,
+        stop_voice,
+
         set_bus_gain,
         set_bus_mute,
         set_bus_solo,
@@ -61,6 +65,21 @@ namespace carrot::audio {
         bool looping;
         uint32_t loop_start;
         uint32_t loop_end;
+    };
+
+    struct pause_voice_cmd
+    {
+        voice_handle_t handle;
+    };
+
+    struct resume_voice_cmd
+    {
+        voice_handle_t handle;
+    };
+
+    struct stop_voice_cmd
+    {
+        voice_handle_t handle;
     };
 
     struct set_bus_gain_cmd
@@ -123,6 +142,9 @@ namespace carrot::audio {
         union
         {
             play_sound_cmd play_sound;
+            pause_voice_cmd pause_voice;
+            resume_voice_cmd resume_voice;
+            stop_voice_cmd stop_voice;
             set_bus_gain_cmd set_bus_gain;
             set_bus_flag_cmd set_bus_mute;
             set_bus_flag_cmd set_bus_solo;

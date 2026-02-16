@@ -57,6 +57,8 @@ namespace carrot::audio {
         uint32_t loop_start{ 0 };
         uint32_t loop_end{ 0 }; // 0 = end of sample
 
+        bool paused{ false };
+
         uint64_t start_frame{ 0 };
         envelope_t envelope;
     };
@@ -67,6 +69,9 @@ namespace carrot::audio {
         {
             case voice_type::sample:
             {
+                if (voice.paused)
+                    return 0.0f; // silence, no cursor advance
+
                 const uint32_t sample_end{
                     voice.looping && voice.loop_end > 0 ? voice.loop_end : voice.sample->frame_count
                 };

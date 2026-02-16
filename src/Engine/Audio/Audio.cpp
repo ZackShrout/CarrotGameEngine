@@ -21,13 +21,13 @@ namespace carrot::audio {
         }
     } // anonymous namespace
 
-    void play(const assets::audio_asset_t& asset) noexcept
+    voice_handle_t play(const assets::audio_asset_t& asset) noexcept
     {
-        sound_play_params_t params{ };
-        play(asset, params);
+        const sound_play_params_t params{ };
+        return play(asset, params);
     }
 
-    void play(const assets::audio_asset_t& asset, const sound_play_params_t& params) noexcept
+    voice_handle_t play(const assets::audio_asset_t& asset, const sound_play_params_t& params) noexcept
     {
         audio_module_t& audio{ audio_service_t::get() };
         voice_handle_t handle{ audio.allocate_voice_handle() };
@@ -58,9 +58,11 @@ namespace carrot::audio {
 
         // ── Enqueue ──────────────────────────────
         audio.engine().enqueue_command(cmd);
+
+        return handle;
     }
 
-    void play(std::string_view asset_name)
+    voice_handle_t play(std::string_view asset_name)
     {
         const assets::audio_asset_registry_t& registry{ assets::asset_service_t::audio() };
         const assets::asset_id_t id{ assets::make_asset_id(asset_name) };
@@ -69,16 +71,36 @@ namespace carrot::audio {
         if (!handle)
         {
             LOG_AUDIO_ERROR("Unknown audio asset '{}'", asset_name);
-            return;
+            return voice_handle_t::invalid();
         }
 
         const assets::audio_asset_t* asset{ registry.get(handle) };
         if (!asset)
         {
             LOG_AUDIO_ERROR("Failed to resolve asset '{}'", asset_name);
-            return;
+            return voice_handle_t::invalid();
         }
 
-        play(*asset);
+        return play(*asset);
+    }
+
+    void pause(voice_handle_t handle) noexcept
+    {
+        audio_module_t& audio{ audio_service_t::get() };
+        audio_command_t cmd{};
+        cmd.type = audio_command_type::pause_voice;
+        cmd.pause_voice.handle = handle;
+
+        audio.engine().enqueue_command(cmd);
+    }
+
+    void resume(voice_handle_t handle) noexcept
+    {
+        audio_module_t& audio{ audio_service_t::get() };
+        audio_command_t cmd{};
+        cmd.type = audio_command_type::resume_voice;
+        cmd.pause_voice.handle = handle;
+
+        audio.engine().enqueue_command(cmd);
     }
 } // namespace carrot::audio

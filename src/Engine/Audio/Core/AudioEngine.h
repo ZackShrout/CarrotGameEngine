@@ -69,6 +69,7 @@ namespace carrot::audio {
         void consume_commands() noexcept;
         voice_t* choose_voice_to_steal() noexcept;
         voice_t* acquire_voice() noexcept;
+        voice_t* find_voice(const voice_handle_t& handle) noexcept;
         void activate_voice(voice_t& voice) const noexcept;
 
         audio_clock_t* _clock{ nullptr };

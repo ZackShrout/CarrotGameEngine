@@ -53,4 +53,6 @@ Makefile
 assets/compiled/
 assets/cache/
 
+source_files.md
+
 # === End of file ===

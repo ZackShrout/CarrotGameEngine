@@ -21,7 +21,7 @@ namespace sandbox {
         static int seconds{ 0 };
         seconds_counter += delta_time;
 
-        if (seconds_counter >= 1.0f)
+        if (seconds_counter >= 2.0f)
         {
             seconds++;
             seconds_counter = 0.0f;

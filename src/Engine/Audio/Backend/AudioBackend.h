@@ -39,7 +39,7 @@ namespace carrot::audio {
         virtual void render(float* output, uint32_t frame_count, uint32_t channel_count) noexcept = 0;
 
     protected:
-        ~audio_callback_t() = default;
+        virtual ~audio_callback_t() = default;
     };
 
     /**
@@ -57,7 +57,6 @@ namespace carrot::audio {
      */
     struct audio_backend_t
     {
-    public:
         virtual ~audio_backend_t() = default;
 
         /**
@@ -77,6 +76,15 @@ namespace carrot::audio {
          * @note
          * The backend may adjust the requested parameters to match the
          * capabilities of the underlying audio device.
+         *
+         * @note
+         * The callback pointer is non-owning and must remain valid for the entire
+         * lifetime of the backend (from init() until stop()/shutdown()).
+         *
+         * @note
+         * If the backend adjusts sample rate, block size, or channel count,
+         * the engine must query the actual values via sample_rate(),
+         * block_size(), and channel_count() after init().
          */
         virtual bool init(
             audio_callback_t* callback,
@@ -87,8 +95,8 @@ namespace carrot::audio {
         /**
          * @brief Starts audio playback.
          *
-         * After this call, the backend will begin invoking the audio callback
-         * from its real-time audio thread.
+         * After this call returns, the backend may begin invoking the audio callback
+         * from its real-time audio thread at any time.
          */
         virtual void start() noexcept = 0;
 
@@ -127,5 +135,5 @@ namespace carrot::audio {
         [[nodiscard]] virtual uint32_t channel_count() const noexcept = 0;
     };
 
-    [[nodiscard]] std::unique_ptr<audio_backend_t> create_audio_backend();
+    [[nodiscard]] std::unique_ptr<audio_backend_t> create_audio_backend() noexcept;
 } // namespace carrot::audio

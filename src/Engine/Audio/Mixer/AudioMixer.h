@@ -11,30 +11,129 @@
 #include <array>
 
 namespace carrot::audio {
+    /**
+     * @brief Real-time audio mixer.
+     *
+     * audio_mixer_t is responsible for accumulating per-bus audio buffers,
+     * applying bus-level controls (gain, pan, mute, solo), and mixing all
+     * buses into the master output buffer.
+     *
+     * The mixer exists entirely on the audio thread and is invoked from
+     * audio_engine_t::render().
+     *
+     * @note
+     * audio_mixer_t:
+     *  - performs no dynamic allocation during rendering
+     *  - owns all per-bus mixing buffers
+     *  - must be initialized before use
+     *  - is not thread-safe and must never be accessed from outside the audio thread
+     */
     class audio_mixer_t
     {
     public:
+        /**
+         * @brief Initializes the audio mixer.
+         *
+         * Allocates internal bus buffers sized for the maximum render block.
+         *
+         * @param max_frames Maximum number of frames per render call
+         * @param channels Number of output channels
+         */
         void init(uint32_t max_frames, uint32_t channels) noexcept;
+
+        /**
+         * @brief Shuts down the audio mixer and releases all internal buffers.
+         *
+         * Must be called when the audio thread is no longer running.
+         */
         void shutdown() noexcept;
 
+        /**
+         * @brief Clears all bus buffers for a render block.
+         *
+         * @param frame_count Number of frames to clear
+         */
         void clear(uint32_t frame_count) const noexcept;
 
+        /**
+         * @brief Returns the buffer for a specific audio bus.
+         *
+         * Voices write their output directly into the buffer
+         * corresponding to their routed bus.
+         *
+         * @param id Audio bus identifier
+         * @return Pointer to the interleaved bus buffer
+         */
         [[nodiscard]] float* bus_buffer(audio_bus_id id) const noexcept;
+
+        /**
+         * @brief Returns the master output buffer.
+         *
+         * @return Pointer to the interleaved master buffer
+         */
         [[nodiscard]] float* master_buffer() const noexcept;
 
+        /**
+         * @brief Mixes a bus into the master output buffer.
+         *
+         * Applies bus-level mute, solo, gain, and pan controls before
+         * accumulating the bus signal into the master buffer.
+         *
+         * @param id Audio bus to mix
+         * @param frame_count Number of frames to mix
+         */
         void mix_bus_into_master(audio_bus_id id, uint32_t frame_count) const noexcept;
 
+        /**
+         * @brief Sets the linear gain for a bus.
+         *
+         * @param id Audio bus identifier
+         * @param gain Linear gain multiplier
+         */
         void set_bus_gain(audio_bus_id id, const float gain) noexcept { _buses[static_cast<size_t>(id)].gain = gain; }
+
+        /**
+         * @brief Mutes or unmutes a bus.
+         *
+         * @param id Audio bus identifier
+         * @param muted True to mute the bus
+         */
         void set_bus_mute(audio_bus_id id, const bool muted) noexcept { _buses[static_cast<size_t>(id)].muted = muted; }
+
+        /**
+         * @brief Sets whether a bus is soloed.
+         *
+         * When any bus is soloed, only soloed buses contribute to the
+         * master output.
+         *
+         * @param id Audio bus identifier
+         * @param soloed True to solo the bus
+         */
         void set_bus_solo(audio_bus_id id, const bool soloed) noexcept { _buses[static_cast<size_t>(id)].soloed = soloed; }
+
+        /**
+         * @brief Sets the stereo pan for a bus.
+         *
+         * @param id Audio bus identifier
+         * @param pan Stereo pan (-1.0 = left, +1.0 = right)
+         */
         void set_bus_pan(audio_bus_id id, const float pan) noexcept { _buses[static_cast<size_t>(id)].pan = pan; }
 
     private:
+        /**
+         * @brief Checks whether any bus is currently soloed.
+         *
+         * @return True if at least one bus is soloed
+         */
         [[nodiscard]] bool any_bus_soloed() const noexcept;
 
+        /** Per-bus mixing state and buffers. */
         std::array<audio_bus_t, static_cast<size_t>(audio_bus_id::count)> _buses{ };
 
+        /** Number of output channels. */
         uint32_t _channels{ 0 };
+
+        /** Maximum frames supported per render block. */
         uint32_t _max_frames{ 0 };
     };
 } // namespace carrot::audio

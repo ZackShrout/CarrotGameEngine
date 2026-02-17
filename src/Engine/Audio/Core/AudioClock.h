@@ -26,8 +26,10 @@ namespace carrot::audio {
      *
      * @note
      * Ownership of audio_clock_t is strictly limited to the audio thread.
-     * It must never be read or written from the game thread.
+     * It must never be read or written from the game thread or any
+     * non-audio callback context.
      */
+
     class audio_clock_t
     {
     public:
@@ -54,8 +56,8 @@ namespace carrot::audio {
         /**
          * @brief Advances the clock by one audio block.
          *
-         * This function must be called exactly once after each successful
-         * audio processing callback.
+         * This function must be called exactly once by the audio engine
+         * after each successful audio processing callback.
          *
          * Advancing the clock is a constant-time operation and performs
          * no validation or synchronization.
@@ -70,6 +72,8 @@ namespace carrot::audio {
          *
          * The frame index is monotonically increasing and represents the
          * total number of audio frames processed since initialization.
+         *
+         * @return Absolute frame index since audio start.
          */
         [[nodiscard]] uint64_t frame_index() const noexcept
         {

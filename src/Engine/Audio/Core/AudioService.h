@@ -35,8 +35,8 @@ namespace carrot::audio {
          * Should be called **exactly once** by the engine during initialization,
          * typically right after constructing the @ref audio_module_t.
          *
-         * If called multiple times, logs a fatal error (programming mistake)
-         * but still updates to the latest pointer.
+         * If called multiple times, logs a fatal error (programming mistake).
+         * The pointer is updated defensively to avoid undefined behavior.
          *
          * @param instance Pointer to the live audio_module_t instance.
          *                 Must remain valid until reset() is called.
@@ -51,8 +51,9 @@ namespace carrot::audio {
          * @note In debug builds: asserts + fatal log if no instance is provided.
          *       In release builds: fatal log only (no assert).
          *
-         * @warning Do **not** call this before the engine has provided an instance
-         *          or after shutdown/reset — it is a programmer error.
+         * @warning This function is intended to be called from the engine thread
+         *          or systems synchronized with it. It must not be called from
+         *          the real-time audio thread.
          *
          * @return Reference to the active @ref audio_module_t.
          */

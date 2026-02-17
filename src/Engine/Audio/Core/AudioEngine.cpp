@@ -33,7 +33,6 @@ namespace carrot::audio {
     {
         _clock = clock;
         _channels = channels;
-        _sine_phase = 0.0;
         _current_frame = 0;
 
         _mixer.init(clock->block_size(), channels);
@@ -192,7 +191,7 @@ namespace carrot::audio {
                 }
 
                 case audio_command_type::stop_all:
-                    _sine_active = false;
+                    // no-op
                     break;
 
                 case audio_command_type::pause_voice:
@@ -285,27 +284,6 @@ namespace carrot::audio {
     }
 
     // PRIVATE
-
-    voice_t* audio_engine_t::choose_voice_to_steal() noexcept
-    {
-        voice_t* chosen{ nullptr };
-        uint64_t oldest{ UINT64_MAX };
-
-        for (auto& v: _voices)
-        {
-            if (v.state == voice_state::active || v.state == voice_state::releasing)
-            {
-                if (v.start_frame < oldest)
-                {
-                    oldest = v.start_frame;
-                    chosen = &v;
-                }
-            }
-        }
-
-        return chosen;
-    }
-
     voice_t* audio_engine_t::find_voice(const voice_handle_t& handle) noexcept
     {
         if (handle.index >= std::size(_voices)) return nullptr;

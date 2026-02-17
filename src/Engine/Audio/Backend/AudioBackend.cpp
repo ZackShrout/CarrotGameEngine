@@ -15,7 +15,7 @@
 #include "Null/NullAudioBackend.h"
 
 namespace carrot::audio {
-    std::unique_ptr<audio_backend_t> create_audio_backend()
+    std::unique_ptr<audio_backend_t> create_audio_backend() noexcept
     {
 #if defined(CARROT_PLATFORM_COCOA)
         return std::make_unique<apple_audio_backend_t>();

@@ -131,6 +131,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Audio/Voice/VoiceHandle.h
         src/Engine/Audio/Core/AudioEvent.h
         src/Engine/Audio/Core/AudioEventQueue.h
+        src/Engine/Audio/Streaming/AudioStream.h
+        src/Engine/Audio/Streaming/AudioRingBuffer.h
 )
 
 # ------------------------------------------------------------------------

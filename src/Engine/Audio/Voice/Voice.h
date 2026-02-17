@@ -13,6 +13,7 @@
 #include <chlm/Core.h>
 
 #include "VoiceHandle.h"
+#include "Audio/Streaming/AudioStream.h"
 
 namespace carrot::audio {
     /**
@@ -40,12 +41,15 @@ namespace carrot::audio {
     /**
      * @brief Type of audio source driving a voice.
      *
-     * This allows future expansion to streaming, synthesis, etc.
+     * This allows future expansion to synthesis, etc.
      */
     enum class voice_type : uint8_t
     {
         /** Sample-based playback using an audio_sample_t. */
         sample,
+
+        /** Streaming playback using an audio_stream_t. */
+        stream,
     };
 
     /**
@@ -116,6 +120,9 @@ namespace carrot::audio {
 
         /** Loop end frame (exclusive); 0 means end of sample. */
         uint32_t loop_end{ 0 };
+
+
+        const audio_stream_t* stream{ nullptr };
 
         /** Whether playback is temporarily paused. */
         bool paused{ false };

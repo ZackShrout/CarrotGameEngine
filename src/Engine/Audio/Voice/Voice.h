@@ -84,7 +84,8 @@ namespace carrot::audio {
         /**
          * Generation counter used to validate handles.
          *
-         * Incremented each time this voice slot is reused.
+         * Incremented each time this voice slot is reused to
+         * invalidate stale handles.
          */
         uint32_t generation{ 0 };
 
@@ -106,6 +107,10 @@ namespace carrot::audio {
         /** Reference distance for near-field attenuation. */
         float ref_distance{ 1.f };
 
+        // ---------------------------------------------------------------------
+        // Sample-based playback state
+        // ---------------------------------------------------------------------
+
         /** Audio sample backing this voice (if sample-based). */
         const audio_sample_t* sample{ nullptr };
 
@@ -121,8 +126,55 @@ namespace carrot::audio {
         /** Loop end frame (exclusive); 0 means end of sample. */
         uint32_t loop_end{ 0 };
 
+        // ---------------------------------------------------------------------
+        // Stream-based playback state
+        // ---------------------------------------------------------------------
 
-        const audio_stream_t* stream{ nullptr };
+        /** Audio stream backing this voice (if streaming). */
+        audio_stream_t* stream{ nullptr };
+
+        /**
+         * Local cache of decoded stream frames pulled from the ring buffer.
+         *
+         * Interleaved samples: frames * channels.
+         * Sized to one fixed stream chunk.
+         */
+        float stream_buffer[256 * 2]{ };
+
+        /**
+         * Number of valid frames currently stored in stream_buffer.
+         *
+         * This value is updated when new data is pulled from the stream
+         * ring buffer.
+         */
+        uint32_t stream_frames{ 0 };
+
+        /**
+         * Current frame cursor within stream_buffer.
+         *
+         * Advanced once per frame after all channels are consumed.
+         */
+        uint32_t stream_frame_cursor{ 0 };
+
+        /**
+         * Current channel cursor within the current stream frame.
+         *
+         * Allows channel-interleaved access without copying.
+         */
+        uint32_t stream_channel_cursor{ 0 };
+
+        /**
+         * Indicates that the voice has exhausted its local stream buffer
+         * and is waiting for more decoded data to arrive.
+         *
+         * While true, the voice does not advance its envelope or playback
+         * state, preventing underrun artifacts.
+         */
+        bool waiting_for_stream = false;
+
+        // ---------------------------------------------------------------------
+        // Common playback state
+        // ---------------------------------------------------------------------
 
         /** Whether playback is temporarily paused. */
         bool paused{ false };
@@ -178,6 +230,25 @@ namespace carrot::audio {
                 const uint32_t idx{ voice.sample_cursor++ * voice.sample->channels };
 
                 return voice.sample->data[idx];
+            }
+
+            case voice_type::stream:
+            {
+                if (voice.stream_frame_cursor >= voice.stream_frames)
+                    return 0.0f;
+
+                const uint32_t idx{ voice.stream_frame_cursor * voice.stream->channels + voice.stream_channel_cursor };
+                const float sample{ voice.stream_buffer[idx] };
+
+                voice.stream_channel_cursor++;
+
+                if (voice.stream_channel_cursor >= voice.stream->channels)
+                {
+                    voice.stream_channel_cursor = 0;
+                    voice.stream_frame_cursor++;
+                }
+
+                return sample;
             }
         }
 

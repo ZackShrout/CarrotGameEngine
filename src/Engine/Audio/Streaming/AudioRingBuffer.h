@@ -5,10 +5,18 @@
 
 #pragma once
 
+#include "Common/CommonHeaders.h"
+
 #include <cstdint>
 #include <atomic>
 
 namespace carrot::audio {
+    struct audio_ring_buffer_debug_t
+    {
+        std::atomic<uint64_t> total_written_frames{ 0 };
+        std::atomic<uint64_t> total_read_frames{ 0 };
+    };
+
     template<uint32_t capacity_frames, uint32_t max_channels>
     class audio_ring_buffer_t
     {
@@ -31,6 +39,8 @@ namespace carrot::audio {
         uint32_t available_read() const noexcept;
         uint32_t available_write() const noexcept;
 
+        audio_ring_buffer_debug_t debug;
+
     private:
         static uint32_t advance(uint32_t pos, uint32_t frames) noexcept;
         static uint32_t distance(uint32_t from, uint32_t to) noexcept;
@@ -50,18 +60,31 @@ namespace carrot::audio {
     template<uint32_t capacity_frames, uint32_t MaxChannels>
     uint32_t audio_ring_buffer_t<capacity_frames, MaxChannels>::write(const float* src, const uint32_t frames) noexcept
     {
+        debug.total_written_frames.fetch_add(frames, std::memory_order_relaxed);
+
         const uint32_t write_pos{ _write.load(std::memory_order_relaxed) };
         const uint32_t read_pos{ _read.load(std::memory_order_acquire) };
 
-        const uint32_t free_frames{ capacity_frames - distance(read_pos, write_pos) };
+        const uint32_t free_frames{ capacity_frames - 1 - distance(read_pos, write_pos) };
+        const uint32_t to_write{ std::min(frames, free_frames) };
 
-        const uint32_t to_write{ frames < free_frames ? frames : free_frames };
+        CE_ASSERT(distance(read_pos, write_pos) < capacity_frames);
+
         if (to_write == 0)
             return 0;
 
         write_frames(write_pos, src, to_write);
 
         _write.store(advance(write_pos, to_write), std::memory_order_release);
+
+        CE_ASSERT(
+            distance(_read.load(std::memory_order_acquire), _write.load(std::memory_order_acquire)) < capacity_frames);
+
+        if ((debug.total_written_frames.load() & 0x3FFF) == 0)
+        {
+            LOG_AUDIO_INFO("[RING WRITE] write={}, read={}, avail_read={}", _write.load(), _read.load(),
+                           available_read());
+        }
 
         return to_write;
     }
@@ -78,9 +101,22 @@ namespace carrot::audio {
         if (to_read == 0)
             return 0;
 
+        if (available > capacity_frames)
+        {
+            LOG_AUDIO_FATAL("Ring buffer corrupted: available={} capacity={}", available, capacity_frames);
+        }
+
         read_frames(read_pos, dst, to_read);
 
         _read.store(advance(read_pos, to_read), std::memory_order_release);
+
+        debug.total_read_frames.fetch_add(to_read, std::memory_order_relaxed);
+
+        if ((debug.total_read_frames.load() & 0x3FFF) == 0)
+        {
+            LOG_AUDIO_INFO("[RING READ] write={}, read={}, avail_read={}", _write.load(), _read.load(),
+                           available_read());
+        }
 
         return to_read;
     }
@@ -97,7 +133,7 @@ namespace carrot::audio {
     template<uint32_t capacity_frames, uint32_t max_channels>
     uint32_t audio_ring_buffer_t<capacity_frames, max_channels>::available_write() const noexcept
     {
-        return capacity_frames - available_read();
+        return capacity_frames - 1 - available_read();
     }
 
     // PRIVATE
@@ -121,7 +157,7 @@ namespace carrot::audio {
 
     template<uint32_t capacity_frames, uint32_t max_channels>
     void audio_ring_buffer_t<capacity_frames, max_channels>::write_frames(const uint32_t write_pos, const float* src,
-        const uint32_t frames) noexcept
+                                                                          const uint32_t frames) noexcept
     {
         const uint32_t first{ std::min(frames, capacity_frames - write_pos) };
         const uint32_t samples1{ first * _channels };
@@ -138,7 +174,7 @@ namespace carrot::audio {
 
     template<uint32_t capacity_frames, uint32_t max_channels>
     void audio_ring_buffer_t<capacity_frames, max_channels>::read_frames(const uint32_t read_pos, float* dst,
-        const uint32_t frames) noexcept
+                                                                         const uint32_t frames) noexcept
     {
         const uint32_t first{ std::min(frames, capacity_frames - read_pos) };
 

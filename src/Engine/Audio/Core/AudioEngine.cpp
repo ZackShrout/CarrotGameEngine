@@ -53,6 +53,28 @@ namespace carrot::audio {
 
         uint32_t index{ 0 };
 
+        for (auto& voice : _voices)
+        {
+            if (voice.state != voice_state::active)
+                continue;
+
+            if (voice.type == voice_type::stream)
+            {
+                if (voice.stream_frame_cursor >= voice.stream_frames)
+                {
+                    voice.stream_frames = voice.stream->buffer.read(voice.stream_buffer, 256);
+
+                    voice.stream_frame_cursor = 0;
+                    voice.stream_channel_cursor = 0;
+
+                    if (voice.stream_frames > 0)
+                        voice.waiting_for_stream = false;
+                    else
+                        voice.waiting_for_stream = true;
+                }
+            }
+        }
+
         for (uint32_t frame{ 0 }; frame < frame_count; ++frame)
         {
             ++_current_frame;
@@ -72,6 +94,12 @@ namespace carrot::audio {
 
                 if (voice.state == voice_state::idle)
                     continue;
+
+                if (voice.type == voice_type::stream && voice.waiting_for_stream)
+                {
+                    // No envelope advance, no state changes
+                    continue;
+                }
 
                 const float env{ envelope_tick(voice.envelope) };
 
@@ -190,9 +218,41 @@ namespace carrot::audio {
                     break;
                 }
 
+                case audio_command_type::play_stream:
+                {
+                    voice_t& voice{ _voices[cmd.play_stream.handle.index] };
+                    voice.generation++;
+                    voice.handle = cmd.play_stream.handle;
+                    voice.generation = cmd.play_stream.handle.generation;
+                    voice.type = voice_type::stream;
+                    voice.stream = cmd.play_stream.stream;
+
+                    voice.bus = cmd.play_stream.bus;
+                    voice.spatial = cmd.play_stream.spatial;
+
+                    voice.gain = cmd.play_stream.gain;
+                    voice.pan = cmd.play_stream.pan;
+
+                    voice.position = cmd.play_stream.position;
+                    voice.max_distance = cmd.play_stream.max_distance;
+                    voice.ref_distance = cmd.play_stream.min_distance;
+
+                    voice.looping = cmd.play_stream.looping;
+
+                    // Stream playback state
+                    voice.stream_frames = 0;
+                    voice.stream_frame_cursor = 0;
+                    voice.stream_channel_cursor = 0;
+                    voice.waiting_for_stream = false;
+
+                    activate_voice(voice);
+
+                    break;
+                }
+
                 case audio_command_type::stop_all:
                 {
-                    for (voice_t& v : _voices)
+                    for (voice_t& v: _voices)
                     {
                         if (v.state == voice_state::active)
                         {

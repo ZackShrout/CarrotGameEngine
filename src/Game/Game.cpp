@@ -15,7 +15,7 @@ namespace sandbox {
 
     void sandbox_t::start()
     {
-        handle = carrot::audio::play("music.victory");
+        // handle = carrot::audio::play("music.victory");
     }
 
     void sandbox_t::on_tick(const float delta_time)
@@ -33,20 +33,20 @@ namespace sandbox {
             LOG_CORE_INFO("Seconds: {}", seconds);
         }
 
-        if (seconds == 10)
-            carrot::audio::stop(handle);
-
-        if (seconds == 11 && !played)
-        {
-            handle = carrot::audio::play("music.victory");
-            played = true;
-        }
-
-        if (seconds == 16)
-            carrot::audio::pause(handle);
-
-        if (seconds == 21)
-            carrot::audio::resume(handle);
+        // if (seconds == 10)
+        //     carrot::audio::stop(handle);
+        //
+        // if (seconds == 11 && !played)
+        // {
+        //     handle = carrot::audio::play("music.victory");
+        //     played = true;
+        // }
+        //
+        // if (seconds == 16)
+        //     carrot::audio::pause(handle);
+        //
+        // if (seconds == 21)
+        //     carrot::audio::resume(handle);
     }
 
     void sandbox_t::on_key(const carrot::events::key_event_t& e)

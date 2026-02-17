@@ -133,6 +133,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Audio/Core/AudioEventQueue.h
         src/Engine/Audio/Streaming/AudioStream.h
         src/Engine/Audio/Streaming/AudioRingBuffer.h
+        src/Engine/Audio/Streaming/TestStreamDecoder.cpp
+        src/Engine/Audio/Streaming/TestStreamDecoder.h
 )
 
 # ------------------------------------------------------------------------

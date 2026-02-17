@@ -21,6 +21,9 @@ namespace carrot::audio {
      * from non-real-time code. Commands are enqueued on the engine thread and
      * consumed by the audio thread during rendering.
      *
+     * Commands are processed in FIFO order on the audio thread and applied
+     * at buffer render boundaries.
+     *
      * All commands must be:
      *  - trivially copyable
      *  - fixed-size
@@ -29,8 +32,11 @@ namespace carrot::audio {
      */
     enum class audio_command_type : uint8_t
     {
-        /** Create and begin playback of a new voice instance. */
+        /** Create and begin playback of a new sample-based voice instance. */
         play_sound,
+
+        /** Create and begin playback of a new streaming voice instance. */
+        play_stream,
 
         /** Stop all currently active voices. */
         stop_all,
@@ -74,26 +80,89 @@ namespace carrot::audio {
      */
     struct play_sound_cmd
     {
+        /** Audio sample to play (must remain valid for the voice lifetime). */
         const audio_sample_t* sample;
 
+        /** Target audio bus for mixing. */
         audio_bus_id bus;
+
+        /** Handle identifying the created voice instance. */
         voice_handle_t handle;
 
+        /** Spatialization mode for this voice. */
         spatial_mode spatial;
 
+        /** Linear gain applied to the voice. */
         float gain;
+
+        /** Playback pitch multiplier (1.0 = original pitch). */
         float pitch;
+
+        /** Stereo pan (-1 = left, 0 = center, +1 = right). */
         float pan;
 
+        /** Distance attenuation model. */
         distance_model distance;
+
+        /** Minimum audible distance for attenuation. */
         float min_distance;
+
+        /** Maximum audible distance for attenuation. */
         float max_distance;
 
+        /** World-space position for spatialized playback. */
         chlm::float3 position;
 
+        /** Whether the sample loops. */
         bool looping;
+
+        /** Loop start frame (inclusive). */
         uint32_t loop_start;
+
+        /** Loop end frame (exclusive); 0 means end of sample. */
         uint32_t loop_end;
+    };
+
+    /**
+     * @brief Command data for creating and starting a streaming voice instance.
+     *
+     * Streaming voices pull decoded audio data incrementally from an
+     * audio_stream_t via a lock-free ring buffer.
+     */
+    struct play_stream_cmd
+    {
+        /** Audio stream providing decoded samples. */
+        audio_stream_t* stream;
+
+        /** Target audio bus for mixing. */
+        audio_bus_id bus;
+
+        /** Handle identifying the created voice instance. */
+        voice_handle_t handle;
+
+        /** Spatialization mode for this voice. */
+        spatial_mode spatial;
+
+        /** Linear gain applied to the voice. */
+        float gain;
+
+        /** Stereo pan (-1 = left, 0 = center, +1 = right). */
+        float pan;
+
+        /** Distance attenuation model. */
+        distance_model distance;
+
+        /** Minimum audible distance for attenuation. */
+        float min_distance;
+
+        /** Maximum audible distance for attenuation. */
+        float max_distance;
+
+        /** World-space position for spatialized playback. */
+        chlm::float3 position;
+
+        /** Whether the stream should loop when it reaches end-of-data. */
+        bool looping;
     };
 
     /**
@@ -216,6 +285,7 @@ namespace carrot::audio {
         union
         {
             play_sound_cmd play_sound;
+            play_stream_cmd play_stream;
             stop_all_cmd stop_all;
             pause_voice_cmd pause_voice;
             resume_voice_cmd resume_voice;

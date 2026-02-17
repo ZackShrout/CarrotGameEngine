@@ -191,8 +191,23 @@ namespace carrot::audio {
                 }
 
                 case audio_command_type::stop_all:
-                    // no-op
+                {
+                    for (voice_t& v : _voices)
+                    {
+                        if (v.state == voice_state::active)
+                        {
+                            envelope_note_off(v.envelope, static_cast<float>(_clock->sample_rate()),
+                                              k_default_env.release_seconds);
+
+                            v.state = voice_state::releasing;
+
+                            // Unpause so release can run
+                            v.paused = false;
+                        }
+                    }
+
                     break;
+                }
 
                 case audio_command_type::pause_voice:
                 {
@@ -220,10 +235,10 @@ namespace carrot::audio {
                                               k_default_env.release_seconds);
 
                             v->state = voice_state::releasing;
-                        }
 
-                        // Unpause so release can run
-                        v->paused = false;
+                            // Unpause so release can run
+                            v->paused = false;
+                        }
                     }
                     break;
                 }

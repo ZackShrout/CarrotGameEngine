@@ -97,6 +97,15 @@ namespace carrot::audio {
     };
 
     /**
+     * @brief Command data for stopping all voice instances.
+     *
+     * Stopping a voice initiates envelope release and eventual destruction.
+     *
+     * @note Empty struct
+     */
+    struct stop_all_cmd {};
+
+    /**
      * @brief Command data for pausing a voice instance.
      */
     struct pause_voice_cmd
@@ -207,6 +216,7 @@ namespace carrot::audio {
         union
         {
             play_sound_cmd play_sound;
+            stop_all_cmd stop_all;
             pause_voice_cmd pause_voice;
             resume_voice_cmd resume_voice;
             stop_voice_cmd stop_voice;

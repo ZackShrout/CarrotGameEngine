@@ -5,54 +5,11 @@
 
 #include "WavLoader.h"
 
+#include "WavCore.h"
+
 #include <cstdio>
-#include <cstdlib>
-#include <cstring>
 
 namespace carrot::audio {
-    namespace {
-        struct riff_header_t
-        {
-            char id[4]; // "RIFF"
-            uint32_t size;
-            char format[4]; // "WAVE"
-        };
-
-        struct chunk_header_t
-        {
-            char id[4];
-            uint32_t size;
-        };
-
-        struct fmt_chunk_t
-        {
-            uint16_t audio_format; // 1 = PCM, 3 = IEEE float
-            uint16_t num_channels;
-            uint32_t sample_rate;
-            uint32_t byte_rate;
-            uint16_t block_align;
-            uint16_t bits_per_sample;
-        };
-
-        bool id_equals(const char id[4], const char* str)
-        {
-            return std::memcmp(id, str, 4) == 0;
-        }
-
-        float pcm24_to_float(const uint8_t* p)
-        {
-            // Assemble signed 24-bit little-endian
-            int32_t v{ p[0] | p[1] << 8 | p[2] << 16 };
-
-            // Sign extend
-            if (v & 0x00800000)
-                v |= 0xFF000000;
-
-            // Normalize
-            return static_cast<float>(v) / 8388608.0f;
-        }
-    } // anonymous namespace
-
     audio_sample_t* load_wav_file(std::string_view path)
     {
         FILE* file{ std::fopen(path.data(), "rb") };

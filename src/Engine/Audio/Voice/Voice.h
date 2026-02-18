@@ -237,9 +237,13 @@ namespace carrot::audio {
                 if (voice.stream_frame_cursor >= voice.stream_frames)
                     return 0.0f;
 
-                const uint32_t idx{ voice.stream_frame_cursor * voice.stream->channels + voice.stream_channel_cursor };
-                const float sample{ voice.stream_buffer[idx] };
+                const uint32_t idx =
+                        voice.stream_frame_cursor * voice.stream->channels +
+                        voice.stream_channel_cursor;
 
+                float sample = voice.stream_buffer[idx];
+
+                // Advance channel first
                 voice.stream_channel_cursor++;
 
                 if (voice.stream_channel_cursor >= voice.stream->channels)

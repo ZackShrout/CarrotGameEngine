@@ -53,6 +53,8 @@ namespace carrot::audio {
             _fmt.bits_per_sample == 24 ||
             _fmt.bits_per_sample == 32);
 
+        LOG_AUDIO_INFO("WAV file reports sample rate {} HZ in format chunk", _fmt.sample_rate);
+
         _stream = stream;
         _stream->channels = _fmt.num_channels;
         _stream->sample_rate = _fmt.sample_rate;

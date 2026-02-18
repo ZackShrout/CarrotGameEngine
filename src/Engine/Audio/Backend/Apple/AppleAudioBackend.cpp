@@ -7,6 +7,8 @@
 
 #include "Common/CommonHeaders.h"
 
+#include <AudioToolbox/AudioToolbox.h>
+
 namespace carrot::audio {
     // PUBLIC
 
@@ -83,6 +85,22 @@ namespace carrot::audio {
         {
             LOG_AUDIO_FATAL("Failed to initialize AudioUnit");
             return false;
+        }
+
+        Float64 auRate = 0.0;
+        UInt32 size = sizeof(auRate);
+        OSStatus rateErr = AudioUnitGetProperty(_audio_unit,
+                                                kAudioUnitProperty_SampleRate,
+                                                kAudioUnitScope_Output,  // Try Output first (hardware side)
+                                                0,
+                                                &auRate,
+                                                &size);
+
+        if (rateErr == noErr && auRate > 0.0) {
+            LOG_AUDIO_INFO("Requested sample rate: {:.0f} Hz. Effective AudioUnit / hardware sample rate: {:.0f} Hz", format.mSampleRate, auRate);
+        } else {
+            LOG_AUDIO_WARN("Couldn't get AU sample rate (OSStatus {}), falling back to requested {}", rateErr, _sample_rate);
+            // Use _sample_rate as fallback
         }
 
         LOG_AUDIO_INFO("Apple Audio Backend initialized successfully");

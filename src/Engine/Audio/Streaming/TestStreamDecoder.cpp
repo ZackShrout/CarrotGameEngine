@@ -44,7 +44,7 @@ namespace carrot::audio {
     void test_stream_decoder_t::thread_main() noexcept
     {
         constexpr uint32_t frames_per_chunk = 256;
-        constexpr float frequency = 220.0f; // lower = less painful 😄
+        constexpr float frequency = 440.0f;
 
         float phase = 0.0f;
         const float phase_inc =

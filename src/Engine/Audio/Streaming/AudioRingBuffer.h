@@ -26,6 +26,9 @@ namespace carrot::audio {
             CE_ASSERT(channels > 0 && channels <= max_channels);
 
             _channels = channels;
+
+            LOG_AUDIO_INFO("Ring buffer initialized: capacity={}, channels={}", capacity_frames, channels);
+
             _write.store(0, std::memory_order_relaxed);
             _read.store(0, std::memory_order_relaxed);
         }
@@ -82,8 +85,8 @@ namespace carrot::audio {
 
         if ((debug.total_written_frames.load() & 0x3FFF) == 0)
         {
-            LOG_AUDIO_INFO("[RING WRITE] write={}, read={}, avail_read={}", _write.load(), _read.load(),
-                           available_read());
+            // LOG_AUDIO_INFO("[RING WRITE] write={}, read={}, avail_read={}", _write.load(), _read.load(),
+            //                available_read());
         }
 
         return to_write;
@@ -114,8 +117,8 @@ namespace carrot::audio {
 
         if ((debug.total_read_frames.load() & 0x3FFF) == 0)
         {
-            LOG_AUDIO_INFO("[RING READ] write={}, read={}, avail_read={}", _write.load(), _read.load(),
-                           available_read());
+            // LOG_AUDIO_INFO("[RING READ] write={}, read={}, avail_read={}", _write.load(), _read.load(),
+            //                available_read());
         }
 
         return to_read;

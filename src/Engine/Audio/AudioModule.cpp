@@ -7,6 +7,7 @@
 
 #include "Audio/Backend/AudioBackend.h"
 #include "Audio/Core/AudioEngine.h"
+#include "Streaming/TestStreamDecoder.h"
 #include "Streaming/WavStreamDecoder.h"
 #include "Utils/File/FileUtils.h"
 

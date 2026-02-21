@@ -139,7 +139,8 @@ namespace carrot::audio {
          * Interleaved samples: frames * channels.
          * Sized to one fixed stream chunk.
          */
-        float stream_buffer[256 * 2]{ };
+        // float stream_buffer[256 * 2]{ };
+        float stream_buffer[1024 * 2]{ };
 
         /**
          * Number of valid frames currently stored in stream_buffer.
@@ -237,20 +238,18 @@ namespace carrot::audio {
                 if (voice.stream_frame_cursor >= voice.stream_frames)
                     return 0.0f;
 
-                const uint32_t idx =
-                        voice.stream_frame_cursor * voice.stream->channels +
-                        voice.stream_channel_cursor;
+                // Always read left channel (channel 0) — for now
+                // Will later make this channel-aware when we render per-channel
+                const uint32_t idx{ voice.stream_frame_cursor * voice.stream->channels + 0 };
 
-                float sample = voice.stream_buffer[idx];
+                const float sample{ voice.stream_buffer[idx] };
 
-                // Advance channel first
-                voice.stream_channel_cursor++;
+                // === Advance the full frame now (critical) ===
+                voice.stream_frame_cursor++;
+                voice.stream_channel_cursor = 0;  // just housekeeping, can remove later
 
-                if (voice.stream_channel_cursor >= voice.stream->channels)
-                {
-                    voice.stream_channel_cursor = 0;
-                    voice.stream_frame_cursor++;
-                }
+                // LOG_AUDIO_INFO("Stream: {} Hz, Engine: {} Hz  cursor={}/{}", voice.stream->sample_rate, sample_rate,
+                //                voice.stream_frame_cursor, voice.stream_frames);
 
                 return sample;
             }

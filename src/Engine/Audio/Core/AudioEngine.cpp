@@ -53,6 +53,8 @@ namespace carrot::audio {
 
         uint32_t index{ 0 };
 
+        // LOG_AUDIO_INFO("callback frames={}, block_size={}", frame_count, _clock->block_size());
+
         for (auto& voice : _voices)
         {
             if (voice.state != voice_state::active)
@@ -62,7 +64,8 @@ namespace carrot::audio {
             {
                 if (voice.stream_frame_cursor >= voice.stream_frames)
                 {
-                    voice.stream_frames = voice.stream->buffer.read(voice.stream_buffer, 256);
+                    // voice.stream_frames = voice.stream->buffer.read(voice.stream_buffer, 256);
+                    voice.stream_frames = voice.stream->buffer.read(voice.stream_buffer, 1024);
 
                     voice.stream_frame_cursor = 0;
                     voice.stream_channel_cursor = 0;

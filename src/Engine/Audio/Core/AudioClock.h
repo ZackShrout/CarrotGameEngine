@@ -62,9 +62,10 @@ namespace carrot::audio {
          * Advancing the clock is a constant-time operation and performs
          * no validation or synchronization.
          */
-        void advance() noexcept
+        void advance(uint32_t frames) noexcept
         {
-            _frame_index += _block_size;
+            // _frame_index += _block_size;
+            _frame_index += frames;
         }
 
         /**

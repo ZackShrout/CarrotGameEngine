@@ -48,7 +48,7 @@ namespace carrot::audio {
     void audio_engine_t::render(float* output, const uint32_t frame_count, const uint32_t channel_count) noexcept
     {
         consume_commands();
-        _clock->advance();
+        _clock->advance(frame_count);
         _mixer.clear(frame_count);
 
         uint32_t index{ 0 };

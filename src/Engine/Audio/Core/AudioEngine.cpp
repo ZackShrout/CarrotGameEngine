@@ -64,8 +64,7 @@ namespace carrot::audio {
             {
                 if (voice.stream_frame_cursor >= voice.stream_frames)
                 {
-                    // voice.stream_frames = voice.stream->buffer.read(voice.stream_buffer, 256);
-                    voice.stream_frames = voice.stream->buffer.read(voice.stream_buffer, 1024);
+                    voice.stream_frames = voice.stream->buffer.read(voice.stream_buffer, k_stream_chunk_frames);
 
                     voice.stream_frame_cursor = 0;
                     voice.stream_channel_cursor = 0;

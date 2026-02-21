@@ -139,8 +139,7 @@ namespace carrot::audio {
          * Interleaved samples: frames * channels.
          * Sized to one fixed stream chunk.
          */
-        // float stream_buffer[256 * 2]{ };
-        float stream_buffer[1024 * 2]{ };
+        float stream_buffer[k_stream_chunk_frames * 2]{ };
 
         /**
          * Number of valid frames currently stored in stream_buffer.
@@ -171,7 +170,7 @@ namespace carrot::audio {
          * While true, the voice does not advance its envelope or playback
          * state, preventing underrun artifacts.
          */
-        bool waiting_for_stream = false;
+        bool waiting_for_stream{ false };
 
         // ---------------------------------------------------------------------
         // Common playback state

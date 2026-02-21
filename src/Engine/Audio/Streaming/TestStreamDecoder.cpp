@@ -84,8 +84,8 @@ namespace carrot::audio {
                 }
 
                 phase += phase_inc;
-                if (phase >= 2.0f * M_PI)
-                    phase -= 2.0f * M_PI;
+                if (phase >= 2.0f * chlm::pi)
+                    phase -= 2.0f * chlm::pi;
 
 
 

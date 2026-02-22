@@ -33,28 +33,61 @@ namespace carrot::audio {
         voice_handle_t handle{ audio.allocate_voice_handle() };
 
         audio_command_t cmd{ };
-        cmd.type = audio_command_type::play_sound;
-        cmd.play_sound.handle = handle;
 
-        // ── Sample / Routing ─────────────────────
-        cmd.play_sound.sample = asset.sample;
-        cmd.play_sound.bus = asset.bus;
+        const float gain{ apply_variance(asset.gain * params.gain, asset.gain_variance) };
+        const float pitch{ apply_variance(asset.pitch * params.pitch, asset.pitch_variance) };
+        const spatial_mode spatial{ params.override_spatial ? params.spatial_override : asset.spatial };
+        const float pan{ params.pan != 0.0f ? params.pan : asset.pan };
 
-        // ── Gain / Pitch ─────────────────────────
-        cmd.play_sound.gain = apply_variance(asset.gain * params.gain, asset.gain_variance);
-        cmd.play_sound.pitch = apply_variance(asset.pitch * params.pitch, asset.pitch_variance);
+        if (!asset.streamed)
+        {
+            // ── Sample-based voice ──────────────────
+            cmd.type = audio_command_type::play_sound;
+            cmd.play_sound.handle = handle;
 
-        // ── Spatial ──────────────────────────────
-        cmd.play_sound.spatial = params.override_spatial ? params.spatial_override : asset.spatial;
-        cmd.play_sound.pan = params.pan != 0.0f ? params.pan : asset.pan;
-        cmd.play_sound.distance = asset.distance;
-        cmd.play_sound.min_distance = asset.min_distance;
-        cmd.play_sound.max_distance = asset.max_distance;
-        cmd.play_sound.position = params.position;
+            cmd.play_sound.sample = asset.sample;
+            cmd.play_sound.bus    = asset.bus;
 
-        cmd.play_sound.looping = asset.looping;
-        cmd.play_sound.loop_start = asset.loop_start;
-        cmd.play_sound.loop_end = asset.loop_end;
+            cmd.play_sound.gain   = gain;
+            cmd.play_sound.pitch  = pitch;
+
+            cmd.play_sound.spatial      = spatial;
+            cmd.play_sound.pan          = pan;
+            cmd.play_sound.distance     = asset.distance;
+            cmd.play_sound.min_distance = asset.min_distance;
+            cmd.play_sound.max_distance = asset.max_distance;
+            cmd.play_sound.position     = params.position;
+
+            cmd.play_sound.looping    = asset.looping;
+            cmd.play_sound.loop_start = asset.loop_start;
+            cmd.play_sound.loop_end   = asset.loop_end;
+        }
+        else
+        {
+            // ── Streaming voice ─────────────────────
+
+            audio_stream_t* stream = audio.create_stream_from_asset(asset);
+            if (!stream)
+            {
+                LOG_AUDIO_ERROR("Failed to create stream for asset '{}'",
+                                asset.file_path.string());
+                return voice_handle_t::invalid();
+            }
+
+            cmd.type = audio_command_type::play_stream;
+            cmd.play_stream.handle = handle;
+
+            cmd.play_stream.stream = stream;
+            cmd.play_stream.bus    = asset.bus;
+
+            cmd.play_stream.gain = gain;
+            cmd.play_stream.pan  = pan;
+
+            // For v1, streaming assets are treated as:
+            // - non-spatial (spatial_mode::none)
+            // - and let voice.stereo logic handle them
+            cmd.play_stream.looping = asset.looping;
+        }
 
         // ── Enqueue ──────────────────────────────
         audio.engine().enqueue_command(cmd);

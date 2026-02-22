@@ -14,6 +14,12 @@
 #include <memory>
 #include <thread>
 
+#include "Streaming/WavStreamDecoder.h"
+
+namespace carrot::assets {
+    struct audio_asset_t;
+}
+
 namespace carrot::audio {
     struct audio_backend_t;
     class audio_engine_t;
@@ -118,6 +124,8 @@ namespace carrot::audio {
          */
         void release_voice_handle(voice_handle_t handle) noexcept;
 
+        audio_stream_t* create_stream_from_asset(const assets::audio_asset_t& asset) noexcept;
+
         /**
          * @brief Accesses the audio engine instance.
          *
@@ -156,5 +164,8 @@ namespace carrot::audio {
 
         /** Indices of free voice slots available for reuse. */
         std::vector<uint32_t>                   _free_slots;
+
+        audio_stream_t                          _stream;
+        wav_stream_decoder_t                    _decoder;
     };
 } // namespace carrot::audio

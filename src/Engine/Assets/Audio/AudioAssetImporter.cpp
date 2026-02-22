@@ -34,11 +34,11 @@ namespace carrot::assets {
         // --------------------------------------------------
         // Resolve file path
         // --------------------------------------------------
-        std::string_view resolved_path{ utils::file::resolve_asset_path(file) };
+        std::filesystem::path resolved_path{ utils::file::resolve_asset_path_fs(file) };
 
         if (!std::filesystem::exists(resolved_path))
         {
-            LOG_ASSET_ERROR("Audio file not found '{}'", resolved_path);
+            LOG_ASSET_ERROR("Audio file not found '{}'", resolved_path.string());
             return false;
         }
 
@@ -50,11 +50,11 @@ namespace carrot::assets {
 
         if (!streamed)
         {
-            sample = audio::load_wav_file(resolved_path);
+            sample = audio::load_wav_file(resolved_path.string());
 
             if (!sample)
             {
-                LOG_ASSET_ERROR("Failed to load sample '{}'", resolved_path);
+                LOG_ASSET_ERROR("Failed to load sample '{}'", resolved_path.string());
                 return false;
             }
         }
@@ -62,31 +62,33 @@ namespace carrot::assets {
         // --------------------------------------------------
         // Construct asset
         // --------------------------------------------------
-        audio_asset_t asset{};
+
+        audio_asset_t asset{ };
         asset.sample = sample;
         asset.streamed = streamed;
+        asset.file_path = std::move(resolved_path);
 
-        asset.bus = audio::audio_bus_id_from_string(root.get_string_or("bus", "sfx")) ==
-                    audio::audio_bus_id::unknown
-                        ? audio::audio_bus_id::sfx
-                        : asset.bus;
+        const audio::audio_bus_id bus_id{ audio::audio_bus_id_from_string(root.get_string_or("bus", "sfx")) };
 
+        const audio::spatial_mode spatial_mode{
+            audio::spatial_mode_from_string(root.get_string_or("spatial", "none"))
+        };
+
+        const audio::distance_model distance_model{
+            audio::distance_model_from_string(root.get_string_or("distance", "none"))
+        };
+
+        asset.bus = bus_id == audio::audio_bus_id::unknown ? audio::audio_bus_id::sfx : bus_id;
         asset.gain = static_cast<float>(root.get_number_or("gain", 1.f));
         asset.pitch = static_cast<float>(root.get_number_or("pitch", 1.f));
         asset.gain_variance = static_cast<float>(root.get_number_or("gain_variance", 0.f));
         asset.pitch_variance = static_cast<float>(root.get_number_or("pitch_variance", 0.f));
-
-        asset.spatial = audio::spatial_mode_from_string(root.get_string_or("spatial", "none")) ==
-                        audio::spatial_mode::unknown
-                            ? audio::spatial_mode::none
-                            : asset.spatial;
-
+        asset.spatial = spatial_mode == audio::spatial_mode::unknown ? audio::spatial_mode::none : spatial_mode;
         asset.pan = static_cast<float>(root.get_number_or("pan", 0.f));
 
-        asset.distance = audio::distance_model_from_string(root.get_string_or("distance", "none")) ==
-                         audio::distance_model::unknown
+        asset.distance = distance_model == audio::distance_model::unknown
                              ? audio::distance_model::none
-                             : asset.distance;
+                             : distance_model;
 
         asset.min_distance = static_cast<float>(root.get_number_or("min_distance", 1.0f));
         asset.max_distance = static_cast<float>(root.get_number_or("max_distance", 50.0f));

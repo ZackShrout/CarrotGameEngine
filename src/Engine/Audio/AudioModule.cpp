@@ -5,6 +5,7 @@
 
 #include "AudioModule.h"
 
+#include "Assets/Audio/AudioAsset.h"
 #include "Audio/Backend/AudioBackend.h"
 #include "Audio/Core/AudioEngine.h"
 #include "Streaming/TestStreamDecoder.h"
@@ -47,25 +48,6 @@ namespace carrot::audio {
         _clock.init(_backend->sample_rate(), _backend->block_size());
         _engine->init(&_clock, _backend->channel_count());
         _backend->start();
-
-        // Begin audio stream test
-        init_audio_stream(test_stream, 2, 48000);
-        std::string_view file{ utils::file::resolve_asset_path("assets/audio/Jalen's Theme.wav") };
-        decoder.open(file, &test_stream);
-        decoder.start();
-
-        audio_command_t cmd{};
-        cmd.type = audio_command_type::play_stream;
-        cmd.play_stream.handle = allocate_voice_handle();
-
-        cmd.play_stream.stream = &test_stream;
-        cmd.play_stream.bus = audio_bus_id::sfx;
-        cmd.play_stream.gain = 1.f;
-        cmd.play_stream.pan  = 0.0f;
-        cmd.play_stream.looping = false;
-
-        _engine->enqueue_command(cmd);
-        // End audio stream test
 
         _is_initialized = true;
     }
@@ -139,5 +121,21 @@ namespace carrot::audio {
         slot.active = false;
         slot.generation++;
         _free_slots.push_back(handle.index);
+    }
+
+    audio_stream_t* audio_module_t::create_stream_from_asset(const assets::audio_asset_t& asset) noexcept
+    {
+        // For now, assume stereo & backend sample rate.
+        constexpr uint32_t channels{ 2 }; // or probe from decoder if you like
+        const uint32_t sample_rate{ _backend->sample_rate() }; // or from file
+
+        init_audio_stream(_stream, channels, sample_rate);
+
+        if (!_decoder.open(asset.file_path.string(), &_stream))
+            return nullptr;
+
+        _decoder.start();
+
+        return &_stream;
     }
 } // namespace carrot::audio

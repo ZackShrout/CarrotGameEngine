@@ -10,6 +10,8 @@
 #include "Audio/Sample/AudioSample.h"
 #include "Audio/Mixer/AudioBus.h"
 
+#include <filesystem>
+
 namespace carrot::assets {
     /**
      * @brief Declarative description of how an audio asset behaves when played.
@@ -21,6 +23,9 @@ namespace carrot::assets {
     {
         /** @brief PCM audio sample used for playback. */
         const audio::audio_sample_t* sample{ nullptr };
+
+        /** @brief Normalized, resolved path to the source audio file. */
+        std::filesystem::path file_path;
 
         /** @brief Output bus the sound is routed to. */
         audio::audio_bus_id bus{ audio::audio_bus_id::sfx };

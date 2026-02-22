@@ -1,0 +1,14 @@
+{
+  "id": "music.jalen_theme",
+  "file": "assets/audio/Jalen's Theme.wav",
+
+  "bus": "music",
+  "gain": 1.0,
+
+  "looping": true,
+  "loop_start": 0,
+  "loop_end": 0,
+
+  "spatial": "none",
+  "streamed": true
+}

@@ -352,7 +352,6 @@ namespace carrot::audio {
                 // Advance full frame
                 voice.stream_frame_cursor++;
                 voice.stream_channel_cursor = 0; // still housekeeping
-                return;
             }
         }
     }

@@ -66,7 +66,6 @@ namespace carrot::audio {
                     audio_event_t evt{ };
                     evt.type = audio_event_type::voice_finished;
                     evt.handle = voice.handle;
-
                     _event_queue.push(evt);
 
                     voice.handle = voice_handle_t::invalid();
@@ -75,23 +74,13 @@ namespace carrot::audio {
                 if (voice.state == voice_state::idle)
                     continue;
 
-                const float env{ envelope_tick(voice.envelope) };
-
-                if (env <= 0.0f)
-                {
-                    voice.state = voice_state::idle;
-                    continue;
-                }
-
-                const float raw{ voice_next_sample(voice, _clock->sample_rate()) };
-
-                if (raw == 0.0f)
-                    continue;
+                const uint32_t src_channels{ voice_source_channels(voice) };
 
                 float distance_gain{ 1.f };
                 float spatial_pan{ 0.f };
 
-                if (voice.spatial != spatial_mode::none)
+                // Only spatialize mono sources
+                if (src_channels == 1 && voice.spatial != spatial_mode::none)
                 {
                     const float dx{ voice.position.x - _listener.position.x };
                     const float dy{ voice.position.y - _listener.position.y };
@@ -115,21 +104,57 @@ namespace carrot::audio {
                     }
                 }
 
-                float final_pan{ voice.pan };
+                const float env{ envelope_tick(voice.envelope) };
 
-                if (voice.spatial == spatial_mode::planar)
-                    final_pan += spatial_pan;
+                if (env <= 0.0f)
+                {
+                    voice.state = voice_state::idle;
+                    continue;
+                }
 
-                float pan_l{ 1.f };
-                float pan_r{ 1.f };
-                compute_pan_gains(final_pan, pan_l, pan_r);
-
-                const float sample{ raw * voice.gain * env * distance_gain };
                 float* bus{ _mixer.bus_buffer(voice.bus) };
 
-                // stereo output assumed for now
-                bus[index + 0] += sample * pan_l;
-                bus[index + 1] += sample * pan_r;
+                if (src_channels == 1)
+                {
+                    const float raw{ voice_next_sample(voice, _clock->sample_rate()) };
+
+                    if (raw == 0.0f)
+                        continue;
+
+                    float final_pan{ voice.pan };
+
+                    if (voice.spatial == spatial_mode::planar)
+                        final_pan += spatial_pan;
+
+                    float pan_l{ 1.f };
+                    float pan_r{ 1.f };
+                    compute_pan_gains(final_pan, pan_l, pan_r);
+
+                    const float sample{ raw * voice.gain * env * distance_gain };
+
+                    bus[index + 0] += sample * pan_l;
+                    bus[index + 1] += sample * pan_r;
+                }
+                else if (src_channels == 2)
+                {
+                    float raw_l{ 0.f };
+                    float raw_r{ 0.f };
+                    voice_next_stereo_frame(voice, raw_l, raw_r, _clock->sample_rate());
+
+                    if (raw_l == 0.0f && raw_r == 0.0f)
+                        continue;
+
+                    // NOTE: Distance gain is 1.f, as we only compute it for mono spatial voices above
+                    const float sample_gain{ voice.gain * env * distance_gain };
+
+                    bus[index + 0] += raw_l * sample_gain;
+                    bus[index + 1] += raw_r * sample_gain;
+                }
+                else
+                {
+                    // For now, ignore >2 channel content
+                    continue;
+                }
             }
 
             index += _channels;

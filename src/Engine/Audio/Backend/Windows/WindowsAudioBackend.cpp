@@ -29,7 +29,9 @@ namespace carrot::audio {
         WASAPI_CALL(CoInitializeEx(nullptr, COINIT_MULTITHREADED));
 
         IMMDeviceEnumerator* enumerator{ nullptr };
-        WASAPI_CALL(CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), reinterpret_cast<void **>(&enumerator)));
+        WASAPI_CALL(
+            CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator),
+                reinterpret_cast<void **>(&enumerator)));
 
         const HRESULT hr{ enumerator->GetDefaultAudioEndpoint(eRender, eConsole, &_device) };
         enumerator->Release();
@@ -119,40 +121,37 @@ namespace carrot::audio {
         CoUninitialize();
     }
 
-    void windows_audio_backend_t::audio_thread_proc() noexcept
+    void windows_audio_backend_t::audio_thread_proc() const noexcept
     {
         DWORD task_index{ 0 };
         const HANDLE mmcss{ AvSetMmThreadCharacteristicsA("Pro Audio", &task_index) };
 
         // Prime buffer
-        BYTE* data{ nullptr };
-        _render_client->GetBuffer(_buffer_frames, &data);
+        BYTE* primer_data{ nullptr };
+        _render_client->GetBuffer(_buffer_frames, &primer_data);
 
-        float* out{ reinterpret_cast<float*>(data) };
-
-        // Fill buffer from audio engine
-        _callback->render(out, _buffer_frames, _channels);
+        float* primer_out{ reinterpret_cast<float*>(primer_data) };
+        _callback->render(primer_out, _buffer_frames, _channels);
 
         _render_client->ReleaseBuffer(_buffer_frames, 0);
-
         _audio_client->Start();
 
         while (_running)
         {
             WaitForSingleObject(_buffer_event, INFINITE);
 
-            UINT32 padding = 0;
+            UINT32 padding{ 0 };
             _audio_client->GetCurrentPadding(&padding);
 
-            UINT32 frames_available = _buffer_frames - padding;
+            const UINT32 frames_available{ _buffer_frames - padding };
+
             if (frames_available == 0)
                 continue;
 
-            BYTE* data = nullptr;
+            BYTE* data{ nullptr };
             _render_client->GetBuffer(frames_available, &data);
 
-            float* out = reinterpret_cast<float*>(data);
-
+            float* out{ reinterpret_cast<float*>(data) };
             _callback->render(out, frames_available, _channels);
 
             _render_client->ReleaseBuffer(frames_available, 0);

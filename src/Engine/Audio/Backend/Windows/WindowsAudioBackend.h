@@ -27,7 +27,7 @@ namespace carrot::audio {
         uint32_t channel_count() const noexcept override { return _channels; }
 
     private:
-        void audio_thread_proc() noexcept;
+        void audio_thread_proc() const noexcept;
 
         audio_callback_t* _callback{ nullptr };
 

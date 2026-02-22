@@ -186,6 +186,19 @@ namespace carrot::audio {
         envelope_t envelope;
     };
 
+    inline uint32_t voice_source_channels(const voice_t& voice) noexcept
+    {
+        switch (voice.type)
+        {
+            case voice_type::sample:
+                return voice.sample ? voice.sample->channels : 1;
+            case voice_type::stream:
+                return voice.stream ? voice.stream->channels : 1;
+        }
+
+        return 1;
+    }
+
     /**
      * @brief Produces the next raw sample for a voice.
      *
@@ -272,5 +285,79 @@ namespace carrot::audio {
         }
 
         return 0.0f;
+    }
+
+    inline void voice_next_stereo_frame(voice_t& voice, float& out_l, float& out_r,
+                                        [[maybe_unused]] double sample_rate) noexcept
+    {
+        out_l = 0.0f;
+        out_r = 0.0f;
+
+        switch (voice.type)
+        {
+            case voice_type::sample:
+            {
+                CE_ASSERT(voice.sample && voice.sample->channels == 2,
+                          "voice_next_stereo_frame called on non-stereo sample voice");
+
+                if (voice.paused)
+                    return;
+
+                const uint32_t sample_end{
+                    voice.looping && voice.loop_end > 0 ? voice.loop_end : voice.sample->frame_count
+                };
+
+                if (voice.sample_cursor >= sample_end)
+                {
+                    if (voice.looping)
+                    {
+                        voice.sample_cursor = voice.loop_start;
+                    }
+                    else
+                    {
+                        voice.state = voice_state::releasing;
+                        return;
+                    }
+                }
+
+                const uint32_t base{ voice.sample_cursor++ * voice.sample->channels };
+
+                out_l = voice.sample->data[base + 0];
+                out_r = voice.sample->data[base + 1];
+                return;
+            }
+
+            case voice_type::stream:
+            {
+                CE_ASSERT(voice.stream && voice.stream->channels == 2,
+                          "voice_next_stereo_frame called on non-stereo stream voice");
+
+                if (voice.stream_frame_cursor >= voice.stream_frames)
+                {
+                    voice.stream_frames = voice.stream->buffer.read(voice.stream_buffer, k_stream_chunk_frames);
+                    voice.stream_frame_cursor = 0;
+
+                    if (voice.stream_frames == 0)
+                    {
+                        voice.waiting_for_stream = true;
+                        return; // out_l/out_r already 0
+                    }
+
+                    voice.waiting_for_stream = false;
+                }
+
+                const uint32_t base{
+                    voice.stream_frame_cursor * voice.stream->channels
+                };
+
+                out_l = voice.stream_buffer[base + 0];
+                out_r = voice.stream_buffer[base + 1];
+
+                // Advance full frame
+                voice.stream_frame_cursor++;
+                voice.stream_channel_cursor = 0; // still housekeeping
+                return;
+            }
+        }
     }
 } // namespace carrot::audio

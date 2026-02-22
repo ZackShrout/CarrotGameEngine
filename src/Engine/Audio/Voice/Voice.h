@@ -234,8 +234,25 @@ namespace carrot::audio {
 
             case voice_type::stream:
             {
+                // if (voice.stream_frame_cursor >= voice.stream_frames)
+                //     return 0.0f;
+
                 if (voice.stream_frame_cursor >= voice.stream_frames)
-                    return 0.0f;
+                {
+                    voice.stream_frames =
+                        voice.stream->buffer.read(voice.stream_buffer, k_stream_chunk_frames);
+
+                    voice.stream_frame_cursor = 0;
+
+                    if (voice.stream_frames == 0)
+                    {
+                        voice.waiting_for_stream = true;
+                        return 0.0f;
+                    }
+
+                    voice.waiting_for_stream = false;
+                }
+
 
                 // Always read left channel (channel 0) — for now
                 // Will later make this channel-aware when we render per-channel

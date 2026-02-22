@@ -217,6 +217,9 @@ elseif (WIN32)
             src/Engine/RHI/Backends/DirectX12/DirectX12CommandList.h
             src/Engine/RHI/Backends/DirectX12/DirectX12Fence.cpp
             src/Engine/RHI/Backends/DirectX12/DirectX12Fence.h
+
+            src/Engine/Audio/Backend/Windows/WindowsAudioBackend.cpp
+            src/Engine/Audio/Backend/Windows/WindowsAudioBackend.h
     )
 elseif (UNIX)
     # Define the cache variable with a proper default value right away.
@@ -428,7 +431,7 @@ elseif(WIN32)
 
     target_compile_definitions(CarrotEngine PUBLIC VK_USE_PLATFORM_WIN32_KHR)
 
-    target_link_libraries(CarrotEngine PRIVATE d3d12 dxgi dxguid)
+    target_link_libraries(CarrotEngine PRIVATE d3d12 dxgi dxguid ole32 avrt uuid)
     target_compile_definitions(CarrotEngine PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
 # ------------------------------------------------------------------------
 # Linux

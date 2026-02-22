@@ -54,17 +54,17 @@ namespace carrot::audio {
         }
 
         /**
-         * @brief Advances the clock by one audio block.
+         * @brief Increments the audio clock position by the number of frames processed
          *
-         * This function must be called exactly once by the audio engine
-         * after each successful audio processing callback.
+         * This function should be called exactly once at the end of each successful
+         * audio processing callback to keep the clock in sync with the audio stream.
          *
-         * Advancing the clock is a constant-time operation and performs
-         * no validation or synchronization.
+         * The operation is lock-free, constant-time and performs no validation.
+         *
+         * @param frames The actual number of frames rendered/processed in the current callback
          */
-        void advance(uint32_t frames) noexcept
+        void advance(const uint32_t frames) noexcept
         {
-            // _frame_index += _block_size;
             _frame_index += frames;
         }
 

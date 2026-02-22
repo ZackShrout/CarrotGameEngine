@@ -55,28 +55,6 @@ namespace carrot::audio {
 
         // LOG_AUDIO_INFO("callback frames={}, block_size={}", frame_count, _clock->block_size());
 
-        // for (auto& voice : _voices)
-        // {
-        //     if (voice.state != voice_state::active)
-        //         continue;
-        //
-        //     if (voice.type == voice_type::stream)
-        //     {
-        //         if (voice.stream_frame_cursor >= voice.stream_frames)
-        //         {
-        //             voice.stream_frames = voice.stream->buffer.read(voice.stream_buffer, k_stream_chunk_frames);
-        //
-        //             voice.stream_frame_cursor = 0;
-        //             voice.stream_channel_cursor = 0;
-        //
-        //             if (voice.stream_frames > 0)
-        //                 voice.waiting_for_stream = false;
-        //             else
-        //                 voice.waiting_for_stream = true;
-        //         }
-        //     }
-        // }
-
         for (uint32_t frame{ 0 }; frame < frame_count; ++frame)
         {
             ++_current_frame;
@@ -96,12 +74,6 @@ namespace carrot::audio {
 
                 if (voice.state == voice_state::idle)
                     continue;
-
-                // if (voice.type == voice_type::stream && voice.waiting_for_stream)
-                // {
-                //     // No envelope advance, no state changes
-                //     continue;
-                // }
 
                 const float env{ envelope_tick(voice.envelope) };
 

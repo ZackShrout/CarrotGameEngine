@@ -15,8 +15,8 @@ namespace sandbox {
 
     void sandbox_t::start()
     {
-        // handle = carrot::audio::play("music.victory");
-        handle = carrot::audio::play("music.jalen_theme");
+        handle = carrot::audio::play("music.victory");
+        // handle = carrot::audio::play("music.jalen_theme");
     }
 
     void sandbox_t::on_tick(const float delta_time)

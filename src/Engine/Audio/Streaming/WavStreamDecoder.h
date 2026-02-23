@@ -11,6 +11,12 @@
 #include <thread>
 
 namespace carrot::audio {
+#if defined(_WIN32)
+    using carrot_offset_t = __int64;
+#else
+    using carrot_offset_t = off_t; // typically 64-bit with _FILE_OFFSET_BITS=64
+#endif
+
     struct audio_stream_t;
 
     class wav_stream_decoder_t
@@ -32,6 +38,9 @@ namespace carrot::audio {
         audio_stream_t* _stream{ nullptr };
 
         fmt_chunk_t _fmt{ };
-        uint32_t _data_bytes_remaining{ 0 };
+        uint64_t _data_bytes_remaining{ 0 };
+
+        uint64_t _data_bytes_total{ 0 };
+        carrot_offset_t _data_start_offset{ 0 };
     };
 } // namespace carrot::audio

@@ -10,11 +10,9 @@
 #include "EngineConfig.h"
 #include "Audio/Backend/AudioBackend.h"
 #include "Audio/Core/AudioEngine.h"
+#include "Audio/Streaming/AudioStream.h"
 
 #include <memory>
-#include <thread>
-
-#include "Streaming/WavStreamDecoder.h"
 
 namespace carrot::assets {
     struct audio_asset_t;
@@ -124,6 +122,9 @@ namespace carrot::audio {
          */
         void release_voice_handle(voice_handle_t handle) noexcept;
 
+        audio_stream_t* allocate_stream() noexcept;
+        void free_stream(audio_stream_t* stream);
+
         audio_stream_t* create_stream_from_asset(const assets::audio_asset_t& asset) noexcept;
 
         /**
@@ -158,14 +159,13 @@ namespace carrot::audio {
             uint32_t generation{ 1 };
             bool active{ false };
         };
-
         /** All allocated voice slots. */
         std::vector<voice_slot_t>               _voice_slots;
 
         /** Indices of free voice slots available for reuse. */
         std::vector<uint32_t>                   _free_slots;
 
-        audio_stream_t                          _stream;
-        wav_stream_decoder_t                    _decoder;
+        std::vector<std::unique_ptr<audio_stream_t>>    _streams;
+        std::vector<uint32_t>                           _free_stream_indices;
     };
 } // namespace carrot::audio

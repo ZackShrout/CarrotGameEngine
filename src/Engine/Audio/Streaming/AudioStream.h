@@ -5,11 +5,13 @@
 
 #pragma once
 
+#include "WavStreamDecoder.h"
 #include "AudioRingBuffer.h"
 #include "Audio/Core/AudioCore.h"
 
 #include <atomic>
-#include <cstdint>
+
+#include "Audio/Voice/VoiceHandle.h"
 
 namespace carrot::audio {
     /**
@@ -32,6 +34,13 @@ namespace carrot::audio {
         uint32_t channels{ 0 };
         uint32_t sample_rate{ 0 };
 
+        wav_stream_decoder_t decoder;
+
+        bool active{ false };
+        bool looping{ false };
+
+        voice_handle_t owning_voice{ voice_handle_t::invalid() };
+
         /** True once the decoder has reached end-of-stream */
         std::atomic<bool> eof{ false };
     };
@@ -41,6 +50,7 @@ namespace carrot::audio {
         stream.channels = channels;
         stream.sample_rate = sample_rate;
         stream.eof.store(false, std::memory_order_relaxed);
+
         stream.buffer.init(channels);
     }
 } // namespace carrot::audio

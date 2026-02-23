@@ -221,7 +221,7 @@ namespace carrot::audio {
             case voice_type::sample:
             {
                 if (voice.paused)
-                    return 0.0f;
+                    return 0.f;
 
                 const uint32_t sample_end{
                     voice.looping && voice.loop_end > 0 ? voice.loop_end : voice.sample->frame_count
@@ -236,7 +236,7 @@ namespace carrot::audio {
                     else
                     {
                         voice.state = voice_state::releasing;
-                        return 0.0f;
+                        return 0.f;
                     }
                 }
 
@@ -256,8 +256,18 @@ namespace carrot::audio {
 
                     if (voice.stream_frames == 0)
                     {
+                        const bool eof{ voice.stream->eof.load(std::memory_order_acquire) };
+
+                        if (eof && !voice.stream->looping)
+                        {
+                            voice.waiting_for_stream = false;
+                            voice.state = voice_state::idle;
+
+                            return 0.f;
+                        }
+
                         voice.waiting_for_stream = true;
-                        return 0.0f;
+                        return 0.f;
                     }
 
                     voice.waiting_for_stream = false;
@@ -280,14 +290,14 @@ namespace carrot::audio {
             }
         }
 
-        return 0.0f;
+        return 0.f;
     }
 
     inline void voice_next_stereo_frame(voice_t& voice, float& out_l, float& out_r,
                                         [[maybe_unused]] double sample_rate) noexcept
     {
-        out_l = 0.0f;
-        out_r = 0.0f;
+        out_l = 0.f;
+        out_r = 0.f;
 
         switch (voice.type)
         {
@@ -335,8 +345,18 @@ namespace carrot::audio {
 
                     if (voice.stream_frames == 0)
                     {
+                        const bool eof{ voice.stream->eof.load(std::memory_order_acquire) };
+
+                        if (eof && !voice.stream->looping)
+                        {
+                            voice.waiting_for_stream = false;
+                            voice.state = voice_state::idle;
+
+                            return; // out_l/out_r already 0
+                        }
+
                         voice.waiting_for_stream = true;
-                        return; // out_l/out_r already 0
+                        return;
                     }
 
                     voice.waiting_for_stream = false;

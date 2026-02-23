@@ -60,5 +60,7 @@ namespace carrot::audio {
         {
             return { };
         }
+
+        friend constexpr bool operator==(const voice_handle_t& a, const voice_handle_t& b) noexcept = default;
     };
 }

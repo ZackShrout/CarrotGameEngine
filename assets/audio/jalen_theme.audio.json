@@ -5,7 +5,7 @@
   "bus": "music",
   "gain": 1.0,
 
-  "looping": true,
+  "looping": false,
   "loop_start": 0,
   "loop_end": 0,
 

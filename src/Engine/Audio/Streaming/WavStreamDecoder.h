@@ -5,13 +5,14 @@
 
 #pragma once
 
-#include "Audio/Streaming/AudioStream.h"
 #include "Audio/Sample/WavCore.h"
 
 #include <atomic>
 #include <thread>
 
 namespace carrot::audio {
+    struct audio_stream_t;
+
     class wav_stream_decoder_t
     {
     public:

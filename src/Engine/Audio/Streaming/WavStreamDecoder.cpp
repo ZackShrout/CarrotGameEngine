@@ -5,6 +5,8 @@
 
 #include "WavStreamDecoder.h"
 
+#include "AudioStream.h"
+
 namespace carrot::audio {
     bool wav_stream_decoder_t::open(std::string_view path, audio_stream_t* stream) noexcept
     {
@@ -129,7 +131,7 @@ namespace carrot::audio {
             const uint32_t frames_read =
                     bytes_to_read / bytes_per_frame;
 
-            // === CONVERSION (lifted directly from your loader) ===
+            // === CONVERSION ===
 
             if (_fmt.audio_format == 1 && _fmt.bits_per_sample == 16)
             {

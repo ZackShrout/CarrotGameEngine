@@ -74,6 +74,8 @@ namespace carrot::audio {
                 return voice_handle_t::invalid();
             }
 
+            stream->owning_voice = handle;
+
             cmd.type = audio_command_type::play_stream;
             cmd.play_stream.handle = handle;
 

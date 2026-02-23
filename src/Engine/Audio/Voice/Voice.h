@@ -220,6 +220,8 @@ namespace carrot::audio {
         {
             case voice_type::sample:
             {
+                if (!voice.sample) return 0.f;
+
                 if (voice.paused)
                     return 0.f;
 
@@ -247,6 +249,11 @@ namespace carrot::audio {
 
             case voice_type::stream:
             {
+                if (!voice.stream) return 0.f;
+
+                if (voice.paused)
+                    return 0.f;
+
                 if (voice.stream_frame_cursor >= voice.stream_frames)
                 {
                     voice.stream_frames =
@@ -303,6 +310,8 @@ namespace carrot::audio {
         {
             case voice_type::sample:
             {
+                if (!voice.sample) return;
+
                 CE_ASSERT(voice.sample && voice.sample->channels == 2,
                           "voice_next_stereo_frame called on non-stereo sample voice");
 
@@ -335,8 +344,13 @@ namespace carrot::audio {
 
             case voice_type::stream:
             {
+                if (!voice.stream) return;
+
                 CE_ASSERT(voice.stream && voice.stream->channels == 2,
                           "voice_next_stereo_frame called on non-stereo stream voice");
+
+                if (voice.paused)
+                    return; // out_l/out_r already 0
 
                 if (voice.stream_frame_cursor >= voice.stream_frames)
                 {

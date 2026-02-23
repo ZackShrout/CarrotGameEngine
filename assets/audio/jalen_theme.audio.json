@@ -5,8 +5,8 @@
   "bus": "music",
   "gain": 1.0,
 
-  "looping": false,
-  "loop_start": 0,
+  "looping": true,
+  "loop_start": 1,
   "loop_end": 0,
 
   "spatial": "none",

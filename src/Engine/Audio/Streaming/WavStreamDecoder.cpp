@@ -39,6 +39,8 @@ namespace carrot::audio {
             if (id_equals(chunk.id, "fmt "))
             {
                 std::fread(&_fmt, sizeof(_fmt), 1, _file);
+
+                // Skip any extra fmt bytes beyond the base struct
                 std::fseek(_file, static_cast<int32_t>(chunk.size - sizeof(_fmt)), SEEK_CUR);
 
                 found_fmt = true;
@@ -54,6 +56,7 @@ namespace carrot::audio {
             }
             else
             {
+                // Skip unsupported/unknown chunks
                 carrot_fseek(_file, chunk.size, SEEK_CUR);
             }
         }
@@ -62,9 +65,7 @@ namespace carrot::audio {
             return false;
 
         CE_ASSERT(_fmt.audio_format == 1 || _fmt.audio_format == 3);
-        CE_ASSERT(_fmt.bits_per_sample == 16 ||
-            _fmt.bits_per_sample == 24 ||
-            _fmt.bits_per_sample == 32);
+        CE_ASSERT(_fmt.bits_per_sample == 16 || _fmt.bits_per_sample == 24 || _fmt.bits_per_sample == 32);
 
         LOG_AUDIO_INFO("WAV file reports sample rate {} HZ in format chunk", _fmt.sample_rate);
 
@@ -90,10 +91,7 @@ namespace carrot::audio {
 
     void wav_stream_decoder_t::stop() noexcept
     {
-        if (!_running.exchange(false, std::memory_order_acq_rel))
-            return; // not running
-
-        if (_thread.joinable())
+        if (_running.exchange(false, std::memory_order_acq_rel) && _thread.joinable())
             _thread.join();
 
         if (_file)
@@ -108,7 +106,7 @@ namespace carrot::audio {
         constexpr uint32_t frames_per_chunk{ 256 };
 
         uint8_t raw[frames_per_chunk * 8]; // enough for 32-bit stereo
-        float decoded[frames_per_chunk * 2];
+        float decoded[frames_per_chunk * 2]; // interleaved stereo
 
         const uint32_t bytes_per_sample{ static_cast<uint32_t>(_fmt.bits_per_sample / 8) };
         const uint32_t bytes_per_frame{ bytes_per_sample * _fmt.num_channels };
@@ -122,41 +120,8 @@ namespace carrot::audio {
             // --- One-time loop region setup ---
             if (!loop_initialized)
             {
+                init_loop_region(bytes_per_frame);
                 loop_initialized = true;
-
-                if (_stream->looping && (_stream->loop_start > 0 || _stream->loop_end > 0))
-                {
-                    _use_loop_region = true;
-
-                    LOG_AUDIO_INFO("WAV file reports loop region {} - {}", _stream->loop_start, _stream->loop_end);
-
-                    const uint64_t total_frames{ _data_bytes_total / bytes_per_frame };
-                    const uint64_t loop_start_frame{ std::min<uint64_t>(_stream->loop_start, total_frames) };
-                    uint64_t loop_end_frame{
-                        std::min<uint64_t>(_stream->loop_end ? _stream->loop_end : total_frames, total_frames)
-                    };
-
-                    if (loop_end_frame < loop_start_frame)
-                        loop_end_frame = loop_start_frame;
-
-                    _loop_start_offset = _data_start_offset + static_cast<carrot_offset_t>(
-                                             loop_start_frame * bytes_per_frame);
-
-                    _loop_end_offset = _data_start_offset + static_cast<carrot_offset_t>(
-                                           loop_end_frame * bytes_per_frame);
-
-                    // We are *not yet* in the loop phase: we start from _data_start_offset
-                    _in_loop_phase = false;
-
-                    LOG_AUDIO_INFO("Loop region start offset: {}, end offset: {}", _loop_start_offset,
-                                   _loop_end_offset);
-                    LOG_AUDIO_INFO("Total data bytes: {}", _data_bytes_total);
-                }
-                else
-                {
-                    _use_loop_region = false;
-                    _in_loop_phase = false;
-                }
             }
 
             const uint32_t writable{ _stream->buffer.available_write() };
@@ -251,6 +216,37 @@ namespace carrot::audio {
 
             _stream->buffer.write(decoded, frames_read);
         }
+    }
+
+    void wav_stream_decoder_t::init_loop_region(const uint32_t bytes_per_frame) noexcept
+    {
+        if (!_stream->looping || (!_stream->loop_start && !_stream->loop_end))
+        {
+            _use_loop_region = false;
+            _in_loop_phase   = false;
+            return;
+        }
+
+        _use_loop_region = true;
+
+        const uint64_t total_frames{ _data_bytes_total / bytes_per_frame };
+        const uint64_t loop_start_frame{ std::min<uint64_t>(_stream->loop_start, total_frames) };
+
+        uint64_t loop_end_frame{
+            std::min<uint64_t>(_stream->loop_end ? _stream->loop_end : total_frames, total_frames)
+        };
+
+        if (loop_end_frame < loop_start_frame)
+            loop_end_frame = loop_start_frame;
+
+        _loop_start_offset = _data_start_offset + static_cast<carrot_offset_t>(
+                                 loop_start_frame * bytes_per_frame);
+
+        _loop_end_offset = _data_start_offset + static_cast<carrot_offset_t>(
+                               loop_end_frame * bytes_per_frame);
+
+        // Start outside the loop phase; initial pass may include pre-roll
+        _in_loop_phase = false;
     }
 
     void wav_stream_decoder_t::enter_loop_phase() noexcept

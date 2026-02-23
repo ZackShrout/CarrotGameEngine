@@ -30,6 +30,7 @@ namespace carrot::audio {
 
     private:
         void thread_main() noexcept;
+        void enter_loop_phase() noexcept;
 
         std::thread _thread;
         std::atomic<bool> _running{ false };
@@ -39,8 +40,12 @@ namespace carrot::audio {
 
         fmt_chunk_t _fmt{ };
         uint64_t _data_bytes_remaining{ 0 };
-
         uint64_t _data_bytes_total{ 0 };
         carrot_offset_t _data_start_offset{ 0 };
+
+        carrot_offset_t _loop_start_offset{ 0 };
+        carrot_offset_t _loop_end_offset{ 0 }; // one past last byte of loop region
+        bool _use_loop_region{ false };
+        bool _in_loop_phase{ false };
     };
 } // namespace carrot::audio

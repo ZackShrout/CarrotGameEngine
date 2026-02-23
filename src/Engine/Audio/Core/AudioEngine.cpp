@@ -243,6 +243,8 @@ namespace carrot::audio {
                         voice.stream->looping = cmd.play_stream.looping;
                         voice.stream->eof.store(false, std::memory_order_release);
                         voice.stream->owning_voice = cmd.play_stream.handle;
+                        voice.stream->loop_start = cmd.play_stream.loop_start;
+                        voice.stream->loop_end = cmd.play_stream.loop_end;
                     }
 
                     // Stream playback state

@@ -39,6 +39,12 @@ namespace carrot::audio {
         bool active{ false };
         bool looping{ false };
 
+        /** Loop start frame (inclusive). */
+        uint64_t loop_start{ 0 };
+
+        /** Loop end frame (exclusive); 0 means end of sample. */
+        uint64_t loop_end{ 0 };
+
         voice_handle_t owning_voice{ voice_handle_t::invalid() };
 
         /** True once the decoder has reached end-of-stream */

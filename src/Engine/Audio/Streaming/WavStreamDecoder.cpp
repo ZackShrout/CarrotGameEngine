@@ -113,9 +113,51 @@ namespace carrot::audio {
         const uint32_t bytes_per_sample{ static_cast<uint32_t>(_fmt.bits_per_sample / 8) };
         const uint32_t bytes_per_frame{ bytes_per_sample * _fmt.num_channels };
 
+        bool loop_initialized{ false };
+
         while (_running.load(std::memory_order_acquire))
         {
             if (!_stream) break;
+
+            // --- One-time loop region setup ---
+            if (!loop_initialized)
+            {
+                loop_initialized = true;
+
+                if (_stream->looping && (_stream->loop_start > 0 || _stream->loop_end > 0))
+                {
+                    _use_loop_region = true;
+
+                    LOG_AUDIO_INFO("WAV file reports loop region {} - {}", _stream->loop_start, _stream->loop_end);
+
+                    const uint64_t total_frames{ _data_bytes_total / bytes_per_frame };
+                    const uint64_t loop_start_frame{ std::min<uint64_t>(_stream->loop_start, total_frames) };
+                    uint64_t loop_end_frame{
+                        std::min<uint64_t>(_stream->loop_end ? _stream->loop_end : total_frames, total_frames)
+                    };
+
+                    if (loop_end_frame < loop_start_frame)
+                        loop_end_frame = loop_start_frame;
+
+                    _loop_start_offset = _data_start_offset + static_cast<carrot_offset_t>(
+                                             loop_start_frame * bytes_per_frame);
+
+                    _loop_end_offset = _data_start_offset + static_cast<carrot_offset_t>(
+                                           loop_end_frame * bytes_per_frame);
+
+                    // We are *not yet* in the loop phase: we start from _data_start_offset
+                    _in_loop_phase = false;
+
+                    LOG_AUDIO_INFO("Loop region start offset: {}, end offset: {}", _loop_start_offset,
+                                   _loop_end_offset);
+                    LOG_AUDIO_INFO("Total data bytes: {}", _data_bytes_total);
+                }
+                else
+                {
+                    _use_loop_region = false;
+                    _in_loop_phase = false;
+                }
+            }
 
             const uint32_t writable{ _stream->buffer.available_write() };
             if (writable == 0)
@@ -131,11 +173,20 @@ namespace carrot::audio {
             {
                 if (_stream->looping)
                 {
-                    // Rewind to the beginning of the data chunk
-                    carrot_fseek(_file, _data_start_offset, SEEK_SET);
-                    _data_bytes_remaining = _data_bytes_total;
+                    if (_use_loop_region)
+                    {
+                        // If we had a loop region but hit EOF before _loop_end_offset,
+                        // just wrap into the loop region proper.
+                        enter_loop_phase();
+                    }
+                    else
+                    {
+                        // Full-file loop case (no special region)
+                        carrot_fseek(_file, _data_start_offset, SEEK_SET);
+                        _data_bytes_remaining = _data_bytes_total;
+                        _in_loop_phase = true;
+                    }
 
-                    // Retry on the next loop iteration, don't mark EOF.
                     continue;
                 }
 
@@ -143,10 +194,35 @@ namespace carrot::audio {
                 break;
             }
 
-            std::fread(raw, bytes_to_read, 1, _file);
-            _data_bytes_remaining -= bytes_to_read;
+            // Compute current file position *before* this read:
+            const carrot_offset_t current_offset{
+                _data_start_offset + static_cast<carrot_offset_t>(_data_bytes_total - _data_bytes_remaining)
+            };
 
-            const uint32_t frames_read{ static_cast<uint32_t>(bytes_to_read / bytes_per_frame) };
+            // Clamp read size to not overshoot loop_end_offset when in loop mode
+            uint64_t clamped_bytes_to_read = bytes_to_read;
+
+            if (_use_loop_region)
+            {
+                const carrot_offset_t logical_loop_end{ _loop_end_offset };
+
+                const auto bytes_until_loop_end{ static_cast<uint64_t>(logical_loop_end - current_offset) };
+
+                if (bytes_until_loop_end < clamped_bytes_to_read)
+                    clamped_bytes_to_read = bytes_until_loop_end;
+            }
+
+            if (clamped_bytes_to_read == 0)
+            {
+                // Hit loop boundary exactly: wrap into loop region
+                enter_loop_phase();
+                continue;
+            }
+
+            std::fread(raw, clamped_bytes_to_read, 1, _file);
+            _data_bytes_remaining -= clamped_bytes_to_read;
+
+            const uint32_t frames_read{ static_cast<uint32_t>(clamped_bytes_to_read / bytes_per_frame) };
 
             // === CONVERSION ===
 
@@ -175,5 +251,21 @@ namespace carrot::audio {
 
             _stream->buffer.write(decoded, frames_read);
         }
+    }
+
+    void wav_stream_decoder_t::enter_loop_phase() noexcept
+    {
+        // NOTE: Function assumes we already have _loop_start_offset and _loop_end_offset computed.
+
+        carrot_fseek(_file, _loop_start_offset, SEEK_SET);
+
+        const uint64_t bytes_from_loop_start{ static_cast<uint64_t>(_loop_end_offset - _loop_start_offset) };
+
+        // Rebase logical data segment to the loop region
+        _data_start_offset = _loop_start_offset;
+        _data_bytes_total = bytes_from_loop_start;
+        _data_bytes_remaining = _data_bytes_total;
+
+        _in_loop_phase = true;
     }
 } // namespace carrot::audio

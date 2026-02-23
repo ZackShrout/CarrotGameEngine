@@ -89,6 +89,8 @@ namespace carrot::audio {
             // - non-spatial (spatial_mode::none)
             // - and let voice.stereo logic handle them
             cmd.play_stream.looping = asset.looping;
+            cmd.play_stream.loop_start = asset.loop_start;
+            cmd.play_stream.loop_end = asset.loop_end;
         }
 
         // ── Enqueue ──────────────────────────────

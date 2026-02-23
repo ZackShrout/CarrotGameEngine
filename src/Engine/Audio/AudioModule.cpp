@@ -195,6 +195,8 @@ namespace carrot::audio {
 
         init_audio_stream(*stream, channels, sample_rate);
         stream->looping = asset.looping;
+        stream->loop_start = asset.loop_start;
+        stream->loop_end = asset.loop_end;
 
         if (!stream->decoder.open(asset.file_path.string(), stream))
             return nullptr;

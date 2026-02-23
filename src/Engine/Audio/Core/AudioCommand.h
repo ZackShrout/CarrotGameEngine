@@ -161,8 +161,14 @@ namespace carrot::audio {
         /** World-space position for spatialized playback. */
         chlm::float3 position;
 
-        /** Whether the stream should loop when it reaches end-of-data. */
+        /** Whether the stream loops. */
         bool looping;
+
+        /** Loop start frame (inclusive). */
+        uint64_t loop_start;
+
+        /** Loop end frame (exclusive); 0 means end of sample. */
+        uint64_t loop_end;
     };
 
     /**

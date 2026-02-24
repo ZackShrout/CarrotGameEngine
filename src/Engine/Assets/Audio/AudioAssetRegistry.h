@@ -6,7 +6,7 @@
 #pragma once
 
 #include "AudioAsset.h"
-#include "Assets/AssetId.h"
+#include "Assets/AssetID.h"
 #include "Assets/AssetHandle.h"
 #include "Assets/AssetRegistry.h"
 

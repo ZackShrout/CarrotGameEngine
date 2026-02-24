@@ -6,7 +6,7 @@
 #pragma once
 
 #include "WavStreamDecoder.h"
-#include "AudioRingBuffer.h"
+#include "Audio/Core/AudioRingBuffer.h"
 #include "Audio/Core/AudioCore.h"
 
 #include <atomic>

@@ -5,8 +5,6 @@
 
 #include "AudioEngine.h"
 
-#include <chlm/CarrotHLM.h>
-
 #include "Audio/DSP/Pan.h"
 
 namespace carrot::audio {

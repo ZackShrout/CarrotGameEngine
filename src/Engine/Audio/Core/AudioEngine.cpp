@@ -440,59 +440,62 @@ namespace carrot::audio {
     void audio_engine_t::render_with_master_resampler(float* output, const uint32_t device_frames,
                                                       [[maybe_unused]] uint32_t device_channels) noexcept
     {
-        // Ensure we have enough engine frames in the master ring.
-        // Roughly: engine_frames_needed ≈ device_frames * (engine_rate / device_rate)
         const double ratio{ static_cast<double>(k_engine_sample_rate) / static_cast<double>(_device_sample_rate) };
 
-        const uint32_t approx_engine_needed{ static_cast<uint32_t>(std::ceil(device_frames * ratio)) + 8 };
-        // small safety margin
+        // How many engine frames do we need to generate `device_frames` at this ratio?
+        const uint32_t engine_frames_needed{ static_cast<uint32_t>(std::ceil(device_frames * ratio)) };
 
-        while (_master_ring.available_read() < approx_engine_needed)
+        // Ensure we have enough engine frames in the master ring.
+        while (_master_ring.available_read() < engine_frames_needed)
         {
-            // Mix a fixed block size at engine rate
             constexpr uint32_t k_engine_block{ 256 };
             mix_engine_frames(k_engine_block);
         }
 
-        // Pull a chunk of engine-rate master data into a temp buffer
-        // (we could resample directly from the ring, but a temp makes it simpler)
-        static constexpr uint32_t k_max_engine_chunk{ 2048 };
-        float engine_chunk[k_max_engine_chunk * 2];
+        // Pull exactly the needed engine frames into a temp buffer
+        float engine_chunk[engine_frames_needed * 2]; // stereo
 
-        const uint32_t available{ _master_ring.available_read() };
-        const uint32_t to_read{ std::min<uint32_t>(available, k_max_engine_chunk) };
-        const uint32_t engine_frames_read{ _master_ring.read(engine_chunk, to_read) };
+        const uint32_t engine_frames_read{ _master_ring.read(engine_chunk, engine_frames_needed) };
 
-        // Resample from engine_chunk → device output
+        // NOTE: This is paranoia, but if we ever fail to read enough, zero the output and bail.
+        if (engine_frames_read < engine_frames_needed)
+        {
+            const uint32_t total_samples{ device_frames * device_channels };
+
+            for (uint32_t i{ 0 }; i < total_samples; ++i)
+                output[i] = 0.0f;
+
+            return;
+        }
+
+        // Resample from engine_chunk -> device output
         resample_request_t req{ };
         req.data = engine_chunk;
         req.total_frames = engine_frames_read;
         req.channels = 2;
-        req.src_pos = _master_src_pos;
-        req.src_step = static_cast<double>(k_engine_sample_rate) / static_cast<double>(_device_sample_rate);
+        req.src_pos = 0.0; // IMPORTANT: per-callback local position
+        req.src_step = ratio; // src frames (engine) per dst frame (device)
         req.looping = false;
         req.loop.start = 0;
         req.loop.end = engine_frames_read;
 
-        for (uint32_t produced{ 0 }; produced < device_frames; ++produced)
+        for (uint32_t i{ 0 }; i < device_frames; ++i)
         {
             float l{ 0.f };
             float r{ 0.f };
 
             if (!resample_linear_frame(req, l, r))
             {
-                // Out of engine data in this chunk; fill tail with silence
-                output[produced * 2 + 0] = 0.f;
-                output[produced * 2 + 1] = 0.f;
+                // Shouldn't happen if engine_frames_needed math is correct,
+                // but we'll fail gracefully.
+                output[i * 2 + 0] = 0.f;
+                output[i * 2 + 1] = 0.f;
+
                 continue;
             }
 
-            output[produced * 2 + 0] = l;
-            output[produced * 2 + 1] = r;
+            output[i * 2 + 0] = l;
+            output[i * 2 + 1] = r;
         }
-
-        _master_src_pos = req.src_pos;
-
-        // No need to "slide" engine_chunk; we already slid the ring by reading.
     }
 } // namespace carrot::audio

@@ -29,13 +29,16 @@ namespace carrot::audio {
 
     // PUBLIC
 
-    void audio_engine_t::init(audio_clock_t* clock, const uint32_t channels) noexcept
+    void audio_engine_t::init(audio_clock_t* clock, const uint32_t channels, const uint32_t device_sample_rate) noexcept
     {
         _clock = clock;
         _channels = channels;
         _current_frame = 0;
+        _device_sample_rate = device_sample_rate;
 
         _mixer.init(clock->block_size(), channels);
+
+        _master_ring.init(channels);
     }
 
     void audio_engine_t::shutdown() noexcept
@@ -45,143 +48,35 @@ namespace carrot::audio {
         _channels = 0;
     }
 
-    void audio_engine_t::render(float* output, const uint32_t frame_count, const uint32_t channel_count) noexcept
+    void audio_engine_t::render(float* output, const uint32_t device_frame_count, const uint32_t channel_count) noexcept
     {
         consume_commands();
-        _clock->advance(frame_count);
-        _mixer.clear(frame_count);
 
-        uint32_t index{ 0 };
-
-        // LOG_AUDIO_INFO("callback frames={}, block_size={}", frame_count, _clock->block_size());
-
-        for (uint32_t frame{ 0 }; frame < frame_count; ++frame)
+        // Fast path: device sample rate & engine sample rate agree!
+        if (_device_sample_rate == k_engine_sample_rate)
         {
-            ++_current_frame;
-
-            for (auto& voice: _voices)
+            while (_master_ring.available_read() < device_frame_count)
             {
-                if (voice.state == voice_state::idle && voice.handle.is_valid())
-                {
-                    audio_event_t evt{ };
-                    evt.type = audio_event_type::voice_finished;
-                    evt.handle = voice.handle;
-                    _event_queue.push(evt);
-
-                    voice.handle = voice_handle_t::invalid();
-                }
-
-                if (voice.state == voice_state::idle)
-                    continue;
-
-                const uint32_t src_channels{ voice_source_channels(voice) };
-                //
-                // if (voice.type == voice_type::sample && voice.sample)
-                // {
-                //     static uint64_t debug_counter = 0;
-                //     if ((debug_counter++ % 4800) == 0) // every ~0.1s at 48k
-                //     {
-                //         LOG_AUDIO_INFO("Voice debug: src_pos={}, src_step={}, state={}, channels={}",
-                //                        voice.src_pos,
-                //                        voice.src_step,
-                //                        static_cast<int>(voice.state),
-                //                        src_channels);
-                //     }
-                // }
-
-                float distance_gain{ 1.f };
-                float spatial_pan{ 0.f };
-
-                // Only spatialize mono sources
-                if (src_channels == 1 && voice.spatial != spatial_mode::none)
-                {
-                    const float dx{ voice.position.x - _listener.position.x };
-                    const float dy{ voice.position.y - _listener.position.y };
-
-                    float dist_sq{ dx * dx + dy * dy };
-
-                    if (voice.spatial == spatial_mode::full_3d)
-                    {
-                        const float dz{ voice.position.z - _listener.position.z };
-                        dist_sq += dz * dz;
-                    }
-
-                    const float distance{ std::sqrt(dist_sq) };
-                    distance_gain = distance_attenuation(distance, voice.ref_distance, voice.max_distance);
-
-                    if (voice.spatial == spatial_mode::planar)
-                    {
-                        const float effective_distance{ std::max(distance, voice.ref_distance) };
-                        spatial_pan = dx / effective_distance;
-                        chlm::clamp(spatial_pan, -1.f, 1.f);
-                    }
-                }
-
-                const float env{ envelope_tick(voice.envelope) };
-
-                if (env <= 0.0f)
-                {
-                    voice.state = voice_state::idle;
-                    continue;
-                }
-
-                float* bus{ _mixer.bus_buffer(voice.bus) };
-
-                if (src_channels == 1)
-                {
-                    const float raw{ voice_next_sample(voice, _clock->sample_rate()) };
-
-                    if (raw == 0.0f)
-                        continue;
-
-                    float final_pan{ voice.pan };
-
-                    if (voice.spatial == spatial_mode::planar)
-                        final_pan += spatial_pan;
-
-                    float pan_l{ 1.f };
-                    float pan_r{ 1.f };
-                    compute_pan_gains(final_pan, pan_l, pan_r);
-
-                    const float sample{ raw * voice.gain * env * distance_gain };
-
-                    bus[index + 0] += sample * pan_l;
-                    bus[index + 1] += sample * pan_r;
-                }
-                else if (src_channels == 2)
-                {
-                    float raw_l{ 0.f };
-                    float raw_r{ 0.f };
-                    voice_next_stereo_frame(voice, raw_l, raw_r, _clock->sample_rate());
-
-                    if (raw_l == 0.0f && raw_r == 0.0f)
-                        continue;
-
-                    // NOTE: Distance gain is 1.f, as we only compute it for mono spatial voices above
-                    const float sample_gain{ voice.gain * env * distance_gain };
-
-                    bus[index + 0] += raw_l * sample_gain;
-                    bus[index + 1] += raw_r * sample_gain;
-                }
-                else
-                {
-                    // For now, ignore >2 channel content
-                    continue;
-                }
+                constexpr uint32_t k_engine_chunk{ 256 };
+                mix_engine_frames(k_engine_chunk);
             }
 
-            index += _channels;
+            const uint32_t frames_read{ _master_ring.read(output, device_frame_count) };
+
+            if (frames_read < device_frame_count)
+            {
+                const uint32_t start_sample{ frames_read * channel_count };
+                const uint32_t total_samples{ device_frame_count * channel_count };
+
+                for (uint32_t i{ start_sample }; i < total_samples; ++i)
+                    output[i] = 0.0f;
+            }
+
+            return;
         }
 
-        _mixer.mix_bus_into_master(audio_bus_id::music, frame_count);
-        _mixer.mix_bus_into_master(audio_bus_id::sfx, frame_count);
-        _mixer.mix_bus_into_master(audio_bus_id::ui, frame_count);
-
-        const float* master{ _mixer.master_buffer() };
-        const uint32_t total{ frame_count * channel_count };
-
-        for (uint32_t i = 0; i < total; ++i)
-            output[i] = master[i];
+        // Device sample rate and engine sample rate do not match - run through the resampler
+        render_with_master_resampler(output, device_frame_count, channel_count);
     }
 
     bool audio_engine_t::enqueue_command(const audio_command_t& cmd) noexcept
@@ -410,5 +305,196 @@ namespace carrot::audio {
         voice.start_frame = _current_frame;
         envelope_note_on(voice.envelope, k_default_env, static_cast<float>(_clock->sample_rate()));
         voice.state = voice_state::active;
+    }
+
+    void audio_engine_t::mix_engine_frames(const uint32_t engine_frames) noexcept
+    {
+        _mixer.clear(engine_frames);
+
+        uint32_t index{ 0 };
+
+        for (uint32_t frame{ 0 }; frame < engine_frames; ++frame)
+        {
+            ++_current_frame;
+            _clock->advance(1); // advance by 1 engine frame
+
+            for (auto& voice: _voices)
+            {
+                if (voice.state == voice_state::idle && voice.handle.is_valid())
+                {
+                    audio_event_t evt{ };
+                    evt.type = audio_event_type::voice_finished;
+                    evt.handle = voice.handle;
+                    _event_queue.push(evt);
+
+                    voice.handle = voice_handle_t::invalid();
+                }
+
+                if (voice.state == voice_state::idle)
+                    continue;
+
+                const uint32_t src_channels{ voice_source_channels(voice) };
+
+                // if (voice.type == voice_type::sample && voice.sample)
+                // {
+                //     static uint64_t debug_counter = 0;
+                //     if (debug_counter++ % 4800 == 0) // every ~0.1s at 48k
+                //     {
+                //         LOG_AUDIO_INFO("Voice debug: src_pos={}, src_step={}, state={}, channels={}", voice.src_pos,
+                //                        voice.src_step, static_cast<int>(voice.state), src_channels);
+                //     }
+                // }
+
+                float distance_gain{ 1.f };
+                float spatial_pan{ 0.f };
+
+                // Only spatialize mono sources
+                if (src_channels == 1 && voice.spatial != spatial_mode::none)
+                {
+                    const float dx{ voice.position.x - _listener.position.x };
+                    const float dy{ voice.position.y - _listener.position.y };
+
+                    float dist_sq{ dx * dx + dy * dy };
+
+                    if (voice.spatial == spatial_mode::full_3d)
+                    {
+                        const float dz{ voice.position.z - _listener.position.z };
+                        dist_sq += dz * dz;
+                    }
+
+                    const float distance{ std::sqrt(dist_sq) };
+                    distance_gain = distance_attenuation(distance, voice.ref_distance, voice.max_distance);
+
+                    if (voice.spatial == spatial_mode::planar)
+                    {
+                        const float effective_distance{ std::max(distance, voice.ref_distance) };
+                        spatial_pan = dx / effective_distance;
+                        chlm::clamp(spatial_pan, -1.f, 1.f);
+                    }
+                }
+
+                const float env{ envelope_tick(voice.envelope) };
+
+                if (env <= 0.0f)
+                {
+                    voice.state = voice_state::idle;
+                    continue;
+                }
+
+                float* bus{ _mixer.bus_buffer(voice.bus) };
+
+                if (src_channels == 1)
+                {
+                    const float raw{ voice_next_sample(voice) };
+
+                    if (raw == 0.0f)
+                        continue;
+
+                    float final_pan{ voice.pan };
+
+                    if (voice.spatial == spatial_mode::planar)
+                        final_pan += spatial_pan;
+
+                    float pan_l{ 1.f };
+                    float pan_r{ 1.f };
+                    compute_pan_gains(final_pan, pan_l, pan_r);
+
+                    const float sample{ raw * voice.gain * env * distance_gain };
+
+                    bus[index + 0] += sample * pan_l;
+                    bus[index + 1] += sample * pan_r;
+                }
+                else if (src_channels == 2)
+                {
+                    float raw_l{ 0.f };
+                    float raw_r{ 0.f };
+                    voice_next_stereo_frame(voice, raw_l, raw_r);
+
+                    if (raw_l == 0.0f && raw_r == 0.0f)
+                        continue;
+
+                    // NOTE: Distance gain is 1.f, as we only compute it for mono spatial voices above
+                    const float sample_gain{ voice.gain * env * distance_gain };
+
+                    bus[index + 0] += raw_l * sample_gain;
+                    bus[index + 1] += raw_r * sample_gain;
+                }
+                else
+                {
+                    // For now, ignore >2 channel content
+                    continue;
+                }
+            }
+
+            index += _channels;
+        }
+
+        // Mix buses into master (engine rate)
+        _mixer.mix_bus_into_master(audio_bus_id::music, engine_frames);
+        _mixer.mix_bus_into_master(audio_bus_id::sfx, engine_frames);
+        _mixer.mix_bus_into_master(audio_bus_id::ui, engine_frames);
+
+        // Write engine-rate master into engine-rate ring buffer
+        const float* master = _mixer.master_buffer();
+        _master_ring.write(master, engine_frames);
+    }
+
+    void audio_engine_t::render_with_master_resampler(float* output, const uint32_t device_frames,
+                                                      [[maybe_unused]] uint32_t device_channels) noexcept
+    {
+        // Ensure we have enough engine frames in the master ring.
+        // Roughly: engine_frames_needed ≈ device_frames * (engine_rate / device_rate)
+        const double ratio{ static_cast<double>(k_engine_sample_rate) / static_cast<double>(_device_sample_rate) };
+
+        const uint32_t approx_engine_needed{ static_cast<uint32_t>(std::ceil(device_frames * ratio)) + 8 };
+        // small safety margin
+
+        while (_master_ring.available_read() < approx_engine_needed)
+        {
+            // Mix a fixed block size at engine rate
+            constexpr uint32_t k_engine_block{ 256 };
+            mix_engine_frames(k_engine_block);
+        }
+
+        // Pull a chunk of engine-rate master data into a temp buffer
+        // (we could resample directly from the ring, but a temp makes it simpler)
+        static constexpr uint32_t k_max_engine_chunk{ 2048 };
+        float engine_chunk[k_max_engine_chunk * 2];
+
+        const uint32_t available{ _master_ring.available_read() };
+        const uint32_t to_read{ std::min<uint32_t>(available, k_max_engine_chunk) };
+        const uint32_t engine_frames_read{ _master_ring.read(engine_chunk, to_read) };
+
+        // Resample from engine_chunk → device output
+        resample_request_t req{ };
+        req.data = engine_chunk;
+        req.total_frames = engine_frames_read;
+        req.channels = 2;
+        req.src_pos = _master_src_pos;
+        req.src_step = static_cast<double>(k_engine_sample_rate) / static_cast<double>(_device_sample_rate);
+        req.looping = false;
+        req.loop.start = 0;
+        req.loop.end = engine_frames_read;
+
+        for (uint32_t produced{ 0 }; produced < device_frames; ++produced)
+        {
+            float l{ 0.f };
+            float r{ 0.f };
+
+            if (!resample_linear_frame(req, l, r))
+            {
+                // Out of engine data in this chunk; fill tail with silence
+                output[produced * 2 + 0] = 0.f;
+                output[produced * 2 + 1] = 0.f;
+                continue;
+            }
+
+            output[produced * 2 + 0] = l;
+            output[produced * 2 + 1] = r;
+        }
+
+        _master_src_pos = req.src_pos;
+
+        // No need to "slide" engine_chunk; we already slid the ring by reading.
     }
 } // namespace carrot::audio

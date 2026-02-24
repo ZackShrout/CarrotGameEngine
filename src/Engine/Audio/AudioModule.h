@@ -139,6 +139,8 @@ namespace carrot::audio {
          */
         [[nodiscard]] audio_engine_t& engine() const noexcept { return *_engine; }
 
+        [[nodiscard]] uint32_t device_sample_rate() const noexcept { return _backend ? _backend->sample_rate() : 0; }
+
     private:
         engine_audio_config_t                   _config;
 

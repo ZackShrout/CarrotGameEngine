@@ -44,7 +44,7 @@ namespace carrot::audio {
                _config.sample_rate);
 
         _clock.init(k_engine_sample_rate, _backend->block_size());
-        _engine->init(&_clock, _backend->channel_count());
+        _engine->init(&_clock, _backend->channel_count(), _backend->sample_rate());
 
         LOG_AUDIO_INFO("Clock sample rate: {}, engine channels: {}",
                _clock.sample_rate(),

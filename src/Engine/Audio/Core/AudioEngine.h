@@ -64,10 +64,11 @@ namespace carrot::audio {
          * table, mixer, and timing references. It must be called exactly once
          * before audio rendering begins.
          *
-         * @param clock    Pointer to the audio clock owned by the audio module
+         * @param clock Pointer to the audio clock owned by the audio module
          * @param channels Number of output channels provided by the backend
+         * @param device_sample_rate Sample rate of the audio device used by backend
          */
-        void init(audio_clock_t* clock, uint32_t channels) noexcept;
+        void init(audio_clock_t* clock, uint32_t channels, uint32_t device_sample_rate) noexcept;
 
         /**
          * @brief Shuts down the audio engine core.
@@ -90,10 +91,10 @@ namespace carrot::audio {
          * events.
          *
          * @param output        Pointer to the interleaved output buffer
-         * @param frame_count   Number of frames to render
+         * @param device_frame_count   Number of frames to render
          * @param channel_count Number of output channels
          */
-        void render(float* output, uint32_t frame_count, uint32_t channel_count) noexcept override;
+        void render(float* output, uint32_t device_frame_count, uint32_t channel_count) noexcept override;
 
         /**
          * @brief Enqueues a command for execution on the audio thread.
@@ -149,10 +150,15 @@ namespace carrot::audio {
          */
         void activate_voice(voice_t& voice) const noexcept;
 
+        void mix_engine_frames(uint32_t engine_frames) noexcept;
+
+        void render_with_master_resampler(float* output, uint32_t device_frames, uint32_t device_channels) noexcept;
+
         audio_clock_t*              _clock{ nullptr };
         audio_mixer_t               _mixer{ };
         uint32_t                    _channels{ 0 };
         uint64_t                    _current_frame{ 0 };
+        uint32_t                    _device_sample_rate{ 0 };
 
         // NOTE: Temporary until ECS/camera integration
         audio_listener_t            _listener{ };
@@ -163,5 +169,12 @@ namespace carrot::audio {
 
         // Fixed voice table indexed by voice_handle_t::index
         voice_t                     _voices[k_max_voices]{ };
+
+        // Engine-rate master FIFO (stereo, 48k)
+        static constexpr uint32_t k_master_buffer_frames = 2048;
+        audio_ring_buffer_t<k_master_buffer_frames, 2> _master_ring;
+
+        // Resampler state from engine → device
+        double _master_src_pos{ 0.0 };
     };
 } // namespace carrot::audio

@@ -197,10 +197,9 @@ namespace carrot::audio {
             return nullptr;
         }
 
-        // For now, assume stereo & backend sample rate.
-        constexpr uint32_t channels{ 2 }; // TODO: probe file if you want for both channels and sample rate
-        const uint32_t sample_rate{ _backend->sample_rate() };
-
+        // For now, assume stereo
+        constexpr uint32_t channels{ 2 }; // TODO: probe file if you want
+        constexpr uint32_t sample_rate{ k_engine_sample_rate };
 
         init_audio_stream(*stream, channels, sample_rate);
         stream->looping = asset.looping;

@@ -6,6 +6,8 @@
 #pragma once
 
 #include "Audio/Sample/WavCore.h"
+#include "Audio/DSP/Resampler.h"
+#include "Audio/Core/AudioCore.h"
 
 #include <atomic>
 #include <thread>
@@ -151,6 +153,38 @@ namespace carrot::audio {
          */
         void enter_loop_phase() noexcept;
 
+        /**
+         * @brief Top off the source PCM staging buffer from the WAV file.
+         *
+         * - Decodes at most k_src_buffer_frames - _src_frames_in_buffer frames.
+         * - Honors loop regions and looping vs non-looping behavior.
+         * - Sets _stream->eof when a non-looping stream finishes.
+         *
+         * @param bytes_per_frame Number of bytes per PCM frame in the file.
+         */
+        void fill_src_buffer(uint32_t bytes_per_frame) noexcept;
+
+        /**
+         * @brief Resample from _src_buffer into the stream ring buffer at 48k.
+         *
+         * - Uses resample_linear_frame() to produce up to @p writable_48k frames.
+         * - Writes produced frames to _stream->buffer.
+         * - Slides consumed source frames out of _src_buffer.
+         *
+         * @param writable_48k Maximum number of frames available in the ring buffer.
+         * @return Number of 48k frames produced and written.
+         */
+        uint32_t produce_resampled_chunk(uint32_t writable_48k) noexcept;
+
+        /**
+         * @brief Slide fully consumed source frames out of _src_buffer.
+         *
+         * Uses _src_pos to determine how many whole frames are no longer needed,
+         * memmoves remaining frames to the front, and keeps the fractional portion
+         * of _src_pos.
+         */
+        void slide_consumed_source_frames() noexcept;
+
         /** Background decode thread. */
         std::thread _thread;
 
@@ -201,5 +235,28 @@ namespace carrot::audio {
          * now reading exclusively from the loop region segment).
          */
         bool _in_loop_phase{ false };
+
+        /** Source (file) sample rate cached from fmt chunk. */
+        uint32_t _src_sample_rate{ 0 };
+
+        /**
+         * Resampler state for streaming:
+         *  - We decode PCM into _src_buffer at source sample rate.
+         *  - We consume from _src_buffer via linear interpolation and
+         *    write 48k frames into the stream ring buffer.
+         */
+        static constexpr uint32_t k_src_buffer_frames{ 1024 };
+
+        float _src_buffer[k_src_buffer_frames * k_max_channels]{ };
+        uint32_t _src_frames_in_buffer{ 0 }; ///< Valid frames currently in _src_buffer
+
+        /** Global position in source frames for resampling (fractional). */
+        double _src_pos{ 0.0 };
+
+        /** Total source frames in the file (for optional EOF reasoning). */
+        uint64_t _src_frames_total{ 0 };
+
+        static constexpr uint32_t k_frames_per_decode_chunk = 256;
+        static constexpr uint32_t k_max_48k_chunk           = 256;
     };
 } // namespace carrot::audio

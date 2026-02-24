@@ -51,10 +51,11 @@ namespace carrot::audio {
         std::atomic<bool> eof{ false };
     };
 
-    inline void init_audio_stream(audio_stream_t& stream, const uint32_t channels, const uint32_t sample_rate) noexcept
+    inline void init_audio_stream(audio_stream_t& stream, const uint32_t channels,
+                                  const uint32_t engine_sample_rate) noexcept
     {
         stream.channels = channels;
-        stream.sample_rate = sample_rate;
+        stream.sample_rate = engine_sample_rate;
         stream.eof.store(false, std::memory_order_relaxed);
 
         stream.buffer.init(channels);

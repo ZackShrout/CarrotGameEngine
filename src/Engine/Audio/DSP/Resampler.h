@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include "Common/CommonHeaders.h"
+
 #include <cstdint>
 #include <cmath>
 #include <algorithm>
@@ -82,9 +84,9 @@ namespace carrot::audio {
      * Ownership of "what happens at end of stream / loop" is left to the
      * caller, via the return value and updated src_pos.
      *
-     * @param req    Resampling configuration and state. src_pos is updated.
-     * @param out_l  [out] left sample.
-     * @param out_r  [out] right sample.
+     * @param req Resampling configuration and state. src_pos is updated.
+     * @param out_l [out] left sample.
+     * @param out_r [out] right sample.
      *
      * @return true if a valid sample was produced, false if we've gone past
      *         the logical end in non-looping mode and should go silent.

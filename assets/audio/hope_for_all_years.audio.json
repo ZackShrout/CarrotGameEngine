@@ -10,5 +10,5 @@
   "loop_end": 0,
 
   "spatial": "none",
-  "streamed": false
+  "streamed": true
 }

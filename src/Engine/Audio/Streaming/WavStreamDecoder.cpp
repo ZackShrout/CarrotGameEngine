@@ -16,6 +16,7 @@
 #endif
 
 namespace carrot::audio {
+    // PUBLIC
     bool wav_stream_decoder_t::open(const std::string_view path, audio_stream_t* stream) noexcept
     {
         _file = std::fopen(path.data(), "rb");
@@ -71,7 +72,12 @@ namespace carrot::audio {
 
         _stream = stream;
         _stream->channels = _fmt.num_channels;
-        _stream->sample_rate = _fmt.sample_rate;
+        _stream->sample_rate = k_engine_sample_rate;
+
+        _src_sample_rate = _fmt.sample_rate;
+        _src_frames_total = _data_bytes_total / (_fmt.bits_per_sample / 8u * _fmt.num_channels);
+        _src_pos = 0.0;
+        _src_frames_in_buffer = 0;
 
         return true;
     }
@@ -101,12 +107,13 @@ namespace carrot::audio {
         }
     }
 
+    // PRIVATE
     void wav_stream_decoder_t::thread_main() noexcept
     {
-        constexpr uint32_t frames_per_chunk{ 256 };
-
-        uint8_t raw[frames_per_chunk * 8]; // enough for 32-bit stereo
-        float decoded[frames_per_chunk * 2]; // interleaved stereo
+        // constexpr uint32_t frames_per_chunk{ 256 };
+        //
+        // uint8_t raw[frames_per_chunk * 8]; // enough for 32-bit stereo
+        // float decoded[frames_per_chunk * 2]; // interleaved stereo
 
         const uint32_t bytes_per_sample{ static_cast<uint32_t>(_fmt.bits_per_sample / 8) };
         const uint32_t bytes_per_frame{ bytes_per_sample * _fmt.num_channels };
@@ -131,90 +138,130 @@ namespace carrot::audio {
                 continue;
             }
 
-            const uint32_t frames{ std::min(writable, frames_per_chunk) };
-            const uint64_t bytes_to_read{ std::min<uint64_t>(frames * bytes_per_frame, _data_bytes_remaining) };
+            // 1) Make sure we have some source PCM ready
+            fill_src_buffer(bytes_per_frame);
 
-            if (bytes_to_read == 0)
+            if (_src_frames_in_buffer == 0)
             {
-                if (_stream->looping)
-                {
-                    if (_use_loop_region)
-                    {
-                        // If we had a loop region but hit EOF before _loop_end_offset,
-                        // just wrap into the loop region proper.
-                        enter_loop_phase();
-                    }
-                    else
-                    {
-                        // Full-file loop case (no special region)
-                        carrot_fseek(_file, _data_start_offset, SEEK_SET);
-                        _data_bytes_remaining = _data_bytes_total;
-                        _in_loop_phase = true;
-                    }
+                // No source frames; if EOF is set, we're truly done.
+                if (_stream->eof.load(std::memory_order_acquire))
+                    break;
 
-                    continue;
-                }
-
-                _stream->eof.store(true, std::memory_order_release);
-                break;
-            }
-
-            // Compute current file position *before* this read:
-            const carrot_offset_t current_offset{
-                _data_start_offset + static_cast<carrot_offset_t>(_data_bytes_total - _data_bytes_remaining)
-            };
-
-            // Clamp read size to not overshoot loop_end_offset when in loop mode
-            uint64_t clamped_bytes_to_read = bytes_to_read;
-
-            if (_use_loop_region)
-            {
-                const carrot_offset_t logical_loop_end{ _loop_end_offset };
-
-                const auto bytes_until_loop_end{ static_cast<uint64_t>(logical_loop_end - current_offset) };
-
-                if (bytes_until_loop_end < clamped_bytes_to_read)
-                    clamped_bytes_to_read = bytes_until_loop_end;
-            }
-
-            if (clamped_bytes_to_read == 0)
-            {
-                // Hit loop boundary exactly: wrap into loop region
-                enter_loop_phase();
+                // Otherwise, loop back around to decode more (e.g. after a loop wrap).
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 continue;
             }
 
-            std::fread(raw, clamped_bytes_to_read, 1, _file);
-            _data_bytes_remaining -= clamped_bytes_to_read;
+            // 2) Resample from source buffer at file rate into 48k ring buffer
+            const uint32_t produced_48k{ produce_resampled_chunk(writable) };
 
-            const uint32_t frames_read{ static_cast<uint32_t>(clamped_bytes_to_read / bytes_per_frame) };
-
-            // === CONVERSION ===
-
-            if (_fmt.audio_format == 1 && _fmt.bits_per_sample == 16)
+            if (produced_48k == 0)
             {
-                const int16_t* src{ reinterpret_cast<int16_t *>(raw) };
-
-                for (uint32_t i = 0; i < frames_read * _fmt.num_channels; ++i)
-                    decoded[i] = static_cast<float>(src[i]) / 32768.0f;
+                // Could happen if resampler ran out of source data mid-chunk;
+                // let the loop try decoding more.
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                continue;
             }
-            else if (_fmt.audio_format == 1 && _fmt.bits_per_sample == 24)
-            {
-                const uint8_t* src{ raw };
-                float* dst{ decoded };
-
-                for (uint32_t i = 0; i < frames_read * _fmt.num_channels; ++i)
-                {
-                    *dst++ = pcm24_to_float(src);
-                    src += 3;
-                }
-            }
-            else if (_fmt.audio_format == 3 && _fmt.bits_per_sample == 32)
-            {
-                std::memcpy(decoded, raw, frames_read * _fmt.num_channels * sizeof(float));
-            }
-
-            _stream->buffer.write(decoded, frames_read);
+            //
+            //
+            //
+            //
+            //
+            //
+            //
+            //
+            //
+            //
+            //
+            //
+            //
+            //
+            //
+            //
+            // const uint32_t frames{ std::min(writable, frames_per_chunk) };
+            // const uint64_t bytes_to_read{ std::min<uint64_t>(frames * bytes_per_frame, _data_bytes_remaining) };
+            //
+            // if (bytes_to_read == 0)
+            // {
+            //     if (_stream->looping)
+            //     {
+            //         if (_use_loop_region)
+            //         {
+            //             // If we had a loop region but hit EOF before _loop_end_offset,
+            //             // just wrap into the loop region proper.
+            //             enter_loop_phase();
+            //         }
+            //         else
+            //         {
+            //             // Full-file loop case (no special region)
+            //             carrot_fseek(_file, _data_start_offset, SEEK_SET);
+            //             _data_bytes_remaining = _data_bytes_total;
+            //             _in_loop_phase = true;
+            //         }
+            //
+            //         continue;
+            //     }
+            //
+            //     _stream->eof.store(true, std::memory_order_release);
+            //     break;
+            // }
+            //
+            // // Compute current file position *before* this read:
+            // const carrot_offset_t current_offset{
+            //     _data_start_offset + static_cast<carrot_offset_t>(_data_bytes_total - _data_bytes_remaining)
+            // };
+            //
+            // // Clamp read size to not overshoot loop_end_offset when in loop mode
+            // uint64_t clamped_bytes_to_read = bytes_to_read;
+            //
+            // if (_use_loop_region)
+            // {
+            //     const carrot_offset_t logical_loop_end{ _loop_end_offset };
+            //
+            //     const auto bytes_until_loop_end{ static_cast<uint64_t>(logical_loop_end - current_offset) };
+            //
+            //     if (bytes_until_loop_end < clamped_bytes_to_read)
+            //         clamped_bytes_to_read = bytes_until_loop_end;
+            // }
+            //
+            // if (clamped_bytes_to_read == 0)
+            // {
+            //     // Hit loop boundary exactly: wrap into loop region
+            //     enter_loop_phase();
+            //     continue;
+            // }
+            //
+            // std::fread(raw, clamped_bytes_to_read, 1, _file);
+            // _data_bytes_remaining -= clamped_bytes_to_read;
+            //
+            // const uint32_t frames_read{ static_cast<uint32_t>(clamped_bytes_to_read / bytes_per_frame) };
+            //
+            // // === CONVERSION ===
+            //
+            // if (_fmt.audio_format == 1 && _fmt.bits_per_sample == 16)
+            // {
+            //     const int16_t* src{ reinterpret_cast<int16_t *>(raw) };
+            //
+            //     for (uint32_t i = 0; i < frames_read * _fmt.num_channels; ++i)
+            //         decoded[i] = static_cast<float>(src[i]) / 32768.0f;
+            // }
+            // else if (_fmt.audio_format == 1 && _fmt.bits_per_sample == 24)
+            // {
+            //     const uint8_t* src{ raw };
+            //     float* dst{ decoded };
+            //
+            //     for (uint32_t i = 0; i < frames_read * _fmt.num_channels; ++i)
+            //     {
+            //         *dst++ = pcm24_to_float(src);
+            //         src += 3;
+            //     }
+            // }
+            // else if (_fmt.audio_format == 3 && _fmt.bits_per_sample == 32)
+            // {
+            //     std::memcpy(decoded, raw, frames_read * _fmt.num_channels * sizeof(float));
+            // }
+            //
+            // _stream->buffer.write(decoded, frames_read);
         }
     }
 
@@ -223,7 +270,7 @@ namespace carrot::audio {
         if (!_stream->looping || (!_stream->loop_start && !_stream->loop_end))
         {
             _use_loop_region = false;
-            _in_loop_phase   = false;
+            _in_loop_phase = false;
             return;
         }
 
@@ -263,5 +310,254 @@ namespace carrot::audio {
         _data_bytes_remaining = _data_bytes_total;
 
         _in_loop_phase = true;
+    }
+
+    void wav_stream_decoder_t::fill_src_buffer(const uint32_t bytes_per_frame) noexcept
+    {
+        if (!_stream || !_file)
+            return;
+
+        while (_src_frames_in_buffer < k_src_buffer_frames &&
+               _running.load(std::memory_order_acquire))
+        {
+            // ── Handle "no more bytes in current segment" first ────────────────
+            if (_data_bytes_remaining == 0)
+            {
+                if (_stream->looping)
+                {
+                    if (_use_loop_region)
+                    {
+                        // We're looping a sub-region; re-enter the loop segment.
+                        enter_loop_phase();
+                    }
+                    else
+                    {
+                        // Full-file loop: wrap back to the start of the data chunk.
+                        carrot_fseek(_file, _data_start_offset, SEEK_SET);
+                        _data_bytes_remaining = _data_bytes_total;
+                        _in_loop_phase = true;
+                    }
+
+                    // After rebasing the logical segment, go around again and
+                    // actually read from the new region.
+                    continue;
+                }
+                else
+                {
+                    // Non-looping and no more bytes to read → EOF.
+                    _stream->eof.store(true, std::memory_order_release);
+                    break;
+                }
+            }
+
+            // ── Normal decode path: we have bytes remaining in the segment ─────
+            const uint32_t frames_to_decode = std::min<uint32_t>(
+                k_frames_per_decode_chunk,
+                k_src_buffer_frames - _src_frames_in_buffer
+            );
+
+            if (frames_to_decode == 0)
+                break; // staging buffer is full; caller will resample from it
+
+            const uint64_t bytes_request = static_cast<uint64_t>(frames_to_decode) * bytes_per_frame;
+            uint64_t bytes_to_read = std::min<uint64_t>(bytes_request, _data_bytes_remaining);
+
+            // Current file position within the logical data segment
+            const carrot_offset_t current_offset{
+                _data_start_offset +
+                static_cast<carrot_offset_t>(_data_bytes_total - _data_bytes_remaining)
+            };
+
+            // Clamp to loop end if using a loop sub-region
+            if (_use_loop_region)
+            {
+                const carrot_offset_t logical_loop_end{ _loop_end_offset };
+                const auto bytes_until_loop_end{
+                    static_cast<uint64_t>(logical_loop_end - current_offset)
+                };
+
+                if (bytes_until_loop_end < bytes_to_read)
+                    bytes_to_read = bytes_until_loop_end;
+            }
+
+            // If clamping brought us to exactly the loop boundary:
+            if (bytes_to_read == 0)
+            {
+                if (_stream->looping)
+                {
+                    if (_use_loop_region)
+                    {
+                        // We reached the loop_end in the current segment; wrap
+                        // into the loop segment proper.
+                        enter_loop_phase();
+                    }
+                    else
+                    {
+                        // Full-file looping and we hit the end of the file region
+                        // exactly; wrap to the start of the data chunk.
+                        carrot_fseek(_file, _data_start_offset, SEEK_SET);
+                        _data_bytes_remaining = _data_bytes_total;
+                        _in_loop_phase = true;
+                    }
+
+                    // After rebasing, loop and try to read again.
+                    continue;
+                }
+                else
+                {
+                    // Non-looping: loop region clamped us to the end; EOF.
+                    _stream->eof.store(true, std::memory_order_release);
+                    break;
+                }
+            }
+
+            // ── We have a positive number of bytes to read ─────────────────────
+            uint8_t raw[k_frames_per_decode_chunk * 8]; // enough for 32-bit stereo
+
+            std::fread(raw, bytes_to_read, 1, _file);
+            _data_bytes_remaining -= bytes_to_read;
+
+            const uint32_t frames_read{
+                static_cast<uint32_t>(bytes_to_read / bytes_per_frame)
+            };
+
+            if (frames_read == 0)
+            {
+                // Just in case; shouldn't really happen because bytes_to_read > 0
+                continue;
+            }
+
+            // Convert raw PCM into tail of _src_buffer at *source* rate
+            float* dst = &_src_buffer[_src_frames_in_buffer * _fmt.num_channels];
+
+            if (_fmt.audio_format == 1 && _fmt.bits_per_sample == 16)
+            {
+                const int16_t* src = reinterpret_cast<int16_t *>(raw);
+                for (uint32_t i = 0; i < frames_read * _fmt.num_channels; ++i)
+                    dst[i] = static_cast<float>(src[i]) / 32768.0f;
+            }
+            else if (_fmt.audio_format == 1 && _fmt.bits_per_sample == 24)
+            {
+                const uint8_t* src = raw;
+                for (uint32_t i = 0; i < frames_read * _fmt.num_channels; ++i)
+                {
+                    dst[i] = pcm24_to_float(src);
+                    src += 3;
+                }
+            }
+            else if (_fmt.audio_format == 3 && _fmt.bits_per_sample == 32)
+            {
+                std::memcpy(
+                    dst,
+                    raw,
+                    frames_read * _fmt.num_channels * sizeof(float)
+                );
+            }
+
+            _src_frames_in_buffer += frames_read;
+        }
+
+        // Only mark EOF here if we're *not* looping and truly drained both
+        // file segment and staging buffer.
+        if (!_stream->looping &&
+            _data_bytes_remaining == 0 &&
+            _src_frames_in_buffer == 0)
+        {
+            _stream->eof.store(true, std::memory_order_release);
+        }
+    }
+
+    uint32_t wav_stream_decoder_t::produce_resampled_chunk(uint32_t writable_48k) noexcept
+    {
+        if (!_stream || _src_frames_in_buffer == 0 || writable_48k == 0)
+            return 0;
+
+        const uint32_t channels = _fmt.num_channels;
+
+        const uint32_t max_frames_to_write = std::min<uint32_t>(
+            writable_48k,
+            k_max_48k_chunk
+        );
+
+        if (max_frames_to_write == 0)
+            return 0;
+
+        float out48k[k_max_48k_chunk * k_max_channels];
+
+        resample_request_t req{ };
+        req.data = _src_buffer;
+        req.total_frames = _src_frames_in_buffer;
+        req.channels = channels;
+        req.src_pos = _src_pos;
+        req.src_step = static_cast<double>(_src_sample_rate) /
+                       static_cast<double>(k_engine_sample_rate);
+        req.looping = false; // loop handled via file position, not resampler
+        req.loop.start = 0;
+        req.loop.end = _src_frames_in_buffer;
+
+        uint32_t produced = 0;
+
+        for (; produced < max_frames_to_write; ++produced)
+        {
+            float l = 0.f;
+            float r = 0.f;
+
+            const bool ok = resample_linear_frame(req, l, r);
+            if (!ok)
+            {
+                // Ran out of source samples in the staging buffer;
+                // outer loop will refill _src_buffer on the next iteration.
+                break;
+            }
+
+            if (channels == 1)
+            {
+                out48k[produced * channels + 0] = l;
+            }
+            else // channels >= 2
+            {
+                out48k[produced * channels + 0] = l;
+                out48k[produced * channels + 1] = r;
+            }
+        }
+
+        // Commit updated source position
+        _src_pos = req.src_pos;
+
+        if (produced > 0)
+        {
+            _stream->buffer.write(out48k, produced);
+        }
+
+        // Drop consumed frames from the source buffer
+        slide_consumed_source_frames();
+
+        return produced;
+    }
+
+    void wav_stream_decoder_t::slide_consumed_source_frames() noexcept
+    {
+        const uint32_t channels = _fmt.num_channels;
+
+        // src_pos is in source frames; any whole frames before floor(src_pos)
+        // are no longer needed for forward resampling.
+        const uint32_t consumed = static_cast<uint32_t>(_src_pos);
+
+        if (consumed == 0 || consumed > _src_frames_in_buffer)
+            return;
+
+        const uint32_t remaining = _src_frames_in_buffer - consumed;
+
+        if (remaining > 0)
+        {
+            std::memmove(
+                _src_buffer,
+                &_src_buffer[consumed * channels],
+                remaining * channels * sizeof(float)
+            );
+        }
+
+        _src_frames_in_buffer = remaining;
+        _src_pos -= static_cast<double>(consumed);
     }
 } // namespace carrot::audio

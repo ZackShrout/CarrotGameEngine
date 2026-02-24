@@ -70,6 +70,10 @@ namespace carrot::audio {
      */
     struct voice_t
     {
+        // ---------------------------------------------------------------------
+        // Identity / routing
+        // ---------------------------------------------------------------------
+
         /** Current lifecycle state of the voice. */
         voice_state state{ voice_state::idle };
 
@@ -115,7 +119,12 @@ namespace carrot::audio {
         /** Audio sample backing this voice (if sample-based). */
         const audio_sample_t* sample{ nullptr };
 
-        /** Current playback cursor in sample frames. */
+        /**
+         * Legacy frame cursor for integer stepping.
+         *
+         * Currently unused in favor of src_pos/src_step, but kept for now in
+         * case debug or tooling still inspect it.
+         */
         uint32_t sample_cursor{ 0 };
 
         /** Whether the voice loops its sample. */
@@ -139,6 +148,9 @@ namespace carrot::audio {
          *
          * Interleaved samples: frames * channels.
          * Sized to one fixed stream chunk.
+         *
+         * Note: streaming data in the ring buffer is already at the engine
+         * mix rate (48 kHz).
          */
         float stream_buffer[k_stream_chunk_frames * 2]{ };
 
@@ -173,10 +185,33 @@ namespace carrot::audio {
          */
         bool waiting_for_stream{ false };
 
-        // ── Resampling / pitch state (common to sample & stream) ─────────
-        double src_pos{ 0. }; // position in *source frames*, fractional
-        double src_step{ 0. }; // source frames advanced per *engine* frame
-        float pitch{ 1.f }; // 1.0 = normal rate
+        // ---------------------------------------------------------------------
+        // Playback rate / pitch state (primarily for sample voices)
+        // ---------------------------------------------------------------------
+
+        /**
+         * Fractional position in source frames.
+         *
+         * Since all sample assets are converted to the engine mix rate
+         * on load (48 kHz), src_pos is in "engine frames" for samples.
+         */
+        double src_pos{ 0.0 };
+
+        /**
+         * Frames advanced per engine frame (1.0 = normal pitch).
+         *
+         * For sample-based voices at engine rate:
+         *   src_step = pitch
+         */
+        double src_step{ 1.0 };
+
+        /**
+         * User-facing pitch control.
+         *
+         * 1.0 = normal, < 1.0 = slower / lower, > 1.0 = faster / higher.
+         * Typically authored via asset pitch + random variance (e.g. footsteps).
+         */
+        float pitch{ 1.f };
 
         // ---------------------------------------------------------------------
         // Common playback state
@@ -204,6 +239,10 @@ namespace carrot::audio {
 
         return 1;
     }
+
+    // -------------------------------------------------------------------------
+    // Sample-based playback helpers (48 kHz internal, with per-voice pitch)
+    // -------------------------------------------------------------------------
 
     inline bool sample_voice_next_frame_linear(voice_t& voice, float& out_l, float& out_r) noexcept
     {
@@ -268,21 +307,27 @@ namespace carrot::audio {
     }
 
     /**
-     * @brief Produces the next raw sample for a voice.
+     * @brief Produces the next mono sample for a voice.
      *
-     * This function advances the voice playback cursor and handles
-     * looping and end-of-sample behavior. It performs no mixing,
-     * spatialization, or envelope processing.
+     * For sample voices:
+     *  - Advances playback via linear interpolation at the voice's
+     *    current playback rate (pitch).
+     *  - Returns the left channel (mono assets are duplicated to L/R).
+     *
+     * For streaming voices:
+     *  - Consumes interleaved frames from the stream buffer,
+     *    which is already at engine sample rate (48 kHz).
+     *
+     * No mixing, spatialization, or envelope processing occurs here.
      *
      * @param voice Voice instance to advance
-     * @param sample_rate Output sample rate (currently unused)
      * @return Next sample value, or 0.0f if silent
      *
      * @note
      * This function is real-time safe and must not allocate,
      * lock, or perform unbounded work.
      */
-    inline float voice_next_sample(voice_t& voice, [[maybe_unused]] const double sample_rate) noexcept
+    inline float voice_next_sample(voice_t& voice) noexcept
     {
         switch (voice.type)
         {
@@ -310,9 +355,7 @@ namespace carrot::audio {
 
                 if (voice.stream_frame_cursor >= voice.stream_frames)
                 {
-                    voice.stream_frames =
-                            voice.stream->buffer.read(voice.stream_buffer, k_stream_chunk_frames);
-
+                    voice.stream_frames = voice.stream->buffer.read(voice.stream_buffer, k_stream_chunk_frames);
                     voice.stream_frame_cursor = 0;
 
                     if (voice.stream_frames == 0)
@@ -354,8 +397,28 @@ namespace carrot::audio {
         return 0.f;
     }
 
-    inline void voice_next_stereo_frame(voice_t& voice, float& out_l, float& out_r,
-                                        [[maybe_unused]] double sample_rate) noexcept
+    /**
+     * @brief Produces the next stereo frame for a voice (L/R).
+     *
+     * For sample voices:
+     *  - Uses the shared resampling helper to advance playback at the
+     *    current voice pitch (src_step).
+     *
+     * For streaming voices:
+     *  - Consumes interleaved frames from the stream buffer,
+     *    which is already at engine sample rate (48 kHz).
+     *
+     * No spatialization or envelope processing occurs here.
+     *
+     * @param voice Voice instance to advance
+     * @param out_l [out] left sample.
+     * @param out_r [out] right sample.
+     *
+     * @note
+     * This function is real-time safe and must not allocate,
+     * lock, or perform unbounded work.
+     */
+    inline void voice_next_stereo_frame(voice_t& voice, float& out_l, float& out_r) noexcept
     {
         out_l = 0.f;
         out_r = 0.f;

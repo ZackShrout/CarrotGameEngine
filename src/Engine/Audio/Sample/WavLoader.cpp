@@ -6,6 +6,8 @@
 #include "WavLoader.h"
 
 #include "WavCore.h"
+#include "Audio/Core/AudioCore.h"
+#include "Audio/DSP/Resampler.h"
 
 #include <cstdio>
 
@@ -101,17 +103,81 @@ namespace carrot::audio {
         sample->frame_count = frame_count;
         sample->channels = fmt.num_channels;
         sample->sample_rate = fmt.sample_rate;
-        //
-        // LOG_AUDIO_INFO("Loaded audio sample '{}': rate={}Hz, channels={}, frames={}",
-        //        path,
-        //        sample->sample_rate,
-        //        sample->channels,
-        //        sample->frame_count);
-        //
-        // // Optional debug assert:
-        // CE_ASSERT(sample->sample_rate == 44100 || sample->sample_rate == 48000,
-        //           "Unexpected sample rate {}", sample->sample_rate);
-        // CE_ASSERT(sample->frame_count > 0, "Sample has no frames?!");
+
+        // LOG_AUDIO_INFO("Loaded audio sample '{}': rate={}Hz, channels={}, frames={}", path, sample->sample_rate,
+        //                sample->channels, sample->frame_count);
+
+        // ──────────────────────────────────────────────────────────────────
+        // Offline resample to engine mix rate (48k) for sample-based assets
+        // ──────────────────────────────────────────────────────────────────
+
+        if (sample->sample_rate != k_engine_sample_rate && sample->frame_count > 0 && sample->channels > 0
+            && sample->data)
+        {
+            const double src_rate{ static_cast<double>(sample->sample_rate) };
+            constexpr double dst_rate{ static_cast<double>(k_engine_sample_rate) };
+
+            const uint32_t src_frames{ sample->frame_count };
+            const uint32_t channels{ sample->channels };
+
+            const double frame_ratio{ dst_rate / src_rate };
+            const uint32_t dst_frames{
+                static_cast<uint32_t>(std::ceil(static_cast<double>(src_frames) * frame_ratio))
+            };
+
+            float* dst_data{ static_cast<float *>(std::malloc(sizeof(float) * dst_frames * channels)) };
+
+            if (!dst_data)
+            {
+                // Allocation failed; fall back to original sample
+                return sample;
+            }
+
+            resample_request_t req{ };
+            req.data = sample->data;
+            req.total_frames = src_frames;
+            req.channels = channels;
+            req.src_pos = 0.0;
+            req.src_step = src_rate / dst_rate; // inverse of runtime direction
+            req.looping = false;
+            req.loop.start = 0;
+            req.loop.end = src_frames;
+
+            for (uint32_t i{ 0 }; i < dst_frames; ++i)
+            {
+                float l{ 0.f };
+                float r{ 0.f };
+
+                if (!resample_linear_frame(req, l, r))
+                {
+                    // Ran out of source; pad remainder with zeros.
+                    for (uint32_t ch{ 0 }; ch < channels; ++ch)
+                    {
+                        dst_data[static_cast<size_t>(i) * channels + ch] = 0.f;
+                    }
+                    continue;
+                }
+
+                if (channels == 1)
+                {
+                    dst_data[static_cast<size_t>(i) * channels + 0] = l;
+                }
+                else // channels >= 2
+                {
+                    dst_data[static_cast<size_t>(i) * channels + 0] = l;
+                    dst_data[static_cast<size_t>(i) * channels + 1] = r;
+                }
+            }
+
+            // Swap in resampled buffer
+            std::free(sample->data);
+            sample->data = dst_data;
+            sample->frame_count = dst_frames;
+            sample->sample_rate = k_engine_sample_rate;
+
+            // LOG_AUDIO_INFO("After resample - loaded audio sample '{}': rate={}Hz, channels={}, frames={}", path,
+            //                sample->sample_rate, sample->channels, sample->frame_count);
+        }
 
         return sample;
     }

@@ -101,6 +101,17 @@ namespace carrot::audio {
         sample->frame_count = frame_count;
         sample->channels = fmt.num_channels;
         sample->sample_rate = fmt.sample_rate;
+        //
+        // LOG_AUDIO_INFO("Loaded audio sample '{}': rate={}Hz, channels={}, frames={}",
+        //        path,
+        //        sample->sample_rate,
+        //        sample->channels,
+        //        sample->frame_count);
+        //
+        // // Optional debug assert:
+        // CE_ASSERT(sample->sample_rate == 44100 || sample->sample_rate == 48000,
+        //           "Unexpected sample rate {}", sample->sample_rate);
+        // CE_ASSERT(sample->frame_count > 0, "Sample has no frames?!");
 
         return sample;
     }

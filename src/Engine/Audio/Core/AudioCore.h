@@ -11,7 +11,8 @@
 
 namespace carrot::audio {
         constexpr uint32_t k_max_voices{ 64 };
-        constexpr uint32_t k_buffer_frames{ 48000 * 4 }; // 4 seconds @ 48kHz
+        constexpr uint32_t k_engine_sample_rate{ 48000 };
+        constexpr uint32_t k_buffer_frames{ k_engine_sample_rate * 4 }; // 4 seconds @ k_engine_sample_rate
         constexpr uint32_t k_max_channels{ 2 };
         constexpr uint32_t k_stream_chunk_frames{ 1024 }; // possibly 512?
 } // namespace core::audio

@@ -75,6 +75,19 @@ namespace carrot::audio {
                     continue;
 
                 const uint32_t src_channels{ voice_source_channels(voice) };
+                //
+                // if (voice.type == voice_type::sample && voice.sample)
+                // {
+                //     static uint64_t debug_counter = 0;
+                //     if ((debug_counter++ % 4800) == 0) // every ~0.1s at 48k
+                //     {
+                //         LOG_AUDIO_INFO("Voice debug: src_pos={}, src_step={}, state={}, channels={}",
+                //                        voice.src_pos,
+                //                        voice.src_step,
+                //                        static_cast<int>(voice.state),
+                //                        src_channels);
+                //     }
+                // }
 
                 float distance_gain{ 1.f };
                 float spatial_pan{ 0.f };
@@ -201,7 +214,24 @@ namespace carrot::audio {
                     voice.generation = cmd.play_sound.handle.generation;
                     voice.type = voice_type::sample;
                     voice.sample = cmd.play_sound.sample;
-                    voice.sample_cursor = 0;
+                    voice.pitch = 1.f;
+                    voice.src_pos = 0.;
+                    const double source_rate{ static_cast<double>(voice.sample->sample_rate) };
+                    const double engine_rate{ static_cast<double>(_clock->sample_rate()) };
+                    voice.src_step = (source_rate / engine_rate) * static_cast<double>(voice.pitch);
+
+                    // LOG_AUDIO_INFO("PlaySound: src_rate={}Hz, engine_rate={}Hz, src_step={}", voice.sample->sample_rate,
+                    //                _clock->sample_rate(), voice.src_step);
+                    //
+                    // if (!(voice.src_step > 0.0f && voice.src_step < 4.0f))
+                    // {
+                    //     LOG_AUDIO_ERROR("Weird src_step: {} (src_rate={}, engine_rate={})",
+                    //                     voice.src_step,
+                    //                     voice.sample->sample_rate,
+                    //                     _clock->sample_rate());
+                    // }
+
+                    // voice.sample_cursor = 0;
                     voice.gain = cmd.play_sound.gain;
                     voice.pan = cmd.play_sound.pan;
                     voice.bus = cmd.play_sound.bus;

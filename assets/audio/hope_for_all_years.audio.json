@@ -1,0 +1,14 @@
+{
+  "id": "music.hope_for_all_years",
+  "file": "assets/audio/11 Hope for All Years.wav",
+
+  "bus": "music",
+  "gain": 1.0,
+
+  "looping": true,
+  "loop_start": 1,
+  "loop_end": 0,
+
+  "spatial": "none",
+  "streamed": false
+}

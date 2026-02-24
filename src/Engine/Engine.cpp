@@ -64,6 +64,13 @@ namespace carrot {
 
         assets::audio_asset_importer_t::import(doc, *_audio_asset_registry);
 
+        path = "assets/audio/hope_for_all_years.audio.json";
+
+        if (!doc.parse_from_file(utils::file::resolve_asset_path(path).data()))
+            LOG_ASSET_ERROR("Failed to parse audio asset file '{}'", path);
+
+        assets::audio_asset_importer_t::import(doc, *_audio_asset_registry);
+
         // End Audio Tests
 
         LOG_CORE_INFO("Carrot Engine Initialized (Pure RHI Mode)");

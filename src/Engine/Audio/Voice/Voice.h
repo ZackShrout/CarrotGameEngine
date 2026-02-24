@@ -13,6 +13,7 @@
 #include <chlm/Core.h>
 
 #include "VoiceHandle.h"
+#include "Audio/DSP/Resampler.h"
 #include "Audio/Streaming/AudioStream.h"
 
 namespace carrot::audio {
@@ -172,6 +173,11 @@ namespace carrot::audio {
          */
         bool waiting_for_stream{ false };
 
+        // ── Resampling / pitch state (common to sample & stream) ─────────
+        double src_pos{ 0. }; // position in *source frames*, fractional
+        double src_step{ 0. }; // source frames advanced per *engine* frame
+        float pitch{ 1.f }; // 1.0 = normal rate
+
         // ---------------------------------------------------------------------
         // Common playback state
         // ---------------------------------------------------------------------
@@ -199,6 +205,68 @@ namespace carrot::audio {
         return 1;
     }
 
+    inline bool sample_voice_next_frame_linear(voice_t& voice, float& out_l, float& out_r) noexcept
+    {
+        out_l = 0.f;
+        out_r = 0.f;
+
+        const auto* s{ voice.sample };
+        if (!s) return false;
+
+        const uint32_t total_frames{ s->frame_count };
+        const uint32_t channels{ s->channels };
+
+        if (total_frames == 0 || channels == 0)
+            return false;
+
+        // Compute logical end of playback for this voice
+        const uint32_t loop_start{ voice.loop_start };
+        uint32_t loop_end{ voice.loop_end };
+
+        if (!voice.looping || loop_end == 0 || loop_end > total_frames || loop_end <= loop_start)
+            loop_end = total_frames;
+
+        const uint32_t sample_end{ loop_end };
+
+        // Early-out end-of-sample handling for non-looping voices
+        if (!voice.looping && voice.src_pos >= static_cast<double>(sample_end))
+        {
+            voice.state = voice_state::releasing;
+            return false;
+        }
+
+        resample_request_t req{ };
+        req.data = s->data;
+        req.total_frames = total_frames;
+        req.channels = channels;
+        req.src_pos = voice.src_pos;
+        req.src_step = voice.src_step;
+        req.looping = voice.looping;
+        req.loop.start = loop_start;
+        req.loop.end = loop_end;
+
+        const bool ok{ resample_linear_frame(req, out_l, out_r) };
+
+        // Propagate updated position back into the voice.
+        voice.src_pos = req.src_pos;
+
+        if (!ok)
+        {
+            if (!voice.looping)
+                voice.state = voice_state::releasing;
+
+            return false;
+        }
+
+        // Non-looping: once we’ve stepped past the end, enter release.
+        if (!voice.looping && voice.src_pos >= static_cast<double>(sample_end))
+        {
+            voice.state = voice_state::releasing;
+        }
+
+        return true;
+    }
+
     /**
      * @brief Produces the next raw sample for a voice.
      *
@@ -221,30 +289,16 @@ namespace carrot::audio {
             case voice_type::sample:
             {
                 if (!voice.sample) return 0.f;
+                if (voice.paused) return 0.f;
 
-                if (voice.paused)
+                float l{ 0.f };
+                float r{ 0.f };
+
+                if (!sample_voice_next_frame_linear(voice, l, r))
                     return 0.f;
 
-                const uint32_t sample_end{
-                    voice.looping && voice.loop_end > 0 ? voice.loop_end : voice.sample->frame_count
-                };
-
-                if (voice.sample_cursor >= sample_end)
-                {
-                    if (voice.looping)
-                    {
-                        voice.sample_cursor = voice.loop_start;
-                    }
-                    else
-                    {
-                        voice.state = voice_state::releasing;
-                        return 0.f;
-                    }
-                }
-
-                const uint32_t idx{ voice.sample_cursor++ * voice.sample->channels };
-
-                return voice.sample->data[idx];
+                // Mono path: just return left (mono assets are already duplicated)
+                return l;
             }
 
             case voice_type::stream:
@@ -257,7 +311,7 @@ namespace carrot::audio {
                 if (voice.stream_frame_cursor >= voice.stream_frames)
                 {
                     voice.stream_frames =
-                        voice.stream->buffer.read(voice.stream_buffer, k_stream_chunk_frames);
+                            voice.stream->buffer.read(voice.stream_buffer, k_stream_chunk_frames);
 
                     voice.stream_frame_cursor = 0;
 
@@ -288,7 +342,7 @@ namespace carrot::audio {
 
                 // === Advance the full frame now (critical) ===
                 voice.stream_frame_cursor++;
-                voice.stream_channel_cursor = 0;  // just housekeeping, can remove later
+                voice.stream_channel_cursor = 0; // just housekeeping, can remove later
 
                 // LOG_AUDIO_INFO("Stream: {} Hz, Engine: {} Hz  cursor={}/{}", voice.stream->sample_rate, sample_rate,
                 //                voice.stream_frame_cursor, voice.stream_frames);
@@ -315,30 +369,12 @@ namespace carrot::audio {
                 CE_ASSERT(voice.sample && voice.sample->channels == 2,
                           "voice_next_stereo_frame called on non-stereo sample voice");
 
-                if (voice.paused)
+                if (voice.paused) return;
+
+                // Shared helper: handles mono or stereo sample assets.
+                if (!sample_voice_next_frame_linear(voice, out_l, out_r))
                     return;
 
-                const uint32_t sample_end{
-                    voice.looping && voice.loop_end > 0 ? voice.loop_end : voice.sample->frame_count
-                };
-
-                if (voice.sample_cursor >= sample_end)
-                {
-                    if (voice.looping)
-                    {
-                        voice.sample_cursor = voice.loop_start;
-                    }
-                    else
-                    {
-                        voice.state = voice_state::releasing;
-                        return;
-                    }
-                }
-
-                const uint32_t base{ voice.sample_cursor++ * voice.sample->channels };
-
-                out_l = voice.sample->data[base + 0];
-                out_r = voice.sample->data[base + 1];
                 return;
             }
 

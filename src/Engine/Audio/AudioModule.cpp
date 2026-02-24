@@ -8,7 +8,6 @@
 #include "Assets/Audio/AudioAsset.h"
 #include "Audio/Backend/AudioBackend.h"
 #include "Audio/Core/AudioEngine.h"
-#include "Streaming/TestStreamDecoder.h"
 #include "Streaming/WavStreamDecoder.h"
 #include "Utils/File/FileUtils.h"
 
@@ -40,8 +39,17 @@ namespace carrot::audio {
             return;
         }
 
-        _clock.init(_backend->sample_rate(), _backend->block_size());
+        LOG_AUDIO_INFO("Backend sample rate: {}, config sample rate: {}",
+               _backend->sample_rate(),
+               _config.sample_rate);
+
+        _clock.init(k_engine_sample_rate, _backend->block_size());
         _engine->init(&_clock, _backend->channel_count());
+
+        LOG_AUDIO_INFO("Clock sample rate: {}, engine channels: {}",
+               _clock.sample_rate(),
+               _backend->channel_count());
+
         _backend->start();
 
         _is_initialized = true;
@@ -136,23 +144,24 @@ namespace carrot::audio {
     {
         if (!_free_stream_indices.empty())
         {
-            uint32_t idx = _free_stream_indices.back();
+            const uint32_t idx{ _free_stream_indices.back() };
             _free_stream_indices.pop_back();
 
             std::unique_ptr<audio_stream_t>& slot = _streams[idx];
+
             if (!slot)
-            {
                 slot = std::make_unique<audio_stream_t>();
-            }
 
             audio_stream_t* stream = slot.get();
             stream->active = true;
+
             return stream;
         }
 
         _streams.emplace_back(std::make_unique<audio_stream_t>());
-        audio_stream_t* stream = _streams.back().get();
+        audio_stream_t* stream{ _streams.back().get() };
         stream->active = true;
+
         return stream;
     }
 
@@ -166,7 +175,7 @@ namespace carrot::audio {
         stream->active = false;
 
         // Find its index in _streams (v1: linear search is fine)
-        for (uint32_t i = 0; i < _streams.size(); ++i)
+        for (uint32_t i{ 0 }; i < _streams.size(); ++i)
         {
             if (_streams[i].get() == stream)
             {

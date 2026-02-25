@@ -53,23 +53,12 @@ namespace carrot::audio {
         // Fast path: device sample rate & engine sample rate agree!
         if (_device_sample_rate == k_engine_sample_rate)
         {
-            while (_master_ring.available_read() < device_frame_count)
-            {
-                constexpr uint32_t k_engine_chunk{ 256 };
-                mix_engine_frames(k_engine_chunk);
-            }
+            mix_engine_frames(device_frame_count);
 
-            const uint32_t frames_read{ _master_ring.read(output, device_frame_count) };
+            const float* master = _mixer.master_buffer();
+            const uint32_t total_samples = device_frame_count * channel_count;
 
-            if (frames_read < device_frame_count)
-            {
-                const uint32_t start_sample{ frames_read * channel_count };
-                const uint32_t total_samples{ device_frame_count * channel_count };
-
-                for (uint32_t i{ start_sample }; i < total_samples; ++i)
-                    output[i] = 0.0f;
-            }
-
+            std::memcpy(output, master, total_samples * sizeof(float));
             return;
         }
 
@@ -431,14 +420,10 @@ namespace carrot::audio {
         _mixer.mix_bus_into_master(audio_bus_id::music, engine_frames);
         _mixer.mix_bus_into_master(audio_bus_id::sfx, engine_frames);
         _mixer.mix_bus_into_master(audio_bus_id::ui, engine_frames);
-
-        // Write engine-rate master into engine-rate ring buffer
-        const float* master = _mixer.master_buffer();
-        _master_ring.write(master, engine_frames);
     }
 
     void audio_engine_t::render_with_master_resampler(float* output, const uint32_t device_frames,
-                                                      [[maybe_unused]] uint32_t device_channels) noexcept
+                                                      [[maybe_unused]] const uint32_t device_channels) noexcept
     {
         const double ratio{ static_cast<double>(k_engine_sample_rate) / static_cast<double>(_device_sample_rate) };
 
@@ -449,7 +434,10 @@ namespace carrot::audio {
         while (_master_ring.available_read() < engine_frames_needed)
         {
             constexpr uint32_t k_engine_block{ 256 };
-            mix_engine_frames(k_engine_block);
+
+            // Make sure we don't push more than the ring can handle in one go
+            // (your ring capacity template param must be >= k_engine_block).
+            mix_engine_frames_and_push_to_ring(k_engine_block);
         }
 
         // Pull exactly the needed engine frames into a temp buffer
@@ -497,5 +485,13 @@ namespace carrot::audio {
             output[i * 2 + 0] = l;
             output[i * 2 + 1] = r;
         }
+    }
+
+    void audio_engine_t::mix_engine_frames_and_push_to_ring(const uint32_t engine_frames) noexcept
+    {
+        mix_engine_frames(engine_frames);
+
+        const float* master = _mixer.master_buffer();
+        _master_ring.write(master, engine_frames);
     }
 } // namespace carrot::audio

@@ -131,7 +131,19 @@ namespace carrot::audio {
         _render_client->GetBuffer(_buffer_frames, &primer_data);
 
         float* primer_out{ reinterpret_cast<float*>(primer_data) };
-        _callback->render(primer_out, _buffer_frames, _channels);
+        UINT32 frames_remaining{ _buffer_frames };
+        UINT32 frame_offset{ 0 };
+
+        while (frames_remaining > 0)
+        {
+            const UINT32 chunk_frames{ std::min<UINT32>(frames_remaining, 512) };
+            float* chunk_out{ primer_out + frame_offset * _channels };
+
+            _callback->render(chunk_out, chunk_frames, _channels);
+
+            frame_offset += chunk_frames;
+            frames_remaining -= chunk_frames;
+        }
 
         _render_client->ReleaseBuffer(_buffer_frames, 0);
         _audio_client->Start();
@@ -152,7 +164,21 @@ namespace carrot::audio {
             _render_client->GetBuffer(frames_available, &data);
 
             float* out{ reinterpret_cast<float*>(data) };
-            _callback->render(out, frames_available, _channels);
+
+            // Render in engine-friendly chunks
+            frames_remaining = frames_available;
+            frame_offset = 0;
+
+            while (frames_remaining > 0)
+            {
+                const UINT32 chunk_frames{ std::min<UINT32>(frames_remaining, 512) };
+                float* chunk_out{ out + frame_offset * _channels };
+
+                _callback->render(chunk_out, chunk_frames, _channels);
+
+                frame_offset += chunk_frames;
+                frames_remaining -= chunk_frames;
+            }
 
             _render_client->ReleaseBuffer(frames_available, 0);
         }

@@ -154,6 +154,8 @@ namespace carrot::audio {
 
         void render_with_master_resampler(float* output, uint32_t device_frames, uint32_t device_channels) noexcept;
 
+        void mix_engine_frames_and_push_to_ring(uint32_t engine_frames) noexcept;
+
         audio_clock_t*              _clock{ nullptr };
         audio_mixer_t               _mixer{ };
         uint32_t                    _channels{ 0 };

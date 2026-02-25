@@ -186,17 +186,15 @@ namespace carrot::audio {
         bool _enable_underwater_music{ false };
         dsp_biquad_filter_t _music_underwater_lp{ biquad_type::lowpass, k_engine_sample_rate };
 
-        bool _enable_abbey_road_trick{ false };
-        dsp_biquad_filter_t _abbey_road_trick_lp{ biquad_type::lowpass, k_engine_sample_rate };
-        dsp_biquad_filter_t _abbey_road_trick_hp{ biquad_type::highpass, k_engine_sample_rate };
-
         bool _enable_megaphone_fx{ false };
         dsp_biquad_filter_t _megaphone_fx_peak{ biquad_type::peak, k_engine_sample_rate };
 
         bool _enable_delay{ false };
         dsp_delay_line_t _music_delay{ k_engine_sample_rate, 1000u, 2u };
 
-        bool _enable_reverb{ true };
+        bool _enable_reverb_bus{ true };
         dsp_schroeder_reverb_t _music_reverb{ k_engine_sample_rate };
+        dsp_biquad_filter_t _abbey_road_trick_lp{ biquad_type::lowpass, k_engine_sample_rate };
+        dsp_biquad_filter_t _abbey_road_trick_hp{ biquad_type::highpass, k_engine_sample_rate };
     };
 } // namespace carrot::audio

@@ -43,13 +43,13 @@ namespace carrot::audio {
         _music_underwater_lp.set_q(0.707f);
         _music_underwater_lp.set_gain(0.f);
 
-        _abbey_road_trick_lp.set_freq(8000.f);
-        _abbey_road_trick_lp.set_q(0.707f);
-        _abbey_road_trick_lp.set_gain(0.f);
-
         _abbey_road_trick_hp.set_freq(300.f);
         _abbey_road_trick_hp.set_q(0.707f);
         _abbey_road_trick_hp.set_gain(0.f);
+
+        _abbey_road_trick_lp.set_freq(8000.f);
+        _abbey_road_trick_lp.set_q(0.707f);
+        _abbey_road_trick_lp.set_gain(0.f);
 
         _megaphone_fx_peak.set_freq(1200.f);
         _megaphone_fx_peak.set_q(4.f);
@@ -83,8 +83,8 @@ namespace carrot::audio {
         _music_reverb.set_room_size(0.65f);
         _music_reverb.set_damp(0.35f);
         _music_reverb.set_predelay_ms(30.0f);
-        _music_reverb.set_wet(0.05f);
-        _music_reverb.set_dry(1.f);
+        _music_reverb.set_wet(0.35f);
+        _music_reverb.set_dry(0.f);
         _music_reverb.set_width(1.0f);
     }
 
@@ -477,18 +477,6 @@ namespace carrot::audio {
             _music_underwater_lp.process(ctx);
         }
 
-        if (_enable_abbey_road_trick)
-        {
-            dsp_process_context_t ctx{ };
-            ctx.interleaved   = _mixer.bus_buffer(audio_bus_id::music);
-            ctx.num_channels  = _channels;
-            ctx.num_frames    = engine_frames;
-            ctx.sample_rate   = k_engine_sample_rate;
-
-            _abbey_road_trick_lp.process(ctx);
-            _abbey_road_trick_hp.process(ctx);
-        }
-
         if (_enable_megaphone_fx)
         {
             dsp_process_context_t ctx{ };
@@ -511,14 +499,16 @@ namespace carrot::audio {
             _music_delay.process(ctx);
         }
 
-        if (_enable_reverb)
+        if (_enable_reverb_bus)
         {
             dsp_process_context_t ctx{ };
-            ctx.interleaved   = _mixer.bus_buffer(audio_bus_id::music);
+            ctx.interleaved   = _mixer.bus_buffer(audio_bus_id::reverb);
             ctx.num_channels  = _channels;
             ctx.num_frames    = engine_frames;
             ctx.sample_rate   = k_engine_sample_rate;
 
+            _abbey_road_trick_lp.process(ctx);
+            _abbey_road_trick_hp.process(ctx);
             _music_reverb.process(ctx);
         }
         //—— END TEMPORARY FX TESTS ————————————————————————————————————————

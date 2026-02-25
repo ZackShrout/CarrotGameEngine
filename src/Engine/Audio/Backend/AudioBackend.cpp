@@ -10,6 +10,7 @@
 #elif defined(CARROT_PLATFORM_WIN32)
 #include "Windows/WindowsAudioBackend.h"
 #elif defined(CARROT_PLATFORM_WAYLAND) || defined(CARROT_PLATFORM_X11)
+#include "Linux/LinuxAudioBackend.h"
 #endif
 
 #include "Core/Logger.h"
@@ -23,6 +24,8 @@ namespace carrot::audio {
 #elif defined(CARROT_PLATFORM_WIN32)
         return std::make_unique<windows_audio_backend_t>();
 #elif defined(CARROT_PLATFORM_WAYLAND) || defined(CARROT_PLATFORM_X11)
+        return std::make_unique<linux_audio_backend_t>();
+#else
         LOG_AUDIO_WARN("Platform audio not implemented yet, returning null backend");
         return std::make_unique<null_audio_backend_t>();
 #endif

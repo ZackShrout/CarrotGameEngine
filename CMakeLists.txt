@@ -301,6 +301,9 @@ elseif (UNIX)
             src/Engine/RHI/Backends/Vulkan/VulkanCore.h
             src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.cpp
             src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.h
+
+            src/Engine/Audio/Backend/Linux/LinuxAudioBackend.cpp
+            src/Engine/Audio/Backend/Linux/LinuxAudioBackend.h
     )
 
 endif()
@@ -440,7 +443,13 @@ elseif(WIN32)
 elseif(UNIX)
     # Find Vulkan
     find_package(Vulkan REQUIRED)
-    target_link_libraries(CarrotEngine PRIVATE Vulkan::Vulkan)
+    find_package(ALSA REQUIRED)
+    find_package(PkgConfig REQUIRED)
+
+    pkg_check_modules(PULSEAUDIO REQUIRED IMPORTED_TARGET
+            libpulse-simple
+            libpulse
+    )
 
     # Apply libc++ only to C++ compilation and linking
     target_compile_options(CarrotEngine PUBLIC
@@ -453,6 +462,9 @@ elseif(UNIX)
     target_compile_definitions(CarrotEngine PUBLIC VK_USE_PLATFORM_WAYLAND_KHR)
 
     target_link_libraries(CarrotEngine PRIVATE
+            Vulkan::Vulkan
+            ALSA::ALSA
+            PkgConfig::PULSEAUDIO
             wayland-client
             wayland-cursor
             wayland-egl

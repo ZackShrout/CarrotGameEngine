@@ -14,9 +14,6 @@ namespace carrot::rhi::vulkan {
     // PUBLIC
     vulkan_rhi_context_t::vulkan_rhi_context_t(const rhi_desc_t& desc)
     {
-        if (desc.api != graphics_api::vulkan)
-            LOG_GRAPHICS_FATAL("Only Vulkan supported in this implementation");
-
         init(desc);
     }
 

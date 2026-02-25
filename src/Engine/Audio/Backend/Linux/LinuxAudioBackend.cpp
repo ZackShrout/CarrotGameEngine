@@ -7,8 +7,6 @@
 
 #include "Common/CommonHeaders.h"
 
-#include <algorithm>
-#include <cstring>
 #include <pulse/simple.h>
 #include <pulse/error.h>
 #include <alsa/asoundlib.h>
@@ -44,7 +42,6 @@ namespace carrot::audio {
         }
 
         // Try PulseAudio / PipeWire first
-
         if (init_pulse(_sample_rate, _block_size, _channels))
         {
             _backend = backend_kind_t::pulse;
@@ -66,12 +63,13 @@ namespace carrot::audio {
         }
 
         // Pre-allocate temp buffer once; reused by audio thread
-        const uint32_t frames_per_chunk = _block_size;
-        const uint32_t samples_per_chunk = frames_per_chunk * _channels;
+        const uint32_t frames_per_chunk{ _block_size };
+        const uint32_t samples_per_chunk{ frames_per_chunk * _channels };
         _temp_buffer.resize(samples_per_chunk);
 
         LOG_AUDIO_INFO("Linux audio backend initialized: sample_rate={} Hz, block_size={} frames, channels={}",
                        _sample_rate, _block_size, _channels);
+
         return true;
     }
 
@@ -133,17 +131,17 @@ namespace carrot::audio {
         spec.rate = sample_rate;
         spec.channels = static_cast<uint8_t>(channels);
 
-        int error = 0;
+        int error{ 0 };
         _pa_stream = pa_simple_new(
             /* server      */ nullptr,
-                              /* app name    */ "CarrotEngine",
-                              /* dir         */ PA_STREAM_PLAYBACK,
-                              /* device      */ nullptr, // default sink
-                              /* stream name */ "Game Audio",
-                              /* sample spec */ &spec,
-                              /* channel map */ nullptr,
-                              /* buffering   */ nullptr,
-                              /* error       */ &error);
+            /* app name    */ "CarrotEngine",
+            /* dir         */ PA_STREAM_PLAYBACK,
+            /* device      */ nullptr, // default sink
+            /* stream name */ "Game Audio",
+            /* sample spec */ &spec,
+            /* channel map */ nullptr,
+            /* buffering   */ nullptr,
+            /* error       */ &error);
 
         if (!_pa_stream)
         {
@@ -155,22 +153,23 @@ namespace carrot::audio {
         // assume the server accepted our requested sample rate.
         LOG_AUDIO_INFO("PulseAudio stream created: {} Hz, {} channels, block_size={} frames",
                        sample_rate, channels, block_size);
+
         return true;
     }
 
     bool linux_audio_backend_t::init_alsa(uint32_t sample_rate, const uint32_t block_size,
                                           const uint32_t channels) noexcept
     {
-        snd_pcm_t* handle = nullptr;
+        snd_pcm_t* handle{ nullptr };
 
-        int err = snd_pcm_open(&handle, "default", SND_PCM_STREAM_PLAYBACK, 0);
+        int err{ snd_pcm_open(&handle, "default", SND_PCM_STREAM_PLAYBACK, 0) };
         if (err < 0)
         {
             LOG_AUDIO_WARN("ALSA: snd_pcm_open failed: {}", snd_strerror(err));
             return false;
         }
 
-        snd_pcm_hw_params_t* hw_params = nullptr;
+        snd_pcm_hw_params_t* hw_params{ nullptr };
         snd_pcm_hw_params_alloca(&hw_params);
 
         err = snd_pcm_hw_params_any(handle, hw_params);
@@ -191,7 +190,7 @@ namespace carrot::audio {
         }
 
         // Prefer float32, fallback to S16 if needed
-        snd_pcm_format_t fmt = SND_PCM_FORMAT_FLOAT_LE;
+        snd_pcm_format_t fmt{ SND_PCM_FORMAT_FLOAT_LE };
         err = snd_pcm_hw_params_set_format(handle, hw_params, fmt);
         if (err < 0)
         {
@@ -216,7 +215,7 @@ namespace carrot::audio {
         }
 
         // Sample rate (nearest)
-        unsigned int rate = sample_rate;
+        unsigned int rate{ sample_rate };
         err = snd_pcm_hw_params_set_rate_near(handle, hw_params, &rate, nullptr);
         if (err < 0)
         {
@@ -232,7 +231,7 @@ namespace carrot::audio {
         }
 
         // Period size ~ requested block size
-        snd_pcm_uframes_t period_frames = block_size;
+        snd_pcm_uframes_t period_frames{ block_size };
         err = snd_pcm_hw_params_set_period_size_near(handle, hw_params, &period_frames, nullptr);
         if (err < 0)
         {
@@ -242,7 +241,7 @@ namespace carrot::audio {
         }
 
         // Buffer size: 4 periods
-        snd_pcm_uframes_t buffer_frames = period_frames * 4;
+        snd_pcm_uframes_t buffer_frames{ period_frames * 4 };
         err = snd_pcm_hw_params_set_buffer_size_near(handle, hw_params, &buffer_frames);
         if (err < 0)
         {
@@ -282,15 +281,13 @@ namespace carrot::audio {
 
     void linux_audio_backend_t::audio_thread_proc() noexcept
     {
-        // You can add RT scheduling / pthread_setschedparam here if you like.
+        const uint32_t channels{ _channels };
 
-        const uint32_t channels = _channels;
-        const uint32_t frames_per_chunk =
-            (_backend == backend_kind_t::alsa && _alsa_period_frames != 0)
-                ? _alsa_period_frames
-                : _block_size;
+        const uint32_t frames_per_chunk{
+            _backend == backend_kind_t::alsa && _alsa_period_frames != 0 ? _alsa_period_frames : _block_size
+        };
 
-        const uint32_t samples_per_chunk = frames_per_chunk * channels;
+        const uint32_t samples_per_chunk{ frames_per_chunk * channels };
 
         // Sanity: resize if something changed (should not reallocate normally)
         if (_temp_buffer.size() < samples_per_chunk)
@@ -298,7 +295,7 @@ namespace carrot::audio {
 
         while (_running)
         {
-            float* out = _temp_buffer.data();
+            float* out{ _temp_buffer.data() };
 
             // Render from engine
             _callback->render(out, frames_per_chunk, channels);
@@ -307,8 +304,8 @@ namespace carrot::audio {
             {
                 case backend_kind_t::pulse:
                 {
-                    const size_t bytes = samples_per_chunk * sizeof(float);
-                    int error = 0;
+                    const size_t bytes{ samples_per_chunk * sizeof(float) };
+                    int error{ 0 };
                     if (pa_simple_write(_pa_stream, out, bytes, &error) < 0)
                     {
                         LOG_AUDIO_ERROR("PulseAudio: write failed: {}", pa_strerror(error));
@@ -320,13 +317,12 @@ namespace carrot::audio {
 
                 case backend_kind_t::alsa:
                 {
-                    int frames_to_write = static_cast<int>(frames_per_chunk);
-                    float* ptr = out;
+                    int frames_to_write{ static_cast<int>(frames_per_chunk) };
+                    float* ptr{ out };
 
                     while (frames_to_write > 0 && _running)
                     {
-                        snd_pcm_sframes_t written =
-                            snd_pcm_writei(_alsa_handle, ptr, frames_to_write);
+                        snd_pcm_sframes_t written{ snd_pcm_writei(_alsa_handle, ptr, frames_to_write) };
 
                         if (written == -EPIPE)
                         {
@@ -334,17 +330,16 @@ namespace carrot::audio {
                             snd_pcm_prepare(_alsa_handle);
                             continue;
                         }
-                        else if (written < 0)
+
+                        if (written < 0)
                         {
                             LOG_AUDIO_ERROR("ALSA: write failed: {}", snd_strerror(static_cast<int>(written)));
                             _running = false;
                             break;
                         }
-                        else
-                        {
-                            frames_to_write -= static_cast<int>(written);
-                            ptr += static_cast<int>(written) * channels;
-                        }
+
+                        frames_to_write -= static_cast<int>(written);
+                        ptr += static_cast<int>(written) * channels;
                     }
 
                     break;
@@ -360,7 +355,7 @@ namespace carrot::audio {
         // Best-effort drain for Pulse
         if (_backend == backend_kind_t::pulse && _pa_stream)
         {
-            int error = 0;
+            int error{ 0 };
             pa_simple_drain(_pa_stream, &error);
         }
     }

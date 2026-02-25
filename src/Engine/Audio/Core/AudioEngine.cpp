@@ -416,10 +416,19 @@ namespace carrot::audio {
             index += _channels;
         }
 
+        _mixer.accumulate_reverb_send(engine_frames);
+        _mixer.process_bus_fx(engine_frames, k_engine_sample_rate);
+
         // Mix buses into master (engine rate)
         _mixer.mix_bus_into_master(audio_bus_id::music, engine_frames);
         _mixer.mix_bus_into_master(audio_bus_id::sfx, engine_frames);
         _mixer.mix_bus_into_master(audio_bus_id::ui, engine_frames);
+        _mixer.mix_bus_into_master(audio_bus_id::reverb, engine_frames);
+
+        // TODO: Apply master FX (saturator / limiter) in-place on _mixer.master_buffer(), something like:
+        // _mixer.process_master_fx(engine_frames, k_engine_sample_rate);
+        // or
+        // process_master_fx(_mixer.master_buffer(), engine_frames, k_engine_sample_rate);
     }
 
     void audio_engine_t::render_with_master_resampler(float* output, const uint32_t device_frames,

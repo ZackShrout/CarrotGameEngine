@@ -78,6 +78,55 @@ namespace carrot::audio {
         }
     }
 
+    void audio_mixer_t::process_bus_fx(const uint32_t frame_count, const uint32_t sample_rate) const noexcept
+    {
+        dsp_process_context_t ctx{ };
+
+        ctx.num_channels = _channels;
+        ctx.num_frames = frame_count;
+        ctx.sample_rate = sample_rate;
+
+        for (auto& bus: _buses)
+        {
+            if (!bus.fx_chain || !bus.buffer)
+                continue;
+
+            ctx.interleaved = bus.buffer;
+
+            bus.fx_chain->process(ctx);
+        }
+    }
+
+    void audio_mixer_t::accumulate_reverb_send(const uint32_t frame_count) const noexcept
+    {
+        const uint32_t total{ frame_count * _channels };
+
+        const audio_bus_t& reverb_bus{ _buses[static_cast<size_t>(audio_bus_id::reverb)] };
+
+        // Clear reverb buffer before accumulation
+        std::memset(reverb_bus.buffer, 0, total * sizeof(float));
+
+        for (size_t i{ 0 }; i < _buses.size(); ++i)
+        {
+            const audio_bus_id id{ static_cast<audio_bus_id>(i) };
+
+            if (id == audio_bus_id::master || id == audio_bus_id::reverb)
+                continue;
+
+            const audio_bus_t& src{ _buses[i] };
+            const float send_gain{ src.reverb_send };
+
+            if (send_gain <= 0.f)
+                continue;
+
+            const float* src_buf{ src.buffer };
+            float* dst_buf{ reverb_bus.buffer };
+
+            for (uint32_t sample{ 0 }; sample < total; ++sample)
+                dst_buf[sample] += src_buf[sample] * send_gain;
+        }
+    }
+
     // PRIVATE
 
     bool audio_mixer_t::any_bus_soloed() const noexcept

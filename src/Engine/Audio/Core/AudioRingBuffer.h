@@ -60,8 +60,8 @@ namespace carrot::audio {
 
     // PUBLIC
 
-    template<uint32_t capacity_frames, uint32_t MaxChannels>
-    uint32_t audio_ring_buffer_t<capacity_frames, MaxChannels>::write(const float* src, const uint32_t frames) noexcept
+    template<uint32_t capacity_frames, uint32_t max_channels>
+    uint32_t audio_ring_buffer_t<capacity_frames, max_channels>::write(const float* src, const uint32_t frames) noexcept
     {
         debug.total_written_frames.fetch_add(frames, std::memory_order_relaxed);
 

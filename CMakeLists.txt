@@ -139,6 +139,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Audio/Streaming/WavStreamDecoder.cpp
         src/Engine/Audio/Streaming/WavStreamDecoder.h
         src/Engine/Audio/DSP/Resampler.h
+        src/Engine/Audio/DSP/DspUnit.h
+        src/Engine/Audio/Mixer/FxChain.h
 )
 
 # ------------------------------------------------------------------------

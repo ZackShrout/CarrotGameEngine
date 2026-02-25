@@ -10,6 +10,8 @@
 #include <cstdint>
 #include <string_view>
 
+#include "FxChain.h"
+
 namespace carrot::audio {
     /**
      * @brief Logical audio bus identifiers.
@@ -32,6 +34,9 @@ namespace carrot::audio {
 
         /** User interface sounds. */
         ui,
+
+        /** Global reverb send/return bus. */
+        reverb,
 
         /** Invalid or unknown bus identifier. */
         unknown,
@@ -79,7 +84,32 @@ namespace carrot::audio {
          *
          * This buffer is owned by the audio mixer and reused each render block.
          */
-        float* buffer{ nullptr }; // interleaved
+        float* buffer{ nullptr };
+
+        /**
+         * @brief Post-fader send level to the reverb effect bus.
+         *
+         * Represents the amount of audio signal that is routed from this bus
+         * to the shared reverb effect bus. It determines how much of the audio
+         * processed by this bus is sent to the global reverb effect.
+         *
+         * Range: 0.0 (no signal sent) to 1.0 (full signal sent).
+         */
+        float reverb_send{ 0.0f };
+
+        /**
+         * @brief Pointer to the effect processing chain for this audio bus.
+         *
+         * The fx_chain_t structure manages a series of digital signal processing (DSP)
+         * units that are applied sequentially to the audio signal routed through this
+         * bus. It allows for flexible audio effects processing, such as equalization,
+         * reverb, and dynamic range compression, depending on the DSP units in the chain.
+         *
+         * @note
+         * - The fx_chain pointer may be `nullptr` if no effects are applied to the bus.
+         * - The chain is processed in the order of its units during audio rendering.
+         */
+        fx_chain_t* fx_chain{ nullptr };
     };
 
     /**
@@ -90,7 +120,7 @@ namespace carrot::audio {
      * @param bus String representation of the bus (e.g. "music", "sfx")
      * @return Corresponding audio_bus_id, or audio_bus_id::unknown on failure
      */
-    inline audio_bus_id audio_bus_id_from_string(std::string_view bus)
+    inline audio_bus_id audio_bus_id_from_string(const std::string_view bus)
     {
         if (bus == "music") return audio_bus_id::music;
         if (bus == "sfx") return audio_bus_id::sfx;

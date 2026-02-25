@@ -85,6 +85,32 @@ namespace carrot::audio {
         void mix_bus_into_master(audio_bus_id id, uint32_t frame_count) const noexcept;
 
         /**
+         * @brief Processes the effects chain for all active audio buses.
+         *
+         * Iterates over all audio buses, applying the associated effects chain
+         * to each bus's audio buffer in the context of the given frame count
+         * and sample rate.
+         *
+         * @param frame_count Number of frames in the current render block.
+         * @param sample_rate Sample rate of the audio processing context.
+         */
+        void process_bus_fx(uint32_t frame_count, uint32_t sample_rate) const noexcept;
+
+        /**
+         * @brief Accumulates audio data from all buses into the reverb send buffer.
+         *
+         * This method processes all audio buses, applies their reverb send gain,
+         * and accumulates the results into the dedicated reverb send buffer.
+         * The reverb buffer is cleared at the beginning of the process to ensure
+         * the new data is mixed cleanly. Buses with a reverb send gain of zero
+         * or those reserved for master or reverb outputs are skipped.
+         *
+         * @param frame_count The number of audio frames to process.
+         *                    Determines the size of the buffer being processed.
+         */
+        void accumulate_reverb_send(uint32_t frame_count) const noexcept;
+
+        /**
          * @brief Sets the linear gain for a bus.
          *
          * @param id Audio bus identifier
@@ -109,7 +135,10 @@ namespace carrot::audio {
          * @param id Audio bus identifier
          * @param soloed True to solo the bus
          */
-        void set_bus_solo(audio_bus_id id, const bool soloed) noexcept { _buses[static_cast<size_t>(id)].soloed = soloed; }
+        void set_bus_solo(audio_bus_id id, const bool soloed) noexcept
+        {
+            _buses[static_cast<size_t>(id)].soloed = soloed;
+        }
 
         /**
          * @brief Sets the stereo pan for a bus.
@@ -118,6 +147,21 @@ namespace carrot::audio {
          * @param pan Stereo pan (-1.0 = left, +1.0 = right)
          */
         void set_bus_pan(audio_bus_id id, const float pan) noexcept { _buses[static_cast<size_t>(id)].pan = pan; }
+
+        /**
+         * @brief Sets the reverb send level for a specific audio bus.
+         *
+         * Adjusts the amount of signal routed from the specified audio bus
+         * to the global reverb bus, allowing control over the contribution
+         * of the bus to the reverb effects.
+         *
+         * @param id Audio bus identifier
+         * @param send Reverb send level (0.0 = no send, 1.0 = full send)
+         */
+        void set_bus_reverb_send(audio_bus_id id, const float send) noexcept
+        {
+            _buses[static_cast<size_t>(id)].reverb_send = send;
+        }
 
     private:
         /**

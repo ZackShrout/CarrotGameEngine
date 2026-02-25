@@ -143,6 +143,7 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Audio/Mixer/FxChain.h
         src/Engine/Audio/DSP/BiquadFilter.h
         src/Engine/Audio/DSP/Delay.h
+        src/Engine/Audio/DSP/SchroederReverb.h
 )
 
 # ------------------------------------------------------------------------

@@ -78,6 +78,14 @@ namespace carrot::audio {
         // _music_delay.set_feedback(0.5f);
         // _music_delay.set_wet(0.5f);
         // _music_delay.set_dry(1.0f);
+
+        // HALL REVERB
+        _music_reverb.set_room_size(0.65f);
+        _music_reverb.set_damp(0.35f);
+        _music_reverb.set_predelay_ms(30.0f);
+        _music_reverb.set_wet(0.05f);
+        _music_reverb.set_dry(1.f);
+        _music_reverb.set_width(1.0f);
     }
 
     void audio_engine_t::shutdown() noexcept
@@ -501,6 +509,17 @@ namespace carrot::audio {
             ctx.sample_rate   = k_engine_sample_rate;
 
             _music_delay.process(ctx);
+        }
+
+        if (_enable_reverb)
+        {
+            dsp_process_context_t ctx{ };
+            ctx.interleaved   = _mixer.bus_buffer(audio_bus_id::music);
+            ctx.num_channels  = _channels;
+            ctx.num_frames    = engine_frames;
+            ctx.sample_rate   = k_engine_sample_rate;
+
+            _music_reverb.process(ctx);
         }
         //—— END TEMPORARY FX TESTS ————————————————————————————————————————
 

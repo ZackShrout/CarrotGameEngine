@@ -11,6 +11,7 @@
 #include "AudioEventQueue.h"
 #include "Audio/Voice/Voice.h"
 #include "Audio/Core/AudioCore.h"
+#include "Audio/DSP/BiquadFilter.h"
 #include "Audio/Mixer/AudioMixer.h"
 
 namespace carrot::audio {
@@ -178,5 +179,16 @@ namespace carrot::audio {
 
         // Resampler state from engine → device
         double _master_src_pos{ 0.0 };
+
+        //—— TEMPORARY FX TEST STATE —————————————————————————————————————————————————————————————
+        bool _enable_underwater_music{ false };
+        dsp_biquad_filter_t _music_underwater_lp{ biquad_type::lowpass, k_engine_sample_rate };
+
+        bool _enable_abbey_road_trick{ false };
+        dsp_biquad_filter_t _abbey_road_trick_lp{ biquad_type::lowpass, k_engine_sample_rate };
+        dsp_biquad_filter_t _abbey_road_trick_hp{ biquad_type::highpass, k_engine_sample_rate };
+
+        bool _enable_megaphone_fx{ false };
+        dsp_biquad_filter_t _megaphone_fx_peak{ biquad_type::peak, k_engine_sample_rate };
     };
 } // namespace carrot::audio

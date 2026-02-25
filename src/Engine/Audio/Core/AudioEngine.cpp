@@ -37,6 +37,23 @@ namespace carrot::audio {
         _mixer.init(clock->block_size(), channels);
 
         _master_ring.init(channels);
+
+        // FX TESTS
+        _music_underwater_lp.set_freq(800.f);
+        _music_underwater_lp.set_q(0.707f);
+        _music_underwater_lp.set_gain(0.f);
+
+        _abbey_road_trick_lp.set_freq(8000.f);
+        _abbey_road_trick_lp.set_q(0.707f);
+        _abbey_road_trick_lp.set_gain(0.f);
+
+        _abbey_road_trick_hp.set_freq(300.f);
+        _abbey_road_trick_hp.set_q(0.707f);
+        _abbey_road_trick_hp.set_gain(0.f);
+
+        _megaphone_fx_peak.set_freq(1200.f);
+        _megaphone_fx_peak.set_q(4.f);
+        _megaphone_fx_peak.set_gain(12.f);
     }
 
     void audio_engine_t::shutdown() noexcept
@@ -415,6 +432,42 @@ namespace carrot::audio {
 
             index += _channels;
         }
+
+        //—— TEMPORARY FX TESTS ————————————————————————————————————————————
+        if (_enable_underwater_music)
+        {
+            dsp_process_context_t ctx{ };
+            ctx.interleaved   = _mixer.bus_buffer(audio_bus_id::music);
+            ctx.num_channels  = _channels;
+            ctx.num_frames    = engine_frames;
+            ctx.sample_rate   = k_engine_sample_rate;
+
+            _music_underwater_lp.process(ctx);
+        }
+
+        if (_enable_abbey_road_trick)
+        {
+            dsp_process_context_t ctx{ };
+            ctx.interleaved   = _mixer.bus_buffer(audio_bus_id::music);
+            ctx.num_channels  = _channels;
+            ctx.num_frames    = engine_frames;
+            ctx.sample_rate   = k_engine_sample_rate;
+
+            _abbey_road_trick_lp.process(ctx);
+            _abbey_road_trick_hp.process(ctx);
+        }
+
+        if (_enable_megaphone_fx)
+        {
+            dsp_process_context_t ctx{ };
+            ctx.interleaved   = _mixer.bus_buffer(audio_bus_id::music);
+            ctx.num_channels  = _channels;
+            ctx.num_frames    = engine_frames;
+            ctx.sample_rate   = k_engine_sample_rate;
+
+            _megaphone_fx_peak.process(ctx);
+        }
+        //—— END TEMPORARY FX TESTS ————————————————————————————————————————
 
         _mixer.accumulate_reverb_send(engine_frames);
         _mixer.process_bus_fx(engine_frames, k_engine_sample_rate);

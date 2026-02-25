@@ -12,6 +12,7 @@
 #include "Audio/Voice/Voice.h"
 #include "Audio/Core/AudioCore.h"
 #include "Audio/DSP/BiquadFilter.h"
+#include "Audio/DSP/Delay.h"
 #include "Audio/Mixer/AudioMixer.h"
 
 namespace carrot::audio {
@@ -190,5 +191,8 @@ namespace carrot::audio {
 
         bool _enable_megaphone_fx{ false };
         dsp_biquad_filter_t _megaphone_fx_peak{ biquad_type::peak, k_engine_sample_rate };
+
+        bool _enable_delay{ true };
+        dsp_delay_line_t _music_delay{ k_engine_sample_rate, 1000u, 2u };
     };
 } // namespace carrot::audio

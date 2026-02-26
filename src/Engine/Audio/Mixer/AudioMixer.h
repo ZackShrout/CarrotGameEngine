@@ -10,7 +10,10 @@
 
 #include <array>
 
+#include "Audio/DSP/Baxandall.h"
 #include "Audio/DSP/BiquadFilter.h"
+#include "Audio/DSP/Limiter.h"
+#include "Audio/DSP/Saturator.h"
 #include "Audio/DSP/SchroederReverb.h"
 
 namespace carrot::audio {
@@ -115,7 +118,9 @@ namespace carrot::audio {
          * @param frame_count Number of frames in the current render block.
          * @param sample_rate Sample rate of the audio processing context.
          */
-        void process_bus_fx(uint32_t frame_count, uint32_t sample_rate) const noexcept;
+        void process_bus_fx(uint32_t frame_count, uint32_t sample_rate) noexcept;
+
+        void process_master_fx(uint32_t frame_count, uint32_t sample_rate) noexcept;
 
         /**
          * @brief Accumulates audio data from all buses into the reverb send buffer.
@@ -193,22 +198,42 @@ namespace carrot::audio {
         [[nodiscard]] bool any_bus_soloed() const noexcept;
 
         /**
-         * @brief Configures the reverb bus for the audio mixer.
+         * @brief Configures the reverb bus signal chain.
          *
-         * This method sets up the processing chain for the reverb bus by configuring
-         * high-pass, low-pass, and reverb effect parameters. It ensures the proper
-         * frequency, quality factor (Q), gain, and other reverb-specific parameters are
-         * applied. The configured effects are added to the processing chain, which is
-         * responsible for handling reverb audio processing within the mixer.
+         * The configure_reverb_bus() method sets up the frequency and gain parameters
+         * of high-pass and low-pass filters, as well as the properties of a reverb effect
+         * processor. These components are then added to the effect chain associated with
+         * the reverb bus.
+         *
+         * This method is invoked internally to ensure that the reverb bus is properly
+         * configured with predefined settings for filtering and reverb processing.
          *
          * @note
          * configure_reverb_bus():
-         *  - Initializes and configures high-pass and low-pass filters for the reverb bus.
-         *  - Configures room size, dampening, pre-delay, wet/dry mix, and stereo width for the reverb processor.
-         *  - Updates the effect chain for the reverb audio bus, clearing previous effects and
-         *    adding the configured effects to the chain.
+         *  - Initializes the high-pass (HP), low-pass (LP), and reverb parameters with fixed values.
+         *  - Updates the reverb bus's effect chain to include the initialized filters and reverb processor.
+         *  - Operates within the audio thread and is not thread-safe.
          */
-        void configure_reverb_bus();
+        void configure_reverb_bus() noexcept;
+
+        /**
+         * @brief Configures the master audio bus with processing effects.
+         *
+         * This method sets up the master bus by initializing and applying
+         * audio processing effects, such as a saturator and a limiter, to shape
+         * and control the master output signal. The processing chain is cleared
+         * and the necessary effects are added to the chain.
+         *
+         * The following configuration is applied:
+         *  - Saturator: Controls drive, shape, mix, and output gain.
+         *  - Limiter: Sets threshold, ceiling, and release time.
+         *
+         * @note
+         * This method is intended to be called during the setup phase of the
+         * audio mixer and must be invoked on the audio thread. Changes take
+         * effect immediately during audio rendering.
+         */
+        void configure_master_bus() noexcept;
 
         /** Per-bus mixing state and buffers. */
         std::array<audio_bus_t, static_cast<size_t>(audio_bus_id::count)> _buses{ };
@@ -238,7 +263,6 @@ namespace carrot::audio {
         /** Maximum frames supported per render block. */
         uint32_t _max_frames{ 0 };
 
-        // Built-in reverb bus FX
         /** High-pass filter for the reverb bus. */
         dsp_biquad_filter_t _reverb_bus_hp{ biquad_type::highpass, k_engine_sample_rate };
 
@@ -247,5 +271,13 @@ namespace carrot::audio {
 
         /** Per-bus Schroeder reverb processor. */
         dsp_schroeder_reverb_t _reverb_bus_verb{ k_engine_sample_rate };
+
+        dsp_baxandall_tone_t _master_eq{ k_engine_sample_rate };
+
+        /** Signal saturation handler for the master audio bus. */
+        dsp_saturator_t _master_bus_saturator;
+
+        /** Dynamics processor to limit peak levels on the master audio bus. */
+        dsp_limiter_t _master_bus_limiter;
     };
 } // namespace carrot::audio

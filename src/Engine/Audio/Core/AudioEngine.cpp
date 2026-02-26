@@ -88,8 +88,8 @@ namespace carrot::audio {
         {
             mix_engine_frames(device_frame_count);
 
-            const float* master = _mixer.master_buffer();
-            const uint32_t total_samples = device_frame_count * channel_count;
+            const float* master{ _mixer.master_buffer() };
+            const uint32_t total_samples{ device_frame_count * channel_count };
 
             std::memcpy(output, master, total_samples * sizeof(float));
             return;
@@ -134,17 +134,6 @@ namespace carrot::audio {
                     const double source_rate{ static_cast<double>(voice.sample->sample_rate) };
                     const double engine_rate{ static_cast<double>(_clock->sample_rate()) };
                     voice.src_step = (source_rate / engine_rate) * static_cast<double>(voice.pitch);
-
-                    // LOG_AUDIO_INFO("PlaySound: src_rate={}Hz, engine_rate={}Hz, src_step={}", voice.sample->sample_rate,
-                    //                _clock->sample_rate(), voice.src_step);
-                    //
-                    // if (!(voice.src_step > 0.0f && voice.src_step < 4.0f))
-                    // {
-                    //     LOG_AUDIO_ERROR("Weird src_step: {} (src_rate={}, engine_rate={})",
-                    //                     voice.src_step,
-                    //                     voice.sample->sample_rate,
-                    //                     _clock->sample_rate());
-                    // }
 
                     // voice.sample_cursor = 0;
                     voice.gain = cmd.play_sound.gain;
@@ -352,17 +341,6 @@ namespace carrot::audio {
                     continue;
 
                 const uint32_t src_channels{ voice_source_channels(voice) };
-
-                // if (voice.type == voice_type::sample && voice.sample)
-                // {
-                //     static uint64_t debug_counter = 0;
-                //     if (debug_counter++ % 4800 == 0) // every ~0.1s at 48k
-                //     {
-                //         LOG_AUDIO_INFO("Voice debug: src_pos={}, src_step={}, state={}, channels={}", voice.src_pos,
-                //                        voice.src_step, static_cast<int>(voice.state), src_channels);
-                //     }
-                // }
-
                 float distance_gain{ 1.f };
                 float spatial_pan{ 0.f };
 
@@ -454,6 +432,8 @@ namespace carrot::audio {
 
         render_all_voices_into_buses(engine_frames);
 
+        _mixer.set_bus_reverb_send(audio_bus_id::music, 0.f);
+
         _mixer.accumulate_reverb_send(engine_frames);
 
         //—— TEMPORARY FX TESTS ————————————————————————————————————————————
@@ -499,10 +479,7 @@ namespace carrot::audio {
         _mixer.mix_bus_into_master(audio_bus_id::ui, engine_frames);
         _mixer.mix_bus_into_master(audio_bus_id::reverb, engine_frames);
 
-        // TODO: Apply master FX (saturator / limiter) in-place on _mixer.master_buffer(), something like:
-        // _mixer.process_master_fx(engine_frames, k_engine_sample_rate);
-        // or
-        // process_master_fx(_mixer.master_buffer(), engine_frames, k_engine_sample_rate);
+        _mixer.process_master_fx(engine_frames, k_engine_sample_rate);
     }
 
     void audio_engine_t::render_with_master_resampler(float* output, const uint32_t device_frames,

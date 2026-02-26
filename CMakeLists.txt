@@ -144,6 +144,9 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Audio/DSP/BiquadFilter.h
         src/Engine/Audio/DSP/Delay.h
         src/Engine/Audio/DSP/SchroederReverb.h
+        src/Engine/Audio/DSP/Saturator.h
+        src/Engine/Audio/DSP/Limiter.h
+        src/Engine/Audio/DSP/Baxandall.h
 )
 
 # ------------------------------------------------------------------------

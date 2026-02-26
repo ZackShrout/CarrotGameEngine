@@ -24,6 +24,7 @@ namespace carrot::audio {
         }
 
         configure_reverb_bus();
+        configure_master_bus();
     }
 
     void audio_mixer_t::shutdown() noexcept
@@ -81,7 +82,7 @@ namespace carrot::audio {
         }
     }
 
-    void audio_mixer_t::process_bus_fx(const uint32_t frame_count, const uint32_t sample_rate) const noexcept
+    void audio_mixer_t::process_bus_fx(const uint32_t frame_count, const uint32_t sample_rate) noexcept
     {
         dsp_process_context_t ctx{ };
 
@@ -94,12 +95,32 @@ namespace carrot::audio {
             const audio_bus_t& bus{ _buses[i] };
             const fx_chain_t& chain{ _bus_fx[i] };
 
+            if (static_cast<audio_bus_id>(i) == audio_bus_id::master)
+                continue; // master is post-mix only
+
             if (!bus.buffer || chain.empty())
                 continue;
 
             ctx.interleaved = bus.buffer;
             chain.process(ctx);
         }
+    }
+
+    void audio_mixer_t::process_master_fx(uint32_t frame_count, uint32_t sample_rate) noexcept
+    {
+        dsp_process_context_t ctx{ };
+        ctx.num_channels = _channels;
+        ctx.num_frames = frame_count;
+        ctx.sample_rate = sample_rate;
+
+        const audio_bus_t& bus{ _buses[static_cast<size_t>(audio_bus_id::master)] };
+        const fx_chain_t& chain{ _bus_fx[static_cast<size_t>(audio_bus_id::master)] };
+
+        if (!bus.buffer || chain.empty())
+            return;
+
+        ctx.interleaved = bus.buffer;
+        chain.process(ctx);
     }
 
     void audio_mixer_t::accumulate_reverb_send(const uint32_t frame_count) const noexcept
@@ -147,7 +168,8 @@ namespace carrot::audio {
         return false;
     }
 
-    void audio_mixer_t::configure_reverb_bus() {
+    void audio_mixer_t::configure_reverb_bus() noexcept
+    {
         _reverb_bus_hp.set_freq(300.f);
         _reverb_bus_hp.set_q(0.707f);
         _reverb_bus_hp.set_gain(0.f);
@@ -169,5 +191,29 @@ namespace carrot::audio {
         reverb_chain.add(&_reverb_bus_hp);
         reverb_chain.add(&_reverb_bus_lp);
         reverb_chain.add(&_reverb_bus_verb);
+    }
+
+    void audio_mixer_t::configure_master_bus() noexcept
+    {
+        _master_eq.set_bass_gain_db(1.f);
+        _master_eq.set_treble_gain_db(1.5f);
+        _master_eq.set_hpf_freq(24.f);
+        _master_eq.set_lpf_freq(28000.f);
+
+        _master_bus_saturator.set_drive(1.2f);
+        _master_bus_saturator.set_shape_k(0.5f);
+        _master_bus_saturator.set_mix(1.f);
+        _master_bus_saturator.set_output_gain(0.9f);
+
+        _master_bus_limiter.set_threshold(0.9f);
+        _master_bus_limiter.set_ceiling(0.98f);
+        _master_bus_limiter.set_release_ms(120.f);
+
+        fx_chain_t& master_chain{ bus_fx_chain(audio_bus_id::master) };
+
+        master_chain.clear();
+        master_chain.add(&_master_eq);
+        master_chain.add(&_master_bus_saturator);
+        master_chain.add(&_master_bus_limiter);
     }
 } // namespace carrot::audio

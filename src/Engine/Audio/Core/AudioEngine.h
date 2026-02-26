@@ -153,10 +153,51 @@ namespace carrot::audio {
          */
         void activate_voice(voice_t& voice) const noexcept;
 
+        /**
+         * @brief Renders all active voices into audio buses for the given number of engine frames.
+         *
+         * Processes audio voices, applying spatialization, envelopes, and mixing into the appropriate
+         * output buses for each frame in the specified duration. This function handles different
+         * voice states, channels, and spatial configurations to ensure proper audio rendering.
+         *
+         * @param engine_frames The number of engine frames to process during this rendering step.
+         */
+        void render_all_voices_into_buses(uint32_t engine_frames) noexcept;
+
+        /**
+         * @brief Mixes audio frames for the engine into the master output.
+         *
+         * This method processes and mixes all active audio sources, applies effects,
+         * and outputs the finalized audio frames into the master buffer. It also handles
+         * per-bus FX processing.
+         *
+         * @param engine_frames The number of engine frames to process during this rendering step.
+         */
         void mix_engine_frames(uint32_t engine_frames) noexcept;
 
+        /**
+         * @brief Renders audio output using the master resampler.
+         *
+         * This method resamples audio data from the engine's sample rate to the device's
+         * sample rate and mixes audio into the provided output buffer. It ensures enough
+         * audio frames are generated and resampled before outputting the processed data.
+         * The resampling is performed per device frame based on the engine-to-device sample
+         * rate ratio.
+         *
+         * @param output Pointer to the buffer where the resampled audio data will be written.
+         * @param device_frames Number of audio frames to be written to the output buffer.
+         * @param device_channels Number of audio channels for the device (unused in this method).
+         */
         void render_with_master_resampler(float* output, uint32_t device_frames, uint32_t device_channels) noexcept;
 
+        /**
+         * @brief Mixes audio engine frames and pushes the resulting data to the master ring buffer.
+         *
+         * Combines audio frames processed by the engine and writes the mixed output to the
+         * master ring buffer for further playback or processing.
+         *
+         * @param engine_frames The number of audio frames to mix and push to the ring buffer.
+         */
         void mix_engine_frames_and_push_to_ring(uint32_t engine_frames) noexcept;
 
         audio_clock_t*              _clock{ nullptr };
@@ -179,7 +220,7 @@ namespace carrot::audio {
         static constexpr uint32_t k_master_buffer_frames = 2048;
         audio_ring_buffer_t<k_master_buffer_frames, 2> _master_ring;
 
-        // Resampler state from engine → device
+        // Resampler state from engine -> device
         double _master_src_pos{ 0.0 };
 
         //—— TEMPORARY FX TEST STATE —————————————————————————————————————————————————————————————
@@ -191,10 +232,5 @@ namespace carrot::audio {
 
         bool _enable_delay{ false };
         dsp_delay_line_t _music_delay{ k_engine_sample_rate, 1000u, 2u };
-
-        bool _enable_reverb_bus{ true };
-        dsp_schroeder_reverb_t _music_reverb{ k_engine_sample_rate };
-        dsp_biquad_filter_t _abbey_road_trick_lp{ biquad_type::lowpass, k_engine_sample_rate };
-        dsp_biquad_filter_t _abbey_road_trick_hp{ biquad_type::highpass, k_engine_sample_rate };
     };
 } // namespace carrot::audio

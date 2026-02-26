@@ -10,6 +10,9 @@
 
 #include <array>
 
+#include "Audio/DSP/BiquadFilter.h"
+#include "Audio/DSP/SchroederReverb.h"
+
 namespace carrot::audio {
     /**
      * @brief Real-time audio mixer.
@@ -83,6 +86,24 @@ namespace carrot::audio {
          * @param frame_count Number of frames to mix
          */
         void mix_bus_into_master(audio_bus_id id, uint32_t frame_count) const noexcept;
+
+        /**
+         * @brief Retrieves the effects chain associated with a specific audio bus.
+         *
+         * This method provides access to the effects chain for a given audio bus,
+         * allowing modifications or processing of the effects applied to that bus.
+         * The effects chain is stored internally by the mixer and is identified by
+         * the provided audio bus ID.
+         *
+         * @param id The identifier of the audio bus whose effects chain is to be retrieved.
+         * @return A reference to the effects chain (fx_chain_t) associated with the specified audio bus.
+         *
+         * @note
+         * - The behavior is undefined if the provided audio bus ID is invalid.
+         * - This method does not allocate any resources and assumes the audio bus IDs
+         *   are valid and initialized.
+         */
+        fx_chain_t& bus_fx_chain(audio_bus_id id) noexcept { return _bus_fx[static_cast<size_t>(id)]; }
 
         /**
          * @brief Processes the effects chain for all active audio buses.
@@ -171,13 +192,60 @@ namespace carrot::audio {
          */
         [[nodiscard]] bool any_bus_soloed() const noexcept;
 
+        /**
+         * @brief Configures the reverb bus for the audio mixer.
+         *
+         * This method sets up the processing chain for the reverb bus by configuring
+         * high-pass, low-pass, and reverb effect parameters. It ensures the proper
+         * frequency, quality factor (Q), gain, and other reverb-specific parameters are
+         * applied. The configured effects are added to the processing chain, which is
+         * responsible for handling reverb audio processing within the mixer.
+         *
+         * @note
+         * configure_reverb_bus():
+         *  - Initializes and configures high-pass and low-pass filters for the reverb bus.
+         *  - Configures room size, dampening, pre-delay, wet/dry mix, and stereo width for the reverb processor.
+         *  - Updates the effect chain for the reverb audio bus, clearing previous effects and
+         *    adding the configured effects to the chain.
+         */
+        void configure_reverb_bus();
+
         /** Per-bus mixing state and buffers. */
         std::array<audio_bus_t, static_cast<size_t>(audio_bus_id::count)> _buses{ };
+
+        /**
+         * @brief Array of effects chains for each audio bus.
+         *
+         * `_bus_fx` stores the processing chains associated with all audio buses,
+         * enabling the application of audio effects (e.g., reverb, echo, distortion)
+         * to each bus individually before mixing.
+         *
+         * Each element in the array corresponds to a specific audio bus, indexed
+         * by `audio_bus_id`. The size of the array matches the total number of
+         * available audio buses.
+         *
+         * @note
+         * - `_bus_fx` must be properly initialized with valid `fx_chain_t` instances
+         *   before use.
+         * - Modifications to the effects chains must be thread-safe if interacting
+         *   with the audio rendering process.
+         */
+        std::array<fx_chain_t, static_cast<size_t>(audio_bus_id::count)> _bus_fx{};
 
         /** Number of output channels. */
         uint32_t _channels{ 0 };
 
         /** Maximum frames supported per render block. */
         uint32_t _max_frames{ 0 };
+
+        // Built-in reverb bus FX
+        /** High-pass filter for the reverb bus. */
+        dsp_biquad_filter_t _reverb_bus_hp{ biquad_type::highpass, k_engine_sample_rate };
+
+        /** Low-pass filter for the reverb bus. */
+        dsp_biquad_filter_t _reverb_bus_lp{ biquad_type::lowpass, k_engine_sample_rate };
+
+        /** Per-bus Schroeder reverb processor. */
+        dsp_schroeder_reverb_t _reverb_bus_verb{ k_engine_sample_rate };
     };
 } // namespace carrot::audio

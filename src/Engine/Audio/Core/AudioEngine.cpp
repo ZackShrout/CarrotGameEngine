@@ -43,14 +43,6 @@ namespace carrot::audio {
         _music_underwater_lp.set_q(0.707f);
         _music_underwater_lp.set_gain(0.f);
 
-        _abbey_road_trick_hp.set_freq(300.f);
-        _abbey_road_trick_hp.set_q(0.707f);
-        _abbey_road_trick_hp.set_gain(0.f);
-
-        _abbey_road_trick_lp.set_freq(8000.f);
-        _abbey_road_trick_lp.set_q(0.707f);
-        _abbey_road_trick_lp.set_gain(0.f);
-
         _megaphone_fx_peak.set_freq(1200.f);
         _megaphone_fx_peak.set_q(4.f);
         _megaphone_fx_peak.set_gain(12.f);
@@ -78,14 +70,6 @@ namespace carrot::audio {
         // _music_delay.set_feedback(0.5f);
         // _music_delay.set_wet(0.5f);
         // _music_delay.set_dry(1.0f);
-
-        // HALL REVERB
-        _music_reverb.set_room_size(0.65f);
-        _music_reverb.set_damp(0.35f);
-        _music_reverb.set_predelay_ms(30.0f);
-        _music_reverb.set_wet(0.35f);
-        _music_reverb.set_dry(0.f);
-        _music_reverb.set_width(1.0f);
     }
 
     void audio_engine_t::shutdown() noexcept
@@ -343,10 +327,8 @@ namespace carrot::audio {
         voice.state = voice_state::active;
     }
 
-    void audio_engine_t::mix_engine_frames(const uint32_t engine_frames) noexcept
+    void audio_engine_t::render_all_voices_into_buses(const uint32_t engine_frames) noexcept
     {
-        _mixer.clear(engine_frames);
-
         uint32_t index{ 0 };
 
         for (uint32_t frame{ 0 }; frame < engine_frames; ++frame)
@@ -464,6 +446,15 @@ namespace carrot::audio {
 
             index += _channels;
         }
+    }
+
+    void audio_engine_t::mix_engine_frames(const uint32_t engine_frames) noexcept
+    {
+        _mixer.clear(engine_frames);
+
+        render_all_voices_into_buses(engine_frames);
+
+        _mixer.accumulate_reverb_send(engine_frames);
 
         //—— TEMPORARY FX TESTS ————————————————————————————————————————————
         if (_enable_underwater_music)
@@ -498,22 +489,8 @@ namespace carrot::audio {
 
             _music_delay.process(ctx);
         }
-
-        if (_enable_reverb_bus)
-        {
-            dsp_process_context_t ctx{ };
-            ctx.interleaved   = _mixer.bus_buffer(audio_bus_id::reverb);
-            ctx.num_channels  = _channels;
-            ctx.num_frames    = engine_frames;
-            ctx.sample_rate   = k_engine_sample_rate;
-
-            _abbey_road_trick_lp.process(ctx);
-            _abbey_road_trick_hp.process(ctx);
-            _music_reverb.process(ctx);
-        }
         //—— END TEMPORARY FX TESTS ————————————————————————————————————————
 
-        _mixer.accumulate_reverb_send(engine_frames);
         _mixer.process_bus_fx(engine_frames, k_engine_sample_rate);
 
         // Mix buses into master (engine rate)

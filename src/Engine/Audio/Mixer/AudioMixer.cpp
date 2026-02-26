@@ -10,6 +10,7 @@
 #include "Audio/DSP/Pan.h"
 
 namespace carrot::audio {
+    // PUBLIC
     void audio_mixer_t::init(const uint32_t max_frames, const uint32_t channels) noexcept
     {
         _channels = channels;
@@ -21,6 +22,8 @@ namespace carrot::audio {
             bus.buffer = new float[total]; // allocated ONCE at init
             bus.gain = 1.0f;
         }
+
+        configure_reverb_bus();
     }
 
     void audio_mixer_t::shutdown() noexcept
@@ -86,14 +89,16 @@ namespace carrot::audio {
         ctx.num_frames = frame_count;
         ctx.sample_rate = sample_rate;
 
-        for (auto& bus: _buses)
+        for (size_t i{ 0 }; i < _buses.size(); ++i)
         {
-            if (!bus.fx_chain || !bus.buffer)
+            const audio_bus_t& bus{ _buses[i] };
+            const fx_chain_t& chain{ _bus_fx[i] };
+
+            if (!bus.buffer || chain.empty())
                 continue;
 
             ctx.interleaved = bus.buffer;
-
-            bus.fx_chain->process(ctx);
+            chain.process(ctx);
         }
     }
 
@@ -128,7 +133,6 @@ namespace carrot::audio {
     }
 
     // PRIVATE
-
     bool audio_mixer_t::any_bus_soloed() const noexcept
     {
         for (size_t i{ 0 }; i < _buses.size(); ++i)
@@ -141,5 +145,29 @@ namespace carrot::audio {
         }
 
         return false;
+    }
+
+    void audio_mixer_t::configure_reverb_bus() {
+        _reverb_bus_hp.set_freq(300.f);
+        _reverb_bus_hp.set_q(0.707f);
+        _reverb_bus_hp.set_gain(0.f);
+
+        _reverb_bus_lp.set_freq(8000.f);
+        _reverb_bus_lp.set_q(0.707f);
+        _reverb_bus_lp.set_gain(0.f);
+
+        _reverb_bus_verb.set_room_size(0.65f);
+        _reverb_bus_verb.set_damp(0.35f);
+        _reverb_bus_verb.set_predelay_ms(30.0f);
+        _reverb_bus_verb.set_wet(0.40f);
+        _reverb_bus_verb.set_dry(0.f);
+        _reverb_bus_verb.set_width(1.0f);
+
+        fx_chain_t& reverb_chain{ bus_fx_chain(audio_bus_id::reverb) };
+
+        reverb_chain.clear();
+        reverb_chain.add(&_reverb_bus_hp);
+        reverb_chain.add(&_reverb_bus_lp);
+        reverb_chain.add(&_reverb_bus_verb);
     }
 } // namespace carrot::audio

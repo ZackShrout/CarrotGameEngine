@@ -147,6 +147,7 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Audio/DSP/Saturator.h
         src/Engine/Audio/DSP/Limiter.h
         src/Engine/Audio/DSP/Baxandall.h
+        src/Engine/Audio/DSP/VcaBusComp.h
 )
 
 # ------------------------------------------------------------------------

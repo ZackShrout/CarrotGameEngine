@@ -32,7 +32,7 @@ namespace carrot::audio {
          * These identifiers are used to set or retrieve specific parameters for the
          * dynamic range limiter, allowing precise control over its behavior.
          */
-        enum param_id : uint32_t
+        enum param_id : dsp_param_id_t
         {
             /** The signal level above which limiting is applied, expressed as a linear value (e.g., 0.9). */
             param_threshold = 0, // linear (e.g., 0.9)

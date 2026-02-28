@@ -15,6 +15,7 @@
 #include "Audio/DSP/Limiter.h"
 #include "Audio/DSP/Saturator.h"
 #include "Audio/DSP/SchroederReverb.h"
+#include "Audio/DSP/VcaBusComp.h"
 
 namespace carrot::audio {
     /**
@@ -273,6 +274,8 @@ namespace carrot::audio {
         dsp_schroeder_reverb_t _reverb_bus_verb{ k_engine_sample_rate };
 
         dsp_baxandall_tone_t _master_eq{ k_engine_sample_rate };
+
+        dsp_vca_bus_comp_t _master_bus_comp;
 
         /** Signal saturation handler for the master audio bus. */
         dsp_saturator_t _master_bus_saturator;

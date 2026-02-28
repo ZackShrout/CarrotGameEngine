@@ -32,7 +32,7 @@ namespace carrot::audio {
          * Baxandall tone control unit. These parameters are used to configure
          * the gain and frequency settings for the bass and treble bands.
          */
-        enum param_id : uint32_t
+        enum param_id : dsp_param_id_t
         {
             /** Controls the bass gain in decibels, ranging from -5 to +5 dB. */
             param_bass_gain_db = 0,

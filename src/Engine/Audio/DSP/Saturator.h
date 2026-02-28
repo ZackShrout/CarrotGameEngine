@@ -40,7 +40,7 @@ namespace carrot::audio {
          * Each ID corresponds to a specific parameter that can be modified to
          * customize the audio processing.
          */
-        enum param_id : uint32_t
+        enum param_id : dsp_param_id_t
         {
             /** Determines the intensity of the drive applied to the shaping function. */
             param_drive = 0,

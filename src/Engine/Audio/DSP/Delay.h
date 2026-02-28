@@ -29,7 +29,7 @@ namespace carrot::audio {
          * This enumeration defines the parameter IDs used for configuring the delay line. Each
          * parameter affects a specific aspect of the delay effect.
          */
-        enum param_id : uint32_t
+        enum param_id : dsp_param_id_t
         {
             /** Specifies the delay time in milliseconds. */
             param_delay_ms = 0,

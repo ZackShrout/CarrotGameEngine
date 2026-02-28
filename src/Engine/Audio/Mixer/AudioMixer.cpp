@@ -200,6 +200,8 @@ namespace carrot::audio {
         _master_eq.set_hpf_freq(24.f);
         _master_eq.set_lpf_freq(28000.f);
 
+        _master_bus_comp.set_preset_ssl_style();
+
         _master_bus_saturator.set_drive(1.2f);
         _master_bus_saturator.set_shape_k(0.5f);
         _master_bus_saturator.set_mix(1.f);
@@ -213,6 +215,7 @@ namespace carrot::audio {
 
         master_chain.clear();
         master_chain.add(&_master_eq);
+        master_chain.add(&_master_bus_comp);
         master_chain.add(&_master_bus_saturator);
         master_chain.add(&_master_bus_limiter);
     }

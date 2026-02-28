@@ -11,17 +11,16 @@
 #include <algorithm>
 
 namespace carrot::audio {
-
     class dsp_schroeder_reverb_t final : public dsp_unit_t
     {
     public:
-        enum param_id : uint32_t
+        enum param_id : dsp_param_id_t
         {
-            param_room_size = 0,   // 0..1  (tail length)
-            param_damp      = 1,   // 0..1  (HF damping)
-            param_wet       = 2,   // 0..1
-            param_width     = 3,   // 0..1  (stereo width)
-            param_predelay_ms = 4  // 0..200ish
+            param_room_size = 0, // 0..1  (tail length)
+            param_damp = 1, // 0..1  (HF damping)
+            param_wet = 2, // 0..1
+            param_width = 3, // 0..1  (stereo width)
+            param_predelay_ms = 4 // 0..200ish
         };
 
         dsp_schroeder_reverb_t(uint32_t sample_rate, uint32_t max_predelay_ms = 200) noexcept
@@ -37,16 +36,20 @@ namespace carrot::audio {
             delete[] _predelay_buf;
             _predelay_buf = nullptr;
 
-            for (auto& c : _combs)
+            for (auto& c: _combs)
             {
-                delete[] c.bufL; c.bufL = nullptr;
-                delete[] c.bufR; c.bufR = nullptr;
+                delete[] c.bufL;
+                c.bufL = nullptr;
+                delete[] c.bufR;
+                c.bufR = nullptr;
             }
 
-            for (auto& a : _allpass)
+            for (auto& a: _allpass)
             {
-                delete[] a.bufL; a.bufL = nullptr;
-                delete[] a.bufR; a.bufR = nullptr;
+                delete[] a.bufL;
+                a.bufL = nullptr;
+                delete[] a.bufR;
+                a.bufR = nullptr;
             }
         }
 
@@ -59,10 +62,10 @@ namespace carrot::audio {
             float* const x = ctx.interleaved;
 
             // Update runtime coefficients (cheap; just a few multiplies)
-            const float room = room_gain();         // feedback for combs
-            const float damp = _damp;               // 0..1
-            const float wet  = _wet;                // 0..1
-            const float width = _width;             // 0..1
+            const float room = room_gain(); // feedback for combs
+            const float damp = _damp; // 0..1
+            const float wet = _wet; // 0..1
+            const float width = _width; // 0..1
 
             // Mid/side-ish width: wetL = wet*(0.5+0.5*width), wetR = wet*(0.5-0.5*width)
             const float wet1 = wet * (0.5f + 0.5f * width);
@@ -86,7 +89,7 @@ namespace carrot::audio {
                 float accL = 0.0f;
                 float accR = 0.0f;
 
-                for (auto& c : _combs)
+                for (auto& c: _combs)
                 {
                     accL += c.processL(input, room, damp);
                     accR += c.processR(input, room, damp);
@@ -96,7 +99,7 @@ namespace carrot::audio {
                 float outL = accL;
                 float outR = accR;
 
-                for (auto& a : _allpass)
+                for (auto& a: _allpass)
                 {
                     outL = a.processL(outL);
                     outR = a.processR(outR);
@@ -146,20 +149,20 @@ namespace carrot::audio {
             }
 
             // Clear comb/allpass buffers + filter states
-            for (auto& c : _combs)
+            for (auto& c: _combs)
                 c.reset();
 
-            for (auto& a : _allpass)
+            for (auto& a: _allpass)
                 a.reset();
         }
 
         // Convenience defaults
-        void set_room_size(float v) noexcept { set_parameter(param_room_size, v); }
-        void set_damp(float v) noexcept      { set_parameter(param_damp, v); }
-        void set_wet(float v) noexcept       { set_parameter(param_wet, v); }
-        void set_dry(float v) noexcept       { _dry = std::clamp(v, 0.0f, 1.0f); }
-        void set_width(float v) noexcept     { set_parameter(param_width, v); }
-        void set_predelay_ms(float ms) noexcept { set_parameter(param_predelay_ms, ms); }
+        void set_room_size(const float v) noexcept { set_parameter(param_room_size, v); }
+        void set_damp(const float v) noexcept { set_parameter(param_damp, v); }
+        void set_wet(const float v) noexcept { set_parameter(param_wet, v); }
+        void set_dry(const float v) noexcept { _dry = std::clamp(v, 0.0f, 1.0f); }
+        void set_width(const float v) noexcept { set_parameter(param_width, v); }
+        void set_predelay_ms(const float ms) noexcept { set_parameter(param_predelay_ms, ms); }
 
     private:
         // ---- building blocks ----
@@ -249,12 +252,12 @@ namespace carrot::audio {
         // ---- tuning ----
         // These are “good sounding” classic lengths (similar family to Freeverb),
         // expressed at 44.1k and scaled for actual sample rate.
-        static constexpr uint32_t k_num_combs   = 8;
+        static constexpr uint32_t k_num_combs = 8;
         static constexpr uint32_t k_num_allpass = 4;
 
         // 44.1k base lengths
-        static constexpr uint32_t comb_lengths_L[k_num_combs]   = { 1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617 };
-        static constexpr uint32_t comb_lengths_R[k_num_combs]   = { 1139, 1211, 1300, 1379, 1445, 1514, 1580, 1640 };
+        static constexpr uint32_t comb_lengths_L[k_num_combs] = { 1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617 };
+        static constexpr uint32_t comb_lengths_R[k_num_combs] = { 1139, 1211, 1300, 1379, 1445, 1514, 1580, 1640 };
         static constexpr uint32_t allpass_lengths_L[k_num_allpass] = { 556, 441, 341, 225 };
         static constexpr uint32_t allpass_lengths_R[k_num_allpass] = { 579, 464, 364, 248 };
 
@@ -332,14 +335,14 @@ namespace carrot::audio {
         // ---- state ----
         uint32_t _sample_rate{ 48000 };
 
-        comb_t    _combs[k_num_combs]{};
-        allpass_t _allpass[k_num_allpass]{};
+        comb_t _combs[k_num_combs]{ };
+        allpass_t _allpass[k_num_allpass]{ };
 
         // Predelay
-        float*   _predelay_buf{ nullptr };
+        float* _predelay_buf{ nullptr };
         uint32_t _predelay_capacity{ 1 };
         uint32_t _predelay_w{ 0 };
-        float    _predelay_ms{ 0.0f };
+        float _predelay_ms{ 0.0f };
         uint32_t _predelay_samples{ 0 };
 
         // Parameters
@@ -349,5 +352,4 @@ namespace carrot::audio {
         float _dry{ 1.0f };
         float _width{ 1.0f };
     };
-
 } // namespace carrot::audio

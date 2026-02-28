@@ -13,7 +13,7 @@ namespace carrot::audio {
      *
      * Represents the current phase of an ADSR-style amplitude envelope.
      */
-    enum class envelope_stage : uint8_t
+    enum class envelope_stage : uint32_t
     {
         /** Envelope is inactive and output is zero. */
         idle,

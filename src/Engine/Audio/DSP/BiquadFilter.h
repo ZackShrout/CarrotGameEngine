@@ -25,7 +25,7 @@ namespace carrot::audio {
      * - lowshelf: Boosts or attenuates frequencies below a specified frequency.
      * - highshelf: Boosts or attenuates frequencies above a specified frequency.
      */
-    enum class biquad_type : uint8_t
+    enum class biquad_type : dsp_param_id_t
     {
         lowpass,
         highpass,

@@ -1,0 +1,14 @@
+{
+  "id": "music.oak_battle_theme",
+  "file": "assets/audio/New RPG Battle Theme 3 Limit.wav",
+
+  "bus": "music",
+  "gain": 1.0,
+
+  "looping": true,
+  "loop_start": 3374900,
+  "loop_end": 6666100,
+
+  "spatial": "none",
+  "streamed": true
+}

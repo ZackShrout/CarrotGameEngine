@@ -28,7 +28,7 @@ namespace carrot::rhi::dx12 {
         desc.SampleDesc.Count = 1;
 
         IDXGISwapChain1* sc1{ nullptr };
-        factory->CreateSwapChainForHwnd(command_queue, hwnd, &desc, nullptr, nullptr, &sc1);
+        hr = factory->CreateSwapChainForHwnd(command_queue, hwnd, &desc, nullptr, nullptr, &sc1);
         if (FAILED(hr))
             LOG_GRAPHICS_FATAL("Failed to create DX12 swapchain");
 
@@ -44,10 +44,10 @@ namespace carrot::rhi::dx12 {
         rtv.NumDescriptors = k_max_frames_in_flight;
         device->CreateDescriptorHeap(&rtv, IID_PPV_ARGS(&_rtv_heap));
 
-        UINT stride = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-        auto handle = _rtv_heap->GetCPUDescriptorHandleForHeapStart();
+        UINT stride{ device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV) };
+        auto handle{ _rtv_heap->GetCPUDescriptorHandleForHeapStart() };
 
-        for (uint32_t i = 0; i < k_max_frames_in_flight; ++i)
+        for (uint32_t i{ 0 }; i < k_max_frames_in_flight; ++i)
         {
             hr = _swapchain->GetBuffer(i, IID_PPV_ARGS(&_backbuffers[i]));
             if (FAILED(hr))
@@ -62,6 +62,12 @@ namespace carrot::rhi::dx12 {
 
     dx12_swapchain_t::~dx12_swapchain_t()
     {
+        if (_swapchain)
+        {
+            // Be nice to drivers: ensure we are windowed before destroying.
+            _swapchain->SetFullscreenState(FALSE, nullptr);
+        }
+
         for (auto& buf : _backbuffers)
         {
             if (buf)

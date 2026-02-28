@@ -56,11 +56,6 @@ namespace carrot::rhi::dx12 {
     {
         wait_idle();
 
-        // NOTE: ESC-triggered shutdown currently races DX12 Present teardown.
-        //       Known issue: DXGI present can still be in-flight.
-        //       Workaround: close via window X button.
-        // TODO: unify shutdown sequencing across engine systems.
-
         for (uint32_t i{ 0 }; i < k_max_frames_in_flight; ++i)
         {
             dx12_frame_t& frame{ _frames[i] };
@@ -98,14 +93,14 @@ namespace carrot::rhi::dx12 {
         ID3D12GraphicsCommandList* cmd{ _frames[_frame_index].command_list->id3d12_graphics_command_list() };
         dx12_swapchain_t* sc{ _swapchain.get() };
 
-        UINT stride = _device->id3d12_device()->GetDescriptorHandleIncrementSize(
-            D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+        UINT stride{ _device->id3d12_device()->GetDescriptorHandleIncrementSize(
+            D3D12_DESCRIPTOR_HEAP_TYPE_RTV) };
 
         float clear[]{ 0.02f, 0.02f, 0.04f, 1.0f };
 
-        D3D12_CPU_DESCRIPTOR_HANDLE rtv = sc->get_current_rtv(stride);
+        D3D12_CPU_DESCRIPTOR_HANDLE rtv{ sc->get_current_rtv(stride) };
 
-        ID3D12Resource* backbuffer = sc->get_backbuffer(sc->get_current_image_index());
+        ID3D12Resource* backbuffer{ sc->get_backbuffer(sc->get_current_image_index()) };
 
         D3D12_RESOURCE_BARRIER to_rtv{};
         to_rtv.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -127,7 +122,7 @@ namespace carrot::rhi::dx12 {
 
     void dx12_rhi_context_t::end_frame()
     {
-        auto& f = _frames[_frame_index];
+        auto& f{ _frames[_frame_index] };
         f.command_list->end_recording();
 
         _graphics_queue->submit(f.command_list.get(), f.fence.get(), nullptr, nullptr);
@@ -159,10 +154,11 @@ namespace carrot::rhi::dx12 {
 
     void dx12_rhi_context_t::wait_idle()
     {
-        for (uint32_t i = 0; i < k_max_frames_in_flight; ++i)
-        {
-            auto& f = _frames[i];
-            f.fence->wait(f.fence_value);
-        }
+        if (_graphics_queue)
+            _graphics_queue->wait_idle();
+
+        // These should all be completed now, but we are being safe
+        for (uint32_t i{ 0 }; i < k_max_frames_in_flight; ++i)
+             _frames[i].fence->wait(_frames[i].fence_value);
     }
 } // namespace carrot::rhi::dx12

@@ -6,6 +6,7 @@
 #pragma once
 
 #include "DirectX12Common.h"
+#include "DirectX12Fence.h"
 #include "RHI/CommandQueue.h"
 
 namespace carrot::rhi::dx12 {
@@ -27,5 +28,7 @@ namespace carrot::rhi::dx12 {
 
     private:
         ID3D12CommandQueue* _queue{ nullptr };
+        std::unique_ptr<dx12_fence_t> _idle_fence;
+        uint64_t _idle_fence_value{ 0 };
     };
 } // namespace carrot::rhi::dx12

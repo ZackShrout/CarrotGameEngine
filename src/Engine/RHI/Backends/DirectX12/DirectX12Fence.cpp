@@ -8,7 +8,7 @@
 namespace carrot::rhi::dx12 {
     dx12_fence_t::dx12_fence_t(ID3D12Device* device)
     {
-        HRESULT hr = device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&_fence));
+        HRESULT hr{ device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&_fence)) };
         if (FAILED(hr))
             LOG_GRAPHICS_FATAL("Failed to create DX12 fence");
 

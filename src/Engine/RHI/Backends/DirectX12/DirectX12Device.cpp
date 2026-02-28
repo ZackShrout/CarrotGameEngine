@@ -11,15 +11,15 @@ namespace carrot::rhi::dx12 {
     dx12_device_t::dx12_device_t(const rhi_desc_t& desc)
     {
 #if defined(_DEBUG)
-        // if (desc.enable_debug_layers)
-        // {
-        //     ID3D12Debug* debug{ nullptr };
-        //     if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debug))))
-        //     {
-        //         debug->EnableDebugLayer();
-        //         debug->Release();
-        //     }
-        // }
+        if (desc.enable_debug_layers)
+        {
+            ID3D12Debug* debug{ nullptr };
+            if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debug))))
+            {
+                debug->EnableDebugLayer();
+                debug->Release();
+            }
+        }
 #endif
 
         IDXGIFactory6* factory{ nullptr };
@@ -33,7 +33,7 @@ namespace carrot::rhi::dx12 {
              factory->EnumAdapters1(i, &adapter) != DXGI_ERROR_NOT_FOUND;
              ++i)
         {
-            DXGI_ADAPTER_DESC1 desc{};
+            DXGI_ADAPTER_DESC1 desc{ };
             adapter->GetDesc1(&desc);
 
             if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
@@ -103,8 +103,5 @@ namespace carrot::rhi::dx12 {
         return nullptr;
     }
 
-    void dx12_device_t::destroy_buffer(rhi_buffer_t* buffer)
-    {
-
-    }
+    void dx12_device_t::destroy_buffer(rhi_buffer_t* buffer) {}
 } // namespace carrot::rhi::dx12

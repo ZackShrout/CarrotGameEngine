@@ -53,5 +53,9 @@ namespace carrot::rhi::dx12 {
         std::array<dx12_frame_t, k_max_frames_in_flight>    _frames;
         uint32_t                                            _frame_index{ 0 };
         uint32_t                                            _rtv_descriptor_stride{ 0 };
+
+        ID3D12RootSignature*                                _root_signature{ nullptr };
+        ID3D12PipelineState*                                _pipeline_state{ nullptr };
+        uint32_t                                            _frame_counter{ 0 };
     };
 } // namespace carrot::rhi::dx12

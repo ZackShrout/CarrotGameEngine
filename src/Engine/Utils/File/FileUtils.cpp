@@ -5,6 +5,8 @@
 
 #include "FileUtils.h"
 
+#include "Common/CommonHeaders.h"
+
 #include <fstream>
 #include <mutex>
 #include <sstream>
@@ -23,6 +25,26 @@ namespace carrot::utils::file {
             return it->first;
         }
     } // anonymous namespace
+
+    std::vector<std::uint8_t> load_binary_file(std::string_view path)
+    {
+        std::ifstream file(std::string{ path }, std::ios::binary | std::ios::ate);
+        if (!file)
+        {
+            LOG_CORE_FATAL("Failed to open file '{}'", path);
+        }
+
+        std::streamsize size{ file.tellg() };
+        file.seekg(0, std::ios::beg);
+
+        std::vector<std::uint8_t> data(static_cast<size_t>(size));
+        if (!file.read(reinterpret_cast<char*>(data.data()), size))
+        {
+            LOG_CORE_FATAL("Failed to read file '{}'", path);
+        }
+
+        return data;
+    }
 
     std::optional<std::string> load_file_to_string(const std::filesystem::path& path)
     {

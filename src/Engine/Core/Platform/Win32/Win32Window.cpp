@@ -281,16 +281,25 @@ namespace carrot::core::platform {
                 return 0;
             case WM_SIZE:
             {
-                _width = LOWORD(lParam);
+                _width  = LOWORD(lParam);
                 _height = HIWORD(lParam);
 
-                if (_width == 0 || _height == 0)
+                if (wParam == SIZE_MINIMIZED)
                 {
                     _is_minimized = true;
                     return 0;
                 }
 
+                // For SIZE_RESTORED, SIZE_MAXIMIZED, etc.
                 _is_minimized = false;
+
+                if (_width == 0 || _height == 0)
+                {
+                    // Can sometimes get bogus 0x0 sizes during transitions;
+                    // don't treat as minimized, but also don't spam resize.
+                    return 0;
+                }
+
                 _on_window_resized.broadcast({ _width, _height });
 
                 return 0;

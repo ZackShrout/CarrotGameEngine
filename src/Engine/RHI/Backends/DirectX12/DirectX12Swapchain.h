@@ -38,6 +38,7 @@ namespace carrot::rhi::dx12 {
         [[nodiscard]] ID3D12Resource* get_backbuffer(const uint32_t index) const noexcept { return _backbuffers[index]; }
 
     private:
+        ID3D12Device*                                       _device{ nullptr };
         IDXGISwapChain4*                                    _swapchain{ nullptr };
         ID3D12DescriptorHeap*                               _rtv_heap{ nullptr };
         std::array<ID3D12Resource*, k_max_frames_in_flight> _backbuffers{};

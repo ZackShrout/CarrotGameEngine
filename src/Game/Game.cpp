@@ -81,12 +81,8 @@ namespace sandbox {
         if (e._action == carrot::events::key_action::press && e._key == carrot::input::key_code::escape)
             quit_application();
 
-        if (e._action == carrot::events::key_action::press && (
-                (e._key == carrot::input::key_code::enter && carrot::input::has_modifier(
-                     e._mods, carrot::input::modifier::alt)) || e._key == carrot::input::key_code::f11))
-        {
+        if (e._action == carrot::events::key_action::press && e._key == carrot::input::key_code::f11)
             set_fullscreen(!is_fullscreen());
-        }
     }
 
     void sandbox_t::on_mouse_moved(const carrot::events::mouse_moved_event_t& e)

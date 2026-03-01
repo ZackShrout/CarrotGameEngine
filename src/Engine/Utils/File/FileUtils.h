@@ -10,6 +10,9 @@
 #include <optional>
 
 namespace carrot::utils::file {
+    /** */
+    [[nodiscard]] std::vector<std::uint8_t> load_binary_file(std::string_view path);
+
     /**
      * @brief Reads the entire contents of a file into a std::string.
      *

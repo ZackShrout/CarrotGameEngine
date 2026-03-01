@@ -160,3 +160,58 @@ function(compile_hlsl_to_metallib TARGET_NAME HLSL_FILE OUTPUT_DIR)
     # Optional: store the final .metallib path on the target for later use if needed
     set_property(TARGET ${SHADER_TARGET} PROPERTY OUTPUT_FILE "${METALLIB_OUTPUT}")
 endfunction()
+
+# ----------------------------------------------------------------------------
+# Compile HLSL to DXIL using DXC
+# ----------------------------------------------------------------------------
+function(compile_hlsl_to_dxil TARGET_NAME HLSL_FILE OUTPUT_DIR)
+    if(NOT DXC_EXECUTABLE)
+        message(FATAL_ERROR "DXC not found")
+    endif()
+
+    cmake_path(SET ABS_HLSL "${CMAKE_CURRENT_SOURCE_DIR}/${HLSL_FILE}" NORMALIZE)
+
+    # Naming / sanitization (same as the SPIR-V version)
+    get_filename_component(FULL_BASE "${HLSL_FILE}" NAME)          # e.g. triangle.vert.hlsl
+    string(REPLACE "." "_" SANITIZED "${FULL_BASE}")
+    string(MAKE_C_IDENTIFIER "${SANITIZED}" TARGET_ID)
+
+    string(REPLACE ".hlsl" "" OUTPUT_BASE "${FULL_BASE}")
+    cmake_path(SET DXIL_OUTPUT "${OUTPUT_DIR}/${OUTPUT_BASE}.dxil" NORMALIZE)
+
+    # Determine shader profile (same logic as SPIR-V version)
+    set(PROFILE "vs_6_7")
+    string(TOLOWER "${HLSL_FILE}" LOWER)
+    if(LOWER MATCHES ".*\\.frag\\.hlsl$")
+        set(PROFILE "ps_6_7")
+    elseif(LOWER MATCHES ".*\\.vert\\.hlsl$")
+        set(PROFILE "vs_6_7")
+    elseif(LOWER MATCHES ".*\\.comp\\.hlsl$")
+        set(PROFILE "cs_6_7")
+    endif()
+
+    # Step 1: HLSL -> DXIL
+    add_custom_command(
+            OUTPUT "${DXIL_OUTPUT}"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${OUTPUT_DIR}"
+            COMMAND ${DXC_EXECUTABLE}
+            -T ${PROFILE} -E main
+            -DDX12
+            # Add any other flags you need, e.g. -Zi for debug, -Od, etc.
+            # -HV 2021   # HLSL version if needed
+            "${ABS_HLSL}" -Fo "${DXIL_OUTPUT}"
+            DEPENDS "${ABS_HLSL}"
+            COMMENT "DXC → DXIL: ${OUTPUT_BASE} (${PROFILE})"
+            VERBATIM
+    )
+
+    set(SHADER_TARGET "${TARGET_NAME}_${TARGET_ID}_dxil")
+
+    add_custom_target(${SHADER_TARGET}
+            DEPENDS "${DXIL_OUTPUT}"
+    )
+
+    add_dependencies(${TARGET_NAME} ${SHADER_TARGET})
+
+    set_property(TARGET ${SHADER_TARGET} PROPERTY OUTPUT_FILE "${DXIL_OUTPUT}")
+endfunction()

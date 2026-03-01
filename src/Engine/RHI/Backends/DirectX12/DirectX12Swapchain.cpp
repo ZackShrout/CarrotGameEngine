@@ -36,6 +36,15 @@ namespace carrot::rhi::dx12 {
         if (FAILED(hr))
             LOG_GRAPHICS_FATAL("Failed to query IDXGISwapChain4");
 
+        IDXGIFactory* parent_factory{ nullptr };
+        if ( SUCCEEDED(_swapchain->GetParent(IID_PPV_ARGS(&parent_factory))) && parent_factory)
+        {
+            if (FAILED(parent_factory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER | DXGI_MWA_NO_WINDOW_CHANGES)))
+                LOG_GRAPHICS_DEBUG("DX12: MakeWindowAssociation failed; falling back to default Alt+Enter behavior");
+
+            parent_factory->Release();
+        }
+
         sc1->Release();
         factory->Release();
 

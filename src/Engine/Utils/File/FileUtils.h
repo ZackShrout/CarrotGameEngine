@@ -10,7 +10,28 @@
 #include <optional>
 
 namespace carrot::utils::file {
-    /** */
+    /**
+     * @brief Loads the entire contents of a binary file into a vector of bytes.
+     *
+     * Opens the file in binary mode, determines its size, reads all bytes into a
+     * `std::vector<std::uint8_t>`, and returns the content. This is the preferred
+     * function for loading binary data (images, models, shaders, serialized data, etc.).
+     *
+     * @param path Filesystem path to the file to load (as UTF-8 string view).
+     *             The path is used as-is (no resolution or prefix handling performed).
+     *
+     * @return A vector containing the complete file contents on success.
+     *
+     * @note This function **never returns an empty vector** — failure to open or read
+     *       the file is treated as a fatal error and logged via `LOG_CORE_FATAL`.
+     * @note Uses binary mode (`std::ios::binary`) to prevent newline conversions
+     *       or other text-mode transformations.
+     * @note The file size is determined using `std::ios::ate` / `tellg()`; very large
+     *       files (> ~2–4 GB depending on platform) may fail or behave unexpectedly.
+     *
+     * @see load_file_to_string() for text-oriented loading
+     * @see resolve_asset_path() / try_resolve_asset_path() when loading from virtual/asset paths
+     */
     [[nodiscard]] std::vector<std::uint8_t> load_binary_file(std::string_view path);
 
     /**

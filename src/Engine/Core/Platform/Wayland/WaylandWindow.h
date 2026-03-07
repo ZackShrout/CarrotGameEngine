@@ -36,12 +36,17 @@ namespace carrot::core::platform {
         void poll_events() noexcept override;
         void set_should_close(const bool should_close) noexcept override { _should_close = should_close; }
 
-        // [[nodiscard]] bool should_close() const noexcept override { return _should_close; }
-        // TODO: change these (and the functionality inside the .cpp file) to use the
-        //       window_t protected _width and _height
-        [[nodiscard]] uint32_t get_width() const noexcept override { return _current_width; }
-        [[nodiscard]] uint32_t get_height() const noexcept override { return _current_height; }
+        void set_title(std::string_view) noexcept override;
+        void minimize() noexcept override;
+        void maximize() noexcept override;
+        void restore() noexcept override;
+
+        [[nodiscard]] bool is_maximized() const noexcept override;
+        [[nodiscard]] bool is_minimized() const noexcept override;
         [[nodiscard]] native_window_handle_t get_native_handle() const noexcept override;
+
+        [[nodiscard]] bool is_fullscreen() const noexcept override;
+        void set_fullscreen(bool fullscreen) noexcept override;
 
         [[nodiscard]] wl_display* get_wl_display() const noexcept { return _display; }
         [[nodiscard]] wl_surface* get_wl_surface() const noexcept { return _surface; }
@@ -67,8 +72,8 @@ namespace carrot::core::platform {
         void set_xkb_context(xkb_context* context) noexcept { _xkb_context = context; }
         void set_xkb_keymap(xkb_keymap* keymap) noexcept { _xkb_keymap = keymap; }
         void set_xkb_state(xkb_state* state) noexcept { _xkb_state = state; }
-        void set_current_width(const uint32_t width) noexcept { _current_width = width; }
-        void set_current_height(const uint32_t height) noexcept { _current_height = height; }
+        void set_current_width(const uint32_t width) noexcept { _width = width; }
+        void set_current_height(const uint32_t height) noexcept { _height = height; }
         void set_pending_width(const uint32_t width) noexcept { _pending_width = width; }
         void set_pending_height(const uint32_t height) noexcept { _pending_height = height; }
         void set_configure_pending(const bool configure) noexcept { _configure_pending = configure; }
@@ -97,11 +102,8 @@ namespace carrot::core::platform {
         xkb_state* _xkb_state{ nullptr };
 
         uint8_t _modifiers{ 0 };
-        uint32_t _current_width{ 1280 };
-        uint32_t _current_height{ 720 };
         uint32_t _pending_width{ 0 };
         uint32_t _pending_height{ 0 };
-        // bool _should_close{ false };
         bool _configure_pending{ false };
 
         bool _keys_down[static_cast<uint16_t>(input::key_code::max_key_code)]{ false };

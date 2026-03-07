@@ -349,8 +349,9 @@ namespace carrot::core::platform {
 
     wayland_window_t::wayland_window_t(const uint32_t width, const uint32_t height,
                                        const std::string_view title) noexcept
-        : _current_width{ width }, _current_height{ height }
     {
+        _width = width;
+        _height = height;
         _display = wl_display_connect(nullptr);
         if (!_display) return;
 
@@ -370,24 +371,33 @@ namespace carrot::core::platform {
 
         wl_surface_commit(_surface);
         wl_display_roundtrip(_display);
+
+        wl_registry_destroy(registry);
     }
 
     wayland_window_t::~wayland_window_t() noexcept
     {
-        if (_xdg_toplevel) xdg_toplevel_destroy(_xdg_toplevel);
-        if (_xdg_surface) xdg_surface_destroy(_xdg_surface);
-        if (_xdg_wm_base) xdg_wm_base_destroy(_xdg_wm_base);
-        if (_surface) wl_surface_destroy(_surface);
-        if (_display) wl_display_disconnect(_display);
+        if (_keyboard) wl_keyboard_destroy(_keyboard);
+        if (_pointer) wl_pointer_destroy(_pointer);
         if (_xkb_state) xkb_state_unref(_xkb_state);
         if (_xkb_keymap) xkb_keymap_unref(_xkb_keymap);
         if (_xkb_context) xkb_context_unref(_xkb_context);
+        if (_xdg_toplevel) xdg_toplevel_destroy(_xdg_toplevel);
+        if (_xdg_surface) xdg_surface_destroy(_xdg_surface);
+        if (_xdg_wm_base) xdg_wm_base_destroy(_xdg_wm_base);
+        if (_seat) wl_seat_destroy(_seat);
+        if (_compositor) wl_compositor_destroy(_compositor);
+        if (_surface) wl_surface_destroy(_surface);
+        if (_display) wl_display_disconnect(_display);
     }
 
     void wayland_window_t::poll_events() noexcept
     {
+        if (!_display) return;
+
         // 1. Dispatch all pending Wayland events (keys, buttons, motion, scroll, modifiers, etc.)
-        while (wl_display_dispatch_pending(_display) != 0) {}
+        wl_display_dispatch_pending(_display);
+        wl_display_flush(_display);
 
         // 2. Generate synthetic repeats (only if we have an active repeating key)
         if (_repeat_state._active && _repeat_state._key != input::key_code::unknown)
@@ -431,6 +441,36 @@ namespace carrot::core::platform {
         }
     }
 
+    void wayland_window_t::set_title(std::string_view basic_string_view) noexcept
+    {
+        window_t::set_title(basic_string_view);
+    }
+
+    void wayland_window_t::minimize() noexcept
+    {
+        window_t::minimize();
+    }
+
+    void wayland_window_t::maximize() noexcept
+    {
+        window_t::maximize();
+    }
+
+    void wayland_window_t::restore() noexcept
+    {
+        window_t::restore();
+    }
+
+    bool wayland_window_t::is_maximized() const noexcept
+    {
+        return window_t::is_maximized();
+    }
+
+    bool wayland_window_t::is_minimized() const noexcept
+    {
+        return window_t::is_minimized();
+    }
+
     native_window_handle_t wayland_window_t::get_native_handle() const noexcept
     {
         native_window_handle_t handle{ nullptr };
@@ -438,5 +478,15 @@ namespace carrot::core::platform {
         handle.wayland_t.surface = _surface;
 
         return handle;
+    }
+
+    bool wayland_window_t::is_fullscreen() const noexcept
+    {
+        return window_t::is_fullscreen();
+    }
+
+    void wayland_window_t::set_fullscreen(const bool fullscreen) noexcept
+    {
+        window_t::set_fullscreen(fullscreen);
     }
 } // namespace carrot::core::platform

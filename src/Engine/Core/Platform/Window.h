@@ -19,6 +19,14 @@ namespace carrot::core::platform {
         virtual void poll_events() noexcept = 0;
         virtual void set_should_close(bool should_close) noexcept = 0;
 
+        virtual void set_title(std::string_view) noexcept {}
+        virtual void minimize() noexcept {}
+        virtual void maximize() noexcept {}
+        virtual void restore() noexcept {}
+
+        [[nodiscard]] virtual bool is_maximized() const noexcept { return false; }
+        [[nodiscard]] virtual bool is_focused() const noexcept { return true; }
+
         [[nodiscard]] virtual bool should_close() const noexcept { return _should_close; }
         [[nodiscard]] virtual uint32_t get_width()  const noexcept { return _width; }
         [[nodiscard]] virtual uint32_t get_height() const noexcept { return _height; }
@@ -27,6 +35,7 @@ namespace carrot::core::platform {
 
         [[nodiscard]] virtual bool is_fullscreen() const noexcept { return _is_fullscreen; }
         virtual void set_fullscreen(const bool fullscreen) noexcept { _is_fullscreen = fullscreen; }
+
 
         // ───────────────────────────────────────────────
         // Window events

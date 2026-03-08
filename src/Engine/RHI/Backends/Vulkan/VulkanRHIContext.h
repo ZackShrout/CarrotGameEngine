@@ -32,12 +32,17 @@ namespace carrot::rhi::vulkan {
         [[nodiscard]] rhi_swapchain_t* get_swapchain() const noexcept override { return _swapchain.get();}
         [[nodiscard]] rhi_command_queue_t* get_command_queue() const noexcept override { return _graphics_queue.get(); }
 
+        [[nodiscard]] std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) override;
+
         void wait_idle() override;
 
     private:
         void init(const rhi_desc_t& desc);
         void recreate_swapchain_dependent_resources();
         void recreate_render_finished_semaphores();
+        [[nodiscard]] uint32_t find_memory_type(uint32_t type_filter, VkMemoryPropertyFlags properties) const;
+        VkCommandBuffer begin_single_time_commands() const;
+        void end_single_time_commands(VkCommandBuffer cmd) const;
 
         VkInstance                                              _vk_instance{ VK_NULL_HANDLE };
         VkSurfaceKHR                                            _vk_surface{ VK_NULL_HANDLE };

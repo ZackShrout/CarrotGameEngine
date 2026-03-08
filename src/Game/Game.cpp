@@ -7,7 +7,6 @@
 
 #include "Audio/Audio.h"
 #include "Window/Window.h"
-#include "Assets/Image/ImageAssetImporter.h"
 
 namespace sandbox {
     namespace {
@@ -22,22 +21,6 @@ namespace sandbox {
     void sandbox_t::start()
     {
         handle = carrot::audio::play(test_asset_name);
-
-        const auto image_result{ carrot::assets::load_image_rgba8("assets/images/16x16orange.png") };
-        if (!image_result.success())
-        {
-            LOG_CORE_ERROR("Failed to load PNG: {}",
-                carrot::assets::to_string(image_result.error));
-        }
-        else
-        {
-            LOG_CORE_INFO("Loaded PNG: {}x{}, stride={}, bytes={}, sRGB={}",
-                image_result.image.width,
-                image_result.image.height,
-                image_result.image.stride_bytes,
-                image_result.image.size_bytes(),
-                image_result.image.is_srgb ? "true" : "false");
-        }
     }
 
     void sandbox_t::on_tick(const float delta_time)

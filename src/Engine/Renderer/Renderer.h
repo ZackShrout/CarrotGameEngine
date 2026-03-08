@@ -8,6 +8,7 @@
 #include "Core/Module.h"
 #include "RHI/RHI.h"
 #include "EngineConfig.h"
+#include "RHI/Texture.h"
 
 namespace carrot::renderer {
     struct sprite_draw_info_t
@@ -67,6 +68,8 @@ namespace carrot::renderer {
         // rhi::rhi_graphics_pipeline_t* _colored_triangle_pipeline{ nullptr };
         // rhi::rhi_graphics_pipeline_t* _textured_quad_pipeline{ nullptr };
         // rhi::rhi_texture_t* _default_white_tex{ nullptr };
+
+        std::unique_ptr<rhi::rhi_texture_t> _test_texture;
 
         void create_common_resources();
         void destroy_common_resources();

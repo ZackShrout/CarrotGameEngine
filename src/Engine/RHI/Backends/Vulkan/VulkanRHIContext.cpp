@@ -7,6 +7,7 @@
 
 #include "VulkanPipeline.h"
 #include "VulkanRenderPass.h"
+#include "VulkanTexture.h"
 #include "Window/Window.h"
 #include "HotReload/ShaderWatcher.h"
 
@@ -265,6 +266,290 @@ namespace carrot::rhi::vulkan {
         _swapchain_dirty = true;
     }
 
+    std::unique_ptr<rhi_texture_t> vulkan_rhi_context_t::create_texture_2d(const texture_create_info_t& info)
+    {
+        if (info.width == 0 || info.height == 0)
+        {
+            LOG_GRAPHICS_ERROR("create_texture_2d failed: invalid dimensions {}x{}", info.width, info.height);
+            return nullptr;
+        }
+
+        if (info.initial_data == nullptr || info.initial_data_size == 0)
+        {
+            LOG_GRAPHICS_ERROR("create_texture_2d failed: initial_data was null or empty");
+            return nullptr;
+        }
+
+        VkDevice device{ _device->vk_device() };
+
+        const VkFormat vk_format =
+                (info.format == texture_format_t::rgba8_srgb)
+                    ? VK_FORMAT_R8G8B8A8_SRGB
+                    : VK_FORMAT_R8G8B8A8_UNORM;
+
+        const VkDeviceSize upload_size{ static_cast<VkDeviceSize>(info.initial_data_size) };
+
+        // -------------------------------------------------------------------------
+        // 1. Create staging buffer
+        // -------------------------------------------------------------------------
+        VkBuffer staging_buffer{ VK_NULL_HANDLE };
+        VkDeviceMemory staging_memory{ VK_NULL_HANDLE };
+
+        {
+            VkBufferCreateInfo buffer_info{ };
+            buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+            buffer_info.size = upload_size;
+            buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+            buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+            if (vkCreateBuffer(device, &buffer_info, nullptr, &staging_buffer) != VK_SUCCESS)
+            {
+                LOG_GRAPHICS_ERROR("create_texture_2d failed: could not create staging buffer");
+                return nullptr;
+            }
+
+            VkMemoryRequirements mem_requirements{ };
+            vkGetBufferMemoryRequirements(device, staging_buffer, &mem_requirements);
+
+            VkMemoryAllocateInfo alloc_info{ };
+            alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+            alloc_info.allocationSize = mem_requirements.size;
+            alloc_info.memoryTypeIndex = find_memory_type(
+                mem_requirements.memoryTypeBits,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+            if (vkAllocateMemory(device, &alloc_info, nullptr, &staging_memory) != VK_SUCCESS)
+            {
+                LOG_GRAPHICS_ERROR("create_texture_2d failed: could not allocate staging buffer memory");
+                vkDestroyBuffer(device, staging_buffer, nullptr);
+                return nullptr;
+            }
+
+            vkBindBufferMemory(device, staging_buffer, staging_memory, 0);
+
+            void* mapped{ nullptr };
+            if (vkMapMemory(device, staging_memory, 0, upload_size, 0, &mapped) != VK_SUCCESS)
+            {
+                LOG_GRAPHICS_ERROR("create_texture_2d failed: could not map staging buffer memory");
+                vkFreeMemory(device, staging_memory, nullptr);
+                vkDestroyBuffer(device, staging_buffer, nullptr);
+                return nullptr;
+            }
+
+            std::memcpy(mapped, info.initial_data, static_cast<size_t>(upload_size));
+            vkUnmapMemory(device, staging_memory);
+        }
+
+        // -------------------------------------------------------------------------
+        // 2. Create image
+        // -------------------------------------------------------------------------
+        VkImage image{ VK_NULL_HANDLE };
+        VkDeviceMemory image_memory{ VK_NULL_HANDLE };
+
+        {
+            VkImageCreateInfo image_info{ };
+            image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+            image_info.imageType = VK_IMAGE_TYPE_2D;
+            image_info.extent.width = info.width;
+            image_info.extent.height = info.height;
+            image_info.extent.depth = 1;
+            image_info.mipLevels = 1;
+            image_info.arrayLayers = 1;
+            image_info.format = vk_format;
+            image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+            image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            image_info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+            image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+
+            if (vkCreateImage(device, &image_info, nullptr, &image) != VK_SUCCESS)
+            {
+                LOG_GRAPHICS_ERROR("create_texture_2d failed: could not create VkImage");
+                vkFreeMemory(device, staging_memory, nullptr);
+                vkDestroyBuffer(device, staging_buffer, nullptr);
+                return nullptr;
+            }
+
+            VkMemoryRequirements mem_requirements{ };
+            vkGetImageMemoryRequirements(device, image, &mem_requirements);
+
+            VkMemoryAllocateInfo alloc_info{ };
+            alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+            alloc_info.allocationSize = mem_requirements.size;
+            alloc_info.memoryTypeIndex = find_memory_type(
+                mem_requirements.memoryTypeBits,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+            if (vkAllocateMemory(device, &alloc_info, nullptr, &image_memory) != VK_SUCCESS)
+            {
+                LOG_GRAPHICS_ERROR("create_texture_2d failed: could not allocate image memory");
+                vkDestroyImage(device, image, nullptr);
+                vkFreeMemory(device, staging_memory, nullptr);
+                vkDestroyBuffer(device, staging_buffer, nullptr);
+                return nullptr;
+            }
+
+            vkBindImageMemory(device, image, image_memory, 0);
+        }
+
+        // -------------------------------------------------------------------------
+        // 3. Upload staging buffer -> image with layout transitions
+        // -------------------------------------------------------------------------
+        {
+            VkCommandBuffer cmd = begin_single_time_commands();
+
+            VkImageMemoryBarrier to_transfer_dst{ };
+            to_transfer_dst.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            to_transfer_dst.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            to_transfer_dst.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            to_transfer_dst.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            to_transfer_dst.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            to_transfer_dst.image = image;
+            to_transfer_dst.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            to_transfer_dst.subresourceRange.baseMipLevel = 0;
+            to_transfer_dst.subresourceRange.levelCount = 1;
+            to_transfer_dst.subresourceRange.baseArrayLayer = 0;
+            to_transfer_dst.subresourceRange.layerCount = 1;
+            to_transfer_dst.srcAccessMask = 0;
+            to_transfer_dst.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+            vkCmdPipelineBarrier(
+                cmd,
+                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                0,
+                0, nullptr,
+                0, nullptr,
+                1, &to_transfer_dst);
+
+            VkBufferImageCopy region{ };
+            region.bufferOffset = 0;
+            region.bufferRowLength = 0; // tightly packed
+            region.bufferImageHeight = 0; // tightly packed
+            region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            region.imageSubresource.mipLevel = 0;
+            region.imageSubresource.baseArrayLayer = 0;
+            region.imageSubresource.layerCount = 1;
+            region.imageOffset = { 0, 0, 0 };
+            region.imageExtent = { info.width, info.height, 1 };
+
+            vkCmdCopyBufferToImage(
+                cmd,
+                staging_buffer,
+                image,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                1,
+                &region);
+
+            VkImageMemoryBarrier to_shader_read{ };
+            to_shader_read.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            to_shader_read.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            to_shader_read.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            to_shader_read.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            to_shader_read.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            to_shader_read.image = image;
+            to_shader_read.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            to_shader_read.subresourceRange.baseMipLevel = 0;
+            to_shader_read.subresourceRange.levelCount = 1;
+            to_shader_read.subresourceRange.baseArrayLayer = 0;
+            to_shader_read.subresourceRange.layerCount = 1;
+            to_shader_read.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            to_shader_read.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+            vkCmdPipelineBarrier(
+                cmd,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                0,
+                0, nullptr,
+                0, nullptr,
+                1, &to_shader_read);
+
+            end_single_time_commands(cmd);
+        }
+
+        // -------------------------------------------------------------------------
+        // 4. Create image view
+        // -------------------------------------------------------------------------
+        VkImageView image_view{ VK_NULL_HANDLE };
+        {
+            VkImageViewCreateInfo view_info{ };
+            view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            view_info.image = image;
+            view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            view_info.format = vk_format;
+            view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            view_info.subresourceRange.baseMipLevel = 0;
+            view_info.subresourceRange.levelCount = 1;
+            view_info.subresourceRange.baseArrayLayer = 0;
+            view_info.subresourceRange.layerCount = 1;
+
+            if (vkCreateImageView(device, &view_info, nullptr, &image_view) != VK_SUCCESS)
+            {
+                LOG_GRAPHICS_ERROR("create_texture_2d failed: could not create image view");
+
+                vkDestroyImage(device, image, nullptr);
+                vkFreeMemory(device, image_memory, nullptr);
+                vkFreeMemory(device, staging_memory, nullptr);
+                vkDestroyBuffer(device, staging_buffer, nullptr);
+                return nullptr;
+            }
+        }
+
+        // -------------------------------------------------------------------------
+        // 5. Create sampler
+        // -------------------------------------------------------------------------
+        VkSampler sampler{ VK_NULL_HANDLE };
+        {
+            VkSamplerCreateInfo sampler_info{ };
+            sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+            sampler_info.magFilter = VK_FILTER_NEAREST;
+            sampler_info.minFilter = VK_FILTER_NEAREST;
+            sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            sampler_info.anisotropyEnable = VK_FALSE;
+            sampler_info.maxAnisotropy = 1.0f;
+            sampler_info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+            sampler_info.unnormalizedCoordinates = VK_FALSE;
+            sampler_info.compareEnable = VK_FALSE;
+            sampler_info.compareOp = VK_COMPARE_OP_ALWAYS;
+            sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+            sampler_info.mipLodBias = 0.0f;
+            sampler_info.minLod = 0.0f;
+            sampler_info.maxLod = 0.0f;
+
+            if (vkCreateSampler(device, &sampler_info, nullptr, &sampler) != VK_SUCCESS)
+            {
+                LOG_GRAPHICS_ERROR("create_texture_2d failed: could not create sampler");
+
+                vkDestroyImageView(device, image_view, nullptr);
+                vkDestroyImage(device, image, nullptr);
+                vkFreeMemory(device, image_memory, nullptr);
+                vkFreeMemory(device, staging_memory, nullptr);
+                vkDestroyBuffer(device, staging_buffer, nullptr);
+                return nullptr;
+            }
+        }
+
+        // staging resources are no longer needed after upload
+        vkFreeMemory(device, staging_memory, nullptr);
+        vkDestroyBuffer(device, staging_buffer, nullptr);
+
+        auto texture = std::make_unique<vulkan_texture_t>(_device.get());
+        texture->set_width(info.width);
+        texture->set_height(info.height);
+        texture->set_format(info.format);
+        texture->set_image(image);
+        texture->set_memory(image_memory);
+        texture->set_view(image_view);
+        texture->set_sampler(sampler);
+
+        LOG_GRAPHICS_INFO("Created Vulkan texture: {}x{}", info.width, info.height);
+
+        return texture;
+    }
+
     void vulkan_rhi_context_t::wait_idle()
     {
         if (_graphics_queue) _graphics_queue->wait_idle();
@@ -521,5 +806,58 @@ namespace carrot::rhi::vulkan {
                 vkCreateSemaphore(_device->vk_device(), &sem_info, nullptr, &_render_finished_semaphores[i])
             );
         }
+    }
+
+    uint32_t vulkan_rhi_context_t::find_memory_type(const uint32_t type_filter,
+                                                    const VkMemoryPropertyFlags properties) const
+    {
+        VkPhysicalDeviceMemoryProperties mem_properties{ };
+        vkGetPhysicalDeviceMemoryProperties(_device->physical_device(), &mem_properties);
+
+        for (uint32_t i{ 0 }; i < mem_properties.memoryTypeCount; ++i)
+        {
+            const bool type_matches{ (type_filter & (1u << i)) != 0 };
+            const bool props_match{ (mem_properties.memoryTypes[i].propertyFlags & properties) == properties };
+
+            if (type_matches && props_match)
+                return i;
+        }
+
+        LOG_GRAPHICS_FATAL("Failed to find suitable Vulkan memory type");
+        return 0;
+    }
+
+    VkCommandBuffer vulkan_rhi_context_t::begin_single_time_commands() const
+    {
+        VkCommandBufferAllocateInfo alloc_info{};
+        alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        alloc_info.commandPool = _command_pool;
+        alloc_info.commandBufferCount = 1;
+
+        VkCommandBuffer cmd{ VK_NULL_HANDLE };
+        vkAllocateCommandBuffers(_device->vk_device(), &alloc_info, &cmd);
+
+        VkCommandBufferBeginInfo begin_info{};
+        begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+        vkBeginCommandBuffer(cmd, &begin_info);
+        return cmd;
+    }
+
+    void vulkan_rhi_context_t::end_single_time_commands(VkCommandBuffer cmd) const
+    {
+        vkEndCommandBuffer(cmd);
+
+        VkSubmitInfo submit_info{};
+        submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submit_info.commandBufferCount = 1;
+        submit_info.pCommandBuffers = &cmd;
+
+        VK_CHECK_FATAL(vkQueueSubmit(_device->graphics_queue(), 1, &submit_info, VK_NULL_HANDLE));
+        VK_CHECK_FATAL(vkQueueWaitIdle(_device->graphics_queue()));
+
+        vkFreeCommandBuffers(_device->vk_device(), _command_pool, 1, &cmd);
     }
 } // namespace carrot::rhi::vulkan

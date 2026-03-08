@@ -7,3 +7,6 @@
 [submodule "deps/CarrotHLM"]
 	path = deps/CarrotHLM
 	url = https://github.com/ZackShrout/CarrotHLM
+[submodule "deps/CarrotPNG"]
+	path = deps/CarrotPNG
+	url = https://github.com/ZackShrout/CarrotPNG

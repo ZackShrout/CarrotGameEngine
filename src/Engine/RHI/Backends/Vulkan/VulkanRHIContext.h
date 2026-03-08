@@ -37,6 +37,7 @@ namespace carrot::rhi::vulkan {
     private:
         void init(const rhi_desc_t& desc);
         void recreate_swapchain_dependent_resources();
+        void recreate_render_finished_semaphores();
 
         VkInstance                                              _vk_instance{ VK_NULL_HANDLE };
         VkSurfaceKHR                                            _vk_surface{ VK_NULL_HANDLE };
@@ -54,6 +55,13 @@ namespace carrot::rhi::vulkan {
         uint32_t                                                _current_frame{ 0 };
         uint32_t                                                _current_image_index{ 0 };
         bool                                                    _pending_pipeline_reload{ false };
+
+        bool _frame_active{ false };
+        bool _render_pass_active{ false };
+        bool _skip_frame{ false };
+        bool _swapchain_dirty{ false };
+        uint32_t _pending_resize_width{ 0 };
+        uint32_t _pending_resize_height{ 0 };
     };
 
 } // namespace carrot::rhi::vulkan

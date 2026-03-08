@@ -27,22 +27,52 @@ namespace carrot::core::platform {
             auto* win = static_cast<wayland_window_t *>(data);
 
             xdg_surface_ack_configure(xdg_surface, serial);
-
-            if (win->get_configure_pending() && win->get_pending_width() > 0 && win->get_pending_height() > 0)
-            {
-                win->set_current_width(win->get_pending_width());
-                win->set_current_height(win->get_pending_height());
-
-                win->set_configure_pending(false);
-            }
+            win->apply_pending_configure();
         }
 
         constexpr xdg_surface_listener xdg_surface_listener{ .configure = xdg_surface_configure };
 
         void xdg_toplevel_configure(void* data, xdg_toplevel*, const int32_t width, const int32_t height,
-                                    [[maybe_unused]] wl_array* states)
+                                    wl_array* states)
         {
-            auto* win = static_cast<wayland_window_t *>(data);
+            auto* win{ static_cast<wayland_window_t *>(data) };
+
+            bool fullscreen{ false };
+            bool maximized{ false };
+            bool resizing{ false };
+            bool activated{ false };
+
+            if (states && states->data)
+            {
+                const auto* state_values = static_cast<const uint32_t*>(states->data);
+                const size_t count = states->size / sizeof(uint32_t);
+
+                for (size_t i = 0; i < count; ++i)
+                {
+                    switch (state_values[i])
+                    {
+                        case XDG_TOPLEVEL_STATE_FULLSCREEN:
+                            fullscreen = true;
+                            break;
+                        case XDG_TOPLEVEL_STATE_MAXIMIZED:
+                            maximized = true;
+                            break;
+                        case XDG_TOPLEVEL_STATE_RESIZING:
+                            resizing = true;
+                            break;
+                        case XDG_TOPLEVEL_STATE_ACTIVATED:
+                            activated = true;
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+
+            win->set_wayland_fullscreen_state(fullscreen);
+            win->set_wayland_maximized_state(maximized);
+            win->set_wayland_resizing_state(resizing);
+            win->set_wayland_focused_state(activated);
 
             if (width > 0 && height > 0)
             {
@@ -50,6 +80,7 @@ namespace carrot::core::platform {
                 win->set_pending_height(static_cast<uint32_t>(height));
             }
 
+            win->set_pending_focus(activated);
             win->set_configure_pending(true);
         }
 
@@ -382,12 +413,12 @@ namespace carrot::core::platform {
         if (_xkb_state) xkb_state_unref(_xkb_state);
         if (_xkb_keymap) xkb_keymap_unref(_xkb_keymap);
         if (_xkb_context) xkb_context_unref(_xkb_context);
+        if (_seat) wl_seat_destroy(_seat);
         if (_xdg_toplevel) xdg_toplevel_destroy(_xdg_toplevel);
         if (_xdg_surface) xdg_surface_destroy(_xdg_surface);
-        if (_xdg_wm_base) xdg_wm_base_destroy(_xdg_wm_base);
-        if (_seat) wl_seat_destroy(_seat);
-        if (_compositor) wl_compositor_destroy(_compositor);
         if (_surface) wl_surface_destroy(_surface);
+        if (_xdg_wm_base) xdg_wm_base_destroy(_xdg_wm_base);
+        if (_compositor) wl_compositor_destroy(_compositor);
         if (_display) wl_display_disconnect(_display);
     }
 
@@ -441,34 +472,42 @@ namespace carrot::core::platform {
         }
     }
 
-    void wayland_window_t::set_title(std::string_view basic_string_view) noexcept
+    void wayland_window_t::set_title(std::string_view title) noexcept
     {
-        window_t::set_title(basic_string_view);
+        if (!_xdg_toplevel)
+            return;
+
+        xdg_toplevel_set_title(_xdg_toplevel, std::string(title).c_str());
+        wl_surface_commit(_surface);
     }
 
     void wayland_window_t::minimize() noexcept
     {
-        window_t::minimize();
+        if (!_xdg_toplevel || !_surface)
+            return;
+
+        xdg_toplevel_set_minimized(_xdg_toplevel);
+        wl_surface_commit(_surface);
     }
 
     void wayland_window_t::maximize() noexcept
     {
-        window_t::maximize();
+        if (!_xdg_toplevel || !_surface)
+            return;
+
+        xdg_toplevel_set_maximized(_xdg_toplevel);
+        wl_surface_commit(_surface);
     }
 
     void wayland_window_t::restore() noexcept
     {
-        window_t::restore();
-    }
+        if (!_xdg_toplevel || !_surface)
+            return;
 
-    bool wayland_window_t::is_maximized() const noexcept
-    {
-        return window_t::is_maximized();
-    }
+        xdg_toplevel_unset_fullscreen(_xdg_toplevel);
+        xdg_toplevel_unset_maximized(_xdg_toplevel);
 
-    bool wayland_window_t::is_minimized() const noexcept
-    {
-        return window_t::is_minimized();
+        wl_surface_commit(_surface);
     }
 
     native_window_handle_t wayland_window_t::get_native_handle() const noexcept
@@ -480,13 +519,41 @@ namespace carrot::core::platform {
         return handle;
     }
 
-    bool wayland_window_t::is_fullscreen() const noexcept
-    {
-        return window_t::is_fullscreen();
-    }
-
     void wayland_window_t::set_fullscreen(const bool fullscreen) noexcept
     {
-        window_t::set_fullscreen(fullscreen);
+        if (!_xdg_toplevel || !_surface)
+            return;
+
+        if (fullscreen)
+            xdg_toplevel_set_fullscreen(_xdg_toplevel, nullptr);
+        else
+            xdg_toplevel_unset_fullscreen(_xdg_toplevel);
+
+        wl_surface_commit(_surface);
+    }
+
+    void wayland_window_t::apply_pending_configure() noexcept
+    {
+        if (!_configure_pending)
+            return;
+
+        const bool old_focused = _is_focused;
+        const uint32_t old_width = _width;
+        const uint32_t old_height = _height;
+
+
+        if (_pending_width > 0 && _pending_height > 0)
+        {
+            _width = _pending_width;
+            _height = _pending_height;
+        }
+
+        _configure_pending = false;
+
+        if (_width != old_width || _height != old_height)
+            on_window_resized(events::window_resized_t{ _width, _height });
+
+        if (_pending_focus != old_focused)
+            on_window_focus_changed(events::window_focused_t{ _is_focused });
     }
 } // namespace carrot::core::platform

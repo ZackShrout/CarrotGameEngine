@@ -36,17 +36,18 @@ namespace carrot::core::platform {
         void poll_events() noexcept override;
         void set_should_close(const bool should_close) noexcept override { _should_close = should_close; }
 
-        void set_title(std::string_view) noexcept override;
+        void set_title(std::string_view title) noexcept override;
         void minimize() noexcept override;
         void maximize() noexcept override;
         void restore() noexcept override;
 
-        [[nodiscard]] bool is_maximized() const noexcept override;
-        [[nodiscard]] bool is_minimized() const noexcept override;
+        [[nodiscard]] bool is_maximized() const noexcept override { return _is_maximized; }
+        [[nodiscard]] bool is_minimized() const noexcept override { return _is_minimized; }
         [[nodiscard]] native_window_handle_t get_native_handle() const noexcept override;
 
-        [[nodiscard]] bool is_fullscreen() const noexcept override;
         void set_fullscreen(bool fullscreen) noexcept override;
+
+        void apply_pending_configure() noexcept;
 
         [[nodiscard]] wl_display* get_wl_display() const noexcept { return _display; }
         [[nodiscard]] wl_surface* get_wl_surface() const noexcept { return _surface; }
@@ -76,6 +77,7 @@ namespace carrot::core::platform {
         void set_current_height(const uint32_t height) noexcept { _height = height; }
         void set_pending_width(const uint32_t width) noexcept { _pending_width = width; }
         void set_pending_height(const uint32_t height) noexcept { _pending_height = height; }
+        void set_pending_focus(const bool activate) noexcept { _pending_focus = activate; }
         void set_configure_pending(const bool configure) noexcept { _configure_pending = configure; }
         void set_last_mouse_pos(const chlm::float2& pos) noexcept { _last_mouse_pos = pos; }
         void set_keyboard_mods(const uint8_t mods) noexcept { _keyboard_mods = mods; }
@@ -86,6 +88,12 @@ namespace carrot::core::platform {
         void set_repeat_state_last_time(const uint32_t value) noexcept { _repeat_state._last_time_ms = value; }
         void set_repeat_state_delay(const uint32_t value) noexcept { _repeat_state._delay_ms = value; }
         void set_repeat_state_rate(const uint32_t value) noexcept { _repeat_state._rate_ms = value; }
+
+        void set_wayland_fullscreen_state(const bool value) noexcept { _is_fullscreen = value; }
+        void set_wayland_maximized_state(const bool value) noexcept { _is_maximized = value; }
+        void set_wayland_focused_state(const bool value) noexcept { _is_focused = value; }
+        void set_wayland_resizing_state(const bool value) noexcept { _is_resizing = value; }
+        void set_wayland_minimized_state(const bool value) noexcept { _is_minimized = value; }
 
     private:
         wl_display* _display{ nullptr };
@@ -104,7 +112,11 @@ namespace carrot::core::platform {
         uint8_t _modifiers{ 0 };
         uint32_t _pending_width{ 0 };
         uint32_t _pending_height{ 0 };
+        bool _pending_focus{ false };
         bool _configure_pending{ false };
+        bool _is_maximized{ false };
+        bool _is_focused{ false };
+        bool _is_resizing{ false };
 
         bool _keys_down[static_cast<uint16_t>(input::key_code::max_key_code)]{ false };
         chlm::float2 _last_mouse_pos{ 0.f, 0.f };

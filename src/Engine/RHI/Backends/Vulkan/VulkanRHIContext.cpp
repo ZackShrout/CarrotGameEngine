@@ -27,16 +27,15 @@ namespace carrot::rhi::vulkan {
 
         for (uint32_t i{ 0 }; i < _swapchain->get_image_count(); ++i)
         {
-            // if (_image_available_semaphores[i]) vkDestroySemaphore(_device->vk_device(), _image_available_semaphores[i], nullptr);
-            if (_render_finished_semaphores[i]) vkDestroySemaphore(_device->vk_device(), _render_finished_semaphores[i], nullptr);
+            if (_render_finished_semaphores[i])
+                vkDestroySemaphore(_device->vk_device(), _render_finished_semaphores[i],
+                                   nullptr);
         }
 
         _swapchain.reset();
 
         for (const auto& frame: _frames)
         {
-            // if (frame.image_available) vkDestroySemaphore(_device->vk_device(), frame.image_available, nullptr);
-            // if (frame.render_finished) vkDestroySemaphore(_device->vk_device(), frame.render_finished, nullptr);
             if (frame.image_acquire) vkDestroySemaphore(_device->vk_device(), frame.image_acquire, nullptr);
             if (frame.in_flight) vkDestroyFence(_device->vk_device(), frame.in_flight, nullptr);
 
@@ -59,19 +58,22 @@ namespace carrot::rhi::vulkan {
 
     void vulkan_rhi_context_t::begin_frame()
     {
+        _skip_frame = false;
+        _frame_active = false;
+        _render_pass_active = false;
+
+        if (_swapchain_dirty)
+        {
+            recreate_swapchain_dependent_resources();
+            _swapchain_dirty = false;
+            _skip_frame = true;
+            return;
+        }
+
         const frame_resources_t& frame{ _frames[_current_frame] };
 
         // Wait for the previous use of this frame to finish
-        VK_CHECK_FATAL(vkWaitForFences(
-            _device->vk_device(),
-            1,
-            &frame.in_flight,
-            VK_TRUE,
-            UINT64_MAX
-        ));
-
-        // Reset the fence for this frame
-        VK_CHECK_FATAL(vkResetFences(_device->vk_device(), 1, &frame.in_flight));
+        VK_CHECK_FATAL(vkWaitForFences(_device->vk_device(), 1, &frame.in_flight, VK_TRUE, UINT64_MAX));
 
         // Hot-reload check: safe here because previous frames are done
         if (_pending_pipeline_reload)
@@ -96,15 +98,26 @@ namespace carrot::rhi::vulkan {
             )
         };
 
-        if (acquire_result == VK_ERROR_OUT_OF_DATE_KHR || acquire_result == VK_SUBOPTIMAL_KHR)
+        if (acquire_result == VK_ERROR_OUT_OF_DATE_KHR)
         {
-            recreate_swapchain_dependent_resources();
             LOG_GRAPHICS_WARN("Swapchain out of date/suboptimal - skipping frame");
+            _swapchain_dirty = true;
+            _skip_frame = true;
             return;
         }
 
-        if (acquire_result != VK_SUCCESS)
+        if (acquire_result == VK_SUBOPTIMAL_KHR)
+        {
+            _swapchain_dirty = true;
+            // but continue this frame
+        }
+        else if (acquire_result != VK_SUCCESS)
+        {
             VK_CHECK_FATAL(acquire_result);
+        }
+
+        // Reset the fence for this frame
+        VK_CHECK_FATAL(vkResetFences(_device->vk_device(), 1, &frame.in_flight));
 
         // Reset and begin command buffer
         VK_CHECK_FATAL(vkResetCommandBuffer(frame.command_buffer, 0));
@@ -128,10 +141,15 @@ namespace carrot::rhi::vulkan {
         rp_begin.pClearValues = &clear_color;
 
         vkCmdBeginRenderPass(frame.command_buffer, &rp_begin, VK_SUBPASS_CONTENTS_INLINE);
+        _render_pass_active = true;
+        _frame_active = true;
     }
 
     void vulkan_rhi_context_t::record_frame()
     {
+        if (_skip_frame || !_frame_active)
+            return;
+
         const frame_resources_t& frame{ _frames[_current_frame] };
 
         // Set dynamic viewport and scissor
@@ -150,12 +168,10 @@ namespace carrot::rhi::vulkan {
         vkCmdSetViewport(frame.command_buffer, 0, 1, &viewport);
         vkCmdSetScissor(frame.command_buffer, 0, 1, &scissor);
 
-        // Bind the triangle pipeline
         vkCmdBindPipeline(frame.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphics_pipeline->vk_pipeline());
 
         _frame_counter++;
 
-        // Push it!
         const uint32_t pc_data{ _frame_counter };
         vkCmdPushConstants(
             frame.command_buffer,
@@ -166,16 +182,22 @@ namespace carrot::rhi::vulkan {
             &pc_data // pointer to the data
         );
 
-        // Draw the hardcoded triangle (no vertex buffer needed)
         vkCmdDraw(frame.command_buffer, 3, 1, 0, 0);
     }
 
     void vulkan_rhi_context_t::end_frame()
     {
+        if (_skip_frame || !_frame_active)
+            return;
+
         const frame_resources_t& frame{ _frames[_current_frame] };
 
         // 1. End render pass (if not already ended in record_frame)
-        vkCmdEndRenderPass(frame.command_buffer);
+        if (_render_pass_active)
+        {
+            vkCmdEndRenderPass(frame.command_buffer);
+            _render_pass_active = false;
+        }
 
         // 2. End command buffer
         VK_CHECK_FATAL(vkEndCommandBuffer(frame.command_buffer));
@@ -193,12 +215,7 @@ namespace carrot::rhi::vulkan {
         submit_info.signalSemaphoreCount = 1;
         submit_info.pSignalSemaphores = &_render_finished_semaphores[_current_image_index];
 
-        VK_CHECK_FATAL(vkQueueSubmit(
-            _device->graphics_queue(),
-            1,
-            &submit_info,
-            frame.in_flight
-        ));
+        VK_CHECK_FATAL(vkQueueSubmit(_device->graphics_queue(), 1, &submit_info, frame.in_flight));
 
         // 4. Present
         VkSwapchainKHR current_swapchain{ _swapchain->vk_swapchain() };
@@ -220,7 +237,7 @@ namespace carrot::rhi::vulkan {
 
         if (present_result == VK_ERROR_OUT_OF_DATE_KHR || present_result == VK_SUBOPTIMAL_KHR)
         {
-            recreate_swapchain_dependent_resources();
+            _swapchain_dirty = true;
             LOG_GRAPHICS_WARN("Present suboptimal/out of date");
         }
         else if (present_result != VK_SUCCESS)
@@ -230,18 +247,22 @@ namespace carrot::rhi::vulkan {
 
         // Advance frame index
         _current_frame = (_current_frame + 1) % k_max_frames_in_flight;
+        _frame_active = false;
     }
 
     void vulkan_rhi_context_t::resize(const uint32_t width, const uint32_t height)
     {
-        vkDeviceWaitIdle(_device->vk_device());
+        if (width == 0 || height == 0)
+        {
+            _pending_resize_width = 0;
+            _pending_resize_height = 0;
+            _swapchain_dirty = true;
+            return;
+        }
 
-        _swapchain->resize(width, height);
-
-        // Re-create framebuffers with new images/views
-        _framebuffers = _swapchain->create_framebuffers(_render_pass->vk_render_pass());
-
-        LOG_GRAPHICS_INFO("Framebuffers recreated after resize");
+        _pending_resize_width = width;
+        _pending_resize_height = height;
+        _swapchain_dirty = true;
     }
 
     void vulkan_rhi_context_t::wait_idle()
@@ -255,7 +276,6 @@ namespace carrot::rhi::vulkan {
         auto handle = window::get_native_handle();
 
         // ── 1. Create Vulkan Instance ─────────────────────────────────────────────
-
         std::vector<const char *> instance_extensions{
             VK_KHR_SURFACE_EXTENSION_NAME,
 #if defined(CARROT_PLATFORM_WAYLAND)
@@ -296,7 +316,6 @@ namespace carrot::rhi::vulkan {
         VK_CHECK_FATAL(vkCreateInstance(&inst_info, nullptr, &_vk_instance));
 
         // ── 2. Create Wayland Surface ─────────────────────────────────────────────
-
 #if defined(CARROT_PLATFORM_WAYLAND)
         VkWaylandSurfaceCreateInfoKHR surf_info{ };
         surf_info.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
@@ -314,7 +333,6 @@ namespace carrot::rhi::vulkan {
 #endif
 
         // ── 3. Pick Physical Device & Queue Family ────────────────────────────────
-
         uint32_t device_count{ 0 };
         VK_CHECK_FATAL(vkEnumeratePhysicalDevices(_vk_instance, &device_count, nullptr));
 
@@ -360,7 +378,6 @@ namespace carrot::rhi::vulkan {
             LOG_GRAPHICS_FATAL("No physical device supports both graphics and presentation");
 
         // ── 4. Create Logical Device + Queues ─────────────────────────────────────
-
         float priority{ 1.0f };
         VkDeviceQueueCreateInfo queue_info{ };
         queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -384,7 +401,6 @@ namespace carrot::rhi::vulkan {
         vkGetDeviceQueue(vk_device, graphics_family, 0, &graphics_queue);
 
         // ── 5. Wrap into VulkanDevice ─────────────────────────────────────────────
-
         _device = std::make_unique<vulkan_device_t>(vk_device, physical_device, graphics_family, graphics_queue,
                                                     _vk_surface);
 
@@ -394,12 +410,7 @@ namespace carrot::rhi::vulkan {
         pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
         pool_info.queueFamilyIndex = _device->graphics_family();
 
-        VK_CHECK_FATAL(vkCreateCommandPool(
-            _device->vk_device(),
-            &pool_info,
-            nullptr,
-            &_command_pool
-        ));
+        VK_CHECK_FATAL(vkCreateCommandPool(_device->vk_device(), &pool_info, nullptr, &_command_pool));
 
         // ── Allocate command buffers (one per frame in flight) ─────────────────────
         VkCommandBufferAllocateInfo alloc_info{ };
@@ -409,11 +420,7 @@ namespace carrot::rhi::vulkan {
         alloc_info.commandBufferCount = k_max_frames_in_flight;
 
         std::array<VkCommandBuffer, k_max_frames_in_flight> cmd_buffers{ };
-        VK_CHECK_FATAL(vkAllocateCommandBuffers(
-            _device->vk_device(),
-            &alloc_info,
-            cmd_buffers.data()
-        ));
+        VK_CHECK_FATAL(vkAllocateCommandBuffers(_device->vk_device(), &alloc_info, cmd_buffers.data()));
 
         // ── Create per-frame synchronization primitives ────────────────────────────
         VkSemaphoreCreateInfo sem_info{ };
@@ -427,8 +434,6 @@ namespace carrot::rhi::vulkan {
         {
             _frames[i].command_buffer = cmd_buffers[i];
 
-            // VK_CHECK_FATAL(vkCreateSemaphore(_device->vk_device(), &sem_info, nullptr, &_frames[i].image_available));
-            // VK_CHECK_FATAL(vkCreateSemaphore(_device->vk_device(), &sem_info, nullptr, &_frames[i].render_finished));
             VK_CHECK_FATAL(vkCreateSemaphore(_device->vk_device(), &sem_info, nullptr, &_frames[i].image_acquire));
             VK_CHECK_FATAL(vkCreateFence(_device->vk_device(), &fence_info, nullptr, &_frames[i].in_flight));
         }
@@ -436,34 +441,23 @@ namespace carrot::rhi::vulkan {
         LOG_GRAPHICS_INFO("Created command pool, {} command buffers, and sync primitives", k_max_frames_in_flight);
 
         // ── 6. Create Swapchain ───────────────────────────────────────────────────
-        _swapchain = std::make_unique<vulkan_swapchain_t>(
-            _device.get(),
-            _vk_surface,
-            desc.width,
-            desc.height
-        );
+        _swapchain = std::make_unique<vulkan_swapchain_t>(_device.get(), _vk_surface, desc.width, desc.height);
 
         uint32_t image_count{ _swapchain->get_image_count() };
-        // _image_available_semaphores.resize(image_count);
         _render_finished_semaphores.resize(image_count);
 
         for (uint32_t i{ 0 }; i < image_count; ++i)
         {
-            // VK_CHECK_FATAL(vkCreateSemaphore(_device->vk_device(), &sem_info, nullptr, &_image_available_semaphores[i]));
-            VK_CHECK_FATAL(vkCreateSemaphore(_device->vk_device(), &sem_info, nullptr, &_render_finished_semaphores[i]));
+            VK_CHECK_FATAL(
+                vkCreateSemaphore(_device->vk_device(), &sem_info, nullptr, &_render_finished_semaphores[i])
+            );
         }
 
         // ── 7. Create Render Pass ─────────────────────────────────────────────────
-        _render_pass = std::make_unique<vulkan_render_pass_t>(
-            _device.get(),
-            _swapchain->format()
-        );
+        _render_pass = std::make_unique<vulkan_render_pass_t>(_device.get(), _swapchain->format());
 
         // ── 8. Create Graphics Pipeline ───────────────────────────────────────────
-        _graphics_pipeline = std::make_unique<vulkan_pipeline_t>(
-            _device.get(),
-            _render_pass->vk_render_pass()
-        );
+        _graphics_pipeline = std::make_unique<vulkan_pipeline_t>(_device.get(), _render_pass->vk_render_pass());
 
         // ── 9. Create Framebuffers ────────────────────────────────────────────────
         _framebuffers = _swapchain->create_framebuffers(_render_pass->vk_render_pass());
@@ -486,18 +480,46 @@ namespace carrot::rhi::vulkan {
 
     void vulkan_rhi_context_t::recreate_swapchain_dependent_resources()
     {
-        // Safety: wait for GPU to finish using old resources
+        _frame_active = false;
+        _render_pass_active = false;
+        _skip_frame = true;
+
         vkDeviceWaitIdle(_device->vk_device());
 
-        // 1. Destroy old framebuffers (your RAII wrapper handles it)
-        _framebuffers = framebuffer_array_t{ }; // or .clear() + reset device if needed
+        _framebuffers = framebuffer_array_t{ _device->vk_device() };
 
-        // 2. Recreate swapchain (your existing resize logic)
-        _swapchain->recreate();
+        if (_pending_resize_width > 0 && _pending_resize_height > 0)
+            _swapchain->resize(_pending_resize_width, _pending_resize_height);
+        else
+            _swapchain->recreate();
 
-        // 3. Recreate framebuffers attached to current render pass
+        recreate_render_finished_semaphores();
+
         _framebuffers = _swapchain->create_framebuffers(_render_pass->vk_render_pass());
 
         LOG_GRAPHICS_INFO("Swapchain & framebuffers recreated after resize");
+    }
+
+    void vulkan_rhi_context_t::recreate_render_finished_semaphores()
+    {
+        for (const VkSemaphore& sem: _render_finished_semaphores)
+        {
+            if (sem)
+                vkDestroySemaphore(_device->vk_device(), sem, nullptr);
+        }
+        _render_finished_semaphores.clear();
+
+        VkSemaphoreCreateInfo sem_info{ };
+        sem_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+        const uint32_t image_count{ _swapchain->get_image_count() };
+        _render_finished_semaphores.resize(image_count);
+
+        for (uint32_t i{ 0 }; i < image_count; ++i)
+        {
+            VK_CHECK_FATAL(
+                vkCreateSemaphore(_device->vk_device(), &sem_info, nullptr, &_render_finished_semaphores[i])
+            );
+        }
     }
 } // namespace carrot::rhi::vulkan

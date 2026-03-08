@@ -15,6 +15,8 @@
 struct xdg_wm_base;
 struct xdg_surface;
 struct xdg_toplevel;
+struct zxdg_decoration_manager_v1;
+struct zxdg_toplevel_decoration_v1;
 
 namespace carrot::core::platform {
     struct key_repeat_state_t
@@ -65,6 +67,10 @@ namespace carrot::core::platform {
         [[nodiscard]] key_repeat_state_t get_repeat_state() const noexcept { return _repeat_state; }
         [[nodiscard]] bool get_repeat_enabled() const noexcept { return _repeat_enabled; }
 
+        [[nodiscard]] zxdg_decoration_manager_v1* get_decoration_manager() const noexcept { return _decoration_manager; }
+        [[nodiscard]] zxdg_toplevel_decoration_v1* get_toplevel_decoration() const noexcept { return _toplevel_decoration; }
+        [[nodiscard]] bool has_server_side_decorations() const noexcept { return _server_side_decorations; }
+
         void set_compositor(wl_compositor* c) noexcept { _compositor = c; }
         void set_xdg_wm_base(xdg_wm_base* base) noexcept { _xdg_wm_base = base; }
         void set_seat(wl_seat* seat) noexcept { _seat = seat; }
@@ -88,6 +94,10 @@ namespace carrot::core::platform {
         void set_repeat_state_last_time(const uint32_t value) noexcept { _repeat_state._last_time_ms = value; }
         void set_repeat_state_delay(const uint32_t value) noexcept { _repeat_state._delay_ms = value; }
         void set_repeat_state_rate(const uint32_t value) noexcept { _repeat_state._rate_ms = value; }
+
+        void set_decoration_manager(zxdg_decoration_manager_v1* mgr) noexcept { _decoration_manager = mgr; }
+        void set_toplevel_decoration(zxdg_toplevel_decoration_v1* deco) noexcept { _toplevel_decoration = deco; }
+        void set_server_side_decorations(bool value) noexcept { _server_side_decorations = value; }
 
         void set_wayland_fullscreen_state(const bool value) noexcept { _is_fullscreen = value; }
         void set_wayland_maximized_state(const bool value) noexcept { _is_maximized = value; }
@@ -123,5 +133,9 @@ namespace carrot::core::platform {
         uint8_t _keyboard_mods{ 0 };
         key_repeat_state_t _repeat_state;
         bool _repeat_enabled{ true };
+
+        zxdg_decoration_manager_v1* _decoration_manager{ nullptr };
+        zxdg_toplevel_decoration_v1* _toplevel_decoration{ nullptr };
+        bool _server_side_decorations{ false };
     };
 } // namespace carrot::core::platform

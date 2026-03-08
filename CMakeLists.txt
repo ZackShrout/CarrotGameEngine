@@ -281,8 +281,10 @@ elseif (UNIX)
         list(APPEND CARROT_ENGINE_SOURCES
                 src/Engine/Core/Platform/Wayland/WaylandWindow.cpp
                 src/Engine/Core/Platform/Wayland/WaylandWindow.h
-                src/Engine/Core/Platform/Wayland/xdg-shell-client-protocol.c
-                src/Engine/Core/Platform/Wayland/xdg-shell-client-protocol.h
+                src/Engine/Core/Platform/Wayland/Protocols/xdg-shell-client-protocol.c
+                src/Engine/Core/Platform/Wayland/Protocols/xdg-shell-client-protocol.h
+                src/Engine/Core/Platform/Wayland/Protocols/xdg-decoration-unstable-v1-protocol.c
+                src/Engine/Core/Platform/Wayland/Protocols/xdg-decoration-unstable-v1-client-protocol.h
         )
     endif ()
 

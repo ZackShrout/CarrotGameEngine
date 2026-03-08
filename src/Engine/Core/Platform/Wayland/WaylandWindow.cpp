@@ -5,7 +5,8 @@
 
 #include "WaylandWindow.h"
 
-#include "xdg-shell-client-protocol.h"
+#include "Protocols/xdg-shell-client-protocol.h"
+#include "Protocols/xdg-decoration-unstable-v1-client-protocol.h"
 #include "Events/Events.h"
 #include "Input/PlatformKeyMapping.h"
 
@@ -346,6 +347,35 @@ namespace carrot::core::platform {
                        [[maybe_unused]] const char* name) {}
         };
 
+        void toplevel_decoration_configure(void* data,
+                                   zxdg_toplevel_decoration_v1*,
+                                   const uint32_t mode)
+        {
+            auto* win = static_cast<wayland_window_t*>(data);
+
+            switch (mode)
+            {
+                case ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE:
+                    LOG_CORE_INFO("Wayland decoration mode: SERVER_SIDE");
+                    win->set_server_side_decorations(true);
+                    break;
+
+                case ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE:
+                    LOG_CORE_INFO("Wayland decoration mode: CLIENT_SIDE");
+                    win->set_server_side_decorations(false);
+                    break;
+
+                default:
+                    LOG_CORE_WARN("Wayland decoration mode: UNKNOWN ({})", mode);
+                    win->set_server_side_decorations(false);
+                    break;
+            }
+        }
+
+        constexpr zxdg_toplevel_decoration_v1_listener toplevel_decoration_listener{
+            .configure = toplevel_decoration_configure
+        };
+
         void registry_global(void* data, wl_registry* registry, const uint32_t name,
                              const char* interface, uint32_t) noexcept
         {
@@ -367,6 +397,13 @@ namespace carrot::core::platform {
             {
                 win->set_seat(static_cast<wl_seat *>(wl_registry_bind(registry, name, &wl_seat_interface, 4)));
                 wl_seat_add_listener(win->get_wl_seat(), &seat_listener, win);
+            }
+            else if (std::strcmp(interface, zxdg_decoration_manager_v1_interface.name) == 0)
+            {
+                LOG_CORE_INFO("Wayland compositor advertises xdg-decoration");
+                auto* mgr = static_cast<zxdg_decoration_manager_v1*>(
+                    wl_registry_bind(registry, name, &zxdg_decoration_manager_v1_interface, 1));
+                win->set_decoration_manager(mgr);
             }
         }
 
@@ -398,6 +435,24 @@ namespace carrot::core::platform {
 
         _xdg_toplevel = xdg_surface_get_toplevel(_xdg_surface);
         xdg_toplevel_add_listener(_xdg_toplevel, &xdg_toplevel_listener, this);
+
+        if (_decoration_manager)
+        {
+            _toplevel_decoration =
+                zxdg_decoration_manager_v1_get_toplevel_decoration(_decoration_manager, _xdg_toplevel);
+
+            zxdg_toplevel_decoration_v1_add_listener(
+                _toplevel_decoration,
+                &toplevel_decoration_listener,
+                this
+            );
+
+            zxdg_toplevel_decoration_v1_set_mode(
+                _toplevel_decoration,
+                ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE
+            );
+        }
+
         xdg_toplevel_set_title(_xdg_toplevel, std::string(title).c_str());
 
         wl_surface_commit(_surface);
@@ -418,6 +473,8 @@ namespace carrot::core::platform {
         if (_xdg_surface) xdg_surface_destroy(_xdg_surface);
         if (_surface) wl_surface_destroy(_surface);
         if (_xdg_wm_base) xdg_wm_base_destroy(_xdg_wm_base);
+        if (_toplevel_decoration) zxdg_toplevel_decoration_v1_destroy(_toplevel_decoration);
+        if (_decoration_manager) zxdg_decoration_manager_v1_destroy(_decoration_manager);
         if (_compositor) wl_compositor_destroy(_compositor);
         if (_display) wl_display_disconnect(_display);
     }

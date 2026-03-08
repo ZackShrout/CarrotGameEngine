@@ -148,6 +148,11 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Audio/DSP/Limiter.h
         src/Engine/Audio/DSP/Baxandall.h
         src/Engine/Audio/DSP/VcaBusComp.h
+        src/Engine/Assets/Image/ImageAsset.h
+        src/Engine/Assets/Image/ImageLoadError.h
+        src/Engine/Assets/Image/ImageLoadError.cpp
+        src/Engine/Assets/Image/ImageAssetImporter.cpp
+        src/Engine/Assets/Image/ImageAssetImporter.h
 )
 
 # ------------------------------------------------------------------------
@@ -319,6 +324,14 @@ elseif (UNIX)
 
 endif()
 
+# ------------------------------------------------------------------------
+# External Dependencies
+# ------------------------------------------------------------------------
+add_subdirectory(deps/CarrotPNG)
+
+# ------------------------------------------------------------------------
+# Engine Static Library
+# ------------------------------------------------------------------------
 add_library(CarrotEngine STATIC ${CARROT_ENGINE_SOURCES})
 
 target_compile_definitions(CarrotEngine PRIVATE
@@ -327,6 +340,10 @@ target_compile_definitions(CarrotEngine PRIVATE
 
 target_include_directories(CarrotEngine PRIVATE
         ${CMAKE_BINARY_DIR}/src/Engine/HotReload/Config
+)
+
+target_link_libraries(CarrotEngine PRIVATE
+        CarrotPNG
 )
 
 # ------------------------------------------------------------------------
@@ -469,6 +486,10 @@ elseif(UNIX)
     target_link_options(CarrotEngine PUBLIC
             $<$<LINK_LANGUAGE:CXX>:-stdlib=libc++>
     )
+
+    # Apply libc++ to CarrotPNG
+    target_compile_options(CarrotPNG PUBLIC -stdlib=libc++)
+    target_link_options(CarrotPNG PUBLIC -stdlib=libc++)
 
     target_compile_definitions(CarrotEngine PUBLIC VK_USE_PLATFORM_WAYLAND_KHR)
 

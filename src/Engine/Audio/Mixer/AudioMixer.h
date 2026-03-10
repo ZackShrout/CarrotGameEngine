@@ -119,9 +119,9 @@ namespace carrot::audio {
          * @param frame_count Number of frames in the current render block.
          * @param sample_rate Sample rate of the audio processing context.
          */
-        void process_bus_fx(uint32_t frame_count, uint32_t sample_rate) noexcept;
+        void process_bus_fx(uint32_t frame_count, uint32_t sample_rate) const noexcept;
 
-        void process_master_fx(uint32_t frame_count, uint32_t sample_rate) noexcept;
+        void process_master_fx(uint32_t frame_count, uint32_t sample_rate) const noexcept;
 
         /**
          * @brief Accumulates audio data from all buses into the reverb send buffer.

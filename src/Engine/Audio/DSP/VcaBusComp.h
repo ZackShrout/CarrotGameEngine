@@ -77,24 +77,24 @@ namespace carrot::audio {
 
             for (uint32_t n{ 0 }; n < ctx.num_frames; ++n)
             {
-                float* frame = ctx.interleaved + n * ctx.num_channels;
+                float* frame{ ctx.interleaved + n * ctx.num_channels };
 
                 // 1) Sidechain detection
-                const float level_in = compute_input_level(frame, ctx.num_channels);
+                const float level_in{ compute_input_level(frame, ctx.num_channels) };
                 update_detector(level_in);
 
                 // 2) Compute level in dB
-                const float level_db = lin_to_db(_detector_env);
+                const float level_db{ lin_to_db(_detector_env) };
 
                 // 3) Gain reduction (negative or zero)
-                const float target_gr_db = compute_gain_reduction_db(level_db);
+                const float target_gr_db{ compute_gain_reduction_db(level_db) };
 
                 // 4) Smooth gain reduction over time
                 update_gain_smooth(target_gr_db);
 
                 // 5) Total gain = makeup + gain_reduction
-                const float total_gain_db = _makeup_gain_db + _gain_smooth_db;
-                const float total_gain_lin = db_to_lin(total_gain_db);
+                const float total_gain_db{ _makeup_gain_db + _gain_smooth_db };
+                const float total_gain_lin{ db_to_lin(total_gain_db) };
 
                 // 6) Apply (optionally parallel blend)
                 if (_mix >= 0.999f)
@@ -107,8 +107,8 @@ namespace carrot::audio {
                     // simple parallel: (dry + wet*gain) blend
                     for (uint32_t ch{ 0 }; ch < ctx.num_channels; ++ch)
                     {
-                        const float dry = frame[ch];
-                        const float wet = dry * total_gain_lin;
+                        const float dry{ frame[ch] };
+                        const float wet{ dry * total_gain_lin };
                         frame[ch] = dry * (1.0f - _mix) + wet * _mix;
                     }
                 }
@@ -344,7 +344,7 @@ namespace carrot::audio {
                 float peak{ 0.f };
 
                 for (uint32_t ch{ 0 }; ch < num_channels; ++ch)
-                    peak = std::max(peak, std::fabs(frame[ch]));
+                    peak = chlm::max(peak, std::fabs(frame[ch]));
 
                 return peak;
             }
@@ -356,7 +356,7 @@ namespace carrot::audio {
 
             const float mean_sq{ sum_sq / static_cast<float>(num_channels) };
 
-            return std::sqrt(mean_sq + 1e-20f);
+            return chlm::sqrt(mean_sq + 1e-20f);
         }
 
         /**
@@ -378,9 +378,9 @@ namespace carrot::audio {
             // For simple version, treat as linear amplitude
 
             if (level_in > _detector_env)
-                _detector_env = _attack_coeff * _detector_env + (1.0f - _attack_coeff) * level_in;
+                _detector_env = _attack_coeff * _detector_env + (1.f - _attack_coeff) * level_in;
             else
-                _detector_env = _release_coeff * _detector_env + (1.0f - _release_coeff) * level_in;
+                _detector_env = _release_coeff * _detector_env + (1.f - _release_coeff) * level_in;
         }
 
         /**
@@ -422,7 +422,7 @@ namespace carrot::audio {
             const float upper{ _threshold_db + _knee_db * 0.5f };
 
             if (level_db <= lower)
-                return 0.0f;
+                return 0.f;
 
             if (level_db >= upper)
             {
@@ -440,7 +440,7 @@ namespace carrot::audio {
             const float hard_gr{ over_db * (1.f / _ratio - 1.f) };
 
             // cubic smoothstep: 0..1 with zero slope at both ends
-            const float t{ frac * frac * (3.0f - 2.0f * frac) };
+            const float t{ frac * frac * (3.f - 2.f * frac) };
 
             // fade in from 0 to hard_gr using a gentle curve (frac^2 is fine)
             return hard_gr * t;
@@ -461,12 +461,12 @@ namespace carrot::audio {
             if (target_gr_db < _gain_smooth_db) // more reduction (more negative)
             {
                 // attack (tighten quickly)
-                _gain_smooth_db = _attack_coeff * _gain_smooth_db + (1.0f - _attack_coeff) * target_gr_db;
+                _gain_smooth_db = _attack_coeff * _gain_smooth_db + (1.f - _attack_coeff) * target_gr_db;
             }
             else
             {
                 // release (back off slowly)
-                _gain_smooth_db = _release_coeff * _gain_smooth_db + (1.0f - _release_coeff) * target_gr_db;
+                _gain_smooth_db = _release_coeff * _gain_smooth_db + (1.f - _release_coeff) * target_gr_db;
             }
         }
 
@@ -479,7 +479,7 @@ namespace carrot::audio {
          * @param x The linear amplitude value to be converted. Must be a non-negative float.
          * @return The decibel representation of the input linear value.
          */
-        float lin_to_db(float x) noexcept { return 20.0f * std::log10(x + 1e-20f); }
+        float lin_to_db(const float x) noexcept { return 20.f * std::log10(x + 1e-20f); }
 
         /**
          * @brief Converts a value in decibels (dB) to its linear scale equivalent.
@@ -490,7 +490,7 @@ namespace carrot::audio {
          * @param db The value in decibels to be converted.
          * @return The linear scale equivalent of the decibel value.
          */
-        float db_to_lin(float db) noexcept { return std::pow(10.0f, db * 0.05f); }
+        float db_to_lin(const float db) noexcept { return std::pow(10.f, db * 0.05f); }
 
         uint32_t _sample_rate{ 48000 };
         vca_comp_detection_mode_t _mode{ vca_comp_detection_mode_t::rms };

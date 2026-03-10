@@ -311,6 +311,11 @@ namespace carrot::rhi::dx12 {
         return _graphics_queue.get();
     }
 
+    std::unique_ptr<rhi_texture_t> dx12_rhi_context_t::create_texture_2d(const texture_create_info_t& info)
+    {
+        return nullptr;
+    }
+
     void dx12_rhi_context_t::wait_idle()
     {
         if (_graphics_queue)

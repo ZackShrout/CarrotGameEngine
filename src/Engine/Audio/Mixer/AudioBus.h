@@ -70,7 +70,7 @@ namespace carrot::audio {
         bool soloed{ false };
 
         /** Linear gain applied to all audio routed through this bus. */
-        float gain{ 1.0f };
+        float gain{ 1.f };
 
         /**
          * @brief Stereo pan applied at the bus level.
@@ -95,7 +95,7 @@ namespace carrot::audio {
          *
          * Range: 0.0 (no signal sent) to 1.0 (full signal sent).
          */
-        float reverb_send{ 0.0f };
+        float reverb_send{ 0.f };
 
         /**
          * @brief Pointer to the effect processing chain for this audio bus.

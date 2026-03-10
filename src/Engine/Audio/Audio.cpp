@@ -10,7 +10,7 @@
 
 namespace carrot::audio {
     namespace {
-        float apply_variance(float value, float variance)
+        float apply_variance(const float value, const float variance)
         {
             if (variance <= 0.0f)
                 return value;
@@ -37,7 +37,7 @@ namespace carrot::audio {
         const float gain{ apply_variance(asset.gain * params.gain, asset.gain_variance) };
         const float pitch{ apply_variance(asset.pitch * params.pitch, asset.pitch_variance) };
         const spatial_mode spatial{ params.override_spatial ? params.spatial_override : asset.spatial };
-        const float pan{ params.pan != 0.0f ? params.pan : asset.pan };
+        const float pan{ params.pan != 0.f ? params.pan : asset.pan };
 
         if (!asset.streamed)
         {

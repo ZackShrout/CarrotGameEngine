@@ -12,7 +12,6 @@
 #include <thread>
 
 namespace carrot::audio {
-
     test_stream_decoder_t::~test_stream_decoder_t()
     {
         stop();
@@ -43,52 +42,38 @@ namespace carrot::audio {
 
     void test_stream_decoder_t::thread_main() noexcept
     {
-        constexpr uint32_t frames_per_chunk = 256;
-        constexpr float frequency = 440.0f;
+        constexpr uint32_t frames_per_chunk{ 256 };
+        constexpr float frequency{ 440.f };
 
-        float phase = 0.0f;
-        const float phase_inc =
-            2.0f * 3.14159265359f * frequency /
-            static_cast<float>(_stream->sample_rate);
-
-        float temp[frames_per_chunk * k_max_channels]{};
+        float phase{ 0.f };
+        const float phase_inc{ 2.0f * 3.14159265359f * frequency / static_cast<float>(_stream->sample_rate) };
+        float temp[frames_per_chunk * k_max_channels]{ };
 
         while (_running.load(std::memory_order_acquire))
         {
-            const uint32_t writable =
-                _stream->buffer.available_write();
+            const uint32_t writable{ _stream->buffer.available_write() };
 
-            const uint32_t frames_to_write =
-                std::min(writable, frames_per_chunk);
+            const uint32_t frames_to_write{ chlm::min(writable, frames_per_chunk) };
 
             if (frames_to_write == 0)
             {
-                std::this_thread::sleep_for(
-                    std::chrono::milliseconds(1)
-                );
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
                 continue;
             }
 
-            for (uint32_t i = 0; i < frames_to_write; ++i)
+            for (uint32_t i{ 0 }; i < frames_to_write; ++i)
             {
-                const float s = std::sin(phase);
+                const float s{ chlm::sin(phase) };
 
-                static uint32_t dbg = 0;
+                static uint32_t dbg{ 0 };
                 if ((dbg++ & 0x3FFF) == 0)
                 {
-                    LOG_AUDIO_INFO(
-                        "[DECODER] phase={}, sample={}",
-                        phase,
-                        s
-                    );
+                    LOG_AUDIO_INFO("[DECODER] phase={}, sample={}", phase, s);
                 }
 
                 phase += phase_inc;
                 if (phase >= 2.0f * chlm::pi)
                     phase -= 2.0f * chlm::pi;
-
-
-
 
                 for (uint32_t ch = 0; ch < _stream->channels; ++ch)
                     temp[i * _stream->channels + ch] = s;
@@ -96,9 +81,9 @@ namespace carrot::audio {
 
             _stream->buffer.write(temp, frames_to_write);
 
-            static auto last = std::chrono::steady_clock::now();
+            static auto last{ std::chrono::steady_clock::now() };
 
-            auto now = std::chrono::steady_clock::now();
+            auto now{ std::chrono::steady_clock::now() };
             if (now - last > std::chrono::seconds(1))
             {
                 last = now;
@@ -111,5 +96,4 @@ namespace carrot::audio {
             }
         }
     }
-
 } // namespace carrot::audio

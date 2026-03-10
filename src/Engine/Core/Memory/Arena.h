@@ -5,11 +5,10 @@
 
 #pragma once
 
-#include <cstddef>
+#include "Common/CommonHeaders.h"
+
 #include <cstdint>
 #include <utility>
-
-#include "Common/CommonHeaders.h"
 
 namespace carrot::core::memory {
     class arena_t

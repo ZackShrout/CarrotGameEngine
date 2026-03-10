@@ -76,19 +76,19 @@ namespace carrot::audio {
         envelope_stage stage{ envelope_stage::idle };
 
         /** Current envelope value (typically 0.0–1.0). */
-        float value{ 0.0f };
+        float value{ 0.f };
 
         /** Per-sample increment during attack stage. */
-        float attack_inc{ 0.0f };
+        float attack_inc{ 0.f };
 
         /** Per-sample decrement during decay stage. */
-        float decay_inc{ 0.0f };
+        float decay_inc{ 0.f };
 
         /** Per-sample decrement during release stage. */
-        float release_inc{ 0.0f };
+        float release_inc{ 0.f };
 
         /** Cached sustain level for the sustain stage. */
-        float sustain_level{ 0.0f };
+        float sustain_level{ 0.f };
     };
 
     /**

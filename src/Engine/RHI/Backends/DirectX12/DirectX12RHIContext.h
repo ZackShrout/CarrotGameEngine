@@ -43,6 +43,8 @@ namespace carrot::rhi::dx12 {
         [[nodiscard]] rhi_swapchain_t* get_swapchain() const noexcept override;
         [[nodiscard]] rhi_command_queue_t* get_command_queue() const noexcept override;
 
+        [[nodiscard]] std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) override;
+
         void wait_idle() override;
 
     private:

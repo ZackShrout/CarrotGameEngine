@@ -20,7 +20,7 @@ namespace carrot::audio {
         for (auto& bus: _buses)
         {
             bus.buffer = new float[total]; // allocated ONCE at init
-            bus.gain = 1.0f;
+            bus.gain = 1.f;
         }
 
         configure_reverb_bus();
@@ -82,7 +82,7 @@ namespace carrot::audio {
         }
     }
 
-    void audio_mixer_t::process_bus_fx(const uint32_t frame_count, const uint32_t sample_rate) noexcept
+    void audio_mixer_t::process_bus_fx(const uint32_t frame_count, const uint32_t sample_rate) const noexcept
     {
         dsp_process_context_t ctx{ };
 
@@ -106,7 +106,7 @@ namespace carrot::audio {
         }
     }
 
-    void audio_mixer_t::process_master_fx(uint32_t frame_count, uint32_t sample_rate) noexcept
+    void audio_mixer_t::process_master_fx(const uint32_t frame_count, const uint32_t sample_rate) const noexcept
     {
         dsp_process_context_t ctx{ };
         ctx.num_channels = _channels;

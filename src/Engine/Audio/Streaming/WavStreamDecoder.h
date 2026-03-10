@@ -256,7 +256,7 @@ namespace carrot::audio {
         /** Total source frames in the file (for optional EOF reasoning). */
         uint64_t _src_frames_total{ 0 };
 
-        static constexpr uint32_t k_frames_per_decode_chunk = 256;
-        static constexpr uint32_t k_max_48k_chunk           = 256;
+        static constexpr uint32_t k_frames_per_decode_chunk{ 256 };
+        static constexpr uint32_t k_max_48k_chunk{ 256 };
     };
 } // namespace carrot::audio

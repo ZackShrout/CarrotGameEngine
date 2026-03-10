@@ -291,8 +291,8 @@ namespace carrot::audio {
             const float half_bass_db{ _bass_gain_db * 0.5f };
             const float half_treble_db{ _treble_gain_db * 0.5f };
 
-            const float bass_r{ std::sqrt(k_bass_spread) };
-            const float treble_r{ std::sqrt(k_treble_spread) };
+            const float bass_r{ chlm::sqrt(k_bass_spread) };
+            const float treble_r{ chlm::sqrt(k_treble_spread) };
 
             const float bass_f1{ _bass_freq_hz / bass_r };
             const float bass_f2{ _bass_freq_hz * bass_r };
@@ -300,7 +300,7 @@ namespace carrot::audio {
             const float treble_f1{ _treble_freq_hz / treble_r };
             const float treble_f2{ _treble_freq_hz * treble_r };
 
-            if (_hpf_enabled && _hpf_freq_hz > 0.0f)
+            if (_hpf_enabled && _hpf_freq_hz > 0.f)
             {
                 _hpf.set_freq(_hpf_freq_hz);
                 _hpf.set_q(0.707f);

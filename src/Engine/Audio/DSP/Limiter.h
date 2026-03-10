@@ -55,7 +55,7 @@ namespace carrot::audio {
             {
                 const float release_samples{ _release_ms / 1000.f * static_cast<float>(ctx.sample_rate) };
                 // exponential decay over release_samples to ~36%
-                release_coeff = std::exp(-1.f / std::max(release_samples, 1.f));
+                release_coeff = std::exp(-1.f / chlm::max(release_samples, 1.f));
             }
 
             for (uint32_t f{ 0 }; f < ctx.num_frames; ++f)
@@ -67,7 +67,7 @@ namespace carrot::audio {
                 for (uint32_t ch{ 0 }; ch < ctx.num_channels; ++ch)
                 {
                     const float x{ buffer[base + ch] };
-                    peak = std::max(peak, std::fabs(x));
+                    peak = chlm::max(peak, std::fabs(x));
                 }
 
                 // Compute target gain
@@ -115,7 +115,7 @@ namespace carrot::audio {
                     _ceiling = chlm::clamp(value, 0.f, 1.5f);
                     break;
                 case param_release_ms:
-                    _release_ms = std::max(0.f, value);
+                    _release_ms = chlm::max(0.f, value);
                     break;
             }
         }
@@ -188,7 +188,7 @@ namespace carrot::audio {
          * for quicker recovery. The release time directly influences the perceived smoothness and
          * naturalness of the limiter's behavior.
          */
-        float _release_ms{ 100.0f };
+        float _release_ms{ 100.f };
 
         /**
          * @var _gain_envelope
@@ -201,6 +201,6 @@ namespace carrot::audio {
          * applied to ensure the output remains within the specified threshold and ceiling levels.
          * It starts with an initial value of 1.0, indicating no gain adjustment.
          */
-        float _gain_envelope{ 1.0f };
+        float _gain_envelope{ 1.f };
     };
 } // namespace carrot::audio

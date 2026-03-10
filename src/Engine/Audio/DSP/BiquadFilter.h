@@ -220,8 +220,8 @@ namespace carrot::audio {
         void update_coeffs() noexcept
         {
             const float omega{ 2.f * 3.141592653589f * (_freq / static_cast<float>(_sample_rate)) };
-            const float sn{ std::sin(omega) };
-            const float cs{ std::cos(omega) };
+            const float sn{ chlm::sin(omega) };
+            const float cs{ chlm::cos(omega) };
             const float alpha{ sn / (2.f * _q) };
             const float A{ std::pow(10.f, _gain_db / 40.f) }; // for shelves/peaking
 
@@ -276,7 +276,7 @@ namespace carrot::audio {
 
                 case biquad_type::lowshelf:
                 {
-                    const float two_sqrtA_alpha{ 2 * std::sqrt(A) * alpha };
+                    const float two_sqrtA_alpha{ 2 * chlm::sqrt(A) * alpha };
                     b0 = A * (A + 1 - (A - 1) * cs + two_sqrtA_alpha);
                     b1 = 2 * A * (A - 1 - (A + 1) * cs);
                     b2 = A * (A + 1 - (A - 1) * cs - two_sqrtA_alpha);
@@ -288,7 +288,7 @@ namespace carrot::audio {
 
                 case biquad_type::highshelf:
                 {
-                    const float two_sqrtA_alpha{ 2 * std::sqrt(A) * alpha };
+                    const float two_sqrtA_alpha{ 2 * chlm::sqrt(A) * alpha };
                     b0 = A * (A + 1 + (A - 1) * cs + two_sqrtA_alpha);
                     b1 = -2 * A * (A - 1 + (A + 1) * cs);
                     b2 = A * (A + 1 + (A - 1) * cs - two_sqrtA_alpha);
@@ -310,14 +310,14 @@ namespace carrot::audio {
         biquad_type _type;
         biquad_coeffs_t _coeffs;
 
-        float _freq{ 1000.0f };
+        float _freq{ 1000.f };
         float _q{ 0.707f };
-        float _gain_db{ 0.0f };
+        float _gain_db{ 0.f };
 
         uint32_t _sample_rate;
 
         // per-channel state
-        float _z1[2]{ 0.0f, 0.0f };
-        float _z2[2]{ 0.0f, 0.0f };
+        float _z1[2]{ 0.f, 0.f };
+        float _z2[2]{ 0.f, 0.f };
     };
 } // namespace carrot::audio

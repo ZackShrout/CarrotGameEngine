@@ -153,7 +153,7 @@ namespace carrot::rhi::vulkan {
 
         uint32_t image_count = caps.minImageCount + 1;
         if (caps.maxImageCount > 0)
-            image_count = std::min(image_count, caps.maxImageCount);
+            image_count = chlm::min(image_count, caps.maxImageCount);
 
         VkSwapchainCreateInfoKHR info{ };
         info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;

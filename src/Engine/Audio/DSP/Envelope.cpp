@@ -39,9 +39,9 @@ namespace carrot::audio {
 
             case envelope_stage::attack:
                 env.value += env.attack_inc;
-                if (env.value >= 1.0f)
+                if (env.value >= 1.f)
                 {
-                    env.value = 1.0f;
+                    env.value = 1.f;
                     env.stage = envelope_stage::decay;
                 }
                 break;
@@ -60,9 +60,9 @@ namespace carrot::audio {
 
             case envelope_stage::release:
                 env.value -= env.release_inc;
-                if (env.value <= 0.0f)
+                if (env.value <= 0.f)
                 {
-                    env.value = 0.0f;
+                    env.value = 0.f;
                     env.stage = envelope_stage::idle;
                 }
                 break;

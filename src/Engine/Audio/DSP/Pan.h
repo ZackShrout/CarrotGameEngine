@@ -36,7 +36,7 @@ namespace carrot::audio {
         pan = chlm::clamp(pan, -1.f, 1.f);
         const float angle{ (pan + 1.f) * 0.5f * chlm::half_pi };
 
-        out_l = std::cos(angle);
-        out_r = std::sin(angle);
+        out_l = chlm::cos(angle);
+        out_r = chlm::sin(angle);
     }
 } // namespace carrot::audio

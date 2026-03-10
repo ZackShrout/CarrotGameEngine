@@ -66,6 +66,7 @@ namespace carrot::audio {
 
         [[nodiscard]] bool empty() const noexcept { return _count == 0; }
         [[nodiscard]] size_t size() const noexcept { return _count; }
+
     private:
         std::array<dsp_unit_t*, k_max_fx_per_bus> _units{ };
         std::array<bool, k_max_fx_per_bus> _bypass{ false };

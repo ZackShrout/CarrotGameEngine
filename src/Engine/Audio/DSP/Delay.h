@@ -48,10 +48,10 @@ namespace carrot::audio {
             : _sample_rate(sample_rate), _max_channels(max_channels)
         {
             const uint32_t max_delay_samples{
-                static_cast<uint32_t>((static_cast<uint64_t>(sample_rate) * max_delay_ms) / 1000ull)
+                static_cast<uint32_t>(static_cast<uint64_t>(sample_rate) * max_delay_ms / 1000ull)
             };
 
-            _max_delay_samples = std::max<uint32_t>(1u, max_delay_samples);
+            _max_delay_samples = chlm::max<uint32_t>(1u, max_delay_samples);
 
             // Allocate one interleaved buffer: [frames][channels]
             const uint32_t total{ _max_delay_samples * _max_channels };
@@ -72,7 +72,7 @@ namespace carrot::audio {
             if (!_buffer) return;
 
             const uint32_t frames{ ctx.num_frames };
-            const uint32_t channels{ std::min(ctx.num_channels, _max_channels) };
+            const uint32_t channels{ chlm::min(ctx.num_channels, _max_channels) };
 
             float* const audio{ ctx.interleaved };
 
@@ -176,7 +176,7 @@ namespace carrot::audio {
             if (ms < 0.f) ms = 0.f;
             _delay_ms = ms;
 
-            const float samples_f{ static_cast<float>(_sample_rate) * ms / 1000.0f };
+            const float samples_f{ static_cast<float>(_sample_rate) * ms / 1000.f };
 
             uint32_t samples{ static_cast<uint32_t>(samples_f + 0.5f) }; // round to nearest
 
@@ -240,11 +240,11 @@ namespace carrot::audio {
         uint32_t _write_index{ 0 };
 
         // Parameters
-        float _delay_ms{ 250.0f };
+        float _delay_ms{ 250.f };
         uint32_t _delay_samples{ 1 };
 
         float _feedback{ 0.35f };
         float _wet{ 0.5f };
-        float _dry{ 1.0f };
+        float _dry{ 1.f };
     };
 } // namespace carrot::audio

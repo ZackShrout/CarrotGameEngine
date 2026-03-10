@@ -12,7 +12,7 @@
 #include <cstdio>
 
 namespace carrot::audio {
-    audio_sample_t* load_wav_file(std::string_view path)
+    audio_sample_t* load_wav_file(const std::string_view path)
     {
         FILE* file{ std::fopen(path.data(), "rb") };
 
@@ -51,7 +51,7 @@ namespace carrot::audio {
             }
             else
             {
-                std::fseek(file, chunk.size, SEEK_CUR);
+                std::fseek(file, static_cast<int32_t>(chunk.size), SEEK_CUR);
             }
         }
 
@@ -68,18 +68,17 @@ namespace carrot::audio {
 
         if (fmt.audio_format == 1 && fmt.bits_per_sample == 16)
         {
-            const int16_t* src = reinterpret_cast<int16_t *>(pcm_data);
-            for (uint32_t i = 0; i < frame_count * fmt.num_channels; ++i)
-                samples[i] = static_cast<float>(src[i]) / 32768.0f;
+            const int16_t* src{ reinterpret_cast<int16_t *>(pcm_data) };
+            for (uint32_t i{ 0 }; i < frame_count * fmt.num_channels; ++i)
+                samples[i] = static_cast<float>(src[i]) / 32768.f;
         }
         else if (fmt.audio_format == 1 && fmt.bits_per_sample == 24)
         {
-            const uint8_t* src = pcm_data;
-            float* dst = samples;
+            const uint8_t* src{ pcm_data };
+            float* dst{ samples };
+            const uint32_t total_samples{ frame_count * fmt.num_channels };
 
-            const uint32_t total_samples = frame_count * fmt.num_channels;
-
-            for (uint32_t i = 0; i < total_samples; ++i)
+            for (uint32_t i{ 0 }; i < total_samples; ++i)
             {
                 *dst++ = pcm24_to_float(src);
                 src += 3;
@@ -103,9 +102,6 @@ namespace carrot::audio {
         sample->frame_count = frame_count;
         sample->channels = fmt.num_channels;
         sample->sample_rate = fmt.sample_rate;
-
-        // LOG_AUDIO_INFO("Loaded audio sample '{}': rate={}Hz, channels={}, frames={}", path, sample->sample_rate,
-        //                sample->channels, sample->frame_count);
 
         // ──────────────────────────────────────────────────────────────────
         // Offline resample to engine mix rate (48k) for sample-based assets
@@ -174,9 +170,6 @@ namespace carrot::audio {
             sample->data = dst_data;
             sample->frame_count = dst_frames;
             sample->sample_rate = k_engine_sample_rate;
-
-            // LOG_AUDIO_INFO("After resample - loaded audio sample '{}': rate={}Hz, channels={}, frames={}", path,
-            //                sample->sample_rate, sample->channels, sample->frame_count);
         }
 
         return sample;

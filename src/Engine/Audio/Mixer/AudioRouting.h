@@ -24,10 +24,10 @@ namespace carrot::audio {
         audio_bus_id bus{ audio_bus_id::sfx };
 
         /** Reverb send level (0.0 = no send, 1.0 = full). */
-        float reverb_send{ 0.0f };
+        float reverb_send{ 0.f };
 
         // Future: additional sends (delay, chorus, etc.)
-        // float delay_send{ 0.0f };
+        // float delay_send{ 0.f };
     };
 
 } // namespace carrot::audio

@@ -69,7 +69,7 @@ namespace carrot::audio {
         const uint32_t read_pos{ _read.load(std::memory_order_acquire) };
 
         const uint32_t free_frames{ capacity_frames - 1 - distance(read_pos, write_pos) };
-        const uint32_t to_write{ std::min(frames, free_frames) };
+        const uint32_t to_write{ chlm::min(frames, free_frames) };
 
         CE_ASSERT(distance(read_pos, write_pos) < capacity_frames);
 
@@ -162,7 +162,7 @@ namespace carrot::audio {
     void audio_ring_buffer_t<capacity_frames, max_channels>::write_frames(const uint32_t write_pos, const float* src,
                                                                           const uint32_t frames) noexcept
     {
-        const uint32_t first{ std::min(frames, capacity_frames - write_pos) };
+        const uint32_t first{ chlm::min(frames, capacity_frames - write_pos) };
         const uint32_t samples1{ first * _channels };
 
         std::memcpy(&_data[write_pos * _channels], src, samples1 * sizeof(float));
@@ -179,7 +179,7 @@ namespace carrot::audio {
     void audio_ring_buffer_t<capacity_frames, max_channels>::read_frames(const uint32_t read_pos, float* dst,
                                                                          const uint32_t frames) noexcept
     {
-        const uint32_t first{ std::min(frames, capacity_frames - read_pos) };
+        const uint32_t first{ chlm::min(frames, capacity_frames - read_pos) };
 
         const uint32_t samples1 = first * _channels;
         std::memcpy(dst, &_data[read_pos * _channels], samples1 * sizeof(float));

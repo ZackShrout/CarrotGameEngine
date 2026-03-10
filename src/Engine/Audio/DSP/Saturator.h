@@ -84,7 +84,7 @@ namespace carrot::audio {
             switch (id)
             {
                 case param_drive:
-                    _drive = std::max(0.f, value);
+                    _drive = chlm::max(0.f, value);
                     break;
                 case param_mix:
                     _mix = chlm::clamp(value, 0.f, 1.f);
@@ -150,7 +150,7 @@ namespace carrot::audio {
          *
          * @param k The desired shaping curvature value. Must be greater than or equal to 0.0.
          */
-        void set_shape_k(const float k) noexcept { _shape_k = std::max(0.f, k); }
+        void set_shape_k(const float k) noexcept { _shape_k = chlm::max(0.f, k); }
 
     private:
         /**
@@ -186,7 +186,7 @@ namespace carrot::audio {
          * This parameter is typically used to ensure consistent output levels or to
          * achieve desired loudness based on the configuration of other saturation parameters.
          */
-        float _output_gain{ 1.0f };
+        float _output_gain{ 1.f };
 
         /**
          * @brief Curvature constant used in the shaping function for saturation.

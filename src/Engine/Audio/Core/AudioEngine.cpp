@@ -358,12 +358,12 @@ namespace carrot::audio {
                         dist_sq += dz * dz;
                     }
 
-                    const float distance{ std::sqrt(dist_sq) };
+                    const float distance{ chlm::sqrt(dist_sq) };
                     distance_gain = distance_attenuation(distance, voice.ref_distance, voice.max_distance);
 
                     if (voice.spatial == spatial_mode::planar)
                     {
-                        const float effective_distance{ std::max(distance, voice.ref_distance) };
+                        const float effective_distance{ chlm::max(distance, voice.ref_distance) };
                         spatial_pan = dx / effective_distance;
                         chlm::clamp(spatial_pan, -1.f, 1.f);
                     }

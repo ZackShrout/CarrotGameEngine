@@ -103,10 +103,10 @@ namespace carrot::audio {
     struct sound_play_params_t
     {
         /** @brief Gain multiplier applied on top of asset gain. */
-        float gain{ 1.0f };
+        float gain{ 1.f };
 
         /** @brief Pitch multiplier applied on top of asset pitch. */
-        float pitch{ 1.0f };
+        float pitch{ 1.f };
 
         /**
          * @brief Stereo pan override.
@@ -116,7 +116,7 @@ namespace carrot::audio {
          *  -  0.0 = center
          *  - +1.0 = full right
          */
-        float pan{ 0.0f };
+        float pan{ 0.f };
 
         /**
          * @brief Optional spatial mode override.
@@ -137,7 +137,7 @@ namespace carrot::audio {
          *
          * Used when spatialization is enabled (planar or 3D).
          */
-        chlm::float3 position{ 0.0f, 0.0f, 0.0f };
+        chlm::float3 position{ 0.f, 0.f, 0.f };
     };
 
     /**

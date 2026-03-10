@@ -8,7 +8,7 @@
 #include "Common/CommonHeaders.h"
 
 #include <cstdint>
-#include <cmath>
+#include <chlm/CarrotHLM.h>
 #include <algorithm>
 
 namespace carrot::audio {
@@ -67,7 +67,7 @@ namespace carrot::audio {
      * @param pitch            Pitch multiplier (1.0 = normal).
      */
     inline double compute_resample_step(const double src_sample_rate, const double engine_sample_rate,
-                                        const float pitch = 1.0f) noexcept
+                                        const float pitch = 1.f) noexcept
     {
         return src_sample_rate / engine_sample_rate * static_cast<double>(pitch);
     }
@@ -120,12 +120,10 @@ namespace carrot::audio {
 
         // Non-looping: if we've gone past the end, call it done.
         if (!req.looping && pos >= static_cast<double>(sample_end))
-        {
             return false;
-        }
 
         // Clamp into [0, sample_end - 1] as a safety net.
-        if (pos < 0.0) pos = 0.0;
+        if (pos < 0.0) pos = 0.;
         if (pos > static_cast<double>(sample_end - 1))
             pos = static_cast<double>(sample_end - 1);
 
@@ -168,11 +166,11 @@ namespace carrot::audio {
         else
         {
             // Non-looping or invalid loop: clamp inside playback region
-            effective_pos = std::clamp(pos, 0.0, static_cast<double>(sample_end - 1));
+            effective_pos = chlm::clamp(pos, 0.0, static_cast<double>(sample_end - 1));
         }
 
         const uint32_t i0{ static_cast<uint32_t>(effective_pos) };
-        const uint32_t i1{ (i0 + 1 < total_frames) ? (i0 + 1) : i0 };
+        const uint32_t i1{ i0 + 1 < total_frames ? i0 + 1 : i0 };
         const double frac{ effective_pos - static_cast<double>(i0) };
 
         const uint32_t base0{ i0 * channels };

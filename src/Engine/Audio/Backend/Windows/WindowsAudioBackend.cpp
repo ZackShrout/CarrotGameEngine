@@ -136,7 +136,7 @@ namespace carrot::audio {
 
         while (frames_remaining > 0)
         {
-            const UINT32 chunk_frames{ std::min<UINT32>(frames_remaining, 512) };
+            const UINT32 chunk_frames{ chlm::min<UINT32>(frames_remaining, 512) };
             float* chunk_out{ primer_out + frame_offset * _channels };
 
             _callback->render(chunk_out, chunk_frames, _channels);
@@ -171,7 +171,7 @@ namespace carrot::audio {
 
             while (frames_remaining > 0)
             {
-                const UINT32 chunk_frames{ std::min<UINT32>(frames_remaining, 512) };
+                const UINT32 chunk_frames{ chlm::min<UINT32>(frames_remaining, 512) };
                 float* chunk_out{ out + frame_offset * _channels };
 
                 _callback->render(chunk_out, chunk_frames, _channels);

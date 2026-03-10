@@ -19,10 +19,10 @@ namespace carrot::renderer {
 
         LOG_GRAPHICS_INFO("Initializing Renderer...");
 
-        rhi::rhi_desc_t desc{};
+        rhi::rhi_desc_t desc{ };
         desc.api = _config.api;
         desc.enable_debug_layers = _config.enable_debug_layers;
-        desc.width  = window::get_width();
+        desc.width = window::get_width();
         desc.height = window::get_height();
 
         _rhi = rhi::create_rhi_context(desc);
@@ -35,7 +35,8 @@ namespace carrot::renderer {
         create_common_resources();
 
         _is_initialized = true;
-        LOG_GRAPHICS_INFO("Renderer initialized successfully (backend: {})", carrot::rhi::graphics_api_to_string(desc.api));
+        LOG_GRAPHICS_INFO("Renderer initialized successfully (backend: {})",
+                          carrot::rhi::graphics_api_to_string(desc.api));
     }
 
     void renderer_t::shutdown()
@@ -113,19 +114,22 @@ namespace carrot::renderer {
 
         // LOG_GRAPHICS_INFO("Common graphics resources created (currently empty)");
 
-        const auto image_result = assets::load_image_rgba8(utils::file::resolve_asset_path("assets/images/16x16orange.png"));
+        const assets::image_load_result_t image_result{
+            assets::load_image_rgba8(utils::file::resolve_asset_path("assets/images/16x16orange.png"))
+        };
+
         if (!image_result.success())
         {
             LOG_CORE_ERROR("Failed to load PNG: {}", assets::to_string(image_result.error));
             return;
         }
 
-        rhi::texture_create_info_t texture_info{};
+        rhi::texture_create_info_t texture_info{ };
         texture_info.width = image_result.image.width;
         texture_info.height = image_result.image.height;
         texture_info.format = image_result.image.is_srgb
-            ? rhi::texture_format_t::rgba8_srgb
-            : rhi::texture_format_t::rgba8_unorm;
+                                  ? rhi::texture_format_t::rgba8_srgb
+                                  : rhi::texture_format_t::rgba8_unorm;
         texture_info.initial_data = image_result.image.data();
         texture_info.initial_data_size = image_result.image.size_bytes();
         texture_info.initial_data_stride_bytes = image_result.image.stride_bytes;
@@ -139,8 +143,8 @@ namespace carrot::renderer {
         }
 
         LOG_GRAPHICS_INFO("Created demo texture: {}x{}",
-            _test_texture->width(),
-            _test_texture->height());
+                          _test_texture->width(),
+                          _test_texture->height());
     }
 
     void renderer_t::destroy_common_resources()

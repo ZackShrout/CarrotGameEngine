@@ -12,8 +12,7 @@ namespace carrot::rhi::vulkan {
 
     vulkan_texture_t::~vulkan_texture_t()
     {
-        if (_device->vk_device() == VK_NULL_HANDLE)
-            return;
+        if (_device->vk_device() == VK_NULL_HANDLE) return;
 
         if (_sampler != VK_NULL_HANDLE)
         {

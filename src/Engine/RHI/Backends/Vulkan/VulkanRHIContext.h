@@ -41,7 +41,7 @@ namespace carrot::rhi::vulkan {
         void recreate_swapchain_dependent_resources();
         void recreate_render_finished_semaphores();
         [[nodiscard]] uint32_t find_memory_type(uint32_t type_filter, VkMemoryPropertyFlags properties) const;
-        VkCommandBuffer begin_single_time_commands() const;
+        [[nodiscard]] VkCommandBuffer begin_single_time_commands() const;
         void end_single_time_commands(VkCommandBuffer cmd) const;
 
         VkInstance                                              _vk_instance{ VK_NULL_HANDLE };
@@ -54,19 +54,17 @@ namespace carrot::rhi::vulkan {
         std::unique_ptr<vulkan_pipeline_t>                      _graphics_pipeline;
         framebuffer_array_t                                     _framebuffers;
         std::array<frame_resources_t, k_max_frames_in_flight>   _frames;
-        // std::vector<VkSemaphore>                                _image_available_semaphores;
         std::vector<VkSemaphore>                                _render_finished_semaphores;
         uint32_t                                                _frame_counter{ 0 };
         uint32_t                                                _current_frame{ 0 };
         uint32_t                                                _current_image_index{ 0 };
         bool                                                    _pending_pipeline_reload{ false };
-
-        bool _frame_active{ false };
-        bool _render_pass_active{ false };
-        bool _skip_frame{ false };
-        bool _swapchain_dirty{ false };
-        uint32_t _pending_resize_width{ 0 };
-        uint32_t _pending_resize_height{ 0 };
+        bool                                                    _frame_active{ false };
+        bool                                                    _render_pass_active{ false };
+        bool                                                    _skip_frame{ false };
+        bool                                                    _swapchain_dirty{ false };
+        uint32_t                                                _pending_resize_width{ 0 };
+        uint32_t                                                _pending_resize_height{ 0 };
     };
 
 } // namespace carrot::rhi::vulkan

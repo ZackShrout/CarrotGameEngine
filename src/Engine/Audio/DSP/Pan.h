@@ -34,7 +34,7 @@ namespace carrot::audio {
     inline void compute_pan_gains(float pan, float& out_l, float& out_r) noexcept
     {
         pan = chlm::clamp(pan, -1.f, 1.f);
-        const float angle{ (pan + 1.f) * 0.5f * chlm::pi_half };
+        const float angle{ (pan + 1.f) * 0.5f * chlm::half_pi };
 
         out_l = std::cos(angle);
         out_r = std::sin(angle);

@@ -282,10 +282,9 @@ namespace carrot::rhi::vulkan {
 
         VkDevice device{ _device->vk_device() };
 
-        const VkFormat vk_format =
-                (info.format == texture_format_t::rgba8_srgb)
-                    ? VK_FORMAT_R8G8B8A8_SRGB
-                    : VK_FORMAT_R8G8B8A8_UNORM;
+        const VkFormat vk_format{
+            info.format == texture_format_t::rgba8_srgb ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM
+        };
 
         const VkDeviceSize upload_size{ static_cast<VkDeviceSize>(info.initial_data_size) };
 
@@ -314,9 +313,9 @@ namespace carrot::rhi::vulkan {
             VkMemoryAllocateInfo alloc_info{ };
             alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
             alloc_info.allocationSize = mem_requirements.size;
-            alloc_info.memoryTypeIndex = find_memory_type(
-                mem_requirements.memoryTypeBits,
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+            alloc_info.memoryTypeIndex = find_memory_type(mem_requirements.memoryTypeBits,
+                                                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                                          VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
             if (vkAllocateMemory(device, &alloc_info, nullptr, &staging_memory) != VK_SUCCESS)
             {
@@ -396,7 +395,7 @@ namespace carrot::rhi::vulkan {
         // 3. Upload staging buffer -> image with layout transitions
         // -------------------------------------------------------------------------
         {
-            VkCommandBuffer cmd = begin_single_time_commands();
+            VkCommandBuffer cmd{ begin_single_time_commands() };
 
             VkImageMemoryBarrier to_transfer_dst{ };
             to_transfer_dst.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -413,14 +412,8 @@ namespace carrot::rhi::vulkan {
             to_transfer_dst.srcAccessMask = 0;
             to_transfer_dst.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 
-            vkCmdPipelineBarrier(
-                cmd,
-                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                0,
-                0, nullptr,
-                0, nullptr,
-                1, &to_transfer_dst);
+            vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr,
+                                 0, nullptr, 1, &to_transfer_dst);
 
             VkBufferImageCopy region{ };
             region.bufferOffset = 0;
@@ -433,13 +426,7 @@ namespace carrot::rhi::vulkan {
             region.imageOffset = { 0, 0, 0 };
             region.imageExtent = { info.width, info.height, 1 };
 
-            vkCmdCopyBufferToImage(
-                cmd,
-                staging_buffer,
-                image,
-                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                1,
-                &region);
+            vkCmdCopyBufferToImage(cmd, staging_buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
             VkImageMemoryBarrier to_shader_read{ };
             to_shader_read.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -456,14 +443,8 @@ namespace carrot::rhi::vulkan {
             to_shader_read.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
             to_shader_read.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
-            vkCmdPipelineBarrier(
-                cmd,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                0,
-                0, nullptr,
-                0, nullptr,
-                1, &to_shader_read);
+            vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0,
+                                 nullptr, 0, nullptr, 1, &to_shader_read);
 
             end_single_time_commands(cmd);
         }
@@ -509,15 +490,15 @@ namespace carrot::rhi::vulkan {
             sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
             sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
             sampler_info.anisotropyEnable = VK_FALSE;
-            sampler_info.maxAnisotropy = 1.0f;
+            sampler_info.maxAnisotropy = 1.f;
             sampler_info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
             sampler_info.unnormalizedCoordinates = VK_FALSE;
             sampler_info.compareEnable = VK_FALSE;
             sampler_info.compareOp = VK_COMPARE_OP_ALWAYS;
             sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-            sampler_info.mipLodBias = 0.0f;
-            sampler_info.minLod = 0.0f;
-            sampler_info.maxLod = 0.0f;
+            sampler_info.mipLodBias = 0.f;
+            sampler_info.minLod = 0.f;
+            sampler_info.maxLod = 0.f;
 
             if (vkCreateSampler(device, &sampler_info, nullptr, &sampler) != VK_SUCCESS)
             {
@@ -829,7 +810,7 @@ namespace carrot::rhi::vulkan {
 
     VkCommandBuffer vulkan_rhi_context_t::begin_single_time_commands() const
     {
-        VkCommandBufferAllocateInfo alloc_info{};
+        VkCommandBufferAllocateInfo alloc_info{ };
         alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
         alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         alloc_info.commandPool = _command_pool;
@@ -838,7 +819,7 @@ namespace carrot::rhi::vulkan {
         VkCommandBuffer cmd{ VK_NULL_HANDLE };
         vkAllocateCommandBuffers(_device->vk_device(), &alloc_info, &cmd);
 
-        VkCommandBufferBeginInfo begin_info{};
+        VkCommandBufferBeginInfo begin_info{ };
         begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
@@ -850,7 +831,7 @@ namespace carrot::rhi::vulkan {
     {
         vkEndCommandBuffer(cmd);
 
-        VkSubmitInfo submit_info{};
+        VkSubmitInfo submit_info{ };
         submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         submit_info.commandBufferCount = 1;
         submit_info.pCommandBuffers = &cmd;

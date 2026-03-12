@@ -209,6 +209,11 @@ namespace carrot::rhi::metal {
         return _command_queue.get();
     }
 
+    std::unique_ptr<rhi_texture_t> metal_rhi_context_t::create_texture_2d(const texture_create_info_t& info)
+    {
+        return nullptr;
+    }
+
     void metal_rhi_context_t::wait_idle()
     {
         // NOTE: Metal doesn't have a direct function like Vulkan's vkDeviceWaitIdle, but we

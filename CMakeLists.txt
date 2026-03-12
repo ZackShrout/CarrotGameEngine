@@ -155,6 +155,10 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/Image/ImageAssetImporter.h
         src/Engine/RHI/Backends/Vulkan/VulkanTexture.cpp
         src/Engine/RHI/Backends/Vulkan/VulkanTexture.h
+        src/Engine/Assets/Texture/TextureAsset.cpp
+        src/Engine/Assets/Texture/TextureAsset.h
+        src/Engine/Assets/Texture/TextureAssetImporter.cpp
+        src/Engine/Assets/Texture/TextureAssetImporter.h
 )
 
 # ------------------------------------------------------------------------

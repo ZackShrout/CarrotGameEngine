@@ -7,8 +7,11 @@
 
 #include "Assets/Image/ImageAssetImporter.h"
 #include "Core/Logger.h"
+#include "Primitives/QuadMesh.h"
 #include "Utils/File/FileUtils.h"
 #include "Window/Window.h"
+#include "RHI/Texture.h"
+#include "RHI/Buffer.h"
 
 namespace carrot::renderer {
     // PUBLIC
@@ -145,6 +148,23 @@ namespace carrot::renderer {
         LOG_GRAPHICS_INFO("Created demo texture: {}x{}",
                           _test_texture->width(),
                           _test_texture->height());
+
+        rhi::buffer_create_info_t vb_info{};
+        vb_info.size_bytes = sizeof(k_unit_quad_vertices);
+        vb_info.usage = rhi::buffer_usage_t::vertex;
+        vb_info.initial_data = k_unit_quad_vertices.data();
+
+        _quad_vertex_buffer = _rhi->create_buffer(vb_info);
+
+        rhi::buffer_create_info_t ib_info{};
+        ib_info.size_bytes = sizeof(k_unit_quad_indices);
+        ib_info.usage = rhi::buffer_usage_t::index;
+        ib_info.initial_data = k_unit_quad_indices.data();
+
+        _quad_index_buffer = _rhi->create_buffer(ib_info);
+
+        if (!_quad_vertex_buffer || !_quad_index_buffer)
+            LOG_GRAPHICS_FATAL("Failed to create quad mesh buffers");
     }
 
     void renderer_t::destroy_common_resources()

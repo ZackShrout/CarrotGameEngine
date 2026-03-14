@@ -531,6 +531,11 @@ namespace carrot::rhi::vulkan {
         return texture;
     }
 
+    std::unique_ptr<rhi_buffer_t> vulkan_rhi_context_t::create_buffer(const buffer_create_info_t& info)
+    {
+        return nullptr;
+    }
+
     void vulkan_rhi_context_t::wait_idle()
     {
         if (_graphics_queue) _graphics_queue->wait_idle();

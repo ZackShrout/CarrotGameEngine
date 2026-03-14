@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "Core/Platform/Platform.h"
+#include "Buffer.h"
 #include "Texture.h"
 
 #include <memory>
@@ -61,6 +61,7 @@ namespace carrot::rhi {
         [[nodiscard]] virtual rhi_command_queue_t* get_command_queue() const noexcept = 0;
 
         [[nodiscard]] virtual std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) = 0;
+        [[nodiscard]] virtual std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) = 0;
 
         virtual void wait_idle() = 0;
     };

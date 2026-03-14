@@ -8,10 +8,10 @@
 #include "Core/Module.h"
 #include "RHI/RHI.h"
 #include "EngineConfig.h"
-#include "RHI/Texture.h"
 
 namespace carrot::rhi {
     class rhi_buffer_t;
+    class rhi_texture_t;
 }
 
 namespace carrot::renderer {

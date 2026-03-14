@@ -167,6 +167,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Renderer/Primitives/QuadVertex.h
         src/Engine/Renderer/Primitives/QuadMesh.cpp
         src/Engine/Renderer/Primitives/QuadMesh.h
+        src/Engine/RHI/Backends/Vulkan/VulkanBuffer.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanBuffer.h
 )
 
 # ------------------------------------------------------------------------

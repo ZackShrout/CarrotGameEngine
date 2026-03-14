@@ -8,8 +8,7 @@
 #include "Common/CommonHeaders.h"
 
 #include <AudioToolbox/AudioToolbox.h>
-
-#include "chlm/Core.h"
+#include <chlm/CarrotHLM.h>
 
 namespace carrot::audio {
     // PUBLIC
@@ -32,7 +31,7 @@ namespace carrot::audio {
         desc.componentSubType = kAudioUnitSubType_HALOutput;
         desc.componentManufacturer = kAudioUnitManufacturer_Apple;
 
-        const AudioComponent component{ AudioComponentFindNext(nullptr, &desc) };
+        AudioComponent component{ AudioComponentFindNext(nullptr, &desc) };
         if (!component)
         {
             LOG_AUDIO_FATAL("Failed to find HAL Output AudioUnit");

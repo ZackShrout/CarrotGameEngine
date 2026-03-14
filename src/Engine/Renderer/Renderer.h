@@ -10,6 +10,10 @@
 #include "EngineConfig.h"
 #include "RHI/Texture.h"
 
+namespace carrot::rhi {
+    class rhi_buffer_t;
+}
+
 namespace carrot::renderer {
     struct sprite_draw_info_t
     {
@@ -57,6 +61,12 @@ namespace carrot::renderer {
         [[nodiscard]] rhi::rhi_context_t* get_rhi() const noexcept { return _rhi.get(); }
 
     private:
+        void create_common_resources();
+        void destroy_common_resources();
+
+        // Temporary bridge helpers until we have proper command list abstraction
+        void submit_immediate_triangle(uint32_t abgr_color);
+
         engine_graphics_config_t _config;
 
         std::unique_ptr<rhi::rhi_context_t> _rhi;
@@ -69,12 +79,9 @@ namespace carrot::renderer {
         // rhi::rhi_graphics_pipeline_t* _textured_quad_pipeline{ nullptr };
         // rhi::rhi_texture_t* _default_white_tex{ nullptr };
 
+        std::unique_ptr<rhi::rhi_buffer_t> _quad_vertex_buffer;
+        std::unique_ptr<rhi::rhi_buffer_t> _quad_index_buffer;
+
         std::unique_ptr<rhi::rhi_texture_t> _test_texture;
-
-        void create_common_resources();
-        void destroy_common_resources();
-
-        // Temporary bridge helpers until we have proper command list abstraction
-        void submit_immediate_triangle(uint32_t abgr_color);
     };
 } // namespace carrot::renderer

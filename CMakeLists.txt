@@ -164,6 +164,9 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Core/EnginePaths.h
         src/Engine/Assets/AssetManager.cpp
         src/Engine/Assets/AssetManager.h
+        src/Engine/Renderer/Primitives/QuadVertex.h
+        src/Engine/Renderer/Primitives/QuadMesh.cpp
+        src/Engine/Renderer/Primitives/QuadMesh.h
 )
 
 # ------------------------------------------------------------------------

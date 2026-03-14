@@ -9,18 +9,22 @@
 
 #include <AudioToolbox/AudioToolbox.h>
 
+#include "chlm/Core.h"
+
 namespace carrot::audio {
     // PUBLIC
 
-    bool apple_audio_backend_t::init(audio_callback_t* callback, uint32_t sample_rate, uint32_t block_size,
-                                     uint32_t channels) noexcept
+    bool apple_audio_backend_t::init(audio_callback_t* callback, const uint32_t sample_rate, const uint32_t block_size,
+                                     const uint32_t channels) noexcept
     {
         LOG_AUDIO_INFO("Initializing Apple Audio Backend...");
 
         _callback = callback; // callback is owned by audio_engine_t and guaranteed to outlive this backend
-        _sample_rate = sample_rate;
         _block_size = block_size; // Requested block size; actual callback size determined by Core Audio
         _channels = channels;
+
+        _client_sample_rate = sample_rate; // sample rate requested by engine
+        _hardware_sample_rate = sample_rate; // fallback default
 
         // Use HAL Output AudioUnit for direct, low-latency device access
         AudioComponentDescription desc{ };
@@ -53,7 +57,7 @@ namespace carrot::audio {
 
         // Interleaved float32 PCM expected by audio_engine_t
         AudioStreamBasicDescription format{ };
-        format.mSampleRate = static_cast<Float64>(_sample_rate);
+        format.mSampleRate = static_cast<Float64>(_client_sample_rate);
         format.mFormatID = kAudioFormatLinearPCM;
         format.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked;
         format.mBitsPerChannel = 32;
@@ -87,29 +91,46 @@ namespace carrot::audio {
             return false;
         }
 
-        Float64 auRate = 0.0;
-        UInt32 size = sizeof(auRate);
-        OSStatus rateErr = AudioUnitGetProperty(_audio_unit,
-                                                kAudioUnitProperty_SampleRate,
-                                                kAudioUnitScope_Output, // Try Output first (hardware side)
-                                                0,
-                                                &auRate,
-                                                &size);
+        Float64 auRate{ 0.0 };
+        UInt32 size{ sizeof(auRate) };
+        OSStatus rateErr{
+            AudioUnitGetProperty(_audio_unit, kAudioUnitProperty_SampleRate, kAudioUnitScope_Output, 0, &auRate, &size)
+        };
 
         if (rateErr == noErr && auRate > 0.0)
         {
-            LOG_AUDIO_INFO("Requested sample rate: {:.0f} Hz. Effective AudioUnit / hardware sample rate: {:.0f} Hz",
-                           format.mSampleRate, auRate);
-            _sample_rate = static_cast<uint32_t>(std::lround(auRate));
+            _hardware_sample_rate = static_cast<uint32_t>(std::lround(auRate));
+
+            LOG_AUDIO_INFO("Requested client rate: {} Hz. Hardware sample rate: {} Hz", _client_sample_rate,
+                           _hardware_sample_rate);
         }
         else
         {
-            LOG_AUDIO_WARN("Couldn't get AU sample rate (OSStatus {}), falling back to requested {}", rateErr,
-                           _sample_rate);
-            // Use _sample_rate as fallback
+            LOG_AUDIO_WARN("Couldn't get hardware sample rate (OSStatus {}), using fallback {} Hz", rateErr,
+                           _hardware_sample_rate);
         }
 
         LOG_AUDIO_INFO("Apple Audio Backend initialized successfully");
+
+        AudioStreamBasicDescription actualClientFormat{ };
+        UInt32 fmtSize = sizeof(actualClientFormat);
+
+        OSStatus fmtErr{
+            AudioUnitGetProperty(_audio_unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input, 0,
+                                 &actualClientFormat, &fmtSize)
+        };
+
+        if (fmtErr == noErr)
+        {
+            LOG_AUDIO_INFO("Actual AudioUnit client stream format: sampleRate={} channels={} bytesPerFrame={}",
+                           actualClientFormat.mSampleRate,
+                           actualClientFormat.mChannelsPerFrame,
+                           actualClientFormat.mBytesPerFrame);
+        }
+        else
+        {
+            LOG_AUDIO_WARN("Failed to query actual AudioUnit client stream format (OSStatus {})", fmtErr);
+        }
 
         return true;
     }
@@ -147,13 +168,26 @@ namespace carrot::audio {
                                                     [[maybe_unused]] UInt32 in_bus_number,
                                                     const UInt32 in_number_frames, AudioBufferList* io_data)
     {
-        // in_ref_con is guaranteed to be a valid apple_audio_backend_t*
-        const apple_audio_backend_t* self{ static_cast<apple_audio_backend_t *>(in_ref_con) };
+        const auto* self{ static_cast<apple_audio_backend_t *>(in_ref_con) };
 
-        // Single interleaved buffer expected (HAL output guarantees this)
-        float* output{ static_cast<float *>(io_data->mBuffers[0].mData) };
+        if (!self || !self->_callback || !io_data || io_data->mNumberBuffers == 0 || !io_data->mBuffers[0].mData)
+            return noErr;
 
-        self->_callback->render(output, in_number_frames, self->_channels);
+        float* out{ static_cast<float *>(io_data->mBuffers[0].mData) };
+
+        UInt32 frames_remaining{ in_number_frames };
+        UInt32 frame_offset{ 0 };
+
+        while (frames_remaining > 0)
+        {
+            const UInt32 chunk_frames{ chlm::min<UInt32>(frames_remaining, self->_block_size) };
+            float* chunk_out{ out + frame_offset * self->_channels };
+
+            self->_callback->render(chunk_out, chunk_frames, self->_channels);
+
+            frame_offset += chunk_frames;
+            frames_remaining -= chunk_frames;
+        }
 
         return noErr;
     }

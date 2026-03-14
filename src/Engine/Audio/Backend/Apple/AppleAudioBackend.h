@@ -38,7 +38,7 @@ namespace carrot::audio {
         void stop() noexcept override;
         void shutdown() noexcept override;
 
-        [[nodiscard]] uint32_t sample_rate() const noexcept override { return _sample_rate; }
+        [[nodiscard]] uint32_t sample_rate() const noexcept override { return _client_sample_rate; }
         [[nodiscard]] uint32_t block_size() const noexcept override { return _block_size; }
         [[nodiscard]] uint32_t channel_count() const noexcept override { return _channels; }
 
@@ -68,9 +68,11 @@ namespace carrot::audio {
 
         AudioUnit _audio_unit{ nullptr }; // HAL output AudioUnit
 
-        uint32_t _sample_rate{ 0 }; // actual device sample rate
         uint32_t _block_size{ 0 }; // frames per render callback
         uint32_t _channels{ 0 }; // interleaved output channels
+
+        uint32_t _client_sample_rate{ 0 };   // what callback must render
+        uint32_t _hardware_sample_rate{ 0 }; // physical device rate
     };
 
 } // namespace carrot::audio

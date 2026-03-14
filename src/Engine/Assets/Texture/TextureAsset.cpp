@@ -5,8 +5,6 @@
 
 #include "TextureAsset.h"
 
-#include "RHI/Texture.h"
-
 namespace carrot::assets {
     // PUBLIC
 

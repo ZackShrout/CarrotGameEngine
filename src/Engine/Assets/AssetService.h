@@ -8,6 +8,8 @@
 #include "Audio/AudioAssetRegistry.h"
 
 namespace carrot::assets {
+    class asset_manager_t;
+
     /**
      * @brief Static service locator for accessing asset registry instances.
      *
@@ -30,13 +32,17 @@ namespace carrot::assets {
     class asset_service_t
     {
     public:
-        static void provide(audio_asset_registry_t* audio) noexcept;
+        static void provide(asset_manager_t* manager) noexcept;
         static void reset() noexcept;
 
-        [[nodiscard]] static audio_asset_registry_t& audio();
-        [[nodiscard]] static audio_asset_registry_t* try_audio() noexcept;
+        [[nodiscard]] static asset_manager_t& manager();
+        [[nodiscard]] static asset_manager_t* try_manager() noexcept;
+
+        // [[nodiscard]] static audio_asset_registry_t& audio();
+        // [[nodiscard]] static audio_asset_registry_t* try_audio() noexcept;
 
     private:
-        inline static audio_asset_registry_t* _audio{ nullptr };
+        // inline static audio_asset_registry_t* _audio{ nullptr };
+        inline static asset_manager_t* _manager{ nullptr };
     };
 } // namespace carrot::assets

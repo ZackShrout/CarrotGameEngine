@@ -6,29 +6,42 @@
 #include "AssetService.h"
 
 namespace carrot::assets {
-    void asset_service_t::provide(audio_asset_registry_t* audio) noexcept
+    void asset_service_t::provide(asset_manager_t* manager) noexcept
     {
-        if (_audio != nullptr) [[unlikely]]
-        LOG_ASSET_WARN("Audio asset registry already provided");
+        if (_manager != nullptr) [[unlikely]]
+        LOG_ASSET_WARN("Asset manager already provided");
 
-        _audio = audio;
+        _manager = manager;
     }
 
     void asset_service_t::reset() noexcept
     {
-        _audio = nullptr;
+        _manager = nullptr;
     }
 
-    audio_asset_registry_t& asset_service_t::audio()
+    asset_manager_t& asset_service_t::manager()
     {
-        if (_audio == nullptr) [[unlikely]]
-        LOG_ASSET_FATAL("Audio asset registry not provided");
+        if (_manager == nullptr) [[unlikely]]
+        LOG_ASSET_FATAL("Asset manager not provided");
 
-        return *_audio;
+        return *_manager;
     }
 
-    audio_asset_registry_t* asset_service_t::try_audio() noexcept
+    asset_manager_t* asset_service_t::try_manager() noexcept
     {
-        return _audio;
+        return _manager;
     }
+
+    // audio_asset_registry_t& asset_service_t::audio()
+    // {
+    //     if (_audio == nullptr) [[unlikely]]
+    //     LOG_ASSET_FATAL("Audio asset registry not provided");
+    //
+    //     return *_audio;
+    // }
+    //
+    // audio_asset_registry_t* asset_service_t::try_audio() noexcept
+    // {
+    //     return _audio;
+    // }
 } // namespace carrot::assets

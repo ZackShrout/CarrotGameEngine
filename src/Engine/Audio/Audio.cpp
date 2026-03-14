@@ -5,7 +5,7 @@
 
 #include "Audio.h"
 #include "AudioModule.h"
-#include "Assets/Audio/AudioAssetRegistry.h"
+#include "Assets/AssetManager.h"
 #include "Assets/AssetService.h"
 
 namespace carrot::audio {
@@ -101,7 +101,7 @@ namespace carrot::audio {
 
     voice_handle_t play(std::string_view asset_name)
     {
-        const assets::audio_asset_registry_t& registry{ assets::asset_service_t::audio() };
+        const assets::audio_asset_registry_t& registry{ assets::asset_service_t::manager().audio() };
         const assets::asset_id_t id{ assets::make_asset_id(asset_name) };
 
         const auto handle{ registry.find(id) };

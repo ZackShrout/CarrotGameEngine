@@ -91,15 +91,21 @@ namespace carrot::audio {
         UInt32 size = sizeof(auRate);
         OSStatus rateErr = AudioUnitGetProperty(_audio_unit,
                                                 kAudioUnitProperty_SampleRate,
-                                                kAudioUnitScope_Output,  // Try Output first (hardware side)
+                                                kAudioUnitScope_Output, // Try Output first (hardware side)
                                                 0,
                                                 &auRate,
                                                 &size);
 
-        if (rateErr == noErr && auRate > 0.0) {
-            LOG_AUDIO_INFO("Requested sample rate: {:.0f} Hz. Effective AudioUnit / hardware sample rate: {:.0f} Hz", format.mSampleRate, auRate);
-        } else {
-            LOG_AUDIO_WARN("Couldn't get AU sample rate (OSStatus {}), falling back to requested {}", rateErr, _sample_rate);
+        if (rateErr == noErr && auRate > 0.0)
+        {
+            LOG_AUDIO_INFO("Requested sample rate: {:.0f} Hz. Effective AudioUnit / hardware sample rate: {:.0f} Hz",
+                           format.mSampleRate, auRate);
+            _sample_rate = static_cast<uint32_t>(std::lround(auRate));
+        }
+        else
+        {
+            LOG_AUDIO_WARN("Couldn't get AU sample rate (OSStatus {}), falling back to requested {}", rateErr,
+                           _sample_rate);
             // Use _sample_rate as fallback
         }
 

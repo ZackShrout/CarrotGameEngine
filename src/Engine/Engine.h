@@ -5,11 +5,13 @@
 
 #pragma once
 
+#include "Assets/AssetManager.h"
 #include "Assets/AssetService.h"
 #include "Assets/Audio/AudioAssetRegistry.h"
 #include "Audio/AudioModule.h"
 #include "Audio/Core/AudioService.h"
 #include "Common/CommonHeaders.h"
+#include "IO/VirtualFileSystem.h"
 #include "Renderer/Renderer.h"
 #include "Utils/MulticastDelegate.h"
 
@@ -19,6 +21,7 @@ namespace carrot {
     }
 
     namespace core {
+        struct engine_paths_t;
         class ce_application_t;
     }
 
@@ -35,6 +38,8 @@ namespace carrot {
         void run(core::ce_application_t* app);
         [[nodiscard]] static engine_t& get() noexcept;
 
+        void configure_paths(const core::engine_paths_t& paths);
+
         void request_quit() noexcept { _should_quit = true; }
         [[nodiscard]] bool should_quit() const noexcept { return _should_quit; }
         [[nodiscard]] float get_delta_time() const noexcept { return _delta_time; }
@@ -43,16 +48,19 @@ namespace carrot {
     private:
         void tick();
 
-        bool                                            _should_quit{ false };
-        float                                           _delta_time{ 0.f };
-        std::chrono::time_point<std::chrono::steady_clock>                                           _last_time_point{ };
-        uint32_t                                        _current_fps{ 0 };
+        bool                                                _should_quit{ false };
+        float                                               _delta_time{ 0.f };
+        std::chrono::time_point<std::chrono::steady_clock>  _last_time_point{ };
+        uint32_t                                            _current_fps{ 0 };
 
-        std::unique_ptr<renderer::renderer_t>           _renderer{ nullptr };
-        std::unique_ptr<audio::audio_module_t>          _audio_module{ nullptr };
+        std::unique_ptr<renderer::renderer_t>               _renderer{ nullptr };
+        std::unique_ptr<audio::audio_module_t>              _audio_module{ nullptr };
 
-        std::unique_ptr<assets::audio_asset_registry_t> _audio_asset_registry{ nullptr };
+        // std::unique_ptr<assets::audio_asset_registry_t>     _audio_asset_registry{ nullptr };
 
-        on_tick_t                                       _on_tick;
+        io::virtual_file_system_t                           _vfs;
+        assets::asset_manager_t                             _asset_manager{ _vfs };
+
+        on_tick_t                                           _on_tick;
     };
 } // namespace carrot

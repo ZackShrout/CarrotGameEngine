@@ -6,6 +6,7 @@
 #pragma once
 
 #include "Assets/Image/ImageAsset.h"
+#include "RHI/Texture.h"
 
 #include <memory>
 

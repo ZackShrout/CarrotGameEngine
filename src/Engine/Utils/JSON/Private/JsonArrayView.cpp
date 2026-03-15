@@ -3,10 +3,11 @@
 // Copyright (c) 2026 BunnySoft. All rights reserved.
 //
 
+#include "Core/Pch.h"
+
 #include "Utils/JSON//Public/JsonArrayView.h"
 
 #include "JsonAST.h"
-#include "../../../Core/CoreDefines.h"
 
 namespace carrot::utils::json {
     // PUBLIC

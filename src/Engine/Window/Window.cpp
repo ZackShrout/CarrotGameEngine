@@ -3,11 +3,9 @@
 // Copyright (c) 2025 BunnySoft. All rights reserved.
 //
 
+#include "Core/Pch.h"
+
 #include "Window.h"
-
-#include "Core/Logger.h"
-
-#include <memory>
 
 #ifdef CARROT_PLATFORM_WIN32
 #include "Core/Platform/Win32/Win32Window.h"

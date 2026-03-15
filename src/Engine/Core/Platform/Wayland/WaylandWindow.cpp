@@ -3,6 +3,8 @@
 // Copyright (c) 2025 BunnySoft. All rights reserved.
 //
 
+#include "Core/Pch.h"
+
 #include "WaylandWindow.h"
 
 #include "Protocols/xdg-shell-client-protocol.h"
@@ -12,7 +14,6 @@
 
 #include <wayland-client-protocol.h>
 #include <sys/mman.h>
-#include <string>
 
 namespace carrot::core::platform {
     namespace {

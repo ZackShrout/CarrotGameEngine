@@ -3,9 +3,9 @@
 // Copyright (c) 2026 BunnySoft. All rights reserved.
 //
 
-#include "ShaderWatcher.h"
+#include "Core/Pch.h"
 
-#include "Core/Logger.h"
+#include "ShaderWatcher.h"
 
 #include <sys/inotify.h>
 #include <unistd.h>

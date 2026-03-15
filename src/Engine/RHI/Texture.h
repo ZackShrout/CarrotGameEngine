@@ -5,8 +5,6 @@
 
 #pragma once
 
-#include "../Core/CoreDefines.h"
-
 #include <cstdint>
 
 namespace carrot::rhi {

@@ -3,13 +3,12 @@
 // Copyright (c) 2026 BunnySoft. All rights reserved.
 //
 
+#include "Core/Pch.h"
+
 #include "Utils/JSON/Public/JsonDocument.h"
 
 #include "JsonParser.h"
 #include "Utils/File/FileUtils.h"
-
-#include <cstdio>
-#include <cstdlib>
 
 namespace carrot::utils::json {
     json_document_t::json_document_t()

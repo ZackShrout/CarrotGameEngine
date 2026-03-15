@@ -3,12 +3,11 @@
 // Copyright (c) 2025 BunnySoft. All rights reserved.
 //
 
+#include "Core/Pch.h"
+
 #include "ShaderWatcher.h"
 
-#include "Core/Logger.h"
-
 #include <ShaderToolsConfig.h>
-#include <thread>
 #include <chrono>
 #include <filesystem>
 

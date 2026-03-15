@@ -3,6 +3,8 @@
 // Copyright (c) 2026 BunnySoft. All rights reserved.
 //
 
+#include "Core/Pch.h"
+
 #include "DirectX12CommandQueue.h"
 
 #include "DirectX12CommandList.h"

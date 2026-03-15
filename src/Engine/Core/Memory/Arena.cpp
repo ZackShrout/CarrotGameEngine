@@ -3,11 +3,9 @@
 // Copyright (c) 2026 BunnySoft. All rights reserved.
 //
 
-#include "Arena.h"
+#include "Core/Pch.h"
 
-#include <cstdlib>
-#include <new>
-#include <cassert>
+#include "Arena.h"
 
 namespace carrot::core::memory {
     namespace {

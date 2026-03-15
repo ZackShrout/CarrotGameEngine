@@ -3,9 +3,9 @@
 // Copyright (c) 2025 BunnySoft. All rights reserved.
 //
 
-#include "ShaderUtils.h"
+#include "Core/Pch.h"
 
-#include "../Core/CoreDefines.h"
+#include "ShaderUtils.h"
 
 #include <fstream>
 

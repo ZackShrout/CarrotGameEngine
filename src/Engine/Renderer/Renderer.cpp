@@ -3,10 +3,11 @@
 // Copyright (c) 2026 BunnySoft. All rights reserved.
 //
 
+#include "Core/Pch.h"
+
 #include "Renderer.h"
 
 #include "Assets/Image/ImageAssetImporter.h"
-#include "Core/Logger.h"
 #include "Primitives/QuadMesh.h"
 #include "Utils/File/FileUtils.h"
 #include "Window/Window.h"

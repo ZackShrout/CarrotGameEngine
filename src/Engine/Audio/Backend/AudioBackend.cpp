@@ -3,6 +3,8 @@
 // Copyright (c) 2026 BunnySoft. All rights reserved.
 //
 
+#include "Core/Pch.h"
+
 #include "AudioBackend.h"
 
 #if defined(CARROT_PLATFORM_COCOA)

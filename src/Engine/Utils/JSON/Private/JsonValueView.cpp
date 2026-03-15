@@ -3,12 +3,13 @@
 // Copyright (c) 2026 BunnySoft. All rights reserved.
 //
 
+#include "Core/Pch.h"
+
 #include "../Public/JsonValueView.h"
 
 #include "JsonAST.h"
 #include "Utils/JSON/Public/JsonObjectView.h"
 #include "Utils/JSON/Public/JsonArrayView.h"
-#include "../../../Core/CoreDefines.h"
 
 namespace carrot::utils::json {
     bool json_value_view_t::is_object() const

@@ -7,13 +7,35 @@
 
 #include "VulkanRHIContext.h"
 
+#include "VulkanBuffer.h"
 #include "VulkanPipeline.h"
 #include "VulkanRenderPass.h"
 #include "VulkanTexture.h"
 #include "Window/Window.h"
 #include "HotReload/ShaderWatcher.h"
+#include "Pipelines/VulkanTexturedQuadPipeline.h"
 
 namespace carrot::rhi::vulkan {
+    namespace {
+        [[nodiscard]] VkBufferUsageFlags to_vk_buffer_usage(const buffer_usage_t usage) noexcept
+        {
+            using enum buffer_usage_t;
+
+            switch (usage)
+            {
+                case vertex:
+                    return VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+                case index:
+                    return VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+                case uniform:
+                    return VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+                case staging:
+                    return VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+                default:
+                    return 0;
+            }
+        }
+    } // anonymous namespace
     // PUBLIC
     vulkan_rhi_context_t::vulkan_rhi_context_t(const rhi_desc_t& desc)
     {
@@ -25,6 +47,7 @@ namespace carrot::rhi::vulkan {
         vkDeviceWaitIdle(_device ? _device->vk_device() : VK_NULL_HANDLE);
 
         _framebuffers = { };
+        _textured_quad_pipeline.reset();
         _graphics_pipeline.reset();
         _render_pass.reset();
 
@@ -535,7 +558,88 @@ namespace carrot::rhi::vulkan {
 
     std::unique_ptr<rhi_buffer_t> vulkan_rhi_context_t::create_buffer(const buffer_create_info_t& info)
     {
-        return nullptr;
+        if (info.size_bytes == 0)
+        {
+            LOG_GRAPHICS_ERROR("create_buffer failed: size_bytes was 0");
+            return nullptr;
+        }
+
+        VkDevice device{ _device->vk_device() };
+        const VkDeviceSize size{ static_cast<VkDeviceSize>(info.size_bytes) };
+
+        const VkBufferUsageFlags base_usage{ to_vk_buffer_usage(info.usage) };
+
+        if (info.usage == buffer_usage_t::staging)
+        {
+            VkBuffer buffer{ VK_NULL_HANDLE };
+            VkDeviceMemory memory{ VK_NULL_HANDLE };
+
+            create_vk_buffer(
+                size,
+                base_usage,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                buffer,
+                memory
+            );
+
+            if (info.initial_data != nullptr)
+            {
+                void* mapped{ nullptr };
+                VK_CHECK_FATAL(vkMapMemory(device, memory, 0, size, 0, &mapped));
+                std::memcpy(mapped, info.initial_data, info.size_bytes);
+                vkUnmapMemory(device, memory);
+            }
+
+            auto result{ std::make_unique<vulkan_buffer_t>(device, info.size_bytes, info.usage) };
+            result->set_buffer(buffer);
+            result->set_memory(memory);
+            return result;
+        }
+
+        VkBufferUsageFlags dst_usage{ base_usage };
+        if (info.initial_data != nullptr)
+            dst_usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+        VkBuffer dst_buffer{ VK_NULL_HANDLE };
+        VkDeviceMemory dst_memory{ VK_NULL_HANDLE };
+
+        create_vk_buffer(
+            size,
+            dst_usage,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            dst_buffer,
+            dst_memory
+        );
+
+        if (info.initial_data != nullptr)
+        {
+            VkBuffer staging_buffer{ VK_NULL_HANDLE };
+            VkDeviceMemory staging_memory{ VK_NULL_HANDLE };
+
+            create_vk_buffer(
+                size,
+                VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                staging_buffer,
+                staging_memory
+            );
+
+            void* mapped{ nullptr };
+            VK_CHECK_FATAL(vkMapMemory(device, staging_memory, 0, size, 0, &mapped));
+            std::memcpy(mapped, info.initial_data, info.size_bytes);
+            vkUnmapMemory(device, staging_memory);
+
+            copy_buffer(staging_buffer, dst_buffer, size);
+
+            vkDestroyBuffer(device, staging_buffer, nullptr);
+            vkFreeMemory(device, staging_memory, nullptr);
+        }
+
+        auto result{ std::make_unique<vulkan_buffer_t>(device, info.size_bytes, info.usage) };
+        result->set_buffer(dst_buffer);
+        result->set_memory(dst_memory);
+
+        return result;
     }
 
     void vulkan_rhi_context_t::wait_idle()
@@ -732,6 +836,9 @@ namespace carrot::rhi::vulkan {
         // ── 8. Create Graphics Pipeline ───────────────────────────────────────────
         _graphics_pipeline = std::make_unique<vulkan_pipeline_t>(_device.get(), _render_pass->vk_render_pass());
 
+        _textured_quad_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
+            _device.get(), _render_pass->vk_render_pass());
+
         // ── 9. Create Framebuffers ────────────────────────────────────────────────
         _framebuffers = _swapchain->create_framebuffers(_render_pass->vk_render_pass());
 
@@ -847,5 +954,43 @@ namespace carrot::rhi::vulkan {
         VK_CHECK_FATAL(vkQueueWaitIdle(_device->graphics_queue()));
 
         vkFreeCommandBuffers(_device->vk_device(), _command_pool, 1, &cmd);
+    }
+
+    void vulkan_rhi_context_t::create_vk_buffer(const VkDeviceSize size, const VkBufferUsageFlags usage,
+                                                const VkMemoryPropertyFlags properties, VkBuffer& out_buffer,
+                                                VkDeviceMemory& out_memory) const
+    {
+        VkBufferCreateInfo buffer_info{ };
+        buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        buffer_info.size = size;
+        buffer_info.usage = usage;
+        buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        VK_CHECK_FATAL(vkCreateBuffer(_device->vk_device(), &buffer_info, nullptr, &out_buffer));
+
+        VkMemoryRequirements mem_requirements{ };
+        vkGetBufferMemoryRequirements(_device->vk_device(), out_buffer, &mem_requirements);
+
+        VkMemoryAllocateInfo alloc_info{ };
+        alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        alloc_info.allocationSize = mem_requirements.size;
+        alloc_info.memoryTypeIndex = find_memory_type(mem_requirements.memoryTypeBits, properties);
+
+        VK_CHECK_FATAL(vkAllocateMemory(_device->vk_device(), &alloc_info, nullptr, &out_memory));
+        VK_CHECK_FATAL(vkBindBufferMemory(_device->vk_device(), out_buffer, out_memory, 0));
+    }
+
+    void vulkan_rhi_context_t::copy_buffer(VkBuffer src, VkBuffer dst, const VkDeviceSize size) const
+    {
+        VkCommandBuffer cmd{ begin_single_time_commands() };
+
+        VkBufferCopy copy_region{ };
+        copy_region.srcOffset = 0;
+        copy_region.dstOffset = 0;
+        copy_region.size = size;
+
+        vkCmdCopyBuffer(cmd, src, dst, 1, &copy_region);
+
+        end_single_time_commands(cmd);
     }
 } // namespace carrot::rhi::vulkan

@@ -165,8 +165,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/AssetManager.cpp
         src/Engine/Assets/AssetManager.h
         src/Engine/Renderer/Primitives/QuadVertex.h
-        src/Engine/Renderer/Primitives/QuadMesh.cpp
         src/Engine/Renderer/Primitives/QuadMesh.h
+        src/Engine/Renderer/Primitives/TexturedQuadPushConstants.h
 )
 
 # ------------------------------------------------------------------------
@@ -233,6 +233,8 @@ elseif (WIN32)
             src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.h
             src/Engine/RHI/Backends/Vulkan/VulkanBuffer.cpp
             src/Engine/RHI/Backends/Vulkan/VulkanBuffer.h
+            src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.cpp
+            src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.h
 
             src/Engine/RHI/Backends/DirectX12/DirectX12Common.h
             src/Engine/RHI/Backends/DirectX12/DirectX12Core.h
@@ -335,6 +337,8 @@ elseif (UNIX)
             src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.h
             src/Engine/RHI/Backends/Vulkan/VulkanBuffer.cpp
             src/Engine/RHI/Backends/Vulkan/VulkanBuffer.h
+            src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.cpp
+            src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.h
 
             src/Engine/Audio/Backend/Linux/LinuxAudioBackend.cpp
             src/Engine/Audio/Backend/Linux/LinuxAudioBackend.h

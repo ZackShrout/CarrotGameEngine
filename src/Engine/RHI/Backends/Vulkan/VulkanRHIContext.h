@@ -13,6 +13,7 @@
 #include "RHI/RHI.h"
 
 namespace carrot::rhi::vulkan {
+    class vulkan_textured_quad_pipeline_t;
     class vulkan_pipeline_t;
     class vulkan_render_pass_t;
 
@@ -45,6 +46,11 @@ namespace carrot::rhi::vulkan {
         [[nodiscard]] VkCommandBuffer begin_single_time_commands() const;
         void end_single_time_commands(VkCommandBuffer cmd) const;
 
+        void create_vk_buffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
+                              VkBuffer& out_buffer, VkDeviceMemory& out_memory) const;
+
+        void copy_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size) const;
+
         VkInstance                                              _vk_instance{ VK_NULL_HANDLE };
         VkSurfaceKHR                                            _vk_surface{ VK_NULL_HANDLE };
         VkCommandPool                                           _command_pool{ VK_NULL_HANDLE };
@@ -53,6 +59,7 @@ namespace carrot::rhi::vulkan {
         std::unique_ptr<vulkan_command_queue_t>                 _graphics_queue;
         std::unique_ptr<vulkan_render_pass_t>                   _render_pass;
         std::unique_ptr<vulkan_pipeline_t>                      _graphics_pipeline;
+        std::unique_ptr<vulkan_textured_quad_pipeline_t>        _textured_quad_pipeline;
         framebuffer_array_t                                     _framebuffers;
         std::array<frame_resources_t, k_max_frames_in_flight>   _frames;
         std::vector<VkSemaphore>                                _render_finished_semaphores;

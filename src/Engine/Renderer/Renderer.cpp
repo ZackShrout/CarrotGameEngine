@@ -150,26 +150,35 @@ namespace carrot::renderer {
                           _test_texture->width(),
                           _test_texture->height());
 
-        rhi::buffer_create_info_t vb_info{};
-        vb_info.size_bytes = sizeof(k_unit_quad_vertices);
-        vb_info.usage = rhi::buffer_usage_t::vertex;
-        vb_info.initial_data = k_unit_quad_vertices.data();
+        rhi::buffer_create_info_t vertex_buffer_info{ };
+        vertex_buffer_info.size_bytes = sizeof(k_unit_quad_vertices);
+        vertex_buffer_info.usage = rhi::buffer_usage_t::vertex;
+        vertex_buffer_info.initial_data = k_unit_quad_vertices.data();
 
-        _quad_vertex_buffer = _rhi->create_buffer(vb_info);
+        _quad_vertex_buffer = _rhi->create_buffer(vertex_buffer_info);
+        if (!_quad_vertex_buffer)
+            LOG_GRAPHICS_FATAL("Failed to create canonical quad vertex buffer");
 
-        rhi::buffer_create_info_t ib_info{};
-        ib_info.size_bytes = sizeof(k_unit_quad_indices);
-        ib_info.usage = rhi::buffer_usage_t::index;
-        ib_info.initial_data = k_unit_quad_indices.data();
+        rhi::buffer_create_info_t index_buffer_info{ };
+        index_buffer_info.size_bytes = sizeof(k_unit_quad_indices);
+        index_buffer_info.usage = rhi::buffer_usage_t::index;
+        index_buffer_info.initial_data = k_unit_quad_indices.data();
 
-        _quad_index_buffer = _rhi->create_buffer(ib_info);
+        _quad_index_buffer = _rhi->create_buffer(index_buffer_info);
+        if (!_quad_index_buffer)
+            LOG_GRAPHICS_FATAL("Failed to create canonical quad index buffer");
 
-        if (!_quad_vertex_buffer || !_quad_index_buffer)
-            LOG_GRAPHICS_FATAL("Failed to create quad mesh buffers");
+        LOG_GRAPHICS_INFO(
+            "Common graphics resources created: quad VB={} bytes, quad IB={} bytes",
+            _quad_vertex_buffer->size_bytes(),
+            _quad_index_buffer->size_bytes()
+        );
     }
 
     void renderer_t::destroy_common_resources()
     {
+        _quad_index_buffer.reset();
+        _quad_vertex_buffer.reset();
         _test_texture.reset();
     }
 

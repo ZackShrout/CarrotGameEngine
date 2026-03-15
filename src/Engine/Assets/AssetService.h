@@ -5,8 +5,6 @@
 
 #pragma once
 
-#include "Audio/AudioAssetRegistry.h"
-
 namespace carrot::assets {
     class asset_manager_t;
 
@@ -38,11 +36,7 @@ namespace carrot::assets {
         [[nodiscard]] static asset_manager_t& manager();
         [[nodiscard]] static asset_manager_t* try_manager() noexcept;
 
-        // [[nodiscard]] static audio_asset_registry_t& audio();
-        // [[nodiscard]] static audio_asset_registry_t* try_audio() noexcept;
-
     private:
-        // inline static audio_asset_registry_t* _audio{ nullptr };
         inline static asset_manager_t* _manager{ nullptr };
     };
 } // namespace carrot::assets

@@ -3,6 +3,8 @@
 // Copyright (c) 2026 BunnySoft. All rights reserved.
 //
 
+#include "Core/Pch.h"
+
 #include "RHI/RHI.h"
 
 #if defined(CARROT_PLATFORM_WAYLAND) || defined(CARROT_PLATFORM_X11) || defined(CARROT_PLATFORM_WIN32)
@@ -14,7 +16,7 @@
 #include "Backends/DirectX12/DirectX12RHIContext.h"
 #endif
 
-#include "Common/CommonHeaders.h"
+#include "Core/CoreDefines.h"
 
 namespace carrot::rhi {
     namespace {

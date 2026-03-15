@@ -7,7 +7,7 @@
 
 #include "JsonValueView.h"
 
-#include "Common/CommonHeaders.h"
+#include "../../../Core/CoreDefines.h"
 
 #include <string_view>
 #include <span>

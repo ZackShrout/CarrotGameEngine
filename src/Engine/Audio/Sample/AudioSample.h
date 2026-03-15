@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <cstdlib>
 
-#include "Common/CommonHeaders.h"
+#include "../../Core/CoreDefines.h"
 
 namespace carrot::audio {
     /**

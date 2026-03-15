@@ -5,7 +5,8 @@
 
 #pragma once
 
-#include "Common/CommonHeaders.h"
+#include "Utils/Assert.h"
+#include "Core/CoreDefines.h"
 
 #include <vector>
 #include <functional>

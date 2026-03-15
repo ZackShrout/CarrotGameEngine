@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "Common/CommonHeaders.h"
+#include "CoreDefines.h"
 #include "Events/Events.h"
 #include "Utils/MulticastDelegate.h"
 #include "Window/Window.h"

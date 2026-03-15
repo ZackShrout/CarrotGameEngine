@@ -8,7 +8,7 @@
 #include "JsonValueView.h"
 #include "JsonObjectView.h"
 #include "JsonArrayView.h"
-#include "Common/CommonHeaders.h"
+#include "../../../Core/CoreDefines.h"
 #include "Core/Memory/Arena.h"
 
 namespace carrot::utils::json {

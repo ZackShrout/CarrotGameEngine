@@ -5,7 +5,7 @@
 
 #include "AudioService.h"
 
-#include "Common/CommonHeaders.h"
+#include "../../Core/CoreDefines.h"
 #include "Audio/AudioModule.h"
 
 namespace carrot::audio {

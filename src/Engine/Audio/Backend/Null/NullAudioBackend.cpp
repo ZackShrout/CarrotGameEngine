@@ -5,7 +5,7 @@
 
 #include "NullAudioBackend.h"
 
-#include "Common/CommonHeaders.h"
+#include "../../../Core/CoreDefines.h"
 
 #include <chrono>
 #include <vector>

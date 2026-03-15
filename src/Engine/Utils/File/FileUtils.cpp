@@ -3,14 +3,11 @@
 // Copyright (c) 2026 BunnySoft. All rights reserved.
 //
 
+#include "Core/Pch.h"
+
 #include "FileUtils.h"
 
-#include "Common/CommonHeaders.h"
-
 #include <fstream>
-#include <mutex>
-#include <sstream>
-#include <unordered_map>
 
 namespace carrot::utils::file {
     namespace {

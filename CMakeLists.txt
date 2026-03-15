@@ -40,7 +40,7 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Utils/ShaderUtils.h
         src/Engine/Window/Window.cpp
         src/Engine/Window/Window.h
-        src/Engine/Common/CommonHeaders.h
+        src/Engine/Core/CoreDefines.h
         src/Engine/Utils/MulticastDelegate.h
         src/Engine/Core/Logger.cpp
         src/Engine/Core/Logger.h
@@ -167,8 +167,6 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Renderer/Primitives/QuadVertex.h
         src/Engine/Renderer/Primitives/QuadMesh.cpp
         src/Engine/Renderer/Primitives/QuadMesh.h
-        src/Engine/RHI/Backends/Vulkan/VulkanBuffer.cpp
-        src/Engine/RHI/Backends/Vulkan/VulkanBuffer.h
 )
 
 # ------------------------------------------------------------------------
@@ -233,6 +231,8 @@ elseif (WIN32)
             src/Engine/RHI/Backends/Vulkan/VulkanCore.h
             src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.cpp
             src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.h
+            src/Engine/RHI/Backends/Vulkan/VulkanBuffer.cpp
+            src/Engine/RHI/Backends/Vulkan/VulkanBuffer.h
 
             src/Engine/RHI/Backends/DirectX12/DirectX12Common.h
             src/Engine/RHI/Backends/DirectX12/DirectX12Core.h
@@ -333,6 +333,8 @@ elseif (UNIX)
             src/Engine/RHI/Backends/Vulkan/VulkanCore.h
             src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.cpp
             src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.h
+            src/Engine/RHI/Backends/Vulkan/VulkanBuffer.cpp
+            src/Engine/RHI/Backends/Vulkan/VulkanBuffer.h
 
             src/Engine/Audio/Backend/Linux/LinuxAudioBackend.cpp
             src/Engine/Audio/Backend/Linux/LinuxAudioBackend.h
@@ -395,6 +397,10 @@ target_include_directories(CarrotEngine SYSTEM PUBLIC
         ${Vulkan_INCLUDE_DIRS}
         deps/metal-cpp
         deps/metal-cpp-extensions
+)
+
+target_precompile_headers(CarrotEngine PRIVATE
+        "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Core/Pch.h>"
 )
 
 # ------------------------------------------------------------------------

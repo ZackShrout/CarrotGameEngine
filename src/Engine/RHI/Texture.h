@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "Common/CommonHeaders.h"
+#include "../Core/CoreDefines.h"
 
 #include <cstdint>
 

@@ -5,7 +5,7 @@
 
 #include "ShaderUtils.h"
 
-#include "Common/CommonHeaders.h"
+#include "../Core/CoreDefines.h"
 
 #include <fstream>
 

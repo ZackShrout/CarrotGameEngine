@@ -3,6 +3,8 @@
 // Copyright (c) 2026 BunnySoft. All rights reserved.
 //
 
+#include "Core/Pch.h"
+
 #include "MetalRHIContext.h"
 
 #include "MetalDevice.h"
@@ -30,16 +32,16 @@ namespace carrot::rhi::metal {
             return;
         }
 
-        MTL::Device* mtl_device{ static_cast<MTL::Device*>(metal_layer_get_device(_metal_layer)) };
+        MTL::Device* mtl_device{ static_cast<MTL::Device *>(metal_layer_get_device(_metal_layer)) };
         _device = std::make_unique<metal_device_t>(mtl_device);
         MTL_CHECK_FATAL(_device->mtl_device());
 
         if (desc.enable_debug_layers)
         {
-            setenv("MTL_API_VALIDATION", "1", 1);           // Enables Metal API validation (errors on misuse)
-            setenv("MTL_SHADER_VALIDATION", "1", 1);        // Validates shaders at runtime
-            setenv("METAL_DEVICE_WRAPPER_TYPE", "1", 1);    // Enables extra debug checks on device objects
-            setenv("MTL_DEBUG_LAYER", "1", 1);              // General debug layer (sometimes needed)
+            setenv("MTL_API_VALIDATION", "1", 1); // Enables Metal API validation (errors on misuse)
+            setenv("MTL_SHADER_VALIDATION", "1", 1); // Validates shaders at runtime
+            setenv("METAL_DEVICE_WRAPPER_TYPE", "1", 1); // Enables extra debug checks on device objects
+            setenv("MTL_DEBUG_LAYER", "1", 1); // General debug layer (sometimes needed)
 
             LOG_GRAPHICS_INFO("Metal validation layers enabled via environment variables");
         }
@@ -210,6 +212,11 @@ namespace carrot::rhi::metal {
     }
 
     std::unique_ptr<rhi_texture_t> metal_rhi_context_t::create_texture_2d(const texture_create_info_t& info)
+    {
+        return nullptr;
+    }
+
+    std::unique_ptr<rhi_buffer_t> metal_rhi_context_t::create_buffer(const buffer_create_info_t& info)
     {
         return nullptr;
     }

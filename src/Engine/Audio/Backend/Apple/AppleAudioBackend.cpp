@@ -5,7 +5,7 @@
 
 #include "AppleAudioBackend.h"
 
-#include "Common/CommonHeaders.h"
+#include "../../../Core/CoreDefines.h"
 
 #include <AudioToolbox/AudioToolbox.h>
 #include <chlm/CarrotHLM.h>

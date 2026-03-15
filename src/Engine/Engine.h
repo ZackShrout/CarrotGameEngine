@@ -6,11 +6,8 @@
 #pragma once
 
 #include "Assets/AssetManager.h"
-#include "Assets/AssetService.h"
-#include "Assets/Audio/AudioAssetRegistry.h"
 #include "Audio/AudioModule.h"
-#include "Audio/Core/AudioService.h"
-#include "Common/CommonHeaders.h"
+#include "Core/CoreDefines.h"
 #include "IO/VirtualFileSystem.h"
 #include "Renderer/Renderer.h"
 #include "Utils/MulticastDelegate.h"
@@ -55,8 +52,6 @@ namespace carrot {
 
         std::unique_ptr<renderer::renderer_t>               _renderer{ nullptr };
         std::unique_ptr<audio::audio_module_t>              _audio_module{ nullptr };
-
-        // std::unique_ptr<assets::audio_asset_registry_t>     _audio_asset_registry{ nullptr };
 
         io::virtual_file_system_t                           _vfs;
         assets::asset_manager_t                             _asset_manager{ _vfs };

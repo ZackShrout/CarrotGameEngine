@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "../../Core/CoreDefines.h"
+#include "Utils/Assert.h"
 
 #include <cstdint>
 #include <atomic>

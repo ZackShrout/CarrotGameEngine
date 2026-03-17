@@ -74,40 +74,4 @@ namespace carrot::utils::file {
      * @see try_resolve_asset_path() for a version that returns `std::filesystem::path` and `std::optional`.
      */
     [[nodiscard]] std::string_view resolve_asset_path(std::string_view path);
-
-    /**
-     * @brief Attempts to resolve an asset path into a normalized filesystem::path.
-     *
-     * Similar to resolve_asset_path(), but returns an optional owning path object
-     * and makes failure more explicit. Useful when you need to perform further
-     * path operations or log the exact resolved path.
-     *
-     * @param path Asset path to resolve (UTF-8 string view).
-     *
-     * @return A normalized `std::filesystem::path` on successful resolution,
-     *         or `std::nullopt` if the input is empty, invalid, or cannot be resolved.
-     *
-     * @note Does **not** check file existence — only performs path resolution logic.
-     * @note Returned path uses the platform's preferred directory separators.
-     */
-    [[nodiscard]] std::optional<std::filesystem::path> try_resolve_asset_path(std::string_view path);
-
-    /**
-     * @brief Convenience wrapper: resolves path and returns filesystem::path (empty on failure).
-     *
-     * Equivalent to:
-     * ```cpp
-     * return try_resolve_asset_path(path).value_or(std::filesystem::path{});
-     * ```
-     *
-     * @param path Asset path to resolve.
-     *
-     * @return Resolved path (with preferred separators), or an empty path object on failure.
-     *
-     * @note Prefer `try_resolve_asset_path()` when you need to distinguish failure from success.
-     */
-    inline std::filesystem::path resolve_asset_path_fs(std::string_view path)
-    {
-        return try_resolve_asset_path(path).value_or(std::filesystem::path{ });
-    }
 } // namespace carrot::utils::file

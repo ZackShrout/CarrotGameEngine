@@ -129,7 +129,7 @@ namespace carrot::renderer {
         // LOG_GRAPHICS_INFO("Common graphics resources created (currently empty)");
 
         const assets::image_load_result_t image_result{
-            assets::load_image_rgba8(utils::file::resolve_asset_path("assets/images/16x16orange.png"))
+            assets::load_image_rgba8("engine://images/16x16orange.png")
         };
 
         if (!image_result.success())
@@ -137,6 +137,8 @@ namespace carrot::renderer {
             LOG_CORE_ERROR("Failed to load PNG: {}", assets::to_string(image_result.error));
             return;
         }
+
+        LOG_GRAPHICS_INFO("Loaded PNG: {}x{}", image_result.image.width, image_result.image.height);
 
         rhi::texture_create_info_t texture_info{ };
         texture_info.width = image_result.image.width;

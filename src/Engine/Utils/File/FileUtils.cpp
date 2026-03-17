@@ -101,41 +101,12 @@ namespace carrot::utils::file {
         else if (path.starts_with(engine))
         {
             prefixless = path.substr(engine.size());
-            return cache_path((content_root/ "Engine" / prefixless).string());
+            return cache_path((content_root/ "assets" / prefixless).string());
         }
 
         std::filesystem::path candidate{ content_root / prefixless };
         candidate = candidate.lexically_normal();
 
         return cache_path(candidate.string());
-    }
-
-    std::optional<std::filesystem::path> try_resolve_asset_path(const std::string_view path)
-    {
-        if (path.empty())
-            return std::nullopt;
-
-        const std::filesystem::path p{ path };
-        const std::filesystem::path content_root{ CARROT_SOURCE_ROOT };
-
-        if (p.is_absolute())
-            return p.lexically_normal();
-
-        std::string_view prefixless{ path };
-
-        constexpr std::string_view prefixes[]{ "res://", "assets://", "content://" };
-
-        for (const auto prefix: prefixes)
-        {
-            if (path.starts_with(prefix))
-            {
-                prefixless = path.substr(prefix.size());
-                break;
-            }
-        }
-
-        std::filesystem::path resolved{ (content_root / prefixless).lexically_normal() };
-
-        return resolved;
     }
 } // namespace carrot::utils::file

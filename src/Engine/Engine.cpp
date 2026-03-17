@@ -262,10 +262,10 @@ namespace carrot {
     void engine_t::configure_paths(const core::engine_paths_t& paths)
     {
         LOG_CORE_INFO("Configuring engine paths...");
-        LOG_CORE_INFO("Engine Root: {}", paths.engine_root.value_or("Not set").c_str());
-        LOG_CORE_INFO("Game Root: {}", paths.game_root.value_or("Not set").c_str());
-        LOG_CORE_INFO("Source Root: {}", paths.source_root.value_or("Not set").c_str());
-        LOG_CORE_INFO("Save Root: {}", paths.save_root.value_or("Not set").c_str());
+        LOG_CORE_INFO("Engine Root: {}", utils::file::to_log_string(paths.engine_root.value_or("Not set")));
+        LOG_CORE_INFO("Game Root: {}", utils::file::to_log_string(paths.game_root.value_or("Not set")));
+        LOG_CORE_INFO("Source Root: {}", utils::file::to_log_string(paths.source_root.value_or("Not set")));
+        LOG_CORE_INFO("Save Root: {}", utils::file::to_log_string(paths.save_root.value_or("Not set")));
 
         if (paths.engine_root)
             _vfs.mount("engine", *paths.engine_root, true);

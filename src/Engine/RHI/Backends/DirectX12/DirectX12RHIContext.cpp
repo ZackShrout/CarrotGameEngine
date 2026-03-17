@@ -318,6 +318,11 @@ namespace carrot::rhi::dx12 {
         return nullptr;
     }
 
+    std::unique_ptr<rhi_buffer_t> dx12_rhi_context_t::create_buffer(const buffer_create_info_t& info)
+    {
+        return nullptr;
+    }
+
     void dx12_rhi_context_t::wait_idle()
     {
         if (_graphics_queue)

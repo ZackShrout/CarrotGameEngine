@@ -74,4 +74,31 @@ namespace carrot::utils::file {
      * @see try_resolve_asset_path() for a version that returns `std::filesystem::path` and `std::optional`.
      */
     [[nodiscard]] std::string_view resolve_asset_path(std::string_view path);
+
+    /**
+     * @brief Converts a filesystem path into a UTF-8 string suitable for logging.
+     *
+     * Produces a platform-consistent, human-readable string representation of a
+     * `std::filesystem::path` for use with logging systems that expect narrow
+     * character strings (e.g. `std::format` with `char`).
+     *
+     * On Windows, paths are internally stored as wide-character (UTF-16). This
+     * function converts them to UTF-8 to ensure compatibility with the logger.
+     * On POSIX systems (Linux/macOS), paths are typically already UTF-8 and are
+     * returned directly.
+     *
+     * @param path Filesystem path to convert.
+     *
+     * @return A UTF-8 encoded string representation of the path.
+     *
+     * @note This function is intended for logging and debugging purposes only.
+     *       It should not be used for filesystem operations that require native
+     *       encoding or exact round-trip fidelity.
+     * @note The returned string is safe to pass directly into `std::format` and
+     *       other narrow-character APIs.
+     *
+     * @see std::filesystem::path::string()
+     * @see std::filesystem::path::u8string()
+     */
+    [[nodiscard]] std::string to_log_string(const std::filesystem::path& path);
 } // namespace carrot::utils::file

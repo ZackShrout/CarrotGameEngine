@@ -109,4 +109,14 @@ namespace carrot::utils::file {
 
         return cache_path(candidate.string());
     }
+
+    std::string to_log_string(const std::filesystem::path& path)
+    {
+#ifdef _WIN32
+        const auto utf8 = path.u8string();
+        return std::string{ utf8.begin(), utf8.end() };
+#else
+        return path.string();
+#endif
+    }
 } // namespace carrot::utils::file

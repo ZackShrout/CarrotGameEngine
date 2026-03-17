@@ -16,6 +16,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # Output directories (bin/Debug, bin/Release, etc.)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -151,8 +152,6 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/Image/ImageLoadError.cpp
         src/Engine/Assets/Image/ImageAssetImporter.cpp
         src/Engine/Assets/Image/ImageAssetImporter.h
-        src/Engine/RHI/Backends/Vulkan/VulkanTexture.cpp
-        src/Engine/RHI/Backends/Vulkan/VulkanTexture.h
         src/Engine/Assets/Texture/TextureAsset.cpp
         src/Engine/Assets/Texture/TextureAsset.h
         src/Engine/Assets/Texture/TextureAssetImporter.cpp
@@ -244,6 +243,8 @@ elseif (WIN32)
             src/Engine/RHI/Backends/Vulkan/VulkanBuffer.h
             src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.cpp
             src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.h
+            src/Engine/RHI/Backends/Vulkan/VulkanTexture.cpp
+            src/Engine/RHI/Backends/Vulkan/VulkanTexture.h
 
             src/Engine/RHI/Backends/DirectX12/DirectX12Common.h
             src/Engine/RHI/Backends/DirectX12/DirectX12Core.h
@@ -350,6 +351,8 @@ elseif (UNIX)
             src/Engine/RHI/Backends/Vulkan/VulkanBuffer.h
             src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.cpp
             src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.h
+            src/Engine/RHI/Backends/Vulkan/VulkanTexture.cpp
+            src/Engine/RHI/Backends/Vulkan/VulkanTexture.h
 
             src/Engine/Audio/Backend/Linux/LinuxAudioBackend.cpp
             src/Engine/Audio/Backend/Linux/LinuxAudioBackend.h
@@ -367,6 +370,8 @@ add_subdirectory(deps/CarrotPNG)
 # ------------------------------------------------------------------------
 # Engine Static Library
 # ------------------------------------------------------------------------
+source_group(TREE ${CMAKE_SOURCE_DIR} FILES ${CARROT_ENGINE_SOURCES})
+
 add_library(CarrotEngine STATIC ${CARROT_ENGINE_SOURCES})
 
 target_compile_definitions(CarrotEngine PRIVATE
@@ -553,6 +558,8 @@ set(CARROT_SANDBOX_SOURCES
         src/Game/Game.cpp
         src/Game/Game.h
 )
+
+source_group(TREE ${CMAKE_SOURCE_DIR} FILES ${CARROT_SANDBOX_SOURCES})
 
 add_executable(CarrotSandbox ${CARROT_SANDBOX_SOURCES})  # Rename if you prefer "Game" or "Sandbox"
 target_include_directories(CarrotSandbox PRIVATE src/Game)

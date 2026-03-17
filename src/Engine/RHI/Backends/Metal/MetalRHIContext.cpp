@@ -95,18 +95,10 @@ namespace carrot::rhi::metal {
             return;
         }
 
-        MTL::VertexDescriptor* vertex_desc{ MTL::VertexDescriptor::alloc()->init() };
-
-        MTL::VertexBufferLayoutDescriptor* layout{ vertex_desc->layouts()->object(0) };
-        layout->setStride(sizeof(push_constants));
-        layout->setStepFunction(MTL::VertexStepFunctionConstant);
-        layout->setStepRate(1);
-
         MTL::RenderPipelineDescriptor* pipeline_desc{ MTL::RenderPipelineDescriptor::alloc()->init() };
         pipeline_desc->setVertexFunction(vertex_fn);
         pipeline_desc->setFragmentFunction(fragment_fn);
         pipeline_desc->colorAttachments()->object(0)->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
-        pipeline_desc->setVertexDescriptor(vertex_desc);
 
         _triangle_pipeline.state = MTL_CHECKED_FATAL(
             _device->mtl_device()->newRenderPipelineState(pipeline_desc, &error), &error);
@@ -116,7 +108,6 @@ namespace carrot::rhi::metal {
         // Clean-up
         vertex_fn->release();
         fragment_fn->release();
-        vertex_desc->release();
         pipeline_desc->release();
         vertex_lib->release();
         fragment_lib->release();
@@ -182,7 +173,11 @@ namespace carrot::rhi::metal {
 
             push_constants* mapped{ static_cast<push_constants *>(current_buf->contents()) };
             mapped->frame_count = _frame_counter++;
-            current_buf->didModifyRange(NS::Range(0, sizeof(push_constants)));
+            
+            if (current_buf->storageMode() == MTL::StorageModeManaged)
+            {
+                current_buf->didModifyRange(NS::Range(0, sizeof(push_constants)));
+            }
 
             encoder->setVertexBuffer(current_buf, 0, 2);
             encoder->drawPrimitives(MTL::PrimitiveTypeTriangle, static_cast<NS::UInteger>(0),

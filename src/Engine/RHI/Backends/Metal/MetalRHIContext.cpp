@@ -12,6 +12,7 @@
 #include "MetalLayerBridge.h"
 #include "MetalSwapchain.h"
 #include "Window/Window.h"
+#include "Assets/Shaders/VFSShaderFileProvider.h"
 
 namespace carrot::rhi::metal {
     namespace {
@@ -60,11 +61,20 @@ namespace carrot::rhi::metal {
         _command_queue = std::make_unique<metal_command_queue_t>(
             MTL_CHECK_FATAL(_device->mtl_device()->newCommandQueue()));
 
+        const auto vert_path{ desc.shader_files->resolve("engine://shaders/metal/triangle.vert.metallib") };
+        const auto frag_path{ desc.shader_files->resolve("engine://shaders/metal/triangle.frag.metallib") };
+
+        if (!vert_path || !frag_path)
+        {
+            LOG_GRAPHICS_FATAL("Failed to resolve shader paths");
+            return;
+        }
+
         NS::String* vert_shader{
-            NS::String::string("shaders/triangle.vert.metallib", NS::StringEncoding::UTF8StringEncoding)
+            NS::String::string(vert_path->string().c_str(), NS::StringEncoding::UTF8StringEncoding)
         };
         NS::String* frag_shader{
-            NS::String::string("shaders/triangle.frag.metallib", NS::StringEncoding::UTF8StringEncoding)
+            NS::String::string(frag_path->string().c_str(), NS::StringEncoding::UTF8StringEncoding)
         };
 
         NS::Error* error{ nullptr };

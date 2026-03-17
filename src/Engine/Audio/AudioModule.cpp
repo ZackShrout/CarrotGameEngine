@@ -7,9 +7,12 @@
 
 #include "AudioModule.h"
 
+#include "Assets/AssetManager.h"
+#include "Assets/AssetService.h"
 #include "Assets/Audio/AudioAsset.h"
 #include "Audio/Backend/AudioBackend.h"
 #include "Audio/Core/AudioEngine.h"
+#include "IO/VirtualFileSystem.h"
 #include "Streaming/WavStreamDecoder.h"
 #include "Utils/File/FileUtils.h"
 
@@ -190,12 +193,16 @@ namespace carrot::audio {
         CE_ASSERT(false, "Attempted to free unknown audio_stream_t*");
     }
 
-    audio_stream_t* audio_module_t::create_stream_from_asset(const assets::audio_asset_t& asset) noexcept
+    audio_stream_t* audio_module_t::create_stream_from_asset(const assets::loaded_audio_asset_t& asset) noexcept
     {
+        if (!asset.valid() || !asset.record) return nullptr;
+
+        const assets::audio_asset_record_t& record{ *asset.record };
         audio_stream_t* stream{ allocate_stream() };
+
         if (!stream)
         {
-            LOG_AUDIO_ERROR("Failed to allocate audio stream for '{}'", asset.file_path.string());
+            LOG_AUDIO_ERROR("Failed to allocate audio stream for '{}'", record.logical_id);
             return nullptr;
         }
 
@@ -204,12 +211,22 @@ namespace carrot::audio {
         constexpr uint32_t sample_rate{ k_engine_sample_rate };
 
         init_audio_stream(*stream, channels, sample_rate);
-        stream->looping = asset.looping;
-        stream->loop_start = asset.loop_start;
-        stream->loop_end = asset.loop_end;
+        stream->looping = record.looping;
+        stream->loop_start = record.loop_start;
+        stream->loop_end = record.loop_end;
 
-        if (!stream->decoder.open(asset.file_path.string(), stream))
+        const auto native_path{ assets::asset_service_t::manager().vfs().resolve_native_path(record.source_uri) };
+        if (!native_path)
+        {
+            LOG_AUDIO_ERROR("Failed to resolve stream source {} for asset {}", record.source_uri, record.logical_id);
             return nullptr;
+        }
+
+        if (!stream->decoder.open(native_path->string(), stream))
+        {
+            LOG_AUDIO_ERROR("Failed to open stream source {} for asset {}", record.source_uri, record.logical_id);
+            return nullptr;
+        }
 
         stream->decoder.start();
 

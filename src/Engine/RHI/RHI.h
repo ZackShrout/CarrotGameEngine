@@ -11,6 +11,12 @@
 #include <memory>
 #include <string_view>
 
+#include "Assets/AssetManager.h"
+
+namespace carrot::assets {
+    class shader_file_provider_t;
+}
+
 namespace carrot::renderer {
     class renderer_t;
 }
@@ -40,9 +46,10 @@ namespace carrot::rhi {
         uint32_t width{ 1280 };
         uint32_t height{ 720 };
         bool enable_debug_layers{ true };
+        assets::shader_file_provider_t* shader_files{ nullptr };
 
         // Temporary bridge for migration
-        renderer::renderer_t* existing_renderer = nullptr;
+        // renderer::renderer_t* existing_renderer = nullptr;
     };
 
     class rhi_context_t

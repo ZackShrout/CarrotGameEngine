@@ -27,11 +27,12 @@ namespace carrot {
     class engine_t
     {
     public:
-        engine_t() noexcept;
+        engine_t() = default;
         ~engine_t();
 
         DISABLE_COPY_AND_MOVE(engine_t)
 
+        void init(const core::engine_paths_t& paths);
         void run(core::ce_application_t* app);
         [[nodiscard]] static engine_t& get() noexcept;
 
@@ -44,6 +45,9 @@ namespace carrot {
 
     private:
         void tick();
+
+        void register_builtin_audio_assets();
+        bool register_audio_asset_manifest(std::string_view manifest_uri);
 
         bool                                                _should_quit{ false };
         float                                               _delta_time{ 0.f };

@@ -10,6 +10,6 @@
 namespace carrot::assets {
     void asset_manager_t::clear()
     {
-        _audio.clear();
+        _audio.clear_all();
     }
 } // namespace carrot::assets

@@ -1,6 +1,6 @@
 {
   "id": "music.hope_for_all_years",
-  "file": "assets/audio/11 Hope for All Years.wav",
+  "source": "engine://audio/11 Hope for All Years.wav",
 
   "bus": "music",
   "gain": 1.0,

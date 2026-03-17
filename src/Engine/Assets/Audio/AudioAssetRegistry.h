@@ -7,37 +7,26 @@
 
 #include "AudioAsset.h"
 #include "Assets/AssetID.h"
-#include "Assets/AssetHandle.h"
 #include "Assets/AssetRegistry.h"
 
-#include <vector>
+#include <string_view>
 #include <unordered_map>
 
 namespace carrot::assets {
-    using audio_asset_handle = asset_handle_t;
-
     class audio_asset_registry_t : public asset_registry_base_t
     {
     public:
         audio_asset_registry_t() = default;
 
-        audio_asset_handle register_asset(asset_id_t id, const audio_asset_t& asset);
+        bool register_asset(audio_asset_record_t record);
 
-        [[nodiscard]] const audio_asset_t* get(audio_asset_handle handle) const noexcept;
-        [[nodiscard]] audio_asset_handle find(asset_id_t id) const noexcept;
-        [[nodiscard]] bool contains(asset_id_t id) const noexcept;
-        [[nodiscard]] bool is_valid(audio_asset_handle handle) const noexcept;
+        [[nodiscard]] const audio_asset_record_t* find(asset_id_t id) const noexcept;
+        [[nodiscard]] const audio_asset_record_t* find(std::string_view logical_id) const noexcept;
+        [[nodiscard]] bool contains(const asset_id_t id) const noexcept { return _records.contains(id); }
 
-        void clear();
+        void clear() noexcept { _records.clear(); }
 
     private:
-        struct entry_t
-        {
-            audio_asset_t asset;
-            uint32_t generation;
-        };
-
-        std::vector<entry_t> _assets;
-        std::unordered_map<asset_id_t, uint32_t> _id_to_index;
+        std::unordered_map<asset_id_t, audio_asset_record_t> _records;
     };
 }

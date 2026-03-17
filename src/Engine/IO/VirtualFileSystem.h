@@ -29,8 +29,10 @@ namespace carrot::io {
         void clear() { _mounts.clear(); }
 
         [[nodiscard]] bool is_mounted(std::string_view scheme) const noexcept;
-        [[nodiscard]] std::optional<std::filesystem::path> resolve(std::string_view virtual_path) const;
         [[nodiscard]] bool is_virtual_path(std::string_view path) const noexcept;
+
+        [[nodiscard]] std::optional<std::filesystem::path> resolve_native_path(std::string_view virtual_path) const;
+        [[nodiscard]] bool exists(std::string_view path) const;
 
         [[nodiscard]] std::optional<vfs_mount_point_t> get_mount(std::string_view scheme) const;
 

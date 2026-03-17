@@ -1,6 +1,6 @@
 {
   "id": "music.victory",
-  "file": "assets/audio/Victory!.wav",
+  "source": "engine://audio/Victory!.wav",
 
   "bus": "music",
   "gain": 1.0,

@@ -17,7 +17,7 @@
 #include "Window/Window.h"
 #include "Core/Application.h"
 #include "RHI/RHI.h"
-#include "Assets/Audio/AudioAssetImporter.h"
+#include "Assets/Audio/AudioAssetManifestImporter.h"
 #include "Core/EnginePaths.h"
 
 namespace carrot {
@@ -30,64 +30,6 @@ namespace carrot {
     } // anonymous namespace
 
     // PUBLIC
-    engine_t::engine_t() noexcept
-    {
-        constexpr uint32_t width{ 1280 };
-        constexpr uint32_t height{ 720 };
-
-        core::logger_t::init();
-        window::create_primary_window(width, height, "Carrot Engine – Month 1");
-
-        engine_config_t config{ load_engine_config() };
-
-        // RENDERER
-        _renderer = std::make_unique<renderer::renderer_t>(config.graphics);
-
-        // AUDIO
-        _audio_module = std::make_unique<audio::audio_module_t>(config.audio);
-        _audio_module->init();
-        audio::audio_service_t::provide(_audio_module.get());
-
-        // _audio_asset_registry = std::make_unique<assets::audio_asset_registry_t>();
-        // assets::asset_service_t::provide(_audio_asset_registry.get());
-
-        assets::asset_service_t::provide(&_asset_manager);
-        assets::audio_asset_registry_t& audio_registry{ assets::asset_service_t::manager().audio() };
-
-        // Start Audio Tests
-        std::string_view path{ "assets/audio/victory.audio.json" };
-        utils::json::json_document_t doc;
-
-        if (!doc.parse_from_file(utils::file::resolve_asset_path(path).data()))
-            LOG_ASSET_ERROR("Failed to parse audio asset file '{}'", path);
-
-        assets::audio_asset_importer_t::import(doc, audio_registry);
-
-        path = "assets/audio/jalen_theme.audio.json";
-
-        if (!doc.parse_from_file(utils::file::resolve_asset_path(path).data()))
-            LOG_ASSET_ERROR("Failed to parse audio asset file '{}'", path);
-
-        assets::audio_asset_importer_t::import(doc, audio_registry);
-
-        path = "assets/audio/hope_for_all_years.audio.json";
-
-        if (!doc.parse_from_file(utils::file::resolve_asset_path(path).data()))
-            LOG_ASSET_ERROR("Failed to parse audio asset file '{}'", path);
-
-        assets::audio_asset_importer_t::import(doc, audio_registry);
-
-        path = "assets/audio/oak_battle_theme.audio.json";
-
-        if (!doc.parse_from_file(utils::file::resolve_asset_path(path).data()))
-            LOG_ASSET_ERROR("Failed to parse audio asset file '{}'", path);
-
-        assets::audio_asset_importer_t::import(doc, audio_registry);
-
-        // End Audio Tests
-
-        LOG_CORE_INFO("Carrot Engine Initialized (Pure RHI Mode)");
-    }
 
     engine_t::~engine_t()
     {
@@ -101,6 +43,35 @@ namespace carrot {
         _renderer.reset();
         window::destroy_primary_window();
         core::logger_t::shutdown();
+    }
+
+    void engine_t::init(const core::engine_paths_t& paths)
+    {
+        configure_paths(paths);
+
+        constexpr uint32_t width{ 1280 };
+        constexpr uint32_t height{ 720 };
+
+        core::logger_t::init();
+        window::create_primary_window(width, height, "Carrot Engine – Month 1");
+
+        engine_config_t config{ load_engine_config() };
+
+        // RENDERER
+        _renderer = std::make_unique<renderer::renderer_t>(_vfs, config.graphics);
+
+        // AUDIO
+        _audio_module = std::make_unique<audio::audio_module_t>(config.audio);
+        _audio_module->init();
+        audio::audio_service_t::provide(_audio_module.get());
+
+        assets::asset_service_t::provide(&_asset_manager);
+
+        // Start Audio Tests
+        register_builtin_audio_assets();
+        // End Audio Tests
+
+        LOG_CORE_INFO("Carrot Engine Initialized (Pure RHI Mode)");
     }
 
     void engine_t::run(core::ce_application_t* app)
@@ -158,6 +129,12 @@ namespace carrot {
 
     void engine_t::configure_paths(const core::engine_paths_t& paths)
     {
+        LOG_CORE_INFO("Configuring engine paths...");
+        LOG_CORE_INFO("Engine Root: {}", paths.engine_root.value_or("Not set").c_str());
+        LOG_CORE_INFO("Game Root: {}", paths.game_root.value_or("Not set").c_str());
+        LOG_CORE_INFO("Source Root: {}", paths.source_root.value_or("Not set").c_str());
+        LOG_CORE_INFO("Save Root: {}", paths.save_root.value_or("Not set").c_str());
+
         if (paths.engine_root)
             _vfs.mount("engine", *paths.engine_root, true);
 
@@ -209,5 +186,27 @@ namespace carrot {
         //     _renderer->get_rhi()->resize(800, 600);
         //     resized = true;
         // }
+    }
+
+    void engine_t::register_builtin_audio_assets()
+    {
+        register_audio_asset_manifest("engine://audio/victory.audio.json");
+        register_audio_asset_manifest("engine://audio/jalen_theme.audio.json");
+        register_audio_asset_manifest("engine://audio/hope_for_all_years.audio.json");
+        register_audio_asset_manifest("engine://audio/oak_battle_theme.audio.json");
+    }
+
+    bool engine_t::register_audio_asset_manifest(std::string_view manifest_uri)
+    {
+        const std::optional<std::filesystem::path> native_path{ _asset_manager.vfs().resolve_native_path(manifest_uri) };
+
+        utils::json::json_document_t doc;
+        if (!doc.parse_from_file(native_path->string().c_str()))
+        {
+            LOG_ASSET_ERROR("Failed to parse audio asset manifest '{}'", manifest_uri);
+            return false;
+        }
+
+        return assets::audio_asset_manifest_importer_t::import(doc, _asset_manager.audio().registry(), _vfs);
     }
 } // namespace carrot

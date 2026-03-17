@@ -18,11 +18,10 @@ namespace carrot::io {
         if (scheme.ends_with("://"))
             scheme.resize(scheme.size() - 3);
 
-        _mounts[scheme] = vfs_mount_point_t{
-            .scheme = std::move(scheme),
-            .root = std::move(root),
-            .read_only = read_only
-        };
+        vfs_mount_point_t& mount{ _mounts[scheme] };
+        mount.scheme = scheme;
+        mount.root = std::move(root);
+        mount.read_only = read_only;
     }
 
     bool virtual_file_system_t::is_mounted(const std::string_view scheme) const noexcept
@@ -30,7 +29,13 @@ namespace carrot::io {
         return _mounts.contains(std::string{ scheme });
     }
 
-    std::optional<std::filesystem::path> virtual_file_system_t::resolve(const std::string_view virtual_path) const
+    bool virtual_file_system_t::is_virtual_path(const std::string_view path) const noexcept
+    {
+        return split_scheme(path).has_value();
+    }
+
+    std::optional<std::filesystem::path> virtual_file_system_t::resolve_native_path(
+        const std::string_view virtual_path) const
     {
         if (virtual_path.empty())
             return std::nullopt;
@@ -44,18 +49,28 @@ namespace carrot::io {
 
         const auto& [scheme, remainder] = *split;
 
-        const auto it{ _mounts.find(std::string{ scheme }) };
+        const auto it{ _mounts.find(std::string{scheme}) };
         if (it == _mounts.end())
+        {
+            LOG_ASSET_ERROR("VFS scheme '{}' is not mounted", scheme);
             return std::nullopt;
+        }
 
         const std::filesystem::path resolved{ it->second.root / remainder };
+        if (!std::filesystem::exists(resolved))
+        {
+            LOG_ASSET_ERROR("Resolved VFS path '{}' to '{}', but the file does not exist", virtual_path,
+                            resolved.string());
+            return std::nullopt;
+        }
 
         return resolved.lexically_normal();
     }
 
-    bool virtual_file_system_t::is_virtual_path(const std::string_view path) const noexcept
+    bool virtual_file_system_t::exists(std::string_view path) const
     {
-        return split_scheme(path).has_value();
+        const std::optional<std::filesystem::path> resolved{ resolve_native_path(path) };
+        return resolved.has_value() && std::filesystem::exists(*resolved);
     }
 
     std::optional<vfs_mount_point_t> virtual_file_system_t::get_mount(const std::string_view scheme) const
@@ -72,6 +87,7 @@ namespace carrot::io {
     virtual_file_system_t::split_scheme(std::string_view path) noexcept
     {
         const size_t pos{ path.find("://") };
+
         if (pos == std::string_view::npos || pos == 0)
             return std::nullopt;
 

@@ -7,33 +7,35 @@
 
 #include "VulkanTexturedQuadPipeline.h"
 
+#include "Assets/Shaders/ShaderFileProvider.h"
 #include "Renderer/Primitives/QuadVertex.h"
 #include "Renderer/Primitives/TexturedQuadPushConstants.h"
+#include "Utils/File/FileUtils.h"
 
 #include <fstream>
 
 namespace carrot::rhi::vulkan {
     namespace {
-        std::vector<uint32_t> load_spv(const std::string& path)
+        std::vector<uint32_t> load_spv(const std::filesystem::path& path)
         {
             std::ifstream file{ path, std::ios::ate | std::ios::binary };
             if (!file.is_open())
             {
-                LOG_GRAPHICS_FATAL("Failed to open SPIR-V file: {}", path);
+                LOG_GRAPHICS_FATAL("Failed to open SPIR-V file: {}", utils::file::to_log_string(path));
                 throw std::runtime_error("Failed to open shader file");
             }
 
             const std::streampos file_size{ file.tellg() };
             if (file_size < 0)
             {
-                LOG_GRAPHICS_FATAL("Invalid file size for {}", path);
+                LOG_GRAPHICS_FATAL("Invalid file size for {}", utils::file::to_log_string(path));
                 throw std::runtime_error("Invalid shader file size");
             }
 
             if ((file_size % 4) != 0)
             {
                 LOG_GRAPHICS_FATAL("SPIR-V file size not multiple of 4 bytes: {} bytes ({})",
-                                   static_cast<uint64_t>(file_size), path);
+                                   static_cast<uint64_t>(file_size), utils::file::to_log_string(path));
                 throw std::runtime_error("Invalid SPIR-V size");
             }
 
@@ -44,12 +46,12 @@ namespace carrot::rhi::vulkan {
 
             if (!file)
             {
-                LOG_GRAPHICS_FATAL("Failed to read SPIR-V file: {}", path);
+                LOG_GRAPHICS_FATAL("Failed to read SPIR-V file: {}", utils::file::to_log_string(path));
                 throw std::runtime_error("Failed to read shader file");
             }
 
             LOG_GRAPHICS_INFO("Loaded SPIR-V {}: {} words ({} bytes)",
-                              path, buffer.size(), static_cast<uint64_t>(file_size));
+                              utils::file::to_log_string(path), buffer.size(), static_cast<uint64_t>(file_size));
 
             return buffer;
         }
@@ -89,10 +91,19 @@ namespace carrot::rhi::vulkan {
         }
     } // namespace
 
-    vulkan_textured_quad_pipeline_t::vulkan_textured_quad_pipeline_t(const vulkan_device_t* device, VkRenderPass render_pass) : _device{ device }
+    vulkan_textured_quad_pipeline_t::vulkan_textured_quad_pipeline_t(const vulkan_device_t* device, VkRenderPass render_pass, assets::shader_file_provider_t* shader_files) : _device{ device }
     {
-        const auto vert_code = load_spv("shaders/textured_quad.vert.spv");
-        const auto frag_code = load_spv("shaders/textured_quad.frag.spv");
+        const auto vert_path{ shader_files->resolve("engine://shaders/vulkan/textured_quad.vert.spv") };
+        const auto frag_path{ shader_files->resolve("engine://shaders/vulkan/textured_quad.frag.spv") };
+
+        if (!vert_path || !frag_path)
+        {
+            LOG_GRAPHICS_FATAL("Failed to resolve shader paths");
+            return;
+        }
+
+        std::vector<uint32_t> vert_code{ load_spv(*vert_path) };
+        std::vector<uint32_t> frag_code{ load_spv(*frag_path) };
 
         const VkShaderModule vert_module = create_shader_module(vert_code);
         const VkShaderModule frag_module = create_shader_module(frag_code);

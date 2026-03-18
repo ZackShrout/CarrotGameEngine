@@ -22,7 +22,9 @@ namespace carrot::utils::file {
                 return { };
 
             if (copied < buffer.size())
-                return std::filesystem::path{ buffer.data(), buffer.data() + copied };
+                return std::filesystem::weakly_canonical(std::filesystem::path{
+                    buffer.data(), buffer.data() + copied
+                });
 
             buffer.resize(buffer.size() * 2);
         }

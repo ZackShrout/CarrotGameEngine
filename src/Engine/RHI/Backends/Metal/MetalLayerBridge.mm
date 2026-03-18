@@ -46,7 +46,6 @@ void metal_resize_layer(void* layer, uint32_t width, uint32_t height)
     CAMetalLayer* metal_layer{ static_cast<CAMetalLayer*>(layer) };
     CGFloat scale{ metal_layer.contentsScale };
     metal_layer.drawableSize = CGSizeMake(width * scale, height * scale);
-    LOG_GRAPHICS_INFO("Metal layer resized to {}x{}", width, height);
 }
 
 void* metal_next_drawable(void* layer)

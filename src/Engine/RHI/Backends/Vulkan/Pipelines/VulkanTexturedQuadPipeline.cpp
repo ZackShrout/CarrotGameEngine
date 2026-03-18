@@ -10,52 +10,13 @@
 #include "Assets/Shaders/ShaderFileProvider.h"
 #include "Renderer/Primitives/QuadVertex.h"
 #include "Renderer/Primitives/TexturedQuadPushConstants.h"
+#include "RHI/Backends/Vulkan/VulkanUtils.h"
 #include "Utils/File/FileUtils.h"
 
 #include <fstream>
 
 namespace carrot::rhi::vulkan {
     namespace {
-        std::vector<uint32_t> load_spv(const std::filesystem::path& path)
-        {
-            std::ifstream file{ path, std::ios::ate | std::ios::binary };
-            if (!file.is_open())
-            {
-                LOG_GRAPHICS_FATAL("Failed to open SPIR-V file: {}", utils::file::to_log_string(path));
-                throw std::runtime_error("Failed to open shader file");
-            }
-
-            const std::streampos file_size{ file.tellg() };
-            if (file_size < 0)
-            {
-                LOG_GRAPHICS_FATAL("Invalid file size for {}", utils::file::to_log_string(path));
-                throw std::runtime_error("Invalid shader file size");
-            }
-
-            if ((file_size % 4) != 0)
-            {
-                LOG_GRAPHICS_FATAL("SPIR-V file size not multiple of 4 bytes: {} bytes ({})",
-                                   static_cast<uint64_t>(file_size), utils::file::to_log_string(path));
-                throw std::runtime_error("Invalid SPIR-V size");
-            }
-
-            std::vector<uint32_t> buffer(static_cast<size_t>(file_size / 4));
-
-            file.seekg(0);
-            file.read(reinterpret_cast<char*>(buffer.data()), file_size);
-
-            if (!file)
-            {
-                LOG_GRAPHICS_FATAL("Failed to read SPIR-V file: {}", utils::file::to_log_string(path));
-                throw std::runtime_error("Failed to read shader file");
-            }
-
-            LOG_GRAPHICS_INFO("Loaded SPIR-V {}: {} words ({} bytes)",
-                              utils::file::to_log_string(path), buffer.size(), static_cast<uint64_t>(file_size));
-
-            return buffer;
-        }
-
         [[nodiscard]] VkVertexInputBindingDescription make_vertex_binding_description() noexcept
         {
             VkVertexInputBindingDescription binding{};
@@ -102,11 +63,11 @@ namespace carrot::rhi::vulkan {
             return;
         }
 
-        std::vector<uint32_t> vert_code{ load_spv(*vert_path) };
-        std::vector<uint32_t> frag_code{ load_spv(*frag_path) };
+        std::vector<uint32_t> vert_code{ *load_spv_file(*vert_path) };
+        std::vector<uint32_t> frag_code{ *load_spv_file(*frag_path) };
 
-        const VkShaderModule vert_module = create_shader_module(vert_code);
-        const VkShaderModule frag_module = create_shader_module(frag_code);
+        const VkShaderModule vert_module{ create_shader_module(vert_code) };
+        const VkShaderModule frag_module{ create_shader_module(frag_code) };
 
         VkPipelineShaderStageCreateInfo stages[2]{};
         stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;

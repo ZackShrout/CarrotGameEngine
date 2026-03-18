@@ -7,53 +7,13 @@
 
 #include "VulkanPipeline.h"
 
+#include "VulkanUtils.h"
 #include "Assets/Shaders/ShaderFileProvider.h"
 #include "Utils/File/FileUtils.h"
 
 #include <fstream>
 
 namespace carrot::rhi::vulkan {
-    namespace {
-        std::vector<uint32_t> load_spv(const std::filesystem::path& path)
-        {
-            std::ifstream file{ path, std::ios::ate | std::ios::binary };
-            if (!file.is_open())
-            {
-                LOG_GRAPHICS_FATAL("Failed to open SPIR-V file: {}", utils::file::to_log_string(path));
-                throw std::runtime_error("Failed to open shader file");
-            }
-
-            auto file_size = file.tellg();
-            if (file_size < 0)
-            {
-                LOG_GRAPHICS_FATAL("Invalid file size for {}", utils::file::to_log_string(path));
-                throw std::runtime_error("Invalid file size");
-            }
-
-            if (file_size % 4 != 0)
-            {
-                LOG_GRAPHICS_FATAL("SPIR-V file size not multiple of 4 bytes: {} bytes ({})",
-                                   static_cast<uint64_t>(file_size), utils::file::to_log_string(path));
-                throw std::runtime_error("Invalid SPIR-V size (not multiple of 4)");
-            }
-
-            std::vector<uint32_t> buffer(static_cast<size_t>(file_size / 4));
-
-            file.seekg(0);
-            file.read(reinterpret_cast<char *>(buffer.data()), file_size);
-
-            if (!file)
-            {
-                LOG_GRAPHICS_FATAL("Failed to read SPIR-V file: {}", utils::file::to_log_string(path));
-                throw std::runtime_error("Failed to read shader");
-            }
-
-            LOG_GRAPHICS_INFO("Loaded SPIR-V {}: {} words ({} bytes)", utils::file::to_log_string(path), buffer.size(),
-                              static_cast<uint64_t>(file_size));
-            return buffer;
-        }
-    } // anonymous namespace
-
     // PUBLIC
     vulkan_pipeline_t::vulkan_pipeline_t(const vulkan_device_t* device, VkRenderPass render_pass,
                                          assets::shader_file_provider_t* shader_files) : _device{ device }
@@ -67,8 +27,8 @@ namespace carrot::rhi::vulkan {
             return;
         }
 
-        std::vector<uint32_t> vert_code{ load_spv(*vert_path) };
-        std::vector<uint32_t> frag_code{ load_spv(*frag_path) };
+        std::vector<uint32_t> vert_code{ *load_spv_file(*vert_path) };
+        std::vector<uint32_t> frag_code{ *load_spv_file(*frag_path) };
 
         VkShaderModule vert_module = create_shader_module(vert_code);
         VkShaderModule frag_module = create_shader_module(frag_code);

@@ -199,7 +199,11 @@ namespace carrot::rhi::metal {
         pool->release();
     }
 
-    void metal_rhi_context_t::resize(uint32_t width, uint32_t height) {}
+    void metal_rhi_context_t::resize(const uint32_t width, const uint32_t height)
+    {
+        if (_swapchain)
+            _swapchain->resize(width, height);
+    }
 
     rhi_device_t* metal_rhi_context_t::get_device() const noexcept
     {

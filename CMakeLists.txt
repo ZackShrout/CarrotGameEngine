@@ -173,7 +173,6 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Utils/File/PlatformPaths.h
         src/Engine/Assets/Shaders/ShaderFileProvider.h
         src/Engine/Assets/Shaders/VFSShaderFileProvider.h
-        src/Engine/RHI/Backends/Vulkan/VulkanUtils.h
 )
 
 # ------------------------------------------------------------------------
@@ -246,6 +245,7 @@ elseif (WIN32)
             src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.h
             src/Engine/RHI/Backends/Vulkan/VulkanTexture.cpp
             src/Engine/RHI/Backends/Vulkan/VulkanTexture.h
+            src/Engine/RHI/Backends/Vulkan/VulkanUtils.h
 
             src/Engine/RHI/Backends/DirectX12/DirectX12Common.h
             src/Engine/RHI/Backends/DirectX12/DirectX12Core.h
@@ -354,6 +354,7 @@ elseif (UNIX)
             src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.h
             src/Engine/RHI/Backends/Vulkan/VulkanTexture.cpp
             src/Engine/RHI/Backends/Vulkan/VulkanTexture.h
+            src/Engine/RHI/Backends/Vulkan/VulkanUtils.h
 
             src/Engine/Audio/Backend/Linux/LinuxAudioBackend.cpp
             src/Engine/Audio/Backend/Linux/LinuxAudioBackend.h

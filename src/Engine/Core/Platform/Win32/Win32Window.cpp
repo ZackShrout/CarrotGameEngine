@@ -238,7 +238,6 @@ namespace carrot::core::platform {
                 ShowWindow(_hwnd, SW_MAXIMIZE);
         }
 
-        // Optional: tell your renderer the client area probably changed
         RECT client{};
         GetClientRect(_hwnd, &client);
         uint32_t new_w = client.right  - client.left;

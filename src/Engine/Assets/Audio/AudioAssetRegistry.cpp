@@ -13,6 +13,9 @@ namespace carrot::assets {
         if (record.id == 0 || record.logical_id.empty())
             return false;
 
+        if (!is_valid_logical_asset_id(record.logical_id))
+            return false;
+
         return _records.emplace(record.id, std::move(record)).second;
     }
 

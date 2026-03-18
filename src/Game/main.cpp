@@ -7,7 +7,6 @@
 
 #include <CarrotEngine.h>
 
-
 int main()
 {
     sandbox::sandbox_t game{ };

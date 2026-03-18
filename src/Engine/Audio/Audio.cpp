@@ -57,7 +57,7 @@ namespace carrot::audio {
             cmd.type = audio_command_type::play_sound;
             cmd.play_sound.handle = handle;
 
-            cmd.play_sound.sample = asset.sample;
+            cmd.play_sound.sample = asset.sample.get();
             cmd.play_sound.bus    = record.bus;
 
             cmd.play_sound.gain   = gain;

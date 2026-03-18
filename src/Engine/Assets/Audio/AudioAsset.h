@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <string>
+#include <memory>
 
 namespace carrot::assets {
     /**
@@ -121,9 +122,9 @@ namespace carrot::assets {
 
         /** @brief PCM audio sample used for playback of non-streamed assets.
          *
-         * For streamed assets, this remains nullptr and playback uses record->source_file.
+         * For streamed assets, this remains nullptr and playback uses record->source_uri.
          */
-        const audio::audio_sample_t* sample{ nullptr };
+        std::unique_ptr<audio::audio_sample_t> sample{ nullptr };
 
         [[nodiscard]] bool valid() const noexcept
         {

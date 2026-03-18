@@ -24,8 +24,14 @@ namespace carrot::assets {
         }
 
         audio_asset_load_result_t result{ load_audio_asset(*record, _vfs) };
-        if (!result.success)
+        if (!result.success())
+        {
+            LOG_ASSET_ERROR("Failed to load audio asset '{}' from '{}': {}",
+                            record->logical_id,
+                            record->source_uri,
+                            to_string(result.error));
             return nullptr;
+        }
 
         const auto [it, inserted]{ _loaded.emplace(id, std::move(result.asset)) };
 

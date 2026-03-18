@@ -15,7 +15,7 @@
 #include <memory>
 
 namespace carrot::assets {
-    struct audio_asset_t;
+    struct loaded_audio_asset_t;
 }
 
 namespace carrot::audio {
@@ -125,7 +125,7 @@ namespace carrot::audio {
         audio_stream_t* allocate_stream() noexcept;
         void free_stream(audio_stream_t* stream);
 
-        audio_stream_t* create_stream_from_asset(const assets::audio_asset_t& asset) noexcept;
+        audio_stream_t* create_stream_from_asset(const assets::loaded_audio_asset_t& asset) noexcept;
 
         /**
          * @brief Accesses the audio engine instance.

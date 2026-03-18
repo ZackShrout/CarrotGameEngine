@@ -16,6 +16,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # Output directories (bin/Debug, bin/Release, etc.)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
@@ -124,8 +125,6 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/Audio/AudioAsset.h
         src/Engine/Assets/Audio/AudioAssetRegistry.cpp
         src/Engine/Assets/Audio/AudioAssetRegistry.h
-        src/Engine/Assets/Audio/AudioAssetImporter.cpp
-        src/Engine/Assets/Audio/AudioAssetImporter.h
         src/Engine/Assets/AssetService.cpp
         src/Engine/Assets/AssetService.h
         src/Engine/Audio/Voice/VoiceHandle.h
@@ -153,8 +152,6 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/Image/ImageLoadError.cpp
         src/Engine/Assets/Image/ImageAssetImporter.cpp
         src/Engine/Assets/Image/ImageAssetImporter.h
-        src/Engine/RHI/Backends/Vulkan/VulkanTexture.cpp
-        src/Engine/RHI/Backends/Vulkan/VulkanTexture.h
         src/Engine/Assets/Texture/TextureAsset.cpp
         src/Engine/Assets/Texture/TextureAsset.h
         src/Engine/Assets/Texture/TextureAssetImporter.cpp
@@ -167,6 +164,15 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Renderer/Primitives/QuadVertex.h
         src/Engine/Renderer/Primitives/QuadMesh.h
         src/Engine/Renderer/Primitives/TexturedQuadPushConstants.h
+        src/Engine/Assets/Audio/AudioAssetManifestImporter.cpp
+        src/Engine/Assets/Audio/AudioAssetManifestImporter.h
+        src/Engine/Assets/Audio/AudioAssetLoader.cpp
+        src/Engine/Assets/Audio/AudioAssetLoader.h
+        src/Engine/Assets/Audio/AudioAssetSystem.cpp
+        src/Engine/Assets/Audio/AudioAssetSystem.h
+        src/Engine/Utils/File/PlatformPaths.h
+        src/Engine/Assets/Shaders/ShaderFileProvider.h
+        src/Engine/Assets/Shaders/VFSShaderFileProvider.h
 )
 
 # ------------------------------------------------------------------------
@@ -207,6 +213,8 @@ if (APPLE)
 
             src/Engine/Audio/Backend/Apple/AppleAudioBackend.cpp
             src/Engine/Audio/Backend/Apple/AppleAudioBackend.h
+
+            src/Engine/Utils/File/ApplePlatformPaths.cpp
     )
 elseif (WIN32)
     set(CARROT_PLATFORM_WIN32 ON CACHE INTERNAL "")
@@ -235,6 +243,9 @@ elseif (WIN32)
             src/Engine/RHI/Backends/Vulkan/VulkanBuffer.h
             src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.cpp
             src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.h
+            src/Engine/RHI/Backends/Vulkan/VulkanTexture.cpp
+            src/Engine/RHI/Backends/Vulkan/VulkanTexture.h
+            src/Engine/RHI/Backends/Vulkan/VulkanUtils.h
 
             src/Engine/RHI/Backends/DirectX12/DirectX12Common.h
             src/Engine/RHI/Backends/DirectX12/DirectX12Core.h
@@ -253,6 +264,8 @@ elseif (WIN32)
 
             src/Engine/Audio/Backend/Windows/WindowsAudioBackend.cpp
             src/Engine/Audio/Backend/Windows/WindowsAudioBackend.h
+
+            src/Engine/Utils/File/WindowsPlatformPaths.cpp
     )
 elseif (UNIX)
     # Define the cache variable with a proper default value right away.
@@ -339,9 +352,14 @@ elseif (UNIX)
             src/Engine/RHI/Backends/Vulkan/VulkanBuffer.h
             src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.cpp
             src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.h
+            src/Engine/RHI/Backends/Vulkan/VulkanTexture.cpp
+            src/Engine/RHI/Backends/Vulkan/VulkanTexture.h
+            src/Engine/RHI/Backends/Vulkan/VulkanUtils.h
 
             src/Engine/Audio/Backend/Linux/LinuxAudioBackend.cpp
             src/Engine/Audio/Backend/Linux/LinuxAudioBackend.h
+
+            src/Engine/Utils/File/LinuxPlatformPaths.cpp
     )
 
 endif()
@@ -354,6 +372,8 @@ add_subdirectory(deps/CarrotPNG)
 # ------------------------------------------------------------------------
 # Engine Static Library
 # ------------------------------------------------------------------------
+source_group(TREE ${CMAKE_SOURCE_DIR} FILES ${CARROT_ENGINE_SOURCES})
+
 add_library(CarrotEngine STATIC ${CARROT_ENGINE_SOURCES})
 
 target_compile_definitions(CarrotEngine PRIVATE
@@ -541,6 +561,8 @@ set(CARROT_SANDBOX_SOURCES
         src/Game/Game.h
 )
 
+source_group(TREE ${CMAKE_SOURCE_DIR} FILES ${CARROT_SANDBOX_SOURCES})
+
 add_executable(CarrotSandbox ${CARROT_SANDBOX_SOURCES})  # Rename if you prefer "Game" or "Sandbox"
 target_include_directories(CarrotSandbox PRIVATE src/Game)
 target_link_libraries(CarrotSandbox PRIVATE CarrotEngine)
@@ -560,23 +582,23 @@ target_link_libraries(CarrotSandbox PRIVATE CarrotEngine)
 include(CompileShaders.cmake)
 
 file(GLOB HLSL_SOURCES "shaders/*.vert.hlsl" "shaders/*.frag.hlsl")
-set(SHADER_OUTPUT_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>/shaders")
+set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders")
 
 if(APPLE)
     foreach(SHADER_FILE IN LISTS HLSL_SOURCES)
         file(RELATIVE_PATH REL_SHADER "${CMAKE_CURRENT_SOURCE_DIR}" "${SHADER_FILE}")
-        compile_hlsl_to_metallib(CarrotSandbox "${REL_SHADER}" "${SHADER_OUTPUT_DIR}")
+        compile_hlsl_to_metallib(CarrotSandbox "${REL_SHADER}" "${SHADER_OUTPUT_DIR}/metal")
     endforeach()
 else()
     if(WIN32)
         foreach(SHADER_FILE IN LISTS HLSL_SOURCES)
             file(RELATIVE_PATH REL_SHADER "${CMAKE_CURRENT_SOURCE_DIR}" "${SHADER_FILE}")
-            compile_hlsl_to_dxil(CarrotSandbox "${REL_SHADER}" "${SHADER_OUTPUT_DIR}")
+            compile_hlsl_to_dxil(CarrotSandbox "${REL_SHADER}" "${SHADER_OUTPUT_DIR}/dx12")
         endforeach ()
     endif ()
     foreach(SHADER_FILE IN LISTS HLSL_SOURCES)
         file(RELATIVE_PATH REL_SHADER "${CMAKE_CURRENT_SOURCE_DIR}" "${SHADER_FILE}")
-        compile_hlsl_to_spirv(CarrotSandbox "${REL_SHADER}" "${SHADER_OUTPUT_DIR}")
+        compile_hlsl_to_spirv(CarrotSandbox "${REL_SHADER}" "${SHADER_OUTPUT_DIR}/vulkan")
     endforeach()
 endif()
 

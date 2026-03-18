@@ -17,8 +17,9 @@
 #include "Window/Window.h"
 #include "Core/Application.h"
 #include "RHI/RHI.h"
-#include "Assets/Audio/AudioAssetImporter.h"
+#include "Assets/Audio/AudioAssetManifestImporter.h"
 #include "Core/EnginePaths.h"
+#include "Utils/File/PlatformPaths.h"
 
 namespace carrot {
     namespace {
@@ -30,64 +31,6 @@ namespace carrot {
     } // anonymous namespace
 
     // PUBLIC
-    engine_t::engine_t() noexcept
-    {
-        constexpr uint32_t width{ 1280 };
-        constexpr uint32_t height{ 720 };
-
-        core::logger_t::init();
-        window::create_primary_window(width, height, "Carrot Engine – Month 1");
-
-        engine_config_t config{ load_engine_config() };
-
-        // RENDERER
-        _renderer = std::make_unique<renderer::renderer_t>(config.graphics);
-
-        // AUDIO
-        _audio_module = std::make_unique<audio::audio_module_t>(config.audio);
-        _audio_module->init();
-        audio::audio_service_t::provide(_audio_module.get());
-
-        // _audio_asset_registry = std::make_unique<assets::audio_asset_registry_t>();
-        // assets::asset_service_t::provide(_audio_asset_registry.get());
-
-        assets::asset_service_t::provide(&_asset_manager);
-        assets::audio_asset_registry_t& audio_registry{ assets::asset_service_t::manager().audio() };
-
-        // Start Audio Tests
-        std::string_view path{ "assets/audio/victory.audio.json" };
-        utils::json::json_document_t doc;
-
-        if (!doc.parse_from_file(utils::file::resolve_asset_path(path).data()))
-            LOG_ASSET_ERROR("Failed to parse audio asset file '{}'", path);
-
-        assets::audio_asset_importer_t::import(doc, audio_registry);
-
-        path = "assets/audio/jalen_theme.audio.json";
-
-        if (!doc.parse_from_file(utils::file::resolve_asset_path(path).data()))
-            LOG_ASSET_ERROR("Failed to parse audio asset file '{}'", path);
-
-        assets::audio_asset_importer_t::import(doc, audio_registry);
-
-        path = "assets/audio/hope_for_all_years.audio.json";
-
-        if (!doc.parse_from_file(utils::file::resolve_asset_path(path).data()))
-            LOG_ASSET_ERROR("Failed to parse audio asset file '{}'", path);
-
-        assets::audio_asset_importer_t::import(doc, audio_registry);
-
-        path = "assets/audio/oak_battle_theme.audio.json";
-
-        if (!doc.parse_from_file(utils::file::resolve_asset_path(path).data()))
-            LOG_ASSET_ERROR("Failed to parse audio asset file '{}'", path);
-
-        assets::audio_asset_importer_t::import(doc, audio_registry);
-
-        // End Audio Tests
-
-        LOG_CORE_INFO("Carrot Engine Initialized (Pure RHI Mode)");
-    }
 
     engine_t::~engine_t()
     {
@@ -103,9 +46,77 @@ namespace carrot {
         core::logger_t::shutdown();
     }
 
-    void engine_t::run(core::ce_application_t* app)
+    void engine_t::init()
     {
-        auto& main_window = window::get_primary_window();
+        return init(make_default_engine_paths());
+    }
+
+    void engine_t::init(const core::engine_paths_t& paths)
+    {
+        core::logger_t::init();
+
+        configure_paths(paths);
+
+        engine_config_t config{ load_engine_config(_vfs) };
+
+        constexpr uint32_t width{ 1280 };
+        constexpr uint32_t height{ 720 };
+
+        window::create_primary_window(width, height, "Carrot Engine – Month 1");
+
+        // RENDERER
+        _renderer = std::make_unique<renderer::renderer_t>(_vfs, config.graphics);
+
+        // AUDIO
+        _audio_module = std::make_unique<audio::audio_module_t>(config.audio);
+        _audio_module->init();
+        audio::audio_service_t::provide(_audio_module.get());
+
+        assets::asset_service_t::provide(&_asset_manager);
+
+        // Start Audio Tests
+        register_builtin_audio_assets();
+        // End Audio Tests
+
+        LOG_CORE_INFO("Carrot Engine Initialized (Pure RHI Mode)");
+        _initialized = true;
+    }
+
+    int engine_t::run(core::ce_application_t* app)
+    {
+        if (!_initialized)
+        {
+            LOG_CORE_FATAL("engine_t::run() called before engine_t::init()");
+            return static_cast<int>(exit_code::error);
+        }
+
+        if (!_renderer)
+        {
+            LOG_CORE_FATAL("Renderer not initialized");
+            return static_cast<int>(exit_code::error);
+        }
+
+        if (!_renderer->get_rhi())
+        {
+            LOG_CORE_FATAL("RHI not initialized");
+            return static_cast<int>(exit_code::error);
+        }
+
+        if (app == nullptr)
+        {
+            LOG_CORE_FATAL("Application not provided");
+            return static_cast<int>(exit_code::error);
+        }
+
+        if (_running)
+        {
+            LOG_CORE_FATAL("engine_t::run() called while engine is already running");
+            return static_cast<int>(exit_code::error);
+        }
+
+        core::platform::window_t& main_window{ window::get_primary_window() };
+
+        _running = true;
         _application = app;
 
         _last_tick_time = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -148,27 +159,16 @@ namespace carrot {
 
             _renderer->end_frame();
         }
+
+        _running = false;
+
+        return static_cast<int>(exit_code::success);
     }
 
     engine_t& engine_t::get() noexcept
     {
         static engine_t instance;
         return instance;
-    }
-
-    void engine_t::configure_paths(const core::engine_paths_t& paths)
-    {
-        if (paths.engine_root)
-            _vfs.mount("engine", *paths.engine_root, true);
-
-        if (paths.game_root)
-            _vfs.mount("game", *paths.game_root, true);
-
-        if (paths.source_root)
-            _vfs.mount("source", *paths.source_root, true);
-
-        if (paths.save_root)
-            _vfs.mount("save", *paths.save_root, false);
     }
 
     // PRIVATE
@@ -209,5 +209,96 @@ namespace carrot {
         //     _renderer->get_rhi()->resize(800, 600);
         //     resized = true;
         // }
+    }
+
+    core::engine_paths_t engine_t::make_default_engine_paths() noexcept
+    {
+        core::engine_paths_t paths{};
+
+        const std::filesystem::path exe_dir{ utils::file::executable_directory() };
+        const auto repo_root = find_repo_root(exe_dir);
+        if (!repo_root)
+            return paths;
+
+        const std::filesystem::path engine_root = *repo_root / "assets";
+        const std::filesystem::path game_root   = *repo_root / "src" / "Game" / "assets";
+        const std::filesystem::path source_root = *repo_root / "src" / "Game" / "source";
+        const std::filesystem::path save_root   = *repo_root / "src" / "Game" / "saved";
+
+        if (std::filesystem::exists(engine_root))
+            paths.engine_root = std::filesystem::weakly_canonical(engine_root);
+
+        if (std::filesystem::exists(game_root))
+            paths.game_root = std::filesystem::weakly_canonical(game_root);
+
+        if (std::filesystem::exists(source_root))
+            paths.source_root = std::filesystem::weakly_canonical(source_root);
+
+        std::filesystem::create_directories(save_root);
+        paths.save_root = std::filesystem::weakly_canonical(save_root);
+
+        return paths;
+    }
+
+    std::optional<std::filesystem::path> engine_t::find_repo_root(std::filesystem::path start) noexcept
+    {
+        start = std::filesystem::weakly_canonical(start);
+
+        while (!start.empty())
+        {
+            if (std::filesystem::exists(start / ".git") || std::filesystem::exists(start / "CMakeLists.txt"))
+                return start;
+
+            const std::filesystem::path parent = start.parent_path();
+            if (parent == start)
+                break;
+
+            start = parent;
+        }
+
+        return std::nullopt;
+    }
+
+    void engine_t::configure_paths(const core::engine_paths_t& paths)
+    {
+        LOG_CORE_INFO("Configuring engine paths...");
+        LOG_CORE_INFO("Engine Root: {}", utils::file::to_log_string(paths.engine_root.value_or("Not set")));
+        LOG_CORE_INFO("Game Root: {}", utils::file::to_log_string(paths.game_root.value_or("Not set")));
+        LOG_CORE_INFO("Source Root: {}", utils::file::to_log_string(paths.source_root.value_or("Not set")));
+        LOG_CORE_INFO("Save Root: {}", utils::file::to_log_string(paths.save_root.value_or("Not set")));
+
+        if (paths.engine_root)
+            _vfs.mount("engine", *paths.engine_root, true);
+
+        if (paths.game_root)
+            _vfs.mount("game", *paths.game_root, true);
+
+        if (paths.source_root)
+            _vfs.mount("source", *paths.source_root, true);
+
+        if (paths.save_root)
+            _vfs.mount("save", *paths.save_root, false);
+    }
+
+    void engine_t::register_builtin_audio_assets()
+    {
+        register_audio_asset_manifest("engine://audio/victory.audio.json");
+        register_audio_asset_manifest("engine://audio/jalen_theme.audio.json");
+        register_audio_asset_manifest("engine://audio/hope_for_all_years.audio.json");
+        register_audio_asset_manifest("engine://audio/oak_battle_theme.audio.json");
+    }
+
+    bool engine_t::register_audio_asset_manifest(std::string_view manifest_uri)
+    {
+        const std::optional<std::filesystem::path> native_path{ _asset_manager.vfs().resolve_native_path(manifest_uri) };
+
+        utils::json::json_document_t doc;
+        if (!doc.parse_from_file(native_path->string().c_str()))
+        {
+            LOG_ASSET_ERROR("Failed to parse audio asset manifest '{}'", manifest_uri);
+            return false;
+        }
+
+        return assets::audio_asset_manifest_importer_t::import(doc, _asset_manager.audio().registry(), _vfs);
     }
 } // namespace carrot

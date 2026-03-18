@@ -49,12 +49,41 @@
     [NSApp terminate:nil];
 }
 
+- (void)windowDidResize:(NSNotification *)notification
+{
+    if (!_owner || !_window) return;
+
+    NSView* content_view{ [_window contentView] };
+    if (!content_view) return;
+
+    const NSRect bounds{ [content_view bounds] };
+
+    const uint32_t width{ static_cast<uint32_t>(bounds.size.width) };
+    const uint32_t height{ static_cast<uint32_t>(bounds.size.height) };
+
+    _owner->update_size(width, height);
+}
+
+- (void)windowDidEnterFullScreen:(NSNotification *)notification
+{
+    if (_owner)
+            _owner->set_fullscreen_state(true);
+}
+
+- (void)windowDidExitFullScreen:(NSNotification *)notification
+{
+    if (_owner)
+            _owner->set_fullscreen_state(false);
+}
+
 - (NSWindow *)createAndReturnWindow
 {
     _window = [[NSWindow alloc] initWithContentRect:_info._window_rect
                                 styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable | NSWindowStyleMaskMiniaturizable
                                 backing:NSBackingStoreBuffered
                                 defer:NO];
+    
+    [_window setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];
 
     [_window setTitle:[NSString stringWithUTF8String:_info._window_title.data()]];
     [_window center];

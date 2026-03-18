@@ -5,5 +5,6 @@
 
 #pragma once
 
-#include "Core/Application.h"
 #include "Engine.h"
+#include "Core/Application.h"
+#include "Core/EnginePaths.h"

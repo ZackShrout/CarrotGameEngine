@@ -52,6 +52,7 @@ Makefile
 # Note: assets/ folder itself is NOT ignored – only future compiled subfolders
 assets/compiled/
 assets/cache/
+assets/shaders
 
 11 Hope for All Years.wav
 

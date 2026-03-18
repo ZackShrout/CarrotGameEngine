@@ -5,27 +5,30 @@
 
 #pragma once
 
-#include "Assets/AssetHandle.h"
+#include "Assets/AssetID.h"
 #include "Audio/AudioTypes.h"
 #include "Audio/Sample/AudioSample.h"
 #include "Audio/Mixer/AudioBus.h"
 
+#include <cstdint>
 #include <filesystem>
+#include <string>
+#include <memory>
 
 namespace carrot::assets {
     /**
-     * @brief Declarative description of how an audio asset behaves when played.
+     * @brief Descriptive metadata and playback parameters for an audio asset.
      *
-     * Audio assets are immutable, shareable, and contain no playback state.
-     * Each call to play() spawns a new voice instance using this description.
+     * Defines the properties and playback behavior of an audio asset, including
+     * source file location, volume, pitch, spatialization, and looping settings.
      */
-    struct audio_asset_t
+    struct audio_asset_record_t
     {
-        /** @brief PCM audio sample used for playback. */
-        const audio::audio_sample_t* sample{ nullptr };
+        asset_id_t id{ 0 };
+        std::string logical_id;
 
-        /** @brief Normalized, resolved path to the source audio file. */
-        std::filesystem::path file_path;
+        /** @brief URI identifying the source location of the audio asset. */
+        std::string source_uri;
 
         /** @brief Output bus the sound is routed to. */
         audio::audio_bus_id bus{ audio::audio_bus_id::sfx };
@@ -49,6 +52,27 @@ namespace carrot::assets {
          * Useful for reducing repetition in frequently played sounds.
          */
         float pitch_variance{ 0.0f };
+
+        /** @brief True if this asset should be streamed from disk. */
+        bool streamed{ false };
+
+        /** @brief Whether this asset loops. */
+        bool looping{ false };
+
+        /**
+         * @brief Loop region start (in sample frames).
+         *
+         * If looping is true and loop_end > loop_start,
+         * playback jumps here when reaching loop_end.
+         */
+        uint32_t loop_start{ 0 };
+
+        /**
+         * @brief Loop region end (in sample frames).
+         *
+         * A value of 0 indicates "end of sample".
+         */
+        uint32_t loop_end{ 0 };
 
         /** @brief Spatialization mode for this sound. */
         audio::spatial_mode spatial{ audio::spatial_mode::none };
@@ -83,26 +107,33 @@ namespace carrot::assets {
          * Higher values indicate higher priority.
          */
         uint8_t priority{ 128 };
+    };
 
-        /** @brief Whether this asset loops. */
-        bool looping{ false };
+    /**
+     * @brief Represents a loaded audio asset ready for playback.
+     *
+     * A loaded audio asset links an audio asset record with the actual sample data
+     * or streaming source required for playback. It provides utilities to verify
+     * the validity and streaming status of the audio asset.
+     */
+    struct loaded_audio_asset_t
+    {
+        const audio_asset_record_t* record{ nullptr };
 
-        /**
-         * @brief Loop region start (in sample frames).
+        /** @brief PCM audio sample used for playback of non-streamed assets.
          *
-         * If looping is true and loop_end > loop_start,
-         * playback jumps here when reaching loop_end.
+         * For streamed assets, this remains nullptr and playback uses record->source_uri.
          */
-        uint32_t loop_start{ 0 };
+        std::unique_ptr<audio::audio_sample_t> sample{ nullptr };
 
-        /**
-         * @brief Loop region end (in sample frames).
-         *
-         * A value of 0 indicates "end of sample".
-         */
-        uint32_t loop_end{ 0 };
+        [[nodiscard]] bool valid() const noexcept
+        {
+            return record != nullptr;
+        }
 
-        /** @brief True if this asset should be streamed from disk. */
-        bool streamed{ false };
+        [[nodiscard]] bool streamed() const noexcept
+        {
+            return record ? record->streamed : false;
+        }
     };
 } // namespace carrot::assets

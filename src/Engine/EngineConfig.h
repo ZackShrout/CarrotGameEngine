@@ -28,5 +28,5 @@ namespace carrot {
         engine_audio_config_t audio;
     };
 
-    engine_config_t load_engine_config();
+    engine_config_t load_engine_config(io::virtual_file_system_t& vfs);
 } // namespace carrot

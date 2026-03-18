@@ -8,6 +8,7 @@
 #include "Renderer.h"
 
 #include "Assets/Image/ImageAssetImporter.h"
+#include "IO/VirtualFileSystem.h"
 #include "Primitives/QuadMesh.h"
 #include "Utils/File/FileUtils.h"
 #include "Window/Window.h"
@@ -17,17 +18,26 @@
 namespace carrot::renderer {
     // PUBLIC
 
+    renderer_t::renderer_t(io::virtual_file_system_t& vfs, const engine_graphics_config_t& config)
+        : _vfs{ vfs }, _config{ config }
+    {
+        init();
+    }
+
     void renderer_t::init()
     {
         if (_is_initialized) return;
 
         LOG_GRAPHICS_INFO("Initializing Renderer...");
 
+        _shader_provider = std::make_unique<assets::vfs_shader_file_provider_t>(_vfs);
+
         rhi::rhi_desc_t desc{ };
         desc.api = _config.api;
         desc.enable_debug_layers = _config.enable_debug_layers;
         desc.width = window::get_width();
         desc.height = window::get_height();
+        desc.shader_files = _shader_provider.get();
 
         _rhi = rhi::create_rhi_context(desc);
         if (!_rhi)
@@ -119,7 +129,7 @@ namespace carrot::renderer {
         // LOG_GRAPHICS_INFO("Common graphics resources created (currently empty)");
 
         const assets::image_load_result_t image_result{
-            assets::load_image_rgba8(utils::file::resolve_asset_path("assets/images/16x16orange.png"))
+            assets::load_image_rgba8("engine://images/16x16orange.png")
         };
 
         if (!image_result.success())
@@ -127,6 +137,8 @@ namespace carrot::renderer {
             LOG_CORE_ERROR("Failed to load PNG: {}", assets::to_string(image_result.error));
             return;
         }
+
+        LOG_GRAPHICS_INFO("Loaded PNG: {}x{}", image_result.image.width, image_result.image.height);
 
         rhi::texture_create_info_t texture_info{ };
         texture_info.width = image_result.image.width;

@@ -54,6 +54,7 @@ namespace carrot::rhi::vulkan {
         VkInstance                                              _vk_instance{ VK_NULL_HANDLE };
         VkSurfaceKHR                                            _vk_surface{ VK_NULL_HANDLE };
         VkCommandPool                                           _command_pool{ VK_NULL_HANDLE };
+        assets::shader_file_provider_t*                         _shader_files;
         std::unique_ptr<vulkan_device_t>                        _device;
         std::unique_ptr<vulkan_swapchain_t>                     _swapchain;
         std::unique_ptr<vulkan_command_queue_t>                 _graphics_queue;

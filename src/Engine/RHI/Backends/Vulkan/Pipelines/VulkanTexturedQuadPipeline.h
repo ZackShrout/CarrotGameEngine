@@ -8,11 +8,16 @@
 #include "RHI/Backends/Vulkan/VulkanCommon.h"
 #include "RHI/Backends/Vulkan/VulkanDevice.h"
 
+namespace carrot::assets {
+    class shader_file_provider_t;
+}
+
 namespace carrot::rhi::vulkan {
     class vulkan_textured_quad_pipeline_t final
     {
     public:
-        vulkan_textured_quad_pipeline_t(const vulkan_device_t* device, VkRenderPass render_pass);
+        vulkan_textured_quad_pipeline_t(const vulkan_device_t* device, VkRenderPass render_pass,
+                                        assets::shader_file_provider_t* shader_files);
         ~vulkan_textured_quad_pipeline_t();
 
         [[nodiscard]] VkPipeline vk_pipeline() const noexcept { return _pipeline; }

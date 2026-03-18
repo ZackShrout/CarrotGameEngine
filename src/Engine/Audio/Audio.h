@@ -21,11 +21,11 @@ namespace carrot::audio {
      * This function is safe to call from the engine thread. The actual audio
      * playback is performed asynchronously on the audio thread.
      *
-     * @param asset Audio asset to play
+     * @param asset Loaded audio asset to play
      * @return Handle identifying the newly created voice instance.
      *         The handle may be used to pause, resume, or stop playback.
      */
-    voice_handle_t play(const assets::audio_asset_t& asset) noexcept;
+    voice_handle_t play(const assets::loaded_audio_asset_t& asset) noexcept;
 
     /**
      * @brief Plays a sound with explicit playback override parameters.
@@ -37,15 +37,15 @@ namespace carrot::audio {
      * This function is safe to call from the engine thread. The actual audio
      * playback is performed asynchronously on the audio thread.
      *
-     * @param asset  Audio asset to play
+     * @param asset  Loaded audio asset to play
      * @param params Playback parameters overriding the asset defaults
      * @return Handle identifying the newly created voice instance.
      *         The handle may be used to pause, resume, or stop playback.
      */
-    voice_handle_t play(const assets::audio_asset_t& asset, const sound_play_params_t& params) noexcept;
+    voice_handle_t play(const assets::loaded_audio_asset_t& asset, const sound_play_params_t& params) noexcept;
 
     /**
-     * @brief Plays an audio asset by stable string identifier.
+     * @brief Plays a loaded audio asset by stable string identifier.
      *
      * Resolves the asset name through the audio asset registry and plays the
      * asset using its authored default configuration.

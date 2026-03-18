@@ -29,6 +29,9 @@ namespace carrot::core::platform {
 - (void)applicationWillFinishLaunching:(NSNotification *)notification;
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender;
 - (void)windowWillClose:(NSNotification *)notification;
+- (void)windowDidResize:(NSNotification *)notification;
+- (void)windowDidEnterFullScreen:(NSNotification *)notification;
+- (void)windowDidExitFullScreen:(NSNotification *)notification;
 - (NSWindow *)createAndReturnWindow;
 
 @property (nonatomic, readonly) NSWindow *window;

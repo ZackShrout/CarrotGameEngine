@@ -184,6 +184,18 @@ namespace carrot::core::platform {
         }
     }
 
+    void cocoa_window_t::set_fullscreen(const bool fullscreen) noexcept
+    {
+        if (!_ns_window) return;
+        if (_is_fullscreen == fullscreen) return;
+        
+        NSWindow* window{ (NSWindow*)_ns_window };
+        
+        @autoreleasepool {
+            [window toggleFullScreen:nil];
+        }
+    }
+
     native_window_handle_t cocoa_window_t::get_native_handle() const noexcept
     {
         native_window_handle_t handle{ };
@@ -192,5 +204,15 @@ namespace carrot::core::platform {
         handle.cocoa_t.metal_layer = _metal_layer;
 
         return handle;
+    }
+
+    void cocoa_window_t::update_size(const uint32_t width, const uint32_t height) noexcept
+    {
+        if (width == _width && height == _height) return;
+
+        _width = width;
+        _height = height;
+
+        _on_window_resized.broadcast({ _width, _height });
     }
 } // namespace carrot::core::plaform

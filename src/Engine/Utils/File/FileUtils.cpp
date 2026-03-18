@@ -23,48 +23,40 @@ namespace carrot::utils::file {
         }
     } // anonymous namespace
 
-    std::vector<std::uint8_t> load_binary_file(std::string_view path)
+    [[nodiscard]] std::optional<std::vector<std::uint8_t>> load_binary_file(const std::filesystem::path& path) noexcept
     {
-        std::ifstream file(std::string{ path }, std::ios::binary | std::ios::ate);
-        if (!file)
+        std::ifstream file{ path, std::ios::binary | std::ios::ate };
+        if (!file.is_open())
         {
-            LOG_CORE_FATAL("Failed to open file '{}'", path);
+            LOG_CORE_ERROR("Failed to open file '{}'", to_log_string(path));
+            return std::nullopt;
         }
 
-        std::streamsize size{ file.tellg() };
-        file.seekg(0, std::ios::beg);
-
-        std::vector<std::uint8_t> data(static_cast<size_t>(size));
-        if (!file.read(reinterpret_cast<char*>(data.data()), size))
+        const std::streampos file_size{ file.tellg() };
+        if (file_size < 0)
         {
-            LOG_CORE_FATAL("Failed to read file '{}'", path);
+            LOG_CORE_ERROR("Invalid file size for '{}'", to_log_string(path));
+            return std::nullopt;
+        }
+
+        std::vector<std::uint8_t> data(static_cast<size_t>(file_size));
+
+        file.seekg(0, std::ios::beg);
+        if (!file.read(reinterpret_cast<char *>(data.data()), file_size))
+        {
+            LOG_CORE_ERROR("Failed to read file '{}'", to_log_string(path));
+            return std::nullopt;
         }
 
         return data;
     }
 
-    std::optional<std::string> load_file_to_string(const std::filesystem::path& path)
+    std::optional<std::string> load_file_to_string(const std::filesystem::path& path) noexcept
     {
-        std::ifstream file{ path, std::ios::in | std::ios::binary };
+        auto bytes = load_binary_file(path);
+        if (!bytes) return std::nullopt;
 
-        if (!file)
-            return std::nullopt;
-
-        file.seekg(0, std::ios::end);
-        const std::streamsize size{ file.tellg() };
-
-        if (size < 0)
-            return std::nullopt;
-
-        file.seekg(0, std::ios::beg);
-
-        std::string buffer;
-        buffer.resize(static_cast<size_t>(size));
-
-        if (!file.read(buffer.data(), size))
-            return std::nullopt;
-
-        return buffer;
+        return std::string(bytes->begin(), bytes->end());
     }
 
     std::string_view resolve_asset_path(const std::string_view path)
@@ -101,7 +93,7 @@ namespace carrot::utils::file {
         else if (path.starts_with(engine))
         {
             prefixless = path.substr(engine.size());
-            return cache_path((content_root/ "Engine" / prefixless).string());
+            return cache_path((content_root / "assets" / prefixless).string());
         }
 
         std::filesystem::path candidate{ content_root / prefixless };
@@ -110,32 +102,13 @@ namespace carrot::utils::file {
         return cache_path(candidate.string());
     }
 
-    std::optional<std::filesystem::path> try_resolve_asset_path(const std::string_view path)
+    std::string to_log_string(const std::filesystem::path& path)
     {
-        if (path.empty())
-            return std::nullopt;
-
-        const std::filesystem::path p{ path };
-        const std::filesystem::path content_root{ CARROT_SOURCE_ROOT };
-
-        if (p.is_absolute())
-            return p.lexically_normal();
-
-        std::string_view prefixless{ path };
-
-        constexpr std::string_view prefixes[]{ "res://", "assets://", "content://" };
-
-        for (const auto prefix: prefixes)
-        {
-            if (path.starts_with(prefix))
-            {
-                prefixless = path.substr(prefix.size());
-                break;
-            }
-        }
-
-        std::filesystem::path resolved{ (content_root / prefixless).lexically_normal() };
-
-        return resolved;
+#ifdef _WIN32
+        const auto utf8 = path.u8string();
+        return std::string{ utf8.begin(), utf8.end() };
+#else
+        return path.string();
+#endif
     }
 } // namespace carrot::utils::file

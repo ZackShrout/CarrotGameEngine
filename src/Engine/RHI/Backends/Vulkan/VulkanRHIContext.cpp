@@ -107,7 +107,8 @@ namespace carrot::rhi::vulkan {
             LOG_GRAPHICS_INFO("Safe reload point reached — destroying old pipeline");
             _graphics_pipeline.reset();
             LOG_GRAPHICS_INFO("Old pipeline destroyed");
-            _graphics_pipeline = std::make_unique<vulkan_pipeline_t>(_device.get(), _render_pass->vk_render_pass());
+            _graphics_pipeline = std::make_unique<vulkan_pipeline_t>(_device.get(), _render_pass->vk_render_pass(),
+                                                                     _shader_files);
             _pending_pipeline_reload = false;
             LOG_GRAPHICS_INFO("Pipeline hot-reloaded (safe point)");
         }
@@ -650,7 +651,8 @@ namespace carrot::rhi::vulkan {
     // PRIVATE
     void vulkan_rhi_context_t::init(const rhi_desc_t& desc)
     {
-        auto handle = window::get_native_handle();
+        core::platform::native_window_handle_t handle{ window::get_native_handle() };
+        _shader_files = desc.shader_files;
 
         // ── 1. Create Vulkan Instance ─────────────────────────────────────────────
         std::vector<const char *> instance_extensions{
@@ -834,10 +836,11 @@ namespace carrot::rhi::vulkan {
         _render_pass = std::make_unique<vulkan_render_pass_t>(_device.get(), _swapchain->format());
 
         // ── 8. Create Graphics Pipeline ───────────────────────────────────────────
-        _graphics_pipeline = std::make_unique<vulkan_pipeline_t>(_device.get(), _render_pass->vk_render_pass());
+        _graphics_pipeline = std::make_unique<vulkan_pipeline_t>(_device.get(), _render_pass->vk_render_pass(),
+                                                                 _shader_files);
 
         _textured_quad_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
-            _device.get(), _render_pass->vk_render_pass());
+            _device.get(), _render_pass->vk_render_pass(), _shader_files);
 
         // ── 9. Create Framebuffers ────────────────────────────────────────────────
         _framebuffers = _swapchain->create_framebuffers(_render_pass->vk_render_pass());

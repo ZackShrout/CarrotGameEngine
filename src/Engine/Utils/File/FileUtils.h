@@ -18,40 +18,44 @@ namespace carrot::utils::file {
      * `std::vector<std::uint8_t>`, and returns the content. This is the preferred
      * function for loading binary data (images, models, shaders, serialized data, etc.).
      *
-     * @param path Filesystem path to the file to load (as UTF-8 string view).
+     * @param path Filesystem path to the file to load.
      *             The path is used as-is (no resolution or prefix handling performed).
      *
-     * @return A vector containing the complete file contents on success.
+     * @return A vector containing the complete file contents on success,
+     *         or `std::nullopt` if the file cannot be opened, has an invalid size,
+     *         or a read error occurs.
      *
-     * @note This function **never returns an empty vector** — failure to open or read
-     *       the file is treated as a fatal error and logged via `LOG_CORE_FATAL`.
      * @note Uses binary mode (`std::ios::binary`) to prevent newline conversions
      *       or other text-mode transformations.
      * @note The file size is determined using `std::ios::ate` / `tellg()`; very large
      *       files (> ~2–4 GB depending on platform) may fail or behave unexpectedly.
+     * @note Errors are logged via the core logger, but no exceptions are thrown.
      *
      * @see load_file_to_string() for text-oriented loading
-     * @see resolve_asset_path() / try_resolve_asset_path() when loading from virtual/asset paths
      */
-    [[nodiscard]] std::vector<std::uint8_t> load_binary_file(std::string_view path);
+    [[nodiscard]] std::optional<std::vector<std::uint8_t>> load_binary_file(const std::filesystem::path& path) noexcept;
 
     /**
      * @brief Reads the entire contents of a file into a std::string.
      *
-     * Opens the file in binary mode, determines its size, reads all bytes into a string,
-     * and returns the content. Handles common failure cases gracefully.
+     * Loads the file using `load_binary_file()` and converts the resulting byte
+     * buffer into a string. This is a convenience wrapper for text-oriented use cases.
      *
      * @param path Filesystem path to the file to load.
-     *             The path is used as-is (no resolution performed).
+     *             The path is used as-is (no resolution or prefix handling performed).
      *
      * @return The complete file contents as a string on success,
-     *         or `std::nullopt` if the file cannot be opened, is not readable,
-     *         has negative/invalid size, or a read error occurs.
+     *         or `std::nullopt` if the file cannot be opened, has an invalid size,
+     *         or a read error occurs.
      *
-     * @note Uses binary mode (`std::ios::binary`) to avoid newline conversions.
-     * @note Suitable for text and binary files (images, audio, shaders, etc.).
+     * @note Uses binary mode via `load_binary_file()` to avoid newline conversions.
+     * @note Suitable for both text and binary files; no encoding conversion is performed.
+     * @note Errors are handled via return value; no exceptions are thrown.
+     * @note May terminate the program on memory allocation failure.
+     *
+     * @see load_binary_file()
      */
-    [[nodiscard]] std::optional<std::string> load_file_to_string(const std::filesystem::path& path);
+    [[nodiscard]] std::optional<std::string> load_file_to_string(const std::filesystem::path& path) noexcept;
 
     /**
      * @brief Resolves an asset path string into a normalized filesystem path (as string_view).
@@ -76,38 +80,29 @@ namespace carrot::utils::file {
     [[nodiscard]] std::string_view resolve_asset_path(std::string_view path);
 
     /**
-     * @brief Attempts to resolve an asset path into a normalized filesystem::path.
+     * @brief Converts a filesystem path into a UTF-8 string suitable for logging.
      *
-     * Similar to resolve_asset_path(), but returns an optional owning path object
-     * and makes failure more explicit. Useful when you need to perform further
-     * path operations or log the exact resolved path.
+     * Produces a platform-consistent, human-readable string representation of a
+     * `std::filesystem::path` for use with logging systems that expect narrow
+     * character strings (e.g. `std::format` with `char`).
      *
-     * @param path Asset path to resolve (UTF-8 string view).
+     * On Windows, paths are internally stored as wide-character (UTF-16). This
+     * function converts them to UTF-8 to ensure compatibility with the logger.
+     * On POSIX systems (Linux/macOS), paths are typically already UTF-8 and are
+     * returned directly.
      *
-     * @return A normalized `std::filesystem::path` on successful resolution,
-     *         or `std::nullopt` if the input is empty, invalid, or cannot be resolved.
+     * @param path Filesystem path to convert.
      *
-     * @note Does **not** check file existence — only performs path resolution logic.
-     * @note Returned path uses the platform's preferred directory separators.
+     * @return A UTF-8 encoded string representation of the path.
+     *
+     * @note This function is intended for logging and debugging purposes only.
+     *       It should not be used for filesystem operations that require native
+     *       encoding or exact round-trip fidelity.
+     * @note The returned string is safe to pass directly into `std::format` and
+     *       other narrow-character APIs.
+     *
+     * @see std::filesystem::path::string()
+     * @see std::filesystem::path::u8string()
      */
-    [[nodiscard]] std::optional<std::filesystem::path> try_resolve_asset_path(std::string_view path);
-
-    /**
-     * @brief Convenience wrapper: resolves path and returns filesystem::path (empty on failure).
-     *
-     * Equivalent to:
-     * ```cpp
-     * return try_resolve_asset_path(path).value_or(std::filesystem::path{});
-     * ```
-     *
-     * @param path Asset path to resolve.
-     *
-     * @return Resolved path (with preferred separators), or an empty path object on failure.
-     *
-     * @note Prefer `try_resolve_asset_path()` when you need to distinguish failure from success.
-     */
-    inline std::filesystem::path resolve_asset_path_fs(std::string_view path)
-    {
-        return try_resolve_asset_path(path).value_or(std::filesystem::path{ });
-    }
+    [[nodiscard]] std::string to_log_string(const std::filesystem::path& path);
 } // namespace carrot::utils::file

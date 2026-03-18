@@ -21,19 +21,61 @@ namespace carrot::audio {
     // PUBLIC
     bool wav_stream_decoder_t::open(const std::string_view path, audio_stream_t* stream) noexcept
     {
+        stop(); // ensure prior thread/file are fully released before reuse
+
+        _stream = nullptr;
+        _fmt = { };
+        _data_bytes_remaining = 0;
+        _data_bytes_total = 0;
+        _data_start_offset = 0;
+        _loop_start_offset = 0;
+        _loop_end_offset = 0;
+        _use_loop_region = false;
+        _in_loop_phase = false;
+        _src_sample_rate = 0;
+        _src_frames_total = 0;
+        _src_frames_in_buffer = 0;
+        _src_pos = 0.0;
+
         _file = std::fopen(path.data(), "rb");
-        if (!_file) return false;
+        if (!_file)
+            return false;
+
+        const auto fail = [&]() -> bool {
+            if (_file)
+            {
+                std::fclose(_file);
+                _file = nullptr;
+            }
+
+            _stream = nullptr;
+            _fmt = { };
+            _data_bytes_remaining = 0;
+            _data_bytes_total = 0;
+            _data_start_offset = 0;
+            _loop_start_offset = 0;
+            _loop_end_offset = 0;
+            _use_loop_region = false;
+            _in_loop_phase = false;
+            _src_sample_rate = 0;
+            _src_frames_total = 0;
+            _src_frames_in_buffer = 0;
+            _src_pos = 0.0;
+
+            return false;
+        };
 
         riff_header_t riff{ };
-        std::fread(&riff, sizeof(riff), 1, _file);
+        if (std::fread(&riff, sizeof(riff), 1, _file) != 1)
+            return fail();
 
         if (!id_equals(riff.id, "RIFF") || !id_equals(riff.format, "WAVE"))
-            return false;
+            return fail();
 
         bool found_fmt{ false };
         bool found_data{ false };
 
-        while (!std::feof(_file))
+        while (true)
         {
             chunk_header_t chunk{ };
             if (std::fread(&chunk, sizeof(chunk), 1, _file) != 1)
@@ -41,43 +83,92 @@ namespace carrot::audio {
 
             if (id_equals(chunk.id, "fmt "))
             {
-                std::fread(&_fmt, sizeof(_fmt), 1, _file);
+                if (chunk.size < sizeof(_fmt))
+                    return fail();
 
-                // Skip any extra fmt bytes beyond the base struct
-                std::fseek(_file, static_cast<int32_t>(chunk.size - sizeof(_fmt)), SEEK_CUR);
+                if (std::fread(&_fmt, sizeof(_fmt), 1, _file) != 1)
+                    return fail();
+
+                const uint32_t remaining{ chunk.size - static_cast<uint32_t>(sizeof(_fmt)) };
+                if (remaining > 0)
+                {
+                    if (carrot_fseek(_file, static_cast<carrot_offset_t>(remaining), SEEK_CUR) != 0)
+                        return fail();
+                }
 
                 found_fmt = true;
             }
             else if (id_equals(chunk.id, "data"))
             {
+                if (chunk.size == 0)
+                    return fail();
+
                 _data_bytes_remaining = chunk.size;
                 _data_bytes_total = chunk.size;
                 _data_start_offset = carrot_ftell(_file);
+
+                if (_data_start_offset < 0)
+                    return fail();
 
                 found_data = true;
                 break; // file cursor now at PCM data
             }
             else
             {
-                // Skip unsupported/unknown chunks
-                carrot_fseek(_file, chunk.size, SEEK_CUR);
+                if (carrot_fseek(_file, static_cast<carrot_offset_t>(chunk.size), SEEK_CUR) != 0)
+                    return fail();
+            }
+
+            // RIFF chunks are word-aligned; odd-sized chunks include one pad byte.
+            if ((chunk.size & 1u) != 0u)
+            {
+                if (carrot_fseek(_file, static_cast<carrot_offset_t>(1), SEEK_CUR) != 0)
+                    return fail();
             }
         }
 
         if (!found_fmt || !found_data)
-            return false;
+            return fail();
 
-        CE_ASSERT(_fmt.audio_format == 1 || _fmt.audio_format == 3);
-        CE_ASSERT(_fmt.bits_per_sample == 16 || _fmt.bits_per_sample == 24 || _fmt.bits_per_sample == 32);
+        if (_fmt.audio_format != 1 && _fmt.audio_format != 3)
+            return fail();
+
+        const bool supported_format =
+                (_fmt.audio_format == 1 && _fmt.bits_per_sample == 16) ||
+                (_fmt.audio_format == 1 && _fmt.bits_per_sample == 24) ||
+                (_fmt.audio_format == 3 && _fmt.bits_per_sample == 32);
+
+        if (!supported_format)
+            return fail();
+
+        if (_fmt.sample_rate == 0)
+            return fail();
+
+        if (_fmt.num_channels == 0 || _fmt.num_channels > 2 || _fmt.num_channels > k_max_channels)
+            return fail();
+
+        const uint32_t bytes_per_sample{ static_cast<uint32_t>(_fmt.bits_per_sample / 8u) };
+        if (bytes_per_sample == 0)
+            return fail();
+
+        const uint32_t bytes_per_frame{ bytes_per_sample * _fmt.num_channels };
+        if (bytes_per_frame == 0)
+            return fail();
+
+        if ((_data_bytes_total % bytes_per_frame) != 0)
+            return fail();
 
         LOG_AUDIO_INFO("WAV file reports sample rate {} HZ in format chunk", _fmt.sample_rate);
 
         _stream = stream;
+        if (!_stream)
+            return fail();
+
         _stream->channels = _fmt.num_channels;
         _stream->sample_rate = k_engine_sample_rate;
 
         _src_sample_rate = _fmt.sample_rate;
-        _src_frames_total = _data_bytes_total / (_fmt.bits_per_sample / 8u * _fmt.num_channels);
+        _src_frames_total = _data_bytes_total / bytes_per_frame;
         _src_pos = 0.0;
         _src_frames_in_buffer = 0;
 
@@ -194,81 +285,78 @@ namespace carrot::audio {
 
     void wav_stream_decoder_t::enter_loop_phase() noexcept
     {
-        // NOTE: Function assumes we already have _loop_start_offset and _loop_end_offset computed.
-
-        carrot_fseek(_file, _loop_start_offset, SEEK_SET);
+        if (carrot_fseek(_file, _loop_start_offset, SEEK_SET) != 0)
+        {
+            if (_stream)
+                _stream->eof.store(true, std::memory_order_release);
+            return;
+        }
 
         const uint64_t bytes_from_loop_start{ static_cast<uint64_t>(_loop_end_offset - _loop_start_offset) };
 
-        // Rebase logical data segment to the loop region
         _data_start_offset = _loop_start_offset;
         _data_bytes_total = bytes_from_loop_start;
         _data_bytes_remaining = _data_bytes_total;
-
         _in_loop_phase = true;
     }
 
     void wav_stream_decoder_t::fill_src_buffer(const uint32_t bytes_per_frame) noexcept
     {
-        if (!_stream || !_file)
+        if (!_stream || !_file || bytes_per_frame == 0)
             return;
 
         while (_src_frames_in_buffer < k_src_buffer_frames &&
                _running.load(std::memory_order_acquire))
         {
-            // ── Handle "no more bytes in current segment" first ────────────────
             if (_data_bytes_remaining == 0)
             {
                 if (_stream->looping)
                 {
                     if (_use_loop_region)
                     {
-                        // We're looping a sub-region; re-enter the loop segment.
                         enter_loop_phase();
                     }
                     else
                     {
-                        // Full-file loop: wrap back to the start of the data chunk.
-                        carrot_fseek(_file, _data_start_offset, SEEK_SET);
+                        if (carrot_fseek(_file, _data_start_offset, SEEK_SET) != 0)
+                        {
+                            _stream->eof.store(true, std::memory_order_release);
+                            break;
+                        }
+
                         _data_bytes_remaining = _data_bytes_total;
                         _in_loop_phase = true;
                     }
 
-                    // After rebasing the logical segment, go around again and
-                    // actually read from the new region.
                     continue;
                 }
                 else
                 {
-                    // Non-looping and no more bytes to read → EOF.
                     _stream->eof.store(true, std::memory_order_release);
                     break;
                 }
             }
 
-            // ── Normal decode path: we have bytes remaining in the segment ─────
             const uint32_t frames_to_decode = chlm::min<uint32_t>(
                 k_frames_per_decode_chunk,
                 k_src_buffer_frames - _src_frames_in_buffer
             );
 
             if (frames_to_decode == 0)
-                break; // staging buffer is full; caller will resample from it
+                break;
 
-            const uint64_t bytes_request = static_cast<uint64_t>(frames_to_decode) * bytes_per_frame;
-            uint64_t bytes_to_read = chlm::min<uint64_t>(bytes_request, _data_bytes_remaining);
+            const uint64_t bytes_request{ static_cast<uint64_t>(frames_to_decode) * bytes_per_frame };
+            uint64_t bytes_to_read{ chlm::min<uint64_t>(bytes_request, _data_bytes_remaining) };
 
-            // Current file position within the logical data segment
             const carrot_offset_t current_offset{
                 _data_start_offset +
                 static_cast<carrot_offset_t>(_data_bytes_total - _data_bytes_remaining)
             };
 
-            // Clamp to loop end if using a loop sub-region
             if (_use_loop_region)
             {
                 const carrot_offset_t logical_loop_end{ _loop_end_offset };
-                const auto bytes_until_loop_end{
+                const uint64_t bytes_until_loop_end{
                     static_cast<uint64_t>(logical_loop_end - current_offset)
                 };
 
@@ -276,41 +364,49 @@ namespace carrot::audio {
                     bytes_to_read = bytes_until_loop_end;
             }
 
-            // If clamping brought us to exactly the loop boundary:
             if (bytes_to_read == 0)
             {
                 if (_stream->looping)
                 {
                     if (_use_loop_region)
                     {
-                        // We reached the loop_end in the current segment; wrap
-                        // into the loop segment proper.
                         enter_loop_phase();
                     }
                     else
                     {
-                        // Full-file looping and we hit the end of the file region
-                        // exactly; wrap to the start of the data chunk.
-                        carrot_fseek(_file, _data_start_offset, SEEK_SET);
+                        if (carrot_fseek(_file, _data_start_offset, SEEK_SET) != 0)
+                        {
+                            _stream->eof.store(true, std::memory_order_release);
+                            break;
+                        }
+
                         _data_bytes_remaining = _data_bytes_total;
                         _in_loop_phase = true;
                     }
 
-                    // After rebasing, loop and try to read again.
                     continue;
                 }
                 else
                 {
-                    // Non-looping: loop region clamped us to the end; EOF.
                     _stream->eof.store(true, std::memory_order_release);
                     break;
                 }
             }
 
-            // ── We have a positive number of bytes to read ─────────────────────
-            uint8_t raw[k_frames_per_decode_chunk * 8]; // enough for 32-bit stereo
+            if ((bytes_to_read % bytes_per_frame) != 0)
+            {
+                _stream->eof.store(true, std::memory_order_release);
+                break;
+            }
 
-            std::fread(raw, bytes_to_read, 1, _file);
+            uint8_t raw[k_frames_per_decode_chunk * 8]{ };
+
+            if (std::fread(raw, bytes_to_read, 1, _file) != 1)
+            {
+                _stream->eof.store(true, std::memory_order_release);
+                break;
+            }
+
             _data_bytes_remaining -= bytes_to_read;
 
             const uint32_t frames_read{
@@ -318,24 +414,20 @@ namespace carrot::audio {
             };
 
             if (frames_read == 0)
-            {
-                // Just in case; shouldn't really happen because bytes_to_read > 0
                 continue;
-            }
 
-            // Convert raw PCM into tail of _src_buffer at *source* rate
-            float* dst = &_src_buffer[_src_frames_in_buffer * _fmt.num_channels];
+            float* dst{ &_src_buffer[_src_frames_in_buffer * _fmt.num_channels] };
 
             if (_fmt.audio_format == 1 && _fmt.bits_per_sample == 16)
             {
-                const int16_t* src = reinterpret_cast<int16_t *>(raw);
-                for (uint32_t i = 0; i < frames_read * _fmt.num_channels; ++i)
+                const int16_t* src{ reinterpret_cast<const int16_t *>(raw) };
+                for (uint32_t i{ 0 }; i < frames_read * _fmt.num_channels; ++i)
                     dst[i] = static_cast<float>(src[i]) / 32768.0f;
             }
             else if (_fmt.audio_format == 1 && _fmt.bits_per_sample == 24)
             {
-                const uint8_t* src = raw;
-                for (uint32_t i = 0; i < frames_read * _fmt.num_channels; ++i)
+                const uint8_t* src{ raw };
+                for (uint32_t i{ 0 }; i < frames_read * _fmt.num_channels; ++i)
                 {
                     dst[i] = pcm24_to_float(src);
                     src += 3;
@@ -343,14 +435,17 @@ namespace carrot::audio {
             }
             else if (_fmt.audio_format == 3 && _fmt.bits_per_sample == 32)
             {
-                std::memcpy(dst, raw, frames_read * _fmt.num_channels * sizeof(float));
+                std::memcpy(dst, raw, static_cast<size_t>(frames_read) * _fmt.num_channels * sizeof(float));
+            }
+            else
+            {
+                _stream->eof.store(true, std::memory_order_release);
+                break;
             }
 
             _src_frames_in_buffer += frames_read;
         }
 
-        // Only mark EOF here if we're *not* looping and truly drained both
-        // file segment and staging buffer.
         if (!_stream->looping && _data_bytes_remaining == 0 && _src_frames_in_buffer == 0)
         {
             _stream->eof.store(true, std::memory_order_release);

@@ -12,6 +12,7 @@
 #include "MetalLayerBridge.h"
 #include "MetalSwapchain.h"
 #include "Window/Window.h"
+#include "Assets/Shaders/VFSShaderFileProvider.h"
 
 namespace carrot::rhi::metal {
     namespace {
@@ -60,11 +61,20 @@ namespace carrot::rhi::metal {
         _command_queue = std::make_unique<metal_command_queue_t>(
             MTL_CHECK_FATAL(_device->mtl_device()->newCommandQueue()));
 
+        const auto vert_path{ desc.shader_files->resolve("engine://shaders/metal/triangle.vert.metallib") };
+        const auto frag_path{ desc.shader_files->resolve("engine://shaders/metal/triangle.frag.metallib") };
+
+        if (!vert_path || !frag_path)
+        {
+            LOG_GRAPHICS_FATAL("Failed to resolve shader paths");
+            return;
+        }
+
         NS::String* vert_shader{
-            NS::String::string("shaders/triangle.vert.metallib", NS::StringEncoding::UTF8StringEncoding)
+            NS::String::string(vert_path->string().c_str(), NS::StringEncoding::UTF8StringEncoding)
         };
         NS::String* frag_shader{
-            NS::String::string("shaders/triangle.frag.metallib", NS::StringEncoding::UTF8StringEncoding)
+            NS::String::string(frag_path->string().c_str(), NS::StringEncoding::UTF8StringEncoding)
         };
 
         NS::Error* error{ nullptr };
@@ -85,18 +95,10 @@ namespace carrot::rhi::metal {
             return;
         }
 
-        MTL::VertexDescriptor* vertex_desc{ MTL::VertexDescriptor::alloc()->init() };
-
-        MTL::VertexBufferLayoutDescriptor* layout{ vertex_desc->layouts()->object(0) };
-        layout->setStride(sizeof(push_constants));
-        layout->setStepFunction(MTL::VertexStepFunctionConstant);
-        layout->setStepRate(1);
-
         MTL::RenderPipelineDescriptor* pipeline_desc{ MTL::RenderPipelineDescriptor::alloc()->init() };
         pipeline_desc->setVertexFunction(vertex_fn);
         pipeline_desc->setFragmentFunction(fragment_fn);
         pipeline_desc->colorAttachments()->object(0)->setPixelFormat(MTL::PixelFormatBGRA8Unorm);
-        pipeline_desc->setVertexDescriptor(vertex_desc);
 
         _triangle_pipeline.state = MTL_CHECKED_FATAL(
             _device->mtl_device()->newRenderPipelineState(pipeline_desc, &error), &error);
@@ -106,7 +108,6 @@ namespace carrot::rhi::metal {
         // Clean-up
         vertex_fn->release();
         fragment_fn->release();
-        vertex_desc->release();
         pipeline_desc->release();
         vertex_lib->release();
         fragment_lib->release();
@@ -172,7 +173,11 @@ namespace carrot::rhi::metal {
 
             push_constants* mapped{ static_cast<push_constants *>(current_buf->contents()) };
             mapped->frame_count = _frame_counter++;
-            current_buf->didModifyRange(NS::Range(0, sizeof(push_constants)));
+            
+            if (current_buf->storageMode() == MTL::StorageModeManaged)
+            {
+                current_buf->didModifyRange(NS::Range(0, sizeof(push_constants)));
+            }
 
             encoder->setVertexBuffer(current_buf, 0, 2);
             encoder->drawPrimitives(MTL::PrimitiveTypeTriangle, static_cast<NS::UInteger>(0),
@@ -194,7 +199,11 @@ namespace carrot::rhi::metal {
         pool->release();
     }
 
-    void metal_rhi_context_t::resize(uint32_t width, uint32_t height) {}
+    void metal_rhi_context_t::resize(const uint32_t width, const uint32_t height)
+    {
+        if (_swapchain)
+            _swapchain->resize(width, height);
+    }
 
     rhi_device_t* metal_rhi_context_t::get_device() const noexcept
     {

@@ -1,6 +1,6 @@
 {
   "id": "music.jalen_theme",
-  "file": "assets/audio/Jalen's Theme.wav",
+  "source": "engine://audio/Jalen's Theme.wav",
 
   "bus": "music",
   "gain": 1.0,

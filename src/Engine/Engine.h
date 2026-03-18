@@ -24,18 +24,24 @@ namespace carrot {
 
     DECLARE_MULTICAST_DELEGATE(on_tick_t, float/* dt*/);
 
+    enum class exit_code : int
+    {
+        success = 0,
+        error = 1,
+    };
+
     class engine_t
     {
     public:
-        engine_t() noexcept;
+        engine_t() = default;
         ~engine_t();
 
         DISABLE_COPY_AND_MOVE(engine_t)
 
-        void run(core::ce_application_t* app);
+        void init();
+        void init(const core::engine_paths_t& paths);
+        int run(core::ce_application_t* app);
         [[nodiscard]] static engine_t& get() noexcept;
-
-        void configure_paths(const core::engine_paths_t& paths);
 
         void request_quit() noexcept { _should_quit = true; }
         [[nodiscard]] bool should_quit() const noexcept { return _should_quit; }
@@ -45,6 +51,15 @@ namespace carrot {
     private:
         void tick();
 
+        [[nodiscard]] core::engine_paths_t make_default_engine_paths() noexcept;
+        [[nodiscard]] static std::optional<std::filesystem::path> find_repo_root(std::filesystem::path start) noexcept;
+        void configure_paths(const core::engine_paths_t& paths);
+
+        void register_builtin_audio_assets();
+        bool register_audio_asset_manifest(std::string_view manifest_uri);
+
+        bool                                                _initialized{ false };
+        bool                                                _running{ false };
         bool                                                _should_quit{ false };
         float                                               _delta_time{ 0.f };
         std::chrono::time_point<std::chrono::steady_clock>  _last_time_point{ };

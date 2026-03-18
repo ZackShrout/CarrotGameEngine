@@ -7,8 +7,8 @@
 
 #include "EngineConfig.h"
 
+#include "IO/VirtualFileSystem.h"
 #include "Utils/JSON/Public/JsonDocument.h"
-#include "Utils/File/FileUtils.h"
 
 namespace carrot {
     namespace {
@@ -23,12 +23,16 @@ namespace carrot {
         using graphics_api_map_t = std::span<const json_enum_entry_t<rhi::graphics_api>>;
     }
 
-    engine_config_t load_engine_config()
+    engine_config_t load_engine_config(io::virtual_file_system_t& vfs)
     {
         engine_config_t config{ };
 
         utils::json::json_document_t doc;
-        if (!doc.parse_from_file(utils::file::resolve_asset_path("config/config.json").data()))
+        const auto path{ vfs.resolve_native_path("engine://config/config.json") };
+
+        if (!path) return config;
+
+        if (!doc.parse_from_file(path->string().c_str()))
         {
             LOG_CORE_WARN("Using default engine configuration");
             config.graphics.api = rhi::graphics_api::default_api;

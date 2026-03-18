@@ -23,46 +23,56 @@ namespace carrot::audio {
         }
     } // anonymous namespace
 
-    voice_handle_t play(const assets::audio_asset_t& asset) noexcept
+    voice_handle_t play(const assets::loaded_audio_asset_t& asset) noexcept
     {
         const sound_play_params_t params{ };
         return play(asset, params);
     }
 
-    voice_handle_t play(const assets::audio_asset_t& asset, const sound_play_params_t& params) noexcept
+    voice_handle_t play(const assets::loaded_audio_asset_t& asset, const sound_play_params_t& params) noexcept
     {
+        if (!asset.valid() || !asset.record) return voice_handle_t::invalid();
+
+        const assets::audio_asset_record_t& record{ *asset.record };
+
         audio_module_t& audio{ audio_service_t::get() };
         voice_handle_t handle{ audio.allocate_voice_handle() };
 
         audio_command_t cmd{ };
 
-        const float gain{ apply_variance(asset.gain * params.gain, asset.gain_variance) };
-        const float pitch{ apply_variance(asset.pitch * params.pitch, asset.pitch_variance) };
-        const spatial_mode spatial{ params.override_spatial ? params.spatial_override : asset.spatial };
-        const float pan{ params.pan != 0.f ? params.pan : asset.pan };
+        const float gain{ apply_variance(record.gain * params.gain, record.gain_variance) };
+        const float pitch{ apply_variance(record.pitch * params.pitch, record.pitch_variance) };
+        const spatial_mode spatial{ params.override_spatial ? params.spatial_override : record.spatial };
+        const float pan{ params.pan != 0.f ? params.pan : record.pan };
 
-        if (!asset.streamed)
+        if (!record.streamed)
         {
+            if (!asset.sample)
+            {
+                LOG_AUDIO_ERROR("Loaded non-stream audio asset {}  has no sample", record.logical_id);
+                return voice_handle_t::invalid();
+            }
+
             // ── Sample-based voice ──────────────────
             cmd.type = audio_command_type::play_sound;
             cmd.play_sound.handle = handle;
 
-            cmd.play_sound.sample = asset.sample;
-            cmd.play_sound.bus    = asset.bus;
+            cmd.play_sound.sample = asset.sample.get();
+            cmd.play_sound.bus    = record.bus;
 
             cmd.play_sound.gain   = gain;
             cmd.play_sound.pitch  = pitch;
 
             cmd.play_sound.spatial      = spatial;
             cmd.play_sound.pan          = pan;
-            cmd.play_sound.distance     = asset.distance;
-            cmd.play_sound.min_distance = asset.min_distance;
-            cmd.play_sound.max_distance = asset.max_distance;
+            cmd.play_sound.distance     = record.distance;
+            cmd.play_sound.min_distance = record.min_distance;
+            cmd.play_sound.max_distance = record.max_distance;
             cmd.play_sound.position     = params.position;
 
-            cmd.play_sound.looping    = asset.looping;
-            cmd.play_sound.loop_start = asset.loop_start;
-            cmd.play_sound.loop_end   = asset.loop_end;
+            cmd.play_sound.looping    = record.looping;
+            cmd.play_sound.loop_start = record.loop_start;
+            cmd.play_sound.loop_end   = record.loop_end;
         }
         else
         {
@@ -71,8 +81,7 @@ namespace carrot::audio {
             audio_stream_t* stream = audio.create_stream_from_asset(asset);
             if (!stream)
             {
-                LOG_AUDIO_ERROR("Failed to create stream for asset '{}'",
-                                asset.file_path.string());
+                LOG_AUDIO_ERROR("Failed to create stream for asset '{}'", record.logical_id);
                 return voice_handle_t::invalid();
             }
 
@@ -82,17 +91,14 @@ namespace carrot::audio {
             cmd.play_stream.handle = handle;
 
             cmd.play_stream.stream = stream;
-            cmd.play_stream.bus    = asset.bus;
+            cmd.play_stream.bus    = record.bus;
 
             cmd.play_stream.gain = gain;
             cmd.play_stream.pan  = pan;
 
-            // For v1, streaming assets are treated as:
-            // - non-spatial (spatial_mode::none)
-            // - and let voice.stereo logic handle them
-            cmd.play_stream.looping = asset.looping;
-            cmd.play_stream.loop_start = asset.loop_start;
-            cmd.play_stream.loop_end = asset.loop_end;
+            cmd.play_stream.looping = record.looping;
+            cmd.play_stream.loop_start = record.loop_start;
+            cmd.play_stream.loop_end = record.loop_end;
         }
 
         // ── Enqueue ──────────────────────────────
@@ -103,17 +109,8 @@ namespace carrot::audio {
 
     voice_handle_t play(std::string_view asset_name)
     {
-        const assets::audio_asset_registry_t& registry{ assets::asset_service_t::manager().audio() };
-        const assets::asset_id_t id{ assets::make_asset_id(asset_name) };
+        const assets::loaded_audio_asset_t* asset{ assets::asset_service_t::manager().audio().get(asset_name) };
 
-        const auto handle{ registry.find(id) };
-        if (!handle)
-        {
-            LOG_AUDIO_ERROR("Unknown audio asset '{}'", asset_name);
-            return voice_handle_t::invalid();
-        }
-
-        const assets::audio_asset_t* asset{ registry.get(handle) };
         if (!asset)
         {
             LOG_AUDIO_ERROR("Failed to resolve asset '{}'", asset_name);

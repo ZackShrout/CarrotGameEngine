@@ -3,18 +3,14 @@
 // Copyright (c) 2025 BunnySoft. All rights reserved.
 //
 
-#include "Core/Pch.h"
-
 #include "Game.h"
 
 #include <CarrotEngine.h>
 
 int main()
 {
-    sandbox::sandbox_t* game{ new sandbox::sandbox_t() };
-    carrot::engine_t::get().run(game);
+    sandbox::sandbox_t game{ };
 
-    delete game;
-
-    return 0;
+    carrot::engine_t::get().init();
+    return carrot::engine_t::get().run(&game);
 }

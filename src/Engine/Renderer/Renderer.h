@@ -8,6 +8,11 @@
 #include "Core/Module.h"
 #include "RHI/RHI.h"
 #include "EngineConfig.h"
+#include "Assets/Shaders/VFSShaderFileProvider.h"
+
+namespace carrot::io {
+    class virtual_file_system_t;
+}
 
 namespace carrot::rhi {
     class rhi_buffer_t;
@@ -37,7 +42,7 @@ namespace carrot::renderer {
     public:
         CARROT_MODULE_NAME("Renderer")
 
-        explicit renderer_t(const engine_graphics_config_t& config) : _config{ config } { init(); }
+        explicit renderer_t(io::virtual_file_system_t& vfs, const engine_graphics_config_t& config);
         ~renderer_t() override { shutdown(); }
 
         void init() override;
@@ -67,9 +72,12 @@ namespace carrot::renderer {
         // Temporary bridge helpers until we have proper command list abstraction
         void submit_immediate_triangle(uint32_t abgr_color);
 
+        io::virtual_file_system_t& _vfs;
+
         engine_graphics_config_t _config;
 
         std::unique_ptr<rhi::rhi_context_t> _rhi;
+        std::unique_ptr<assets::vfs_shader_file_provider_t> _shader_provider;
 
         uint64_t _frame_index{ 0 };
         uint32_t _draw_calls_this_frame{ 0 };

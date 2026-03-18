@@ -221,12 +221,16 @@ namespace carrot {
             return paths;
 
         const std::filesystem::path engine_root = *repo_root / "assets";
+        const std::filesystem::path engine_src = *repo_root;
         const std::filesystem::path game_root   = *repo_root / "src" / "Game" / "assets";
         const std::filesystem::path source_root = *repo_root / "src" / "Game" / "source";
         const std::filesystem::path save_root   = *repo_root / "src" / "Game" / "saved";
 
         if (std::filesystem::exists(engine_root))
             paths.engine_root = std::filesystem::weakly_canonical(engine_root);
+
+        if (std::filesystem::exists(engine_src))
+            paths.engine_src = std::filesystem::weakly_canonical(engine_src);
 
         if (std::filesystem::exists(game_root))
             paths.game_root = std::filesystem::weakly_canonical(game_root);
@@ -263,12 +267,16 @@ namespace carrot {
     {
         LOG_CORE_INFO("Configuring engine paths...");
         LOG_CORE_INFO("Engine Root: {}", utils::file::to_log_string(paths.engine_root.value_or("Not set")));
+        LOG_CORE_INFO("Engine Source: {}", utils::file::to_log_string(paths.engine_src.value_or("Not set")));
         LOG_CORE_INFO("Game Root: {}", utils::file::to_log_string(paths.game_root.value_or("Not set")));
         LOG_CORE_INFO("Source Root: {}", utils::file::to_log_string(paths.source_root.value_or("Not set")));
         LOG_CORE_INFO("Save Root: {}", utils::file::to_log_string(paths.save_root.value_or("Not set")));
 
         if (paths.engine_root)
             _vfs.mount("engine", *paths.engine_root, true);
+
+        if (paths.engine_src)
+            _vfs.mount("engine_src", *paths.engine_src, true);
 
         if (paths.game_root)
             _vfs.mount("game", *paths.game_root, true);

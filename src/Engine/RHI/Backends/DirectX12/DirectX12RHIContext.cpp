@@ -12,6 +12,7 @@
 #include "DirectX12Device.h"
 #include "DirectX12Fence.h"
 #include "DirectX12Swapchain.h"
+#include "Assets/Shaders/ShaderFileProvider.h"
 #include "RHI/RHI.h"
 #include "Utils/File/FileUtils.h"
 #include "Window/Window.h"
@@ -101,19 +102,25 @@ namespace carrot::rhi::dx12 {
         if (FAILED(hr))
             LOG_GRAPHICS_FATAL("Failed to create DX12 root signature");
 
-        const std::string vs_path = "shaders/triangle.vert.dxil";
-        const std::string ps_path = "shaders/triangle.frag.dxil";
+        const auto vs_path{ desc.shader_files->resolve("engine://shaders/dx12/triangle.vert.dxil") };
+        const auto ps_path{ desc.shader_files->resolve("engine://shaders/dx12/triangle.frag.dxil") };
 
-        auto vs_bytes = utils::file::load_binary_file(vs_path);
-        auto ps_bytes = utils::file::load_binary_file(ps_path);
+        if (!vs_path || !ps_path)
+            LOG_GRAPHICS_FATAL("Failed to resolve shader paths");
+
+        auto vs_bytes{ utils::file::load_binary_file(*vs_path) };
+        auto ps_bytes{ utils::file::load_binary_file(*ps_path) };
+
+        if (!vs_bytes || !ps_bytes)
+            LOG_GRAPHICS_FATAL("Failed to load DX12 shader bytecode");
 
         D3D12_SHADER_BYTECODE vs_bc{ };
-        vs_bc.pShaderBytecode = vs_bytes.data();
-        vs_bc.BytecodeLength = vs_bytes.size();
+        vs_bc.pShaderBytecode = vs_bytes->data();
+        vs_bc.BytecodeLength = vs_bytes->size();
 
         D3D12_SHADER_BYTECODE ps_bc{ };
-        ps_bc.pShaderBytecode = ps_bytes.data();
-        ps_bc.BytecodeLength = ps_bytes.size();
+        ps_bc.pShaderBytecode = ps_bytes->data();
+        ps_bc.BytecodeLength = ps_bytes->size();
 
         D3D12_GRAPHICS_PIPELINE_STATE_DESC pso_desc{ };
         pso_desc.pRootSignature = _root_signature;

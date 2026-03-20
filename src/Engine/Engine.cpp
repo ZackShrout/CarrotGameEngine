@@ -192,39 +192,26 @@ namespace carrot {
 
         _audio_module->update(_delta_time);
 
-
         // debug::text(20.f, 30.f, "FPS: %u", _current_fps);
         // debug::text(20.f, 65.f, "Frame: %.3f ms", _delta_time * 1000.f);
 
         _on_tick.broadcast(_delta_time);
-
-        // Resize test
-        // static float seconds_counter{ 0.0f };
-        // static int seconds{ 0 };
-        // static bool resized{ false };
-        // seconds_counter += _delta_time;
-        //
-        // if (seconds_counter >= 6.0f && !resized)
-        // {
-        //     _renderer->get_rhi()->resize(800, 600);
-        //     resized = true;
-        // }
     }
 
     core::engine_paths_t engine_t::make_default_engine_paths() noexcept
     {
-        core::engine_paths_t paths{};
+        core::engine_paths_t paths{ };
 
         const std::filesystem::path exe_dir{ utils::file::executable_directory() };
         const auto repo_root = find_repo_root(exe_dir);
         if (!repo_root)
             return paths;
 
-        const std::filesystem::path engine_root = *repo_root / "assets";
-        const std::filesystem::path engine_src = *repo_root;
-        const std::filesystem::path game_root   = *repo_root / "src" / "Game" / "assets";
-        const std::filesystem::path source_root = *repo_root / "src" / "Game" / "source";
-        const std::filesystem::path save_root   = *repo_root / "src" / "Game" / "saved";
+        const std::filesystem::path engine_root{ *repo_root / "assets" };
+        const std::filesystem::path& engine_src{ *repo_root };
+        const std::filesystem::path game_root{ *repo_root / "src" / "Game" / "assets" };
+        const std::filesystem::path source_root{ *repo_root / "src" / "Game" / "source" };
+        const std::filesystem::path save_root{ *repo_root / "src" / "Game" / "saved" };
 
         if (std::filesystem::exists(engine_root))
             paths.engine_root = std::filesystem::weakly_canonical(engine_root);
@@ -298,7 +285,9 @@ namespace carrot {
 
     bool engine_t::register_audio_asset_manifest(std::string_view manifest_uri)
     {
-        const std::optional<std::filesystem::path> native_path{ _asset_manager.vfs().resolve_native_path(manifest_uri) };
+        const std::optional<std::filesystem::path> native_path{
+            _asset_manager.vfs().resolve_native_path(manifest_uri)
+        };
 
         utils::json::json_document_t doc;
         if (!doc.parse_from_file(native_path->string().c_str()))

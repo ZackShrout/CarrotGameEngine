@@ -162,6 +162,8 @@ namespace carrot::renderer {
                           _test_texture->width(),
                           _test_texture->height());
 
+        _rhi->set_textured_quad_texture(*_test_texture);
+
         rhi::buffer_create_info_t vertex_buffer_info{ };
         vertex_buffer_info.size_bytes = sizeof(k_unit_quad_vertices);
         vertex_buffer_info.usage = rhi::buffer_usage_t::vertex;

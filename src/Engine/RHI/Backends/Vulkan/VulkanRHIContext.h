@@ -35,6 +35,8 @@ namespace carrot::rhi::vulkan {
 
         [[nodiscard]] std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) override;
+        void set_textured_quad_texture(const rhi_texture_t& texture) override;
+        void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer, const rhi_buffer_t& index_buffer) override;
 
         void wait_idle() override;
 
@@ -50,10 +52,15 @@ namespace carrot::rhi::vulkan {
                               VkBuffer& out_buffer, VkDeviceMemory& out_memory) const;
 
         void copy_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size) const;
+        void create_descriptor_pool();
+        void destroy_descriptor_pool() noexcept;
+        void create_textured_quad_descriptor_set(const rhi_texture_t& texture);
 
         VkInstance                                              _vk_instance{ VK_NULL_HANDLE };
         VkSurfaceKHR                                            _vk_surface{ VK_NULL_HANDLE };
         VkCommandPool                                           _command_pool{ VK_NULL_HANDLE };
+        VkDescriptorPool                                        _descriptor_pool{ VK_NULL_HANDLE };
+        VkDescriptorSet                                         _textured_quad_descriptor_set{ VK_NULL_HANDLE };
         assets::shader_file_provider_t*                         _shader_files;
         std::unique_ptr<vulkan_device_t>                        _device;
         std::unique_ptr<vulkan_swapchain_t>                     _swapchain;

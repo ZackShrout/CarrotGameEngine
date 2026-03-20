@@ -47,6 +47,7 @@ namespace carrot::rhi::vulkan {
         vkDeviceWaitIdle(_device ? _device->vk_device() : VK_NULL_HANDLE);
 
         _framebuffers = { };
+        destroy_descriptor_pool();
         _textured_quad_pipeline.reset();
         _graphics_pipeline.reset();
         _render_pass.reset();
@@ -643,6 +644,18 @@ namespace carrot::rhi::vulkan {
         return result;
     }
 
+    void vulkan_rhi_context_t::set_textured_quad_texture(const rhi_texture_t& texture)
+    {
+        if (_descriptor_pool == VK_NULL_HANDLE)
+            LOG_GRAPHICS_FATAL("Descriptor pool not initialized before setting textured quad texture");
+
+        _textured_quad_descriptor_set = VK_NULL_HANDLE;
+        create_textured_quad_descriptor_set(texture);
+    }
+
+    void vulkan_rhi_context_t::set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer,
+        const rhi_buffer_t& index_buffer) {}
+
     void vulkan_rhi_context_t::wait_idle()
     {
         if (_graphics_queue) _graphics_queue->wait_idle();
@@ -694,7 +707,7 @@ namespace carrot::rhi::vulkan {
 
         VK_CHECK_FATAL(vkCreateInstance(&inst_info, nullptr, &_vk_instance));
 
-        // ── 2. Create Wayland Surface ─────────────────────────────────────────────
+        // ── 2. Create Platform Specific Surface ───────────────────────────────────
 #if defined(CARROT_PLATFORM_WAYLAND)
         VkWaylandSurfaceCreateInfoKHR surf_info{ };
         surf_info.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
@@ -841,6 +854,8 @@ namespace carrot::rhi::vulkan {
 
         _textured_quad_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
             _device.get(), _render_pass->vk_render_pass(), _shader_files);
+
+        create_descriptor_pool();
 
         // ── 9. Create Framebuffers ────────────────────────────────────────────────
         _framebuffers = _swapchain->create_framebuffers(_render_pass->vk_render_pass());
@@ -995,5 +1010,68 @@ namespace carrot::rhi::vulkan {
         vkCmdCopyBuffer(cmd, src, dst, 1, &copy_region);
 
         end_single_time_commands(cmd);
+    }
+
+    void vulkan_rhi_context_t::create_descriptor_pool()
+    {
+        VkDescriptorPoolSize pool_size{ };
+        pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        pool_size.descriptorCount = 8;
+
+        VkDescriptorPoolCreateInfo pool_info{ };
+        pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        pool_info.poolSizeCount = 1;
+        pool_info.pPoolSizes = &pool_size;
+        pool_info.maxSets = 8;
+
+        VK_CHECK_FATAL(vkCreateDescriptorPool(_device->vk_device(), &pool_info, nullptr, &_descriptor_pool));
+
+        LOG_GRAPHICS_INFO("Textured quad descriptor pool created successfully");
+    }
+
+    void vulkan_rhi_context_t::destroy_descriptor_pool() noexcept
+    {
+        _textured_quad_descriptor_set = VK_NULL_HANDLE;
+
+        if (_descriptor_pool != VK_NULL_HANDLE)
+        {
+            vkDestroyDescriptorPool(_device->vk_device(), _descriptor_pool, nullptr);
+            _descriptor_pool = VK_NULL_HANDLE;
+        }
+    }
+
+    void vulkan_rhi_context_t::create_textured_quad_descriptor_set(const rhi_texture_t& texture)
+    {
+        const auto* vk_texture{ dynamic_cast<const vulkan_texture_t*>(&texture) };
+        if (vk_texture == nullptr)
+            LOG_GRAPHICS_FATAL("set_textured_quad_texture received non-Vulkan texture in Vulkan backend");
+
+        VkDescriptorSetLayout layout{ _textured_quad_pipeline->vk_descriptor_set_layout() };
+
+        VkDescriptorSetAllocateInfo alloc_info{ };
+        alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        alloc_info.descriptorPool = _descriptor_pool;
+        alloc_info.descriptorSetCount = 1;
+        alloc_info.pSetLayouts = &layout;
+
+        VK_CHECK_FATAL(vkAllocateDescriptorSets(_device->vk_device(), &alloc_info, &_textured_quad_descriptor_set));
+
+        VkDescriptorImageInfo image_info{ };
+        image_info.sampler = vk_texture->sampler();
+        image_info.imageView = vk_texture->view();
+        image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        VkWriteDescriptorSet write{ };
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.dstSet = _textured_quad_descriptor_set;
+        write.dstBinding = 0;
+        write.dstArrayElement = 0;
+        write.descriptorCount = 1;
+        write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        write.pImageInfo = &image_info;
+
+        vkUpdateDescriptorSets(_device->vk_device(), 1, &write, 0, nullptr);
+
+        LOG_GRAPHICS_INFO("Textured quad descriptor set created successfully");
     }
 } // namespace carrot::rhi::vulkan

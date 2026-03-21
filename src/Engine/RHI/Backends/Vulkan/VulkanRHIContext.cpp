@@ -14,6 +14,7 @@
 #include "Window/Window.h"
 #include "HotReload/ShaderWatcher.h"
 #include "Pipelines/VulkanTexturedQuadPipeline.h"
+#include "Renderer/Primitives/TexturedQuadPushConstants.h"
 
 namespace carrot::rhi::vulkan {
     namespace {
@@ -180,7 +181,24 @@ namespace carrot::rhi::vulkan {
 
         const frame_resources_t& frame{ _frames[_current_frame] };
 
-        // Set dynamic viewport and scissor
+        if (_textured_quad_pipeline == nullptr)
+        {
+            LOG_GRAPHICS_FATAL("Textured quad pipeline not initialized");
+            return;
+        }
+
+        if (_textured_quad_descriptor_set == VK_NULL_HANDLE)
+        {
+            LOG_GRAPHICS_FATAL("Textured quad descriptor set not initialized");
+            return;
+        }
+
+        if (_textured_quad_vertex_buffer == nullptr || _textured_quad_index_buffer == nullptr)
+        {
+            LOG_GRAPHICS_FATAL("Textured quad geometry not initialized");
+            return;
+        }
+
         VkViewport viewport{ };
         viewport.x = 0.0f;
         viewport.y = 0.0f;
@@ -196,21 +214,43 @@ namespace carrot::rhi::vulkan {
         vkCmdSetViewport(frame.command_buffer, 0, 1, &viewport);
         vkCmdSetScissor(frame.command_buffer, 0, 1, &scissor);
 
-        vkCmdBindPipeline(frame.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _graphics_pipeline->vk_pipeline());
+        vkCmdBindPipeline(frame.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          _textured_quad_pipeline->vk_pipeline());
 
-        _frame_counter++;
-
-        const uint32_t pc_data{ _frame_counter };
-        vkCmdPushConstants(
+        vkCmdBindDescriptorSets(
             frame.command_buffer,
-            _graphics_pipeline->vk_layout(),
-            VK_SHADER_STAGE_VERTEX_BIT,
-            0, // offset
-            sizeof(uint32_t), // size must match shader
-            &pc_data // pointer to the data
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            _textured_quad_pipeline->vk_layout(),
+            0,
+            1,
+            &_textured_quad_descriptor_set,
+            0,
+            nullptr
         );
 
-        vkCmdDraw(frame.command_buffer, 3, 1, 0, 0);
+        const VkBuffer vertex_buffers[]{ _textured_quad_vertex_buffer->vk_buffer() };
+        const VkDeviceSize offsets[]{ 0 };
+
+        vkCmdBindVertexBuffers(frame.command_buffer, 0, 1, vertex_buffers, offsets);
+        vkCmdBindIndexBuffer(frame.command_buffer, _textured_quad_index_buffer->vk_buffer(), 0, VK_INDEX_TYPE_UINT16);
+
+        const renderer::textured_quad_push_constants_t push_constants{
+            .offset_x = -0.5f,
+            .offset_y = -0.5f,
+            .scale_x = 1.0f,
+            .scale_y = 1.0f
+        };
+
+        vkCmdPushConstants(
+            frame.command_buffer,
+            _textured_quad_pipeline->vk_layout(),
+            VK_SHADER_STAGE_VERTEX_BIT,
+            0,
+            sizeof(push_constants),
+            &push_constants
+        );
+
+        vkCmdDrawIndexed(frame.command_buffer, 6, 1, 0, 0, 0);
     }
 
     void vulkan_rhi_context_t::end_frame()
@@ -654,11 +694,34 @@ namespace carrot::rhi::vulkan {
     }
 
     void vulkan_rhi_context_t::set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer,
-        const rhi_buffer_t& index_buffer) {}
+                                                          const rhi_buffer_t& index_buffer)
+    {
+        const vulkan_buffer_t* vk_vertex_buffer{ dynamic_cast<const vulkan_buffer_t*>(&vertex_buffer) };
+
+        if (vk_vertex_buffer == nullptr)
+        {
+            LOG_GRAPHICS_FATAL("set_textured_quad_geometry received non-Vulkan vertex buffer");
+            return;
+        }
+
+        const vulkan_buffer_t* vk_index_buffer{ dynamic_cast<const vulkan_buffer_t*>(&index_buffer) };
+
+        if (vk_index_buffer == nullptr)
+        {
+            LOG_GRAPHICS_FATAL("set_textured_quad_geometry received non-Vulkan index buffer");
+            return;
+        }
+
+        _textured_quad_vertex_buffer = vk_vertex_buffer;
+        _textured_quad_index_buffer = vk_index_buffer;
+
+        LOG_GRAPHICS_INFO("Textured quad geometry bound successfully");
+    }
 
     void vulkan_rhi_context_t::wait_idle()
     {
-        if (_graphics_queue) _graphics_queue->wait_idle();
+        if (_device)
+            VK_CHECK_FATAL(vkDeviceWaitIdle(_device->vk_device()));
     }
 
     // PRIVATE
@@ -1042,9 +1105,13 @@ namespace carrot::rhi::vulkan {
 
     void vulkan_rhi_context_t::create_textured_quad_descriptor_set(const rhi_texture_t& texture)
     {
-        const auto* vk_texture{ dynamic_cast<const vulkan_texture_t*>(&texture) };
+        const vulkan_texture_t* vk_texture{ dynamic_cast<const vulkan_texture_t*>(&texture) };
+
         if (vk_texture == nullptr)
+        {
             LOG_GRAPHICS_FATAL("set_textured_quad_texture received non-Vulkan texture in Vulkan backend");
+            return;
+        }
 
         VkDescriptorSetLayout layout{ _textured_quad_pipeline->vk_descriptor_set_layout() };
 

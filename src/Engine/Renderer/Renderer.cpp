@@ -60,6 +60,9 @@ namespace carrot::renderer {
 
         LOG_GRAPHICS_INFO("Shutting down Renderer...");
 
+        if (_rhi)
+            _rhi->wait_idle();
+
         destroy_common_resources();
         _rhi.reset();
 
@@ -129,7 +132,7 @@ namespace carrot::renderer {
         // LOG_GRAPHICS_INFO("Common graphics resources created (currently empty)");
 
         const assets::image_load_result_t image_result{
-            assets::load_image_rgba8("engine://images/16x16orange.png")
+            assets::load_image_rgba8("engine://images/vraden_test.png")
         };
 
         if (!image_result.success())
@@ -187,6 +190,8 @@ namespace carrot::renderer {
             _quad_vertex_buffer->size_bytes(),
             _quad_index_buffer->size_bytes()
         );
+
+        _rhi->set_textured_quad_geometry(*_quad_vertex_buffer, *_quad_index_buffer);
     }
 
     void renderer_t::destroy_common_resources()

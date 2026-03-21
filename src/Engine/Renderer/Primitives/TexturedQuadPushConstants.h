@@ -5,12 +5,14 @@
 
 #pragma once
 
-struct textured_quad_push_constants_t
-{
-    float offset_x;
-    float offset_y;
-    float scale_x;
-    float scale_y;
-};
+namespace carrot::renderer {
+    struct textured_quad_push_constants_t
+    {
+        float offset_x;
+        float offset_y;
+        float scale_x;
+        float scale_y;
+    };
 
-static_assert(sizeof(textured_quad_push_constants_t) == 16);
+    static_assert(sizeof(textured_quad_push_constants_t) == 16);
+} // namespace carrot::renderer

@@ -13,6 +13,7 @@
 #include "RHI/RHI.h"
 
 namespace carrot::rhi::vulkan {
+    class vulkan_buffer_t;
     class vulkan_textured_quad_pipeline_t;
     class vulkan_pipeline_t;
     class vulkan_render_pass_t;
@@ -61,6 +62,8 @@ namespace carrot::rhi::vulkan {
         VkCommandPool                                           _command_pool{ VK_NULL_HANDLE };
         VkDescriptorPool                                        _descriptor_pool{ VK_NULL_HANDLE };
         VkDescriptorSet                                         _textured_quad_descriptor_set{ VK_NULL_HANDLE };
+        const vulkan_buffer_t*                                  _textured_quad_vertex_buffer{ nullptr };
+        const vulkan_buffer_t*                                  _textured_quad_index_buffer{ nullptr };
         assets::shader_file_provider_t*                         _shader_files;
         std::unique_ptr<vulkan_device_t>                        _device;
         std::unique_ptr<vulkan_swapchain_t>                     _swapchain;

@@ -19,7 +19,7 @@ namespace carrot::rhi::vulkan {
     namespace {
         [[nodiscard]] VkVertexInputBindingDescription make_vertex_binding_description() noexcept
         {
-            VkVertexInputBindingDescription binding{};
+            VkVertexInputBindingDescription binding{ };
             binding.binding = 0;
             binding.stride = sizeof(carrot::renderer::quad_vertex_t);
             binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
@@ -28,7 +28,7 @@ namespace carrot::rhi::vulkan {
 
         [[nodiscard]] std::array<VkVertexInputAttributeDescription, 3> make_vertex_attribute_descriptions() noexcept
         {
-            std::array<VkVertexInputAttributeDescription, 3> attributes{};
+            std::array<VkVertexInputAttributeDescription, 3> attributes{ };
 
             // float x, y
             attributes[0].location = 0;
@@ -52,7 +52,10 @@ namespace carrot::rhi::vulkan {
         }
     } // namespace
 
-    vulkan_textured_quad_pipeline_t::vulkan_textured_quad_pipeline_t(const vulkan_device_t* device, VkRenderPass render_pass, assets::shader_file_provider_t* shader_files) : _device{ device }
+    vulkan_textured_quad_pipeline_t::vulkan_textured_quad_pipeline_t(const vulkan_device_t* device,
+                                                                     VkRenderPass render_pass,
+                                                                     assets::shader_file_provider_t*
+                                                                     shader_files) : _device{ device }
     {
         const auto vert_path{ shader_files->resolve("engine://shaders/vulkan/textured_quad.vert.spv") };
         const auto frag_path{ shader_files->resolve("engine://shaders/vulkan/textured_quad.frag.spv") };
@@ -66,10 +69,10 @@ namespace carrot::rhi::vulkan {
         std::vector<uint32_t> vert_code{ *load_spv_file(*vert_path) };
         std::vector<uint32_t> frag_code{ *load_spv_file(*frag_path) };
 
-        const VkShaderModule vert_module{ create_shader_module(vert_code) };
-        const VkShaderModule frag_module{ create_shader_module(frag_code) };
+        VkShaderModule vert_module{ create_shader_module(vert_code) };
+        VkShaderModule frag_module{ create_shader_module(frag_code) };
 
-        VkPipelineShaderStageCreateInfo stages[2]{};
+        VkPipelineShaderStageCreateInfo stages[2]{ };
         stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
         stages[0].module = vert_module;
@@ -83,24 +86,24 @@ namespace carrot::rhi::vulkan {
         const VkVertexInputBindingDescription binding_desc = make_vertex_binding_description();
         const auto attribute_descs = make_vertex_attribute_descriptions();
 
-        VkPipelineVertexInputStateCreateInfo vertex_input{};
+        VkPipelineVertexInputStateCreateInfo vertex_input{ };
         vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
         vertex_input.vertexBindingDescriptionCount = 1;
         vertex_input.pVertexBindingDescriptions = &binding_desc;
         vertex_input.vertexAttributeDescriptionCount = static_cast<uint32_t>(attribute_descs.size());
         vertex_input.pVertexAttributeDescriptions = attribute_descs.data();
 
-        VkPipelineInputAssemblyStateCreateInfo input_assembly{};
+        VkPipelineInputAssemblyStateCreateInfo input_assembly{ };
         input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
         input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
         input_assembly.primitiveRestartEnable = VK_FALSE;
 
-        VkPipelineViewportStateCreateInfo viewport_state{};
+        VkPipelineViewportStateCreateInfo viewport_state{ };
         viewport_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
         viewport_state.viewportCount = 1;
         viewport_state.scissorCount = 1;
 
-        VkPipelineRasterizationStateCreateInfo rasterizer{};
+        VkPipelineRasterizationStateCreateInfo rasterizer{ };
         rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
         rasterizer.depthClampEnable = VK_FALSE;
         rasterizer.rasterizerDiscardEnable = VK_FALSE;
@@ -109,20 +112,27 @@ namespace carrot::rhi::vulkan {
         rasterizer.cullMode = VK_CULL_MODE_NONE;
         rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
 
-        VkPipelineMultisampleStateCreateInfo multisampling{};
+        VkPipelineMultisampleStateCreateInfo multisampling{ };
         multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
         multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
         multisampling.sampleShadingEnable = VK_FALSE;
 
-        VkPipelineColorBlendAttachmentState color_blend_attachment{};
+        VkPipelineColorBlendAttachmentState color_blend_attachment{ };
         color_blend_attachment.colorWriteMask =
-            VK_COLOR_COMPONENT_R_BIT |
-            VK_COLOR_COMPONENT_G_BIT |
-            VK_COLOR_COMPONENT_B_BIT |
-            VK_COLOR_COMPONENT_A_BIT;
-        color_blend_attachment.blendEnable = VK_FALSE;
+                VK_COLOR_COMPONENT_R_BIT |
+                VK_COLOR_COMPONENT_G_BIT |
+                VK_COLOR_COMPONENT_B_BIT |
+                VK_COLOR_COMPONENT_A_BIT;
 
-        VkPipelineColorBlendStateCreateInfo color_blending{};
+        color_blend_attachment.blendEnable = VK_TRUE;
+        color_blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        color_blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        color_blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
+        color_blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        color_blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+        color_blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
+
+        VkPipelineColorBlendStateCreateInfo color_blending{ };
         color_blending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
         color_blending.logicOpEnable = VK_FALSE;
         color_blending.attachmentCount = 1;
@@ -133,19 +143,19 @@ namespace carrot::rhi::vulkan {
             VK_DYNAMIC_STATE_SCISSOR
         };
 
-        VkPipelineDynamicStateCreateInfo dynamic_state{};
+        VkPipelineDynamicStateCreateInfo dynamic_state{ };
         dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
         dynamic_state.dynamicStateCount = 2;
         dynamic_state.pDynamicStates = dynamic_states;
 
-        VkDescriptorSetLayoutBinding texture_binding{};
+        VkDescriptorSetLayoutBinding texture_binding{ };
         texture_binding.binding = 0;
         texture_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         texture_binding.descriptorCount = 1;
         texture_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         texture_binding.pImmutableSamplers = nullptr;
 
-        VkDescriptorSetLayoutCreateInfo descriptor_set_layout_info{};
+        VkDescriptorSetLayoutCreateInfo descriptor_set_layout_info{ };
         descriptor_set_layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         descriptor_set_layout_info.bindingCount = 1;
         descriptor_set_layout_info.pBindings = &texture_binding;
@@ -157,12 +167,12 @@ namespace carrot::rhi::vulkan {
             &_descriptor_set_layout
         ));
 
-        VkPushConstantRange push_range{};
+        VkPushConstantRange push_range{ };
         push_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         push_range.offset = 0;
-        push_range.size = sizeof(textured_quad_push_constants_t);
+        push_range.size = sizeof(renderer::textured_quad_push_constants_t);
 
-        VkPipelineLayoutCreateInfo layout_info{};
+        VkPipelineLayoutCreateInfo layout_info{ };
         layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         layout_info.setLayoutCount = 1;
         layout_info.pSetLayouts = &_descriptor_set_layout;
@@ -176,7 +186,7 @@ namespace carrot::rhi::vulkan {
             &_layout
         ));
 
-        VkGraphicsPipelineCreateInfo pipeline_info{};
+        VkGraphicsPipelineCreateInfo pipeline_info{ };
         pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
         pipeline_info.stageCount = 2;
         pipeline_info.pStages = stages;
@@ -223,7 +233,7 @@ namespace carrot::rhi::vulkan {
 
     VkShaderModule vulkan_textured_quad_pipeline_t::create_shader_module(const std::vector<uint32_t>& code) const
     {
-        VkShaderModuleCreateInfo create_info{};
+        VkShaderModuleCreateInfo create_info{ };
         create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
         create_info.codeSize = code.size() * sizeof(uint32_t);
         create_info.pCode = code.data();

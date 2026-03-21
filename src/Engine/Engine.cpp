@@ -148,7 +148,7 @@ namespace carrot {
             if (window::is_minimized()) continue;
 
             _renderer->begin_frame();
-            _renderer->get_rhi()->record_frame();
+            _renderer->record_frame();
 
             // Initialize debug overlay AFTER the first swapchain image exists
             if (!_debug_overlay_initialized)

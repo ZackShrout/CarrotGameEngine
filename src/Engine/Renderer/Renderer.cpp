@@ -10,6 +10,7 @@
 #include "Assets/Image/ImageAssetImporter.h"
 #include "IO/VirtualFileSystem.h"
 #include "Primitives/QuadMesh.h"
+#include "Primitives/TexturedQuadPushConstants.h"
 #include "Utils/File/FileUtils.h"
 #include "Window/Window.h"
 #include "RHI/Texture.h"
@@ -74,12 +75,53 @@ namespace carrot::renderer {
     {
         _draw_calls_this_frame = 0;
         _frame_index++;
+        _pending_textured_quad.reset();
 
         _rhi->begin_frame();
 
         // Future place for:
         // - begin main render pass
         // - set common global state (samplers, etc)
+
+
+        carrot::renderer::textured_quad_draw_info_t quad{};
+        quad.texture = _test_texture.get(); // or whatever renderer-visible texture pointer you hold
+        quad.x = -0.25f;
+        quad.y = -0.25f;
+        quad.width = 0.5f;
+        quad.height = 0.5f;
+
+        draw_textured_quad(quad);
+    }
+
+    void renderer_t::record_frame()
+    {
+        if (_pending_textured_quad.has_value())
+        {
+            const auto& quad = *_pending_textured_quad;
+
+            if (quad.texture != _current_textured_quad_texture)
+            {
+                _rhi->set_textured_quad_texture(*quad.texture);
+                _current_textured_quad_texture = quad.texture;
+            }
+
+            const textured_quad_push_constants_t push_constants{
+                .offset_x = quad.x,
+                .offset_y = quad.y,
+                .scale_x = quad.width,
+                .scale_y = quad.height
+            };
+
+            _rhi->set_textured_quad_push_constants(push_constants);
+            _draw_calls_this_frame = 1;
+        }
+        else
+        {
+            _draw_calls_this_frame = 0;
+        }
+
+        _rhi->record_frame();
     }
 
     void renderer_t::end_frame()
@@ -104,6 +146,17 @@ namespace carrot::renderer {
         // TODO: real implementation later
         _draw_calls_this_frame++;
         LOG_GRAPHICS_TRACE("Fullscreen quad draw (stub)");
+    }
+
+    void renderer_t::draw_textured_quad(const textured_quad_draw_info_t& quad)
+    {
+        if (quad.texture == nullptr)
+        {
+            LOG_GRAPHICS_WARN("draw_textured_quad called with null texture");
+            return;
+        }
+
+        _pending_textured_quad = quad;
     }
 
     void renderer_t::draw_sprite(const sprite_draw_info_t& sprite)

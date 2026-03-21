@@ -47,6 +47,7 @@ namespace carrot::rhi::dx12 {
         [[nodiscard]] std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) override;
         void set_textured_quad_texture(const rhi_texture_t& texture) override {}
         void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer, const rhi_buffer_t& index_buffer) override {}
+        void set_textured_quad_push_constants(const renderer::textured_quad_push_constants_t& constants) override {}
 
         void wait_idle() override;
 

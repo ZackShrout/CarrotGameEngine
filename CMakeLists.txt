@@ -173,6 +173,7 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Utils/File/PlatformPaths.h
         src/Engine/Assets/Shaders/ShaderFileProvider.h
         src/Engine/Assets/Shaders/VFSShaderFileProvider.h
+        src/Engine/Renderer/Draw/TexturedQuadDrawInfo.h
 )
 
 # ------------------------------------------------------------------------

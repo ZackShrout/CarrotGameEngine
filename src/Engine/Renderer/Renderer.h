@@ -5,10 +5,13 @@
 
 #pragma once
 
-#include "Core/Module.h"
-#include "RHI/RHI.h"
 #include "EngineConfig.h"
 #include "Assets/Shaders/VFSShaderFileProvider.h"
+#include "Core/Module.h"
+#include "Draw/TexturedQuadDrawInfo.h"
+#include "RHI/RHI.h"
+
+#include <optional>
 
 namespace carrot::io {
     class virtual_file_system_t;
@@ -20,6 +23,8 @@ namespace carrot::rhi {
 }
 
 namespace carrot::renderer {
+    struct textured_quad_draw_info_t;
+
     struct sprite_draw_info_t
     {
         float x{ 0.0f };
@@ -50,11 +55,13 @@ namespace carrot::renderer {
 
         // Main loop integration
         void begin_frame();
+        void record_frame();
         void end_frame();
 
         // Very high-level drawing commands (immediate mode for now)
         void draw_fullscreen_colored_triangle(uint32_t abgr_color = 0xFF00FFFF);
         void draw_fullscreen_quad(const fullscreen_quad_info_t& info = { });
+        void draw_textured_quad(const textured_quad_draw_info_t& quad);
         void draw_sprite(const sprite_draw_info_t& sprite);
 
         // Hot-reload & debug support
@@ -91,5 +98,8 @@ namespace carrot::renderer {
         std::unique_ptr<rhi::rhi_buffer_t> _quad_index_buffer;
 
         std::unique_ptr<rhi::rhi_texture_t> _test_texture;
+
+        std::optional<textured_quad_draw_info_t> _pending_textured_quad;
+        rhi::rhi_texture_t* _current_textured_quad_texture{ nullptr };
     };
 } // namespace carrot::renderer

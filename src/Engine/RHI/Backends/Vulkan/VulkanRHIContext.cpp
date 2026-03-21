@@ -14,7 +14,6 @@
 #include "Window/Window.h"
 #include "HotReload/ShaderWatcher.h"
 #include "Pipelines/VulkanTexturedQuadPipeline.h"
-#include "Renderer/Primitives/TexturedQuadPushConstants.h"
 
 namespace carrot::rhi::vulkan {
     namespace {
@@ -234,20 +233,13 @@ namespace carrot::rhi::vulkan {
         vkCmdBindVertexBuffers(frame.command_buffer, 0, 1, vertex_buffers, offsets);
         vkCmdBindIndexBuffer(frame.command_buffer, _textured_quad_index_buffer->vk_buffer(), 0, VK_INDEX_TYPE_UINT16);
 
-        const renderer::textured_quad_push_constants_t push_constants{
-            .offset_x = -0.5f,
-            .offset_y = -0.5f,
-            .scale_x = 1.0f,
-            .scale_y = 1.0f
-        };
-
         vkCmdPushConstants(
             frame.command_buffer,
             _textured_quad_pipeline->vk_layout(),
             VK_SHADER_STAGE_VERTEX_BIT,
             0,
-            sizeof(push_constants),
-            &push_constants
+            sizeof(_textured_quad_push_constants),
+            &_textured_quad_push_constants
         );
 
         vkCmdDrawIndexed(frame.command_buffer, 6, 1, 0, 0, 0);
@@ -686,11 +678,17 @@ namespace carrot::rhi::vulkan {
 
     void vulkan_rhi_context_t::set_textured_quad_texture(const rhi_texture_t& texture)
     {
-        if (_descriptor_pool == VK_NULL_HANDLE)
-            LOG_GRAPHICS_FATAL("Descriptor pool not initialized before setting textured quad texture");
+        if (&texture == _bound_textured_quad_texture)
+            return;
 
-        _textured_quad_descriptor_set = VK_NULL_HANDLE;
-        create_textured_quad_descriptor_set(texture);
+        if (_textured_quad_descriptor_set == VK_NULL_HANDLE)
+        {
+            LOG_GRAPHICS_FATAL("Textured quad descriptor set has not been allocated");
+            return;
+        }
+
+        update_textured_quad_descriptor_set(texture);
+        _bound_textured_quad_texture = &texture;
     }
 
     void vulkan_rhi_context_t::set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer,
@@ -718,6 +716,12 @@ namespace carrot::rhi::vulkan {
         LOG_GRAPHICS_INFO("Textured quad geometry bound successfully");
     }
 
+    void vulkan_rhi_context_t::set_textured_quad_push_constants(
+        const renderer::textured_quad_push_constants_t& constants)
+    {
+        _textured_quad_push_constants = constants;
+    }
+
     void vulkan_rhi_context_t::wait_idle()
     {
         if (_device)
@@ -731,7 +735,7 @@ namespace carrot::rhi::vulkan {
         _shader_files = desc.shader_files;
 
         // ── 1. Create Vulkan Instance ─────────────────────────────────────────────
-        std::vector<const char *> instance_extensions{
+        std::vector<const char*> instance_extensions{
             VK_KHR_SURFACE_EXTENSION_NAME,
 #if defined(CARROT_PLATFORM_WAYLAND)
             VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME
@@ -919,6 +923,7 @@ namespace carrot::rhi::vulkan {
             _device.get(), _render_pass->vk_render_pass(), _shader_files);
 
         create_descriptor_pool();
+        allocate_textured_quad_descriptor_set();
 
         // ── 9. Create Framebuffers ────────────────────────────────────────────────
         _framebuffers = _swapchain->create_framebuffers(_render_pass->vk_render_pass());
@@ -1103,32 +1108,65 @@ namespace carrot::rhi::vulkan {
         }
     }
 
-    void vulkan_rhi_context_t::create_textured_quad_descriptor_set(const rhi_texture_t& texture)
+    void vulkan_rhi_context_t::allocate_textured_quad_descriptor_set()
     {
-        const vulkan_texture_t* vk_texture{ dynamic_cast<const vulkan_texture_t*>(&texture) };
-
-        if (vk_texture == nullptr)
+        if (_textured_quad_pipeline == nullptr)
         {
-            LOG_GRAPHICS_FATAL("set_textured_quad_texture received non-Vulkan texture in Vulkan backend");
+            LOG_GRAPHICS_FATAL("Cannot allocate textured quad descriptor set: pipeline not initialized");
             return;
         }
 
-        VkDescriptorSetLayout layout{ _textured_quad_pipeline->vk_descriptor_set_layout() };
+        if (_descriptor_pool == VK_NULL_HANDLE)
+        {
+            LOG_GRAPHICS_FATAL("Cannot allocate textured quad descriptor set: descriptor pool not initialized");
+            return;
+        }
 
-        VkDescriptorSetAllocateInfo alloc_info{ };
+        if (_textured_quad_descriptor_set != VK_NULL_HANDLE)
+        {
+            LOG_GRAPHICS_WARN("Textured quad descriptor set already allocated");
+            return;
+        }
+
+        const VkDescriptorSetLayout layout{ _textured_quad_pipeline->vk_descriptor_set_layout() };
+
+        VkDescriptorSetAllocateInfo alloc_info{};
         alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         alloc_info.descriptorPool = _descriptor_pool;
         alloc_info.descriptorSetCount = 1;
         alloc_info.pSetLayouts = &layout;
 
-        VK_CHECK_FATAL(vkAllocateDescriptorSets(_device->vk_device(), &alloc_info, &_textured_quad_descriptor_set));
+        VK_CHECK_FATAL(vkAllocateDescriptorSets(
+            _device->vk_device(),
+            &alloc_info,
+            &_textured_quad_descriptor_set
+        ));
 
-        VkDescriptorImageInfo image_info{ };
+        LOG_GRAPHICS_INFO("Textured quad descriptor set allocated successfully");
+    }
+
+    void vulkan_rhi_context_t::update_textured_quad_descriptor_set(const rhi_texture_t& texture) const
+    {
+        if (_textured_quad_descriptor_set == VK_NULL_HANDLE)
+        {
+            LOG_GRAPHICS_FATAL("Cannot update textured quad descriptor set: descriptor set not allocated");
+            return;
+        }
+
+        const vulkan_texture_t* vk_texture{ dynamic_cast<const vulkan_texture_t*>(&texture) };
+
+        if (vk_texture == nullptr)
+        {
+            LOG_GRAPHICS_FATAL("update_textured_quad_descriptor_set received non-Vulkan texture");
+            return;
+        }
+
+        VkDescriptorImageInfo image_info{};
         image_info.sampler = vk_texture->sampler();
         image_info.imageView = vk_texture->view();
         image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-        VkWriteDescriptorSet write{ };
+        VkWriteDescriptorSet write{};
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write.dstSet = _textured_quad_descriptor_set;
         write.dstBinding = 0;
@@ -1139,6 +1177,6 @@ namespace carrot::rhi::vulkan {
 
         vkUpdateDescriptorSets(_device->vk_device(), 1, &write, 0, nullptr);
 
-        LOG_GRAPHICS_INFO("Textured quad descriptor set created successfully");
+        LOG_GRAPHICS_INFO("Textured quad descriptor set updated successfully");
     }
 } // namespace carrot::rhi::vulkan

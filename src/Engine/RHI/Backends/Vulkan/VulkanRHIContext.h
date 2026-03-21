@@ -10,6 +10,7 @@
 #include "VulkanDevice.h"
 #include "VulkanSwapchain.h"
 #include "VulkanCommandQueue.h"
+#include "Renderer/Primitives/TexturedQuadPushConstants.h"
 #include "RHI/RHI.h"
 
 namespace carrot::rhi::vulkan {
@@ -38,6 +39,7 @@ namespace carrot::rhi::vulkan {
         [[nodiscard]] std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) override;
         void set_textured_quad_texture(const rhi_texture_t& texture) override;
         void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer, const rhi_buffer_t& index_buffer) override;
+        void set_textured_quad_push_constants(const renderer::textured_quad_push_constants_t& constants) override;
 
         void wait_idle() override;
 
@@ -55,7 +57,8 @@ namespace carrot::rhi::vulkan {
         void copy_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size) const;
         void create_descriptor_pool();
         void destroy_descriptor_pool() noexcept;
-        void create_textured_quad_descriptor_set(const rhi_texture_t& texture);
+        void allocate_textured_quad_descriptor_set();
+        void update_textured_quad_descriptor_set(const rhi_texture_t& texture) const;
 
         VkInstance                                              _vk_instance{ VK_NULL_HANDLE };
         VkSurfaceKHR                                            _vk_surface{ VK_NULL_HANDLE };
@@ -64,6 +67,8 @@ namespace carrot::rhi::vulkan {
         VkDescriptorSet                                         _textured_quad_descriptor_set{ VK_NULL_HANDLE };
         const vulkan_buffer_t*                                  _textured_quad_vertex_buffer{ nullptr };
         const vulkan_buffer_t*                                  _textured_quad_index_buffer{ nullptr };
+        renderer::textured_quad_push_constants_t                _textured_quad_push_constants{};
+        const rhi_texture_t*                                     _bound_textured_quad_texture{ nullptr };
         assets::shader_file_provider_t*                         _shader_files;
         std::unique_ptr<vulkan_device_t>                        _device;
         std::unique_ptr<vulkan_swapchain_t>                     _swapchain;

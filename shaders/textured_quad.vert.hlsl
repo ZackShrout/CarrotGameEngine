@@ -16,6 +16,9 @@ struct QuadPushConstants
 {
     float2 offset;
     float2 scale;
+    float2 uv_min;
+    float2 uv_max;
+    float4 tint;
 };
 
 #if defined(VULKAN)
@@ -35,8 +38,9 @@ VSOutput main(VSInput input)
 
     float2 pos = input.position * g_push.scale + g_push.offset;
     output.position = float4(pos, 0.0f, 1.0f);
-    output.uv = input.uv;
-    output.color = input.color;
+
+    output.uv = lerp(g_push.uv_min, g_push.uv_max, input.uv);
+    output.color = input.color * g_push.tint;
 
     return output;
 }

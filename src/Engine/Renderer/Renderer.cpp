@@ -17,6 +17,36 @@
 #include "RHI/Buffer.h"
 
 namespace carrot::renderer {
+    namespace {
+        [[nodiscard]] constexpr float channel_to_float(const uint32_t value) noexcept
+        {
+            return static_cast<float>(value) / 255.f;
+        }
+
+        struct unpacked_color_t
+        {
+            float r;
+            float g;
+            float b;
+            float a;
+        };
+
+        [[nodiscard]] unpacked_color_t unpack_abgr(const uint32_t abgr) noexcept
+        {
+            const uint32_t a{ abgr >> 24 & 0xFFu };
+            const uint32_t b{ abgr >> 16 & 0xFFu };
+            const uint32_t g{ abgr >> 8 & 0xFFu };
+            const uint32_t r{ abgr >> 0 & 0xFFu };
+
+            return unpacked_color_t{
+                .r = channel_to_float(r),
+                .g = channel_to_float(g),
+                .b = channel_to_float(b),
+                .a = channel_to_float(a)
+            };
+        }
+    } // anonymous namespace
+
     // PUBLIC
 
     renderer_t::renderer_t(io::virtual_file_system_t& vfs, const engine_graphics_config_t& config)
@@ -84,12 +114,22 @@ namespace carrot::renderer {
         // - set common global state (samplers, etc)
 
 
-        carrot::renderer::textured_quad_draw_info_t quad{};
-        quad.texture = _test_texture.get(); // or whatever renderer-visible texture pointer you hold
-        quad.x = -0.25f;
-        quad.y = -0.25f;
-        quad.width = 0.5f;
-        quad.height = 0.5f;
+        textured_quad_draw_info_t quad{};
+        quad.texture = _test_texture.get();
+        quad.x = -0.5f;
+        quad.y = -0.5f;
+        quad.width = 1.0f;
+        quad.height = 1.0f;
+        // quad.u0 = 0.0f;
+        // quad.v0 = 0.0f;
+        // quad.u1 = 0.5f;
+        // quad.v1 = 1.0f;
+        quad.color = 0xFFFFFFFFu;
+        // quad.color = 0xFF0000FFu; // ABGR => red
+        // quad.color = 0xFFC0CBFFu; // AGBR => pink
+        // quad.color = 0xFFFF0000u; // AGBR => blue
+        // quad.color = 0xFFFF00FFu; // AGBR => purple
+        // quad.color = 0x80FFFFFFu;
 
         draw_textured_quad(quad);
     }
@@ -98,7 +138,7 @@ namespace carrot::renderer {
     {
         if (_pending_textured_quad.has_value())
         {
-            const auto& quad = *_pending_textured_quad;
+            const textured_quad_draw_info_t& quad{ *_pending_textured_quad };
 
             if (quad.texture != _current_textured_quad_texture)
             {
@@ -106,11 +146,23 @@ namespace carrot::renderer {
                 _current_textured_quad_texture = quad.texture;
             }
 
+            const unpacked_color_t tint{ unpack_abgr(quad.color) };
+
             const textured_quad_push_constants_t push_constants{
                 .offset_x = quad.x,
                 .offset_y = quad.y,
                 .scale_x = quad.width,
-                .scale_y = quad.height
+                .scale_y = quad.height,
+
+                .uv_min_x = quad.u0,
+                .uv_min_y = quad.v0,
+                .uv_max_x = quad.u1,
+                .uv_max_y = quad.v1,
+
+                .tint_r = tint.r,
+                .tint_g = tint.g,
+                .tint_b = tint.b,
+                .tint_a = tint.a
             };
 
             _rhi->set_textured_quad_push_constants(push_constants);
@@ -185,7 +237,7 @@ namespace carrot::renderer {
         // LOG_GRAPHICS_INFO("Common graphics resources created (currently empty)");
 
         const assets::image_load_result_t image_result{
-            assets::load_image_rgba8("engine://images/vraden_test.png")
+            assets::load_image_rgba8("engine://images/botan_test.png")
         };
 
         if (!image_result.success())

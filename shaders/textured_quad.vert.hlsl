@@ -18,8 +18,16 @@ struct QuadPushConstants
     float2 scale;
 };
 
+#if defined(VULKAN)
+
 [[vk::push_constant]]
 QuadPushConstants g_push;
+
+#else // METAL + DX12
+
+ConstantBuffer<QuadPushConstants> g_push : register(b0);
+
+#endif
 
 VSOutput main(VSInput input)
 {

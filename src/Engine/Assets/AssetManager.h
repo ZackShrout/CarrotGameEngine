@@ -6,6 +6,7 @@
 #pragma once
 
 #include "Audio/AudioAssetSystem.h"
+#include "Texture/TextureAssetSystem.h"
 
 namespace carrot::io {
     class virtual_file_system_t;
@@ -26,7 +27,7 @@ namespace carrot::assets {
     class asset_manager_t
     {
     public:
-        explicit asset_manager_t(io::virtual_file_system_t& vfs) noexcept : _vfs{ vfs }, _audio{ vfs } {}
+        explicit asset_manager_t(io::virtual_file_system_t& vfs, rhi::rhi_context_t& rhi) noexcept : _vfs{ vfs }, _audio{ vfs }, _textures { vfs, rhi } {}
 
         [[nodiscard]] const io::virtual_file_system_t& vfs() const noexcept { return _vfs; }
         [[nodiscard]] io::virtual_file_system_t& vfs() noexcept { return _vfs; }
@@ -34,10 +35,14 @@ namespace carrot::assets {
         [[nodiscard]] const audio_asset_system_t& audio() const noexcept { return _audio; }
         [[nodiscard]] audio_asset_system_t& audio() noexcept { return _audio; }
 
+        [[nodiscard]] const texture_asset_system_t& textures() const noexcept { return _textures; }
+        [[nodiscard]] texture_asset_system_t& textures() noexcept { return _textures; }
+
         void clear();
 
     private:
         io::virtual_file_system_t& _vfs;
         audio_asset_system_t _audio;
+        texture_asset_system_t _textures;
     };
 } // namespace carrot::assets

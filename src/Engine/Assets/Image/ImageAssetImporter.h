@@ -8,8 +8,8 @@
 #include "ImageAsset.h"
 #include "ImageLoadError.h"
 
+#include <filesystem>
 #include <optional>
-#include <string_view>
 
 namespace carrot::assets {
     struct image_load_result_t
@@ -23,5 +23,5 @@ namespace carrot::assets {
         }
     };
 
-    [[nodiscard]] image_load_result_t load_image_rgba8(std::string_view path) noexcept;
+    [[nodiscard]] image_load_result_t load_image_rgba8(std::filesystem::path path) noexcept;
 } // carrot::assets

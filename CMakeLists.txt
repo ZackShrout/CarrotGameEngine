@@ -152,10 +152,9 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/Image/ImageLoadError.cpp
         src/Engine/Assets/Image/ImageAssetImporter.cpp
         src/Engine/Assets/Image/ImageAssetImporter.h
-        src/Engine/Assets/Texture/TextureAsset.cpp
         src/Engine/Assets/Texture/TextureAsset.h
-        src/Engine/Assets/Texture/TextureAssetImporter.cpp
-        src/Engine/Assets/Texture/TextureAssetImporter.h
+        src/Engine/Assets/Texture/TextureAssetLoader.cpp
+        src/Engine/Assets/Texture/TextureAssetLoader.h
         src/Engine/IO/VirtualFileSystem.cpp
         src/Engine/IO/VirtualFileSystem.h
         src/Engine/Core/EnginePaths.h
@@ -174,6 +173,12 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/Shaders/ShaderFileProvider.h
         src/Engine/Assets/Shaders/VFSShaderFileProvider.h
         src/Engine/Renderer/Draw/TexturedQuadDrawInfo.h
+        src/Engine/Assets/Texture/TextureAssetRegistry.cpp
+        src/Engine/Assets/Texture/TextureAssetRegistry.h
+        src/Engine/Assets/Texture/TextureAssetManifestImporter.cpp
+        src/Engine/Assets/Texture/TextureAssetManifestImporter.h
+        src/Engine/Assets/Texture/TextureAssetSystem.cpp
+        src/Engine/Assets/Texture/TextureAssetSystem.h
 )
 
 # ------------------------------------------------------------------------

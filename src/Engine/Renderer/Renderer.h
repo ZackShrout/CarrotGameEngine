@@ -53,6 +53,8 @@ namespace carrot::renderer {
         void init() override;
         void shutdown() override;
 
+        void init_common_resources();
+
         // Main loop integration
         void begin_frame();
         void record_frame();
@@ -97,9 +99,9 @@ namespace carrot::renderer {
         std::unique_ptr<rhi::rhi_buffer_t> _quad_vertex_buffer;
         std::unique_ptr<rhi::rhi_buffer_t> _quad_index_buffer;
 
-        std::unique_ptr<rhi::rhi_texture_t> _test_texture;
+        const rhi::rhi_texture_t* _test_texture{ nullptr };
 
         std::optional<textured_quad_draw_info_t> _pending_textured_quad;
-        rhi::rhi_texture_t* _current_textured_quad_texture{ nullptr };
+        const rhi::rhi_texture_t* _current_textured_quad_texture{ nullptr };
     };
 } // namespace carrot::renderer

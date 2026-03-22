@@ -310,6 +310,19 @@ namespace carrot::rhi::vulkan {
         _frame_active = false;
     }
 
+    void vulkan_rhi_context_t::release_asset_references()
+    {
+        if (!_device)
+            return;
+
+        VK_CHECK_FATAL(vkDeviceWaitIdle(_device->vk_device()));
+
+        _bound_textured_quad_texture = nullptr;
+        _textured_quad_descriptor_set = VK_NULL_HANDLE;
+
+        destroy_descriptor_pool();
+    }
+
     void vulkan_rhi_context_t::resize(const uint32_t width, const uint32_t height)
     {
         if (width == 0 || height == 0)

@@ -58,6 +58,9 @@ namespace carrot {
         void register_builtin_audio_assets();
         bool register_audio_asset_manifest(std::string_view manifest_uri);
 
+        void register_builtin_texture_assets();
+        bool register_texture_asset_manifest(std::string_view manifest_uri);
+
         bool                                                _initialized{ false };
         bool                                                _running{ false };
         bool                                                _should_quit{ false };
@@ -69,7 +72,7 @@ namespace carrot {
         std::unique_ptr<audio::audio_module_t>              _audio_module{ nullptr };
 
         io::virtual_file_system_t                           _vfs;
-        assets::asset_manager_t                             _asset_manager{ _vfs };
+        std::unique_ptr<assets::asset_manager_t>            _asset_manager{ nullptr };
 
         on_tick_t                                           _on_tick;
     };

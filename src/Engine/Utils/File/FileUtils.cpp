@@ -59,49 +59,6 @@ namespace carrot::utils::file {
         return std::string(bytes->begin(), bytes->end());
     }
 
-    std::string_view resolve_asset_path(const std::string_view path)
-    {
-        if (path.empty())
-            return { };
-
-        const std::filesystem::path p{ path };
-
-        // NOTE: trusting an absolute path can be dangerous, but needed for tools
-        if (p.is_absolute())
-            return cache_path(std::string{ path });
-
-        constexpr std::string_view res{ "res://" };
-        constexpr std::string_view assets{ "assets://" };
-        constexpr std::string_view content{ "content://" };
-        constexpr std::string_view engine{ "engine://" };
-        const std::filesystem::path content_root{ CARROT_SOURCE_ROOT };
-
-        std::string_view prefixless{ path };
-
-        if (path.starts_with(res))
-        {
-            prefixless = path.substr(res.size());
-        }
-        else if (path.starts_with(assets))
-        {
-            prefixless = path.substr(assets.size());
-        }
-        else if (path.starts_with(content))
-        {
-            prefixless = path.substr(content.size());
-        }
-        else if (path.starts_with(engine))
-        {
-            prefixless = path.substr(engine.size());
-            return cache_path((content_root / "assets" / prefixless).string());
-        }
-
-        std::filesystem::path candidate{ content_root / prefixless };
-        candidate = candidate.lexically_normal();
-
-        return cache_path(candidate.string());
-    }
-
     std::string to_log_string(const std::filesystem::path& path)
     {
 #ifdef _WIN32

@@ -58,28 +58,6 @@ namespace carrot::utils::file {
     [[nodiscard]] std::optional<std::string> load_file_to_string(const std::filesystem::path& path) noexcept;
 
     /**
-     * @brief Resolves an asset path string into a normalized filesystem path (as string_view).
-     *
-     * Converts virtual/relative/absolute asset path notations into a real filesystem path.
-     * The returned string_view points into an internal cache (valid until engine shutdown
-     * or explicit cache clear).
-     *
-     * Common supported patterns include:
-     *  - absolute paths
-     *  - relative paths (resolved against content root)
-     *  - virtual prefixes like `res://`, `assets://`, `content://`, etc.
-     *
-     * @param path Asset path to resolve (UTF-8 string view).
-     *
-     * @return A non-owning view to the resolved path on success,
-     *         or an empty `std::string_view` if resolution fails or the input is invalid/empty.
-     *
-     * @note The returned view is **not** guaranteed to point to an existing file.
-     * @see try_resolve_asset_path() for a version that returns `std::filesystem::path` and `std::optional`.
-     */
-    [[nodiscard]] std::string_view resolve_asset_path(std::string_view path);
-
-    /**
      * @brief Converts a filesystem path into a UTF-8 string suitable for logging.
      *
      * Produces a platform-consistent, human-readable string representation of a

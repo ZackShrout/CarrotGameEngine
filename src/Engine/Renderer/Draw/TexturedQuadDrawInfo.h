@@ -12,7 +12,7 @@
 namespace carrot::renderer {
     struct textured_quad_draw_info_t
     {
-        rhi::rhi_texture_t* texture{ nullptr };
+        const rhi::rhi_texture_t* texture{ nullptr };
 
         float x{ 0.f };
         float y{ 0.f };

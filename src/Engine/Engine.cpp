@@ -18,6 +18,7 @@
 #include "Core/Application.h"
 #include "RHI/RHI.h"
 #include "Assets/Audio/AudioAssetManifestImporter.h"
+#include "Assets/Texture/TextureAssetManifestImporter.h"
 #include "Core/EnginePaths.h"
 #include "Utils/File/PlatformPaths.h"
 
@@ -37,10 +38,21 @@ namespace carrot {
         LOG_CORE_INFO("Shutting down...");
 
         hot_reload::shader_watcher_t::shutdown();
-        // _audio_asset_registry.reset();
+
+        if (_renderer && _renderer->get_rhi())
+            _renderer->get_rhi()->release_asset_references();
+
         assets::asset_service_t::reset();
+
+        if (_asset_manager)
+        {
+            _asset_manager->clear();   // optional but good
+            _asset_manager.reset();    // destroys loaded textures while RHI/device still alive
+        }
+
         _audio_module->shutdown();
         _audio_module.reset();
+
         _renderer.reset();
         window::destroy_primary_window();
         core::logger_t::shutdown();
@@ -72,11 +84,14 @@ namespace carrot {
         _audio_module->init();
         audio::audio_service_t::provide(_audio_module.get());
 
-        assets::asset_service_t::provide(&_asset_manager);
+        _asset_manager = std::make_unique<assets::asset_manager_t>(_vfs, *_renderer->get_rhi());
+        assets::asset_service_t::provide(_asset_manager.get());
 
-        // Start Audio Tests
+        // Load built-in assets
         register_builtin_audio_assets();
-        // End Audio Tests
+        register_builtin_texture_assets();
+
+        _renderer->init_common_resources();
 
         LOG_CORE_INFO("Carrot Engine Initialized (Pure RHI Mode)");
         _initialized = true;
@@ -286,7 +301,7 @@ namespace carrot {
     bool engine_t::register_audio_asset_manifest(std::string_view manifest_uri)
     {
         const std::optional<std::filesystem::path> native_path{
-            _asset_manager.vfs().resolve_native_path(manifest_uri)
+            _asset_manager->vfs().resolve_native_path(manifest_uri)
         };
 
         utils::json::json_document_t doc;
@@ -296,6 +311,33 @@ namespace carrot {
             return false;
         }
 
-        return assets::audio_asset_manifest_importer_t::import(doc, _asset_manager.audio().registry(), _vfs);
+        return assets::audio_asset_manifest_importer_t::import(doc, _asset_manager->audio().registry(), _vfs);
+    }
+
+    void engine_t::register_builtin_texture_assets()
+    {
+        register_texture_asset_manifest("engine://textures/botan_test.texture.json");
+    }
+
+    bool engine_t::register_texture_asset_manifest(std::string_view manifest_uri)
+    {
+        const std::optional<std::filesystem::path> native_path{
+            _asset_manager->vfs().resolve_native_path(manifest_uri)
+        };
+
+        if (!native_path)
+        {
+            LOG_ASSET_ERROR("Failed to resolve texture asset manifest '{}'", manifest_uri);
+            return false;
+        }
+
+        utils::json::json_document_t doc;
+        if (!doc.parse_from_file(native_path->string().c_str()))
+        {
+            LOG_ASSET_ERROR("Failed to parse texture asset manifest '{}'", manifest_uri);
+            return false;
+        }
+
+        return assets::texture_asset_manifest_importer_t::import(doc, _asset_manager->textures().registry(), _vfs);
     }
 } // namespace carrot

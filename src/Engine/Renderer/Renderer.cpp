@@ -7,6 +7,7 @@
 
 #include "Renderer.h"
 
+#include "Assets/AssetService.h"
 #include "Assets/Image/ImageAssetImporter.h"
 #include "IO/VirtualFileSystem.h"
 #include "Primitives/QuadMesh.h"
@@ -77,8 +78,6 @@ namespace carrot::renderer {
             return;
         }
 
-        create_common_resources();
-
         _is_initialized = true;
         LOG_GRAPHICS_INFO("Renderer initialized successfully (backend: {})",
                           carrot::rhi::graphics_api_to_string(desc.api));
@@ -101,6 +100,11 @@ namespace carrot::renderer {
         LOG_GRAPHICS_INFO("Renderer shutdown complete");
     }
 
+    void renderer_t::init_common_resources()
+    {
+        create_common_resources();
+    }
+
     void renderer_t::begin_frame()
     {
         _draw_calls_this_frame = 0;
@@ -113,9 +117,8 @@ namespace carrot::renderer {
         // - begin main render pass
         // - set common global state (samplers, etc)
 
-
-        textured_quad_draw_info_t quad{};
-        quad.texture = _test_texture.get();
+        textured_quad_draw_info_t quad{ };
+        quad.texture = _test_texture;
         quad.x = -0.5f;
         quad.y = -0.5f;
         quad.width = 1.0f;
@@ -228,49 +231,26 @@ namespace carrot::renderer {
     // PRIVATE
     void renderer_t::create_common_resources()
     {
-        // Place to create:
-        // - 1x1 white texture
-        // - error/checkerboard texture
-        // - common samplers
-        // - basic pipelines
+        _test_texture = nullptr;
+        _quad_vertex_buffer.reset();
+        _quad_index_buffer.reset();
 
-        // LOG_GRAPHICS_INFO("Common graphics resources created (currently empty)");
-
-        const assets::image_load_result_t image_result{
-            assets::load_image_rgba8("engine://images/botan_test.png")
+        const assets::loaded_texture_asset_t* botan_texture{
+            assets::asset_service_t::manager().textures().get("engine.botan_test")
         };
 
-        if (!image_result.success())
+        if (botan_texture == nullptr || !botan_texture->valid())
         {
-            LOG_CORE_ERROR("Failed to load PNG: {}", assets::to_string(image_result.error));
+            LOG_GRAPHICS_ERROR("Failed to load texture asset 'engine.botan_test'");
             return;
         }
 
-        LOG_GRAPHICS_INFO("Loaded PNG: {}x{}", image_result.image.width, image_result.image.height);
+        _test_texture = botan_texture->texture.get();
 
-        rhi::texture_create_info_t texture_info{ };
-        texture_info.width = image_result.image.width;
-        texture_info.height = image_result.image.height;
-        texture_info.format = image_result.image.is_srgb
-                                  ? rhi::texture_format_t::rgba8_srgb
-                                  : rhi::texture_format_t::rgba8_unorm;
-        texture_info.initial_data = image_result.image.data();
-        texture_info.initial_data_size = image_result.image.size_bytes();
-        texture_info.initial_data_stride_bytes = image_result.image.stride_bytes;
-
-        _test_texture = _rhi->create_texture_2d(texture_info);
-
-        if (!_test_texture)
-        {
-            LOG_GRAPHICS_ERROR("Failed to create demo texture from PNG");
-            return;
-        }
-
-        LOG_GRAPHICS_INFO("Created demo texture: {}x{}",
-                          _test_texture->width(),
-                          _test_texture->height());
-
-        _rhi->set_textured_quad_texture(*_test_texture);
+        LOG_GRAPHICS_INFO(
+            "Loaded texture asset '{}' successfully",
+            botan_texture->record->logical_id
+        );
 
         rhi::buffer_create_info_t vertex_buffer_info{ };
         vertex_buffer_info.size_bytes = sizeof(k_unit_quad_vertices);
@@ -279,7 +259,10 @@ namespace carrot::renderer {
 
         _quad_vertex_buffer = _rhi->create_buffer(vertex_buffer_info);
         if (!_quad_vertex_buffer)
+        {
             LOG_GRAPHICS_FATAL("Failed to create canonical quad vertex buffer");
+            return;
+        }
 
         rhi::buffer_create_info_t index_buffer_info{ };
         index_buffer_info.size_bytes = sizeof(k_unit_quad_indices);
@@ -288,7 +271,10 @@ namespace carrot::renderer {
 
         _quad_index_buffer = _rhi->create_buffer(index_buffer_info);
         if (!_quad_index_buffer)
+        {
             LOG_GRAPHICS_FATAL("Failed to create canonical quad index buffer");
+            return;
+        }
 
         LOG_GRAPHICS_INFO(
             "Common graphics resources created: quad VB={} bytes, quad IB={} bytes",
@@ -297,13 +283,17 @@ namespace carrot::renderer {
         );
 
         _rhi->set_textured_quad_geometry(*_quad_vertex_buffer, *_quad_index_buffer);
+
+        if (_test_texture != nullptr)
+            _rhi->set_textured_quad_texture(*_test_texture);
     }
 
     void renderer_t::destroy_common_resources()
     {
         _quad_index_buffer.reset();
         _quad_vertex_buffer.reset();
-        _test_texture.reset();
+        _test_texture = nullptr;
+        _current_textured_quad_texture = nullptr;
     }
 
     void renderer_t::submit_immediate_triangle(uint32_t abgr_color)

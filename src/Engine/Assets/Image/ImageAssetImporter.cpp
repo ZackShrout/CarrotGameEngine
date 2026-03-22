@@ -40,13 +40,13 @@ namespace carrot::assets {
         }
     } // anonymous namespace
 
-    image_load_result_t load_image_rgba8(const std::string_view path) noexcept
+    [[nodiscard]] image_load_result_t load_image_rgba8(std::filesystem::path path) noexcept
     {
         image_load_result_t result{ };
         cpng::image_view_t decoded_view{ };
         std::vector<uint8_t> decoded_pixels{ };
 
-        const std::string path_string{ utils::file::resolve_asset_path(path) };
+        const std::string path_string{ path.generic_string() };
         const cpng::decode_error err{ cpng::load_from_file(path_string.c_str(), decoded_view, decoded_pixels) };
 
         result.error = map_decode_error(err);

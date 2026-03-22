@@ -25,6 +25,8 @@ namespace carrot::rhi::metal {
         void record_frame() override;
         void end_frame() override;
 
+        void release_asset_references() override {}
+
         void resize(uint32_t width, uint32_t height) override;
 
         [[nodiscard]] rhi_device_t* get_device() const noexcept override;

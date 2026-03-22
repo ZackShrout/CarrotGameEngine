@@ -62,6 +62,8 @@ namespace carrot::rhi {
         virtual void record_frame() = 0;
         virtual void end_frame() = 0;
 
+        virtual void release_asset_references() = 0;
+
         virtual void resize(uint32_t width, uint32_t height) = 0;
 
         [[nodiscard]] virtual rhi_device_t* get_device() const noexcept = 0;

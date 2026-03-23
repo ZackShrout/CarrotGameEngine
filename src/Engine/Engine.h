@@ -41,7 +41,6 @@ namespace carrot {
         void init();
         void init(const core::engine_paths_t& paths);
         int run(core::ce_application_t* app);
-        [[nodiscard]] static engine_t& get() noexcept;
 
         void request_quit() noexcept { _should_quit = true; }
         [[nodiscard]] bool should_quit() const noexcept { return _should_quit; }

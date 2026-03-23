@@ -17,9 +17,11 @@ namespace {
 
 struct state_t
 {
-    FSEventStreamRef     stream    = nullptr;
-    dispatch_queue_t     queue     = nullptr;
-    bool                 initialized = false;
+    FSEventStreamRef stream = nullptr;
+    dispatch_queue_t queue = nullptr;
+    bool scheduled = false;
+    bool started = false;
+    bool initialized = false;
 } _state;
 
 // Callback: runs on the dispatch queue's thread
@@ -31,9 +33,9 @@ void fsevents_callback(
     const FSEventStreamEventFlags eventFlags[],
     [[maybe_unused]] const FSEventStreamEventId eventIds[])
 {
-    char** paths = static_cast<char**>(eventPaths);
+    char** paths{ static_cast<char**>(eventPaths) };
 
-    for (size_t i = 0; i < numEvents; ++i)
+    for (size_t i{ 0 }; i < numEvents; ++i)
     {
         std::string full_path{ paths[i] };
         FSEventStreamEventFlags flags{ eventFlags[i] };
@@ -45,9 +47,11 @@ void fsevents_callback(
             continue;
 
         // Extract just the filename (FSEvents gives full path)
-        size_t last_slash = full_path.find_last_of("/\\");
+        size_t last_slash{ full_path.find_last_of("/\\") };
+        
         if (last_slash == std::string::npos) continue;
-        std::string filename = full_path.substr(last_slash + 1);
+        
+        std::string filename{ full_path.substr(last_slash + 1) };
 
         // Filter to relevant shaders
         if (!filename.ends_with(".vert.hlsl") && !filename.ends_with(".frag.hlsl") &&
@@ -66,6 +70,8 @@ void fsevents_callback(
 
 void shader_watcher_t::init(const shader_reload_callback_t& callback) noexcept
 {
+    if (_state.initialized) return;
+    
     _callback = callback;
 
 #ifndef CARROT_SOURCE_ROOT
@@ -73,18 +79,17 @@ void shader_watcher_t::init(const shader_reload_callback_t& callback) noexcept
 #endif
 
     std::string shader_dir{ std::string(CARROT_SOURCE_ROOT) + "/shaders" };
-
-    CFStringRef cf_path = CFStringCreateWithCString(nullptr, shader_dir.c_str(), kCFStringEncodingUTF8);
+    CFStringRef cf_path{ CFStringCreateWithCString(nullptr, shader_dir.c_str(), kCFStringEncodingUTF8) };
+    
     if (!cf_path) return;
 
-    CFArrayRef paths_to_watch = CFArrayCreate(nullptr, (const void**)&cf_path, 1, &kCFTypeArrayCallBacks);
+    CFArrayRef paths_to_watch{ CFArrayCreate(nullptr, (const void**)&cf_path, 1, &kCFTypeArrayCallBacks) };
     CFRelease(cf_path);
 
     if (!paths_to_watch) return;
 
-    CFAbsoluteTime latency = 0.05;  // 50 ms coalescing
-
-    FSEventStreamContext context = {0, nullptr, nullptr, nullptr, nullptr};
+    CFAbsoluteTime latency{ 0.05 };  // 50 ms coalescing
+    FSEventStreamContext context{ 0, nullptr, nullptr, nullptr, nullptr };
 
     _state.stream = FSEventStreamCreate(
         nullptr,
@@ -108,36 +113,52 @@ void shader_watcher_t::init(const shader_reload_callback_t& callback) noexcept
     if (!_state.queue)
     {
         LOG_CORE_ERROR("dispatch_queue_create failed");
-        FSEventStreamInvalidate(_state.stream);
         FSEventStreamRelease(_state.stream);
         _state.stream = nullptr;
         return;
     }
 
     FSEventStreamSetDispatchQueue(_state.stream, _state.queue);
+    _state.scheduled = true;
 
     if (!FSEventStreamStart(_state.stream))
     {
-        LOG_CORE_ERROR("FSEventStreamStart failed");
-        dispatch_release(_state.queue);
-        _state.queue = nullptr;
         FSEventStreamInvalidate(_state.stream);
         FSEventStreamRelease(_state.stream);
+        
         _state.stream = nullptr;
+        _state.scheduled = false;
+
+        dispatch_release(_state.queue);
+        
+        _state.queue = nullptr;
+        
         return;
     }
 
     LOG_CORE_INFO("Shader hot-reload watching (macOS/FSEvents dispatch queue): {}", shader_dir);
+    
+    _state.started = true;
     _state.initialized = true;
 }
 
 void shader_watcher_t::shutdown() noexcept
 {
+    
     if (_state.stream)
     {
-        FSEventStreamStop(_state.stream);
-        FSEventStreamSetDispatchQueue(_state.stream, nullptr);  // Unschedule
-        FSEventStreamInvalidate(_state.stream);
+        if (_state.started)
+        {
+            FSEventStreamStop(_state.stream);
+            _state.started = false;
+        }
+
+        if (_state.scheduled)
+        {
+            FSEventStreamInvalidate(_state.stream);
+            _state.scheduled = false;
+        }
+
         FSEventStreamRelease(_state.stream);
         _state.stream = nullptr;
     }

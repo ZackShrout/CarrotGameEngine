@@ -44,7 +44,25 @@ namespace carrot::rhi::vulkan {
 
     vulkan_rhi_context_t::~vulkan_rhi_context_t()
     {
-        vkDeviceWaitIdle(_device ? _device->vk_device() : VK_NULL_HANDLE);
+        if (!_device)
+        {
+            if (_vk_surface)
+            {
+                vkDestroySurfaceKHR(_vk_instance, _vk_surface, nullptr);
+                _vk_surface = VK_NULL_HANDLE;
+            }
+
+            if (_vk_instance)
+            {
+                vkDestroyInstance(_vk_instance, nullptr);
+                _vk_instance = VK_NULL_HANDLE;
+            }
+
+            return;
+        }
+
+        VkDevice device{ _device->vk_device() };
+        vkDeviceWaitIdle(device);
 
         _framebuffers = { };
         destroy_descriptor_pool();
@@ -52,35 +70,49 @@ namespace carrot::rhi::vulkan {
         _graphics_pipeline.reset();
         _render_pass.reset();
 
-        for (uint32_t i{ 0 }; i < _swapchain->get_image_count(); ++i)
+        if (_swapchain)
         {
-            if (_render_finished_semaphores[i])
-                vkDestroySemaphore(_device->vk_device(), _render_finished_semaphores[i],
-                                   nullptr);
+            for (uint32_t i{ 0 }; i < _swapchain->get_image_count(); ++i)
+            {
+                if (_render_finished_semaphores[i])
+                    vkDestroySemaphore(device, _render_finished_semaphores[i], nullptr);
+            }
+
+            _swapchain.reset();
         }
 
-        _swapchain.reset();
-
-        for (const auto& frame: _frames)
+        for (const auto& frame : _frames)
         {
-            if (frame.image_acquire) vkDestroySemaphore(_device->vk_device(), frame.image_acquire, nullptr);
-            if (frame.in_flight) vkDestroyFence(_device->vk_device(), frame.in_flight, nullptr);
+            if (frame.image_acquire)
+                vkDestroySemaphore(device, frame.image_acquire, nullptr);
+
+            if (frame.in_flight)
+                vkDestroyFence(device, frame.in_flight, nullptr);
 
             if (_command_pool != VK_NULL_HANDLE && frame.command_buffer)
-                vkFreeCommandBuffers(_device->vk_device(), _command_pool, 1, &frame.command_buffer);
+                vkFreeCommandBuffers(device, _command_pool, 1, &frame.command_buffer);
         }
 
         if (_command_pool != VK_NULL_HANDLE)
         {
-            vkDestroyCommandPool(_device->vk_device(), _command_pool, nullptr);
+            vkDestroyCommandPool(device, _command_pool, nullptr);
             _command_pool = VK_NULL_HANDLE;
         }
 
         _graphics_queue.reset();
         _device.reset();
 
-        if (_vk_surface) vkDestroySurfaceKHR(_vk_instance, _vk_surface, nullptr);
-        if (_vk_instance) vkDestroyInstance(_vk_instance, nullptr);
+        if (_vk_surface)
+        {
+            vkDestroySurfaceKHR(_vk_instance, _vk_surface, nullptr);
+            _vk_surface = VK_NULL_HANDLE;
+        }
+
+        if (_vk_instance)
+        {
+            vkDestroyInstance(_vk_instance, nullptr);
+            _vk_instance = VK_NULL_HANDLE;
+        }
     }
 
     void vulkan_rhi_context_t::begin_frame()
@@ -754,6 +786,9 @@ namespace carrot::rhi::vulkan {
             VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME
 #elif defined(CARROT_PLATFORM_WIN32)
             VK_KHR_WIN32_SURFACE_EXTENSION_NAME
+#elif defined(CARROT_PLATFORM_COCOA)
+            VK_EXT_METAL_SURFACE_EXTENSION_NAME,
+            VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
 #endif
         };
 
@@ -775,6 +810,10 @@ namespace carrot::rhi::vulkan {
         inst_info.pApplicationInfo = &app_info;
         inst_info.enabledExtensionCount = static_cast<uint32_t>(instance_extensions.size());
         inst_info.ppEnabledExtensionNames = instance_extensions.data();
+
+#if defined(CARROT_PLATFORM_COCOA)
+        inst_info.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+#endif
 
 #ifdef _DEBUG
         if (desc.enable_debug_layers)
@@ -799,9 +838,12 @@ namespace carrot::rhi::vulkan {
         surf_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
         surf_info.hwnd = static_cast<HWND>(handle.win32_t.hwnd);
         surf_info.hinstance = static_cast<HINSTANCE>(handle.win32_t.hinstance);
-        vkCreateWin32SurfaceKHR(_vk_instance, &surf_info, nullptr, &_vk_surface);
+        VK_CHECK_FATAL(vkCreateWin32SurfaceKHR(_vk_instance, &surf_info, nullptr, &_vk_surface));
 #elif defined(CARROT_PLATFORM_COCOA)
-#error Vulkan unsupported on MacOS currently
+        VkMetalSurfaceCreateInfoEXT surf_info{ };
+        surf_info.sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT;
+        surf_info.pLayer = handle.cocoa_t.metal_layer;
+        VK_CHECK_FATAL(vkCreateMetalSurfaceEXT(_vk_instance, &surf_info, nullptr, &_vk_surface));
 #endif
 
         // ── 3. Pick Physical Device & Queue Family ────────────────────────────────
@@ -857,14 +899,20 @@ namespace carrot::rhi::vulkan {
         queue_info.queueCount = 1;
         queue_info.pQueuePriorities = &priority;
 
-        const char* device_extensions[]{ VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+        std::vector<const char*> device_extensions{
+            VK_KHR_SWAPCHAIN_EXTENSION_NAME
+        };
+
+#if defined(CARROT_PLATFORM_COCOA)
+        device_extensions.push_back("VK_KHR_portability_subset");
+#endif
 
         VkDeviceCreateInfo device_info{ };
         device_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
         device_info.queueCreateInfoCount = 1;
         device_info.pQueueCreateInfos = &queue_info;
-        device_info.enabledExtensionCount = 1;
-        device_info.ppEnabledExtensionNames = device_extensions;
+        device_info.enabledExtensionCount = static_cast<uint32_t>(device_extensions.size());
+        device_info.ppEnabledExtensionNames = device_extensions.data();
 
         VkDevice vk_device{ VK_NULL_HANDLE };
         VK_CHECK_FATAL(vkCreateDevice(physical_device, &device_info, nullptr, &vk_device));

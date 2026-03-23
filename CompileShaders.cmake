@@ -65,7 +65,7 @@ function(compile_hlsl_to_spirv TARGET_NAME HLSL_FILE OUTPUT_DIR)
             OUTPUT "${SPV_OUTPUT}"
             COMMAND ${CMAKE_COMMAND} -E make_directory "${OUTPUT_DIR}"
             COMMAND ${DXC_EXECUTABLE}
-            -spirv -T ${PROFILE} -E main -fvk-use-scalar-layout -v
+            -spirv -T ${PROFILE} -E main -fvk-use-scalar-layout
             "${ABS_HLSL}" -Fo "${SPV_OUTPUT}" -DVULKAN
             DEPENDS "${ABS_HLSL}"
             COMMENT "DXC → SPIR-V: ${OUTPUT_BASE} (${PROFILE})"

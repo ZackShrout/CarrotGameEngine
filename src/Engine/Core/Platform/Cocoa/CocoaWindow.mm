@@ -177,11 +177,12 @@ namespace carrot::core::platform {
 
     void cocoa_window_t::set_should_close(bool should_close) noexcept
     {
-        if (should_close)
-        {
-            NSApplication* app{ [NSApplication sharedApplication] };
-            [app terminate:nil];
-        }
+//        if (should_close)
+//        {
+//            NSApplication* app{ [NSApplication sharedApplication] };
+//            [app terminate:nil];
+//        }
+        _should_close = should_close;
     }
 
     void cocoa_window_t::set_fullscreen(const bool fullscreen) noexcept

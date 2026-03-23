@@ -10,7 +10,8 @@
 int main()
 {
     sandbox::sandbox_t game{ };
+    carrot::engine_t engine{ };
 
-    carrot::engine_t::get().init();
-    return carrot::engine_t::get().run(&game);
+    engine.init();
+    return engine.run(&game);
 }

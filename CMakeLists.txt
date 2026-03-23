@@ -181,6 +181,27 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/Texture/TextureAssetSystem.h
         src/Engine/Renderer/RendererService.cpp
         src/Engine/Renderer/RendererService.h
+        src/Engine/RHI/Backends/Vulkan/VulkanDevice.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanDevice.h
+        src/Engine/RHI/Backends/Vulkan/VulkanSwapchain.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanSwapchain.h
+        src/Engine/RHI/Backends/Vulkan/VulkanCommandQueue.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanCommandQueue.h
+        src/Engine/RHI/Backends/Vulkan/VulkanRenderPass.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanRenderPass.h
+        src/Engine/RHI/Backends/Vulkan/VulkanPipeline.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanPipeline.h
+        src/Engine/RHI/Backends/Vulkan/VulkanCommon.h
+        src/Engine/RHI/Backends/Vulkan/VulkanCore.h
+        src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.h
+        src/Engine/RHI/Backends/Vulkan/VulkanBuffer.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanBuffer.h
+        src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.cpp
+        src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.h
+        src/Engine/RHI/Backends/Vulkan/VulkanTexture.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanTexture.h
+        src/Engine/RHI/Backends/Vulkan/VulkanUtils.h
 )
 
 # ------------------------------------------------------------------------
@@ -232,28 +253,6 @@ elseif (WIN32)
 
             src/Engine/Core/Platform/Win32/Win32Window.cpp
             src/Engine/Core/Platform/Win32/Win32Window.h
-
-            src/Engine/RHI/Backends/Vulkan/VulkanDevice.cpp
-            src/Engine/RHI/Backends/Vulkan/VulkanDevice.h
-            src/Engine/RHI/Backends/Vulkan/VulkanSwapchain.cpp
-            src/Engine/RHI/Backends/Vulkan/VulkanSwapchain.h
-            src/Engine/RHI/Backends/Vulkan/VulkanCommandQueue.cpp
-            src/Engine/RHI/Backends/Vulkan/VulkanCommandQueue.h
-            src/Engine/RHI/Backends/Vulkan/VulkanRenderPass.cpp
-            src/Engine/RHI/Backends/Vulkan/VulkanRenderPass.h
-            src/Engine/RHI/Backends/Vulkan/VulkanPipeline.cpp
-            src/Engine/RHI/Backends/Vulkan/VulkanPipeline.h
-            src/Engine/RHI/Backends/Vulkan/VulkanCommon.h
-            src/Engine/RHI/Backends/Vulkan/VulkanCore.h
-            src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.cpp
-            src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.h
-            src/Engine/RHI/Backends/Vulkan/VulkanBuffer.cpp
-            src/Engine/RHI/Backends/Vulkan/VulkanBuffer.h
-            src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.cpp
-            src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.h
-            src/Engine/RHI/Backends/Vulkan/VulkanTexture.cpp
-            src/Engine/RHI/Backends/Vulkan/VulkanTexture.h
-            src/Engine/RHI/Backends/Vulkan/VulkanUtils.h
 
             src/Engine/RHI/Backends/DirectX12/DirectX12Common.h
             src/Engine/RHI/Backends/DirectX12/DirectX12Core.h
@@ -341,28 +340,6 @@ elseif (UNIX)
     # All Linux platforms get these
     list(APPEND CARROT_ENGINE_SOURCES
             src/Engine/HotReload/ShaderWatcherLinux.cpp
-
-            src/Engine/RHI/Backends/Vulkan/VulkanDevice.cpp
-            src/Engine/RHI/Backends/Vulkan/VulkanDevice.h
-            src/Engine/RHI/Backends/Vulkan/VulkanSwapchain.cpp
-            src/Engine/RHI/Backends/Vulkan/VulkanSwapchain.h
-            src/Engine/RHI/Backends/Vulkan/VulkanCommandQueue.cpp
-            src/Engine/RHI/Backends/Vulkan/VulkanCommandQueue.h
-            src/Engine/RHI/Backends/Vulkan/VulkanRenderPass.cpp
-            src/Engine/RHI/Backends/Vulkan/VulkanRenderPass.h
-            src/Engine/RHI/Backends/Vulkan/VulkanPipeline.cpp
-            src/Engine/RHI/Backends/Vulkan/VulkanPipeline.h
-            src/Engine/RHI/Backends/Vulkan/VulkanCommon.h
-            src/Engine/RHI/Backends/Vulkan/VulkanCore.h
-            src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.cpp
-            src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.h
-            src/Engine/RHI/Backends/Vulkan/VulkanBuffer.cpp
-            src/Engine/RHI/Backends/Vulkan/VulkanBuffer.h
-            src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.cpp
-            src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.h
-            src/Engine/RHI/Backends/Vulkan/VulkanTexture.cpp
-            src/Engine/RHI/Backends/Vulkan/VulkanTexture.h
-            src/Engine/RHI/Backends/Vulkan/VulkanUtils.h
 
             src/Engine/Audio/Backend/Linux/LinuxAudioBackend.cpp
             src/Engine/Audio/Backend/Linux/LinuxAudioBackend.h
@@ -480,10 +457,13 @@ target_link_options(CarrotEngine PUBLIC
 # macOS
 # ------------------------------------------------------------------------
 if(APPLE)
+    find_package(Vulkan REQUIRED)
+    target_link_libraries(CarrotEngine PRIVATE Vulkan::Vulkan)
+
     set(CARROT_PLATFORM_COCOA ON CACHE INTERNAL "")
     add_compile_definitions(CARROT_PLATFORM_COCOA=1)
 
-    target_compile_definitions(CarrotEngine PUBLIC __APPLE__)
+    target_compile_definitions(CarrotEngine PUBLIC __APPLE__, VK_USE_PLATFORM_METAL_EXT)
 
     target_link_libraries(CarrotEngine PRIVATE
             "-framework Metal"
@@ -592,23 +572,39 @@ include(CompileShaders.cmake)
 file(GLOB HLSL_SOURCES "shaders/*.vert.hlsl" "shaders/*.frag.hlsl")
 set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders")
 
+# Platform-native shaders
 if(APPLE)
     foreach(SHADER_FILE IN LISTS HLSL_SOURCES)
         file(RELATIVE_PATH REL_SHADER "${CMAKE_CURRENT_SOURCE_DIR}" "${SHADER_FILE}")
         compile_hlsl_to_metallib(CarrotSandbox "${REL_SHADER}" "${SHADER_OUTPUT_DIR}/metal")
     endforeach()
-else()
-    if(WIN32)
-        foreach(SHADER_FILE IN LISTS HLSL_SOURCES)
-            file(RELATIVE_PATH REL_SHADER "${CMAKE_CURRENT_SOURCE_DIR}" "${SHADER_FILE}")
-            compile_hlsl_to_dxil(CarrotSandbox "${REL_SHADER}" "${SHADER_OUTPUT_DIR}/dx12")
-        endforeach ()
-    endif ()
+#    foreach(SHADER_FILE IN LISTS HLSL_SOURCES)
+#        file(RELATIVE_PATH REL_SHADER "${CMAKE_CURRENT_SOURCE_DIR}" "${SHADER_FILE}")
+#        compile_hlsl_to_spirv(CarrotSandbox "${REL_SHADER}" "${SHADER_OUTPUT_DIR}/vulkan")
+#    endforeach()
+elseif(WIN32)
+#    if(WIN32)
+#        foreach(SHADER_FILE IN LISTS HLSL_SOURCES)
+#            file(RELATIVE_PATH REL_SHADER "${CMAKE_CURRENT_SOURCE_DIR}" "${SHADER_FILE}")
+#            compile_hlsl_to_dxil(CarrotSandbox "${REL_SHADER}" "${SHADER_OUTPUT_DIR}/dx12")
+#        endforeach ()
+#    endif ()
+#    foreach(SHADER_FILE IN LISTS HLSL_SOURCES)
+#        file(RELATIVE_PATH REL_SHADER "${CMAKE_CURRENT_SOURCE_DIR}" "${SHADER_FILE}")
+#        compile_hlsl_to_spirv(CarrotSandbox "${REL_SHADER}" "${SHADER_OUTPUT_DIR}/vulkan")
+#    endforeach()
+
     foreach(SHADER_FILE IN LISTS HLSL_SOURCES)
         file(RELATIVE_PATH REL_SHADER "${CMAKE_CURRENT_SOURCE_DIR}" "${SHADER_FILE}")
-        compile_hlsl_to_spirv(CarrotSandbox "${REL_SHADER}" "${SHADER_OUTPUT_DIR}/vulkan")
-    endforeach()
+        compile_hlsl_to_dxil(CarrotSandbox "${REL_SHADER}" "${SHADER_OUTPUT_DIR}/dx12")
+    endforeach ()
 endif()
+
+# Vulkan shaders for all platforms
+foreach(SHADER_FILE IN LISTS HLSL_SOURCES)
+    file(RELATIVE_PATH REL_SHADER "${CMAKE_CURRENT_SOURCE_DIR}" "${SHADER_FILE}")
+    compile_hlsl_to_spirv(CarrotSandbox "${REL_SHADER}" "${SHADER_OUTPUT_DIR}/vulkan")
+endforeach()
 
 # ------------------------------------------------------------------------
 # Output

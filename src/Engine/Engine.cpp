@@ -181,12 +181,6 @@ namespace carrot {
         return static_cast<int>(exit_code::success);
     }
 
-    engine_t& engine_t::get() noexcept
-    {
-        static engine_t instance;
-        return instance;
-    }
-
     // PRIVATE
     void engine_t::tick()
     {

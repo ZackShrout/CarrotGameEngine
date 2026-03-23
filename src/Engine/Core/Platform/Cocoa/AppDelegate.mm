@@ -46,7 +46,12 @@
 
 - (void)windowWillClose:(NSNotification *)notification
 {
-    [NSApp terminate:nil];
+    if (_owner)
+    {
+        _owner->set_should_close(true);
+        _owner->on_window_closed(carrot::events::window_closed_t{});
+    }
+//    [NSApp terminate:nil];
 }
 
 - (void)windowDidResize:(NSNotification *)notification

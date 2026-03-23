@@ -466,16 +466,21 @@ namespace carrot::core::platform {
     {
         if (_keyboard) wl_keyboard_destroy(_keyboard);
         if (_pointer) wl_pointer_destroy(_pointer);
+
         if (_xkb_state) xkb_state_unref(_xkb_state);
         if (_xkb_keymap) xkb_keymap_unref(_xkb_keymap);
         if (_xkb_context) xkb_context_unref(_xkb_context);
+
         if (_seat) wl_seat_destroy(_seat);
+
+        if (_toplevel_decoration) zxdg_toplevel_decoration_v1_destroy(_toplevel_decoration);
+        if (_decoration_manager) zxdg_decoration_manager_v1_destroy(_decoration_manager);
+
         if (_xdg_toplevel) xdg_toplevel_destroy(_xdg_toplevel);
         if (_xdg_surface) xdg_surface_destroy(_xdg_surface);
         if (_surface) wl_surface_destroy(_surface);
+
         if (_xdg_wm_base) xdg_wm_base_destroy(_xdg_wm_base);
-        if (_toplevel_decoration) zxdg_toplevel_decoration_v1_destroy(_toplevel_decoration);
-        if (_decoration_manager) zxdg_decoration_manager_v1_destroy(_decoration_manager);
         if (_compositor) wl_compositor_destroy(_compositor);
         if (_display) wl_display_disconnect(_display);
     }

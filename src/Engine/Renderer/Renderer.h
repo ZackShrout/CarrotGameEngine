@@ -23,8 +23,6 @@ namespace carrot::rhi {
 }
 
 namespace carrot::renderer {
-    struct textured_quad_draw_info_t;
-
     struct sprite_draw_info_t
     {
         float x{ 0.0f };

@@ -7,6 +7,7 @@
 
 #include "Renderer.h"
 
+#include "RendererService.h"
 #include "Assets/AssetService.h"
 #include "Assets/Image/ImageAssetImporter.h"
 #include "IO/VirtualFileSystem.h"

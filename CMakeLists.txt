@@ -179,6 +179,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/Texture/TextureAssetManifestImporter.h
         src/Engine/Assets/Texture/TextureAssetSystem.cpp
         src/Engine/Assets/Texture/TextureAssetSystem.h
+        src/Engine/Renderer/RendererService.cpp
+        src/Engine/Renderer/RendererService.h
 )
 
 # ------------------------------------------------------------------------

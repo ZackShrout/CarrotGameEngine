@@ -8,19 +8,19 @@
 #include "Engine.h"
 
 #include "Assets/AssetService.h"
-#include "Audio/Audio.h"
-#include "Audio/Sample/WavLoader.h"
-#include "Debug/DebugOverlay.h"
-#include "HotReload/ShaderWatcher.h"
-#include "Utils/MulticastDelegate.h"
-#include "Utils/File/FileUtils.h"
-#include "Window/Window.h"
-#include "Core/Application.h"
-#include "RHI/RHI.h"
 #include "Assets/Audio/AudioAssetManifestImporter.h"
 #include "Assets/Texture/TextureAssetManifestImporter.h"
+#include "Audio/Audio.h"
+#include "Core/Application.h"
 #include "Core/EnginePaths.h"
+#include "Debug/DebugOverlay.h"
+#include "HotReload/ShaderWatcher.h"
+#include "Renderer/RendererService.h"
+#include "RHI/RHI.h"
+#include "Utils/MulticastDelegate.h"
+#include "Utils/File/FileUtils.h"
 #include "Utils/File/PlatformPaths.h"
+#include "Window/Window.h"
 
 namespace carrot {
     namespace {
@@ -78,6 +78,7 @@ namespace carrot {
 
         // RENDERER
         _renderer = std::make_unique<renderer::renderer_t>(_vfs, config.graphics);
+        renderer::renderer_service_t::provide(_renderer.get());
 
         // AUDIO
         _audio_module = std::make_unique<audio::audio_module_t>(config.audio);
@@ -317,6 +318,8 @@ namespace carrot {
     void engine_t::register_builtin_texture_assets()
     {
         register_texture_asset_manifest("engine://textures/botan_test.texture.json");
+        register_texture_asset_manifest("engine://textures/vraden_test.texture.json");
+        register_texture_asset_manifest("engine://textures/16x16orange.texture.json");
     }
 
     bool engine_t::register_texture_asset_manifest(std::string_view manifest_uri)

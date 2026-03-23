@@ -6,5 +6,8 @@
 #pragma once
 
 #include "Engine.h"
+#include "Audio/Audio.h"
 #include "Core/Application.h"
 #include "Core/EnginePaths.h"
+#include "Renderer/Renderer.h"
+#include "Window/Window.h"

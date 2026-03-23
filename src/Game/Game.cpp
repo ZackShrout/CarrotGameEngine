@@ -7,9 +7,6 @@
 
 #include "Game.h"
 
-#include "Audio/Audio.h"
-#include "Window/Window.h"
-
 namespace sandbox {
     namespace {
         carrot::audio::voice_handle_t handle;

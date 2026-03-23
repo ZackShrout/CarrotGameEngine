@@ -224,6 +224,8 @@ if (APPLE)
             src/Engine/Core/Platform/Cocoa/AppDelegate.mm
             src/Engine/Core/Platform/Cocoa/AppDelegate.h
             src/Engine/Core/Platform/Cocoa/CocoaInputUtils.h
+            src/Engine/Core/Platform/Cocoa/CocoaContentView.mm
+            src/Engine/Core/Platform/Cocoa/CocoaContentView.h
 
             src/Engine/RHI/Backends/Metal/MetalCommon.h
             src/Engine/RHI/Backends/Metal/MetalCore.h

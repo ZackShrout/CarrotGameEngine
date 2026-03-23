@@ -12,6 +12,17 @@
 #include <AppKit/AppKit.h>
 
 namespace carrot::core::platform {
+    namespace {
+        chlm::float2 to_engine_mouse_pos(NSView* view, NSEvent* event) noexcept
+        {
+            const NSPoint windowPoint{ [event locationInWindow] };
+            const NSPoint local{ [view convertPoint:windowPoint fromView:nil] };
+            const NSRect bounds{ [view bounds] };
+
+            return { static_cast<float>(local.x), static_cast<float>(bounds.size.height - local.y) };
+        }
+    } // anonymous namespace
+
     cocoa_window_t::cocoa_window_t(const uint32_t width, const uint32_t height, const std::string_view title) noexcept
     {
         _width = width;
@@ -59,77 +70,6 @@ namespace carrot::core::platform {
                     if (!event) break;
 
                     [app sendEvent:event];
-
-                    NSEventType type{ [event type] };
-                    switch (type)
-                    {
-                        case NSEventTypeKeyDown:
-                        case NSEventTypeKeyUp:
-                        {
-                            events::key_event_t e{ };
-                            e._key = input::to_carrot_key([event keyCode]);
-                            e._action = (type == NSEventTypeKeyDown) ? events::key_action::press : events::key_action::release;
-                            e._repeat = [event isARepeat];
-                            e._mods = translate_modifier_flags([event modifierFlags]);
-
-                            _on_key.broadcast(e);
-                            break;
-                        }
-
-                        case NSEventTypeLeftMouseDown:
-                        case NSEventTypeLeftMouseUp:
-                        case NSEventTypeRightMouseDown:
-                        case NSEventTypeRightMouseUp:
-                        case NSEventTypeOtherMouseDown:
-                        case NSEventTypeOtherMouseUp:
-                        {
-                            NSInteger button_num{ [event buttonNumber] };
-                            NSPoint loc{ [event locationInWindow] };
-
-                            bool is_press{ (type == NSEventTypeLeftMouseDown  ||
-                                            type == NSEventTypeRightMouseDown ||
-                                            type == NSEventTypeOtherMouseDown) };
-
-                            events::mouse_button_event_t e{ };
-                            e._button = input::to_carrot_mouse_button(button_num);
-                            e._action = is_press ? events::key_action::press : events::key_action::release;
-                            e._pos = { static_cast<float>(loc.x), static_cast<float>(_height - loc.y) };
-
-                            _on_mouse_button.broadcast(e);
-                            break;
-                        }
-
-                        case NSEventTypeMouseMoved:
-                        case NSEventTypeLeftMouseDragged:
-                        case NSEventTypeRightMouseDragged:
-                        case NSEventTypeOtherMouseDragged:
-                        {
-                            float dx{ static_cast<float>([event deltaX]) };
-                            float dy{ static_cast<float>([event deltaY]) };
-                            NSPoint loc{ [event locationInWindow] };
-
-                            events::mouse_moved_event_t e{ };
-                            e._delta = { dx, dy };
-                            e._pos = { static_cast<float>(loc.x), static_cast<float>(_height - loc.y) };
-
-                            _on_mouse_moved.broadcast(e);
-
-                            _last_mouse_position = e._pos;
-                            break;
-                        }
-
-                        case NSEventTypeScrollWheel:
-                        {
-                            events::mouse_scrolled_event_t e{ };
-                            e._delta = { static_cast<float>([event scrollingDeltaX]), static_cast<float>([event scrollingDeltaY]) };
-
-                            _on_mouse_scrolled.broadcast(e);
-                            break;
-                        }
-
-                        default:
-                            break;
-                    }
                 }
             }
 
@@ -170,18 +110,13 @@ namespace carrot::core::platform {
                     send_mod_event(carrot::input::key_code::left_super, pressed);
                 }
 
-                _last_modifier_flags = currentFlags;
+                _last_modifier_flags = static_cast<uint32_t>(currentFlags);
             }
         }
     }
 
     void cocoa_window_t::set_should_close(bool should_close) noexcept
     {
-//        if (should_close)
-//        {
-//            NSApplication* app{ [NSApplication sharedApplication] };
-//            [app terminate:nil];
-//        }
         _should_close = should_close;
     }
 
@@ -215,5 +150,88 @@ namespace carrot::core::platform {
         _height = height;
 
         _on_window_resized.broadcast({ _width, _height });
+    }
+
+    void cocoa_window_t::handle_mouse_entered() noexcept
+    {
+        _mouse_inside = true;
+    }
+
+    void cocoa_window_t::handle_mouse_exited() noexcept
+    {
+        _mouse_inside = false;
+    }
+
+    void cocoa_window_t::handle_mouse_moved(void* eventPtr, void* viewPtr) noexcept
+    {
+        if (!_mouse_inside) return;
+
+        NSEvent* event{ (NSEvent*)eventPtr };
+        NSView* view{ (NSView*)viewPtr };
+
+        events::mouse_moved_event_t e{ };
+        e._delta = {
+            static_cast<float>([event deltaX]),
+            static_cast<float>([event deltaY])
+        };
+        e._pos = to_engine_mouse_pos(view, event);
+
+        _on_mouse_moved.broadcast(e);
+        _last_mouse_position = e._pos;
+    }
+
+    void cocoa_window_t::handle_mouse_dragged(void* eventPtr, void* viewPtr) noexcept
+    {
+        NSEvent* event{ (NSEvent*)eventPtr };
+        NSView* view{ (NSView*)viewPtr };
+
+        events::mouse_moved_event_t e{ };
+        e._delta = {
+            static_cast<float>([event deltaX]),
+            static_cast<float>([event deltaY])
+        };
+        e._pos = to_engine_mouse_pos(view, event);
+
+        _on_mouse_moved.broadcast(e);
+        _last_mouse_position = e._pos;
+    }
+
+    void cocoa_window_t::handle_mouse_button(void* eventPtr, void* viewPtr, bool is_press) noexcept
+    {
+        NSEvent* event{ (NSEvent*)eventPtr };
+        NSView* view{ (NSView*)viewPtr };
+
+        events::mouse_button_event_t e{ };
+        e._button = input::to_carrot_mouse_button(static_cast<uint32_t>([event buttonNumber]));
+        e._action = is_press ? events::key_action::press : events::key_action::release;
+        e._pos = to_engine_mouse_pos(view, event);
+
+        _on_mouse_button.broadcast(e);
+    }
+
+    void cocoa_window_t::handle_mouse_scrolled(void* eventPtr, [[maybe_unused]] void* viewPtr) noexcept
+    {
+        NSEvent* event{ (NSEvent*)eventPtr };
+
+        events::mouse_scrolled_event_t e{};
+        e._delta = {
+            static_cast<float>([event scrollingDeltaX]),
+            static_cast<float>([event scrollingDeltaY])
+        };
+
+        _on_mouse_scrolled.broadcast(e);
+    }
+
+    void cocoa_window_t::handle_key_event(void* eventPtr, bool is_press) noexcept
+    {
+        NSEvent* event{ (NSEvent*)eventPtr };
+
+        events::key_event_t e{};
+        e._key = input::to_carrot_key([event keyCode]);
+        e._action = is_press ? events::key_action::press : events::key_action::release;
+        e._repeat = is_press ? [event isARepeat] : false;
+        e._mods = translate_modifier_flags([event modifierFlags]);
+
+        _on_key.broadcast(e);
     }
 } // namespace carrot::core::plaform

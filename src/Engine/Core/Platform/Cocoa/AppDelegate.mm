@@ -7,6 +7,8 @@
 
 #include "CocoaWindow.h"
 
+#import "CocoaContentView.h"
+
 #include <QuartzCore/QuartzCore.h>
 #include <Metal/Metal.h>
 #include <MetalKit/MetalKit.h>
@@ -51,7 +53,6 @@
         _owner->set_should_close(true);
         _owner->on_window_closed(carrot::events::window_closed_t{});
     }
-//    [NSApp terminate:nil];
 }
 
 - (void)windowDidResize:(NSNotification *)notification
@@ -93,15 +94,16 @@
     [_window setTitle:[NSString stringWithUTF8String:_info._window_title.data()]];
     [_window center];
 
-    [_window setAcceptsMouseMovedEvents:YES];
+//    [_window setAcceptsMouseMovedEvents:YES];
     [_window setRestorable:NO];
 
     [_window setDelegate:self];
 
     [_window makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
-
-    NSView* content_view{ [[NSView alloc] initWithFrame:[_window contentRectForFrameRect:[_window frame]]] };
+    
+    cocoa_content_view_t* content_view{[[cocoa_content_view_t alloc] initWithFrame:[_window contentRectForFrameRect:[_window frame]] owner:_owner]};
+    
     [_window setContentView:content_view];
     [content_view setWantsLayer:YES];
 

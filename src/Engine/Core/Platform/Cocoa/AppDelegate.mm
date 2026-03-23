@@ -94,7 +94,6 @@
     [_window setTitle:[NSString stringWithUTF8String:_info._window_title.data()]];
     [_window center];
 
-//    [_window setAcceptsMouseMovedEvents:YES];
     [_window setRestorable:NO];
 
     [_window setDelegate:self];

@@ -9,9 +9,9 @@
 
 @interface cocoa_content_view_t ()
 {
-    NSTrackingArea* _trackingArea;
+    NSTrackingArea* _tracking_area;
     carrot::core::platform::cocoa_window_t* _owner;
-    BOOL _mouseInside;
+    BOOL _mouse_inside;
 }
 @end
 
@@ -23,8 +23,8 @@
     if (self)
     {
         _owner = owner;
-        _trackingArea = nil;
-        _mouseInside = NO;
+        _tracking_area = nil;
+        _mouse_inside = NO;
 
         [self setWantsLayer:YES];
     }
@@ -33,11 +33,11 @@
 
 - (void)dealloc
 {
-    if (_trackingArea)
+    if (_tracking_area)
     {
-        [self removeTrackingArea:_trackingArea];
-        [_trackingArea release];
-        _trackingArea = nil;
+        [self removeTrackingArea:_tracking_area];
+        [_tracking_area release];
+        _tracking_area = nil;
     }
 
     [super dealloc];
@@ -52,11 +52,11 @@
 {
     [super updateTrackingAreas];
 
-    if (_trackingArea)
+    if (_tracking_area)
     {
-        [self removeTrackingArea:_trackingArea];
-        [_trackingArea release];
-        _trackingArea = nil;
+        [self removeTrackingArea:_tracking_area];
+        [_tracking_area release];
+        _tracking_area = nil;
     }
 
     NSTrackingAreaOptions options =
@@ -65,28 +65,28 @@
         NSTrackingActiveInKeyWindow |
         NSTrackingInVisibleRect;
 
-    _trackingArea = [[NSTrackingArea alloc] initWithRect:NSZeroRect
+    _tracking_area = [[NSTrackingArea alloc] initWithRect:NSZeroRect
                                                  options:options
                                                    owner:self
                                                 userInfo:nil];
-    [self addTrackingArea:_trackingArea];
+    [self addTrackingArea:_tracking_area];
 }
 
 - (void)mouseEntered:(NSEvent *)event
 {
-    _mouseInside = YES;
+    _mouse_inside = YES;
     if (_owner) _owner->handle_mouse_entered();
 }
 
 - (void)mouseExited:(NSEvent *)event
 {
-    _mouseInside = NO;
+    _mouse_inside = NO;
     if (_owner) _owner->handle_mouse_exited();
 }
 
 - (void)mouseMoved:(NSEvent *)event
 {
-    if (!_mouseInside) return;
+    if (!_mouse_inside) return;
     if (_owner) _owner->handle_mouse_moved(event, self);
 }
 

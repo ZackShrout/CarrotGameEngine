@@ -7,18 +7,17 @@
 
 #include "Buffer.h"
 #include "Texture.h"
+#include "Renderer/Draw/TexturedQuadBatch.h"
 
 #include <memory>
+#include <span>
 #include <string_view>
-
-#include "Assets/AssetManager.h"
 
 namespace carrot::assets {
     class shader_file_provider_t;
 }
 
 namespace carrot::renderer {
-    struct textured_quad_push_constants_t;
     class renderer_t;
 }
 
@@ -72,9 +71,8 @@ namespace carrot::rhi {
 
         [[nodiscard]] virtual std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) = 0;
         [[nodiscard]] virtual std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) = 0;
-        virtual void set_textured_quad_texture(const rhi_texture_t& texture) = 0;
         virtual void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer, const rhi_buffer_t& index_buffer) = 0;
-        virtual void set_textured_quad_push_constants(const renderer::textured_quad_push_constants_t& constants) = 0;
+        virtual void set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches) = 0;
 
         virtual void wait_idle() = 0;
     };

@@ -8,10 +8,12 @@
 #include "EngineConfig.h"
 #include "Assets/Shaders/VFSShaderFileProvider.h"
 #include "Core/Module.h"
+#include "Draw/TexturedQuadBatch.h"
 #include "Draw/TexturedQuadDrawInfo.h"
+#include "Primitives/QuadVertex.h"
 #include "RHI/RHI.h"
 
-#include <optional>
+#include <vector>
 
 namespace carrot::io {
     class virtual_file_system_t;
@@ -79,6 +81,9 @@ namespace carrot::renderer {
         // Temporary bridge helpers until we have proper command list abstraction
         void submit_immediate_triangle(uint32_t abgr_color);
 
+        void ensure_textured_quad_frame_buffers();
+        void upload_textured_quad_frame_data();
+
         io::virtual_file_system_t& _vfs;
 
         engine_graphics_config_t _config;
@@ -89,17 +94,28 @@ namespace carrot::renderer {
         uint64_t _frame_index{ 0 };
         uint32_t _draw_calls_this_frame{ 0 };
 
-        // Future common resources (starting small)
-        // rhi::rhi_graphics_pipeline_t* _colored_triangle_pipeline{ nullptr };
-        // rhi::rhi_graphics_pipeline_t* _textured_quad_pipeline{ nullptr };
-        // rhi::rhi_texture_t* _default_white_tex{ nullptr };
+        // std::unique_ptr<rhi::rhi_buffer_t> _quad_vertex_buffer;
+        // std::unique_ptr<rhi::rhi_buffer_t> _quad_index_buffer;
+        //
+        // const rhi::rhi_texture_t* _test_texture{ nullptr };
+        //
+        // std::optional<textured_quad_draw_info_t> _pending_textured_quad;
+        // const rhi::rhi_texture_t* _current_textured_quad_texture{ nullptr };
 
         std::unique_ptr<rhi::rhi_buffer_t> _quad_vertex_buffer;
         std::unique_ptr<rhi::rhi_buffer_t> _quad_index_buffer;
 
         const rhi::rhi_texture_t* _test_texture{ nullptr };
 
-        std::optional<textured_quad_draw_info_t> _pending_textured_quad;
-        const rhi::rhi_texture_t* _current_textured_quad_texture{ nullptr };
+        // Per-frame CPU-side textured quad batching
+        std::vector<quad_vertex_t> _textured_quad_vertices_cpu;
+        std::vector<uint32_t> _textured_quad_indices_cpu;
+        std::vector<textured_quad_batch_t> _textured_quad_batches;
+
+        std::unique_ptr<rhi::rhi_buffer_t> _textured_quad_frame_vertex_buffer;
+        std::unique_ptr<rhi::rhi_buffer_t> _textured_quad_frame_index_buffer;
+
+        size_t _textured_quad_vertex_capacity{ 0 };
+        size_t _textured_quad_index_capacity{ 0 };
     };
 } // namespace carrot::renderer

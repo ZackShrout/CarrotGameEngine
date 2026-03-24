@@ -5,13 +5,18 @@
 
 #pragma once
 
+#include "VulkanCommandQueue.h"
 #include "VulkanCommon.h"
 #include "VulkanCore.h"
 #include "VulkanDevice.h"
 #include "VulkanSwapchain.h"
-#include "VulkanCommandQueue.h"
-#include "Renderer/Primitives/TexturedQuadPushConstants.h"
+#include "Renderer/Draw/TexturedQuadBatch.h"
 #include "RHI/RHI.h"
+
+#include <array>
+#include <memory>
+#include <span>
+#include <vector>
 
 namespace carrot::rhi::vulkan {
     class vulkan_buffer_t;
@@ -39,9 +44,8 @@ namespace carrot::rhi::vulkan {
 
         [[nodiscard]] std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) override;
-        void set_textured_quad_texture(const rhi_texture_t& texture) override;
         void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer, const rhi_buffer_t& index_buffer) override;
-        void set_textured_quad_push_constants(const renderer::textured_quad_push_constants_t& constants) override;
+        void set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches) override;
 
         void wait_idle() override;
 
@@ -67,10 +71,12 @@ namespace carrot::rhi::vulkan {
         VkCommandPool                                           _command_pool{ VK_NULL_HANDLE };
         VkDescriptorPool                                        _descriptor_pool{ VK_NULL_HANDLE };
         VkDescriptorSet                                         _textured_quad_descriptor_set{ VK_NULL_HANDLE };
+
         const vulkan_buffer_t*                                  _textured_quad_vertex_buffer{ nullptr };
         const vulkan_buffer_t*                                  _textured_quad_index_buffer{ nullptr };
-        renderer::textured_quad_push_constants_t                _textured_quad_push_constants{};
-        const rhi_texture_t*                                     _bound_textured_quad_texture{ nullptr };
+        std::vector<renderer::textured_quad_batch_t>            _textured_quad_batches;
+        const rhi_texture_t*                                    _bound_textured_quad_texture{ nullptr };
+
         assets::shader_file_provider_t*                         _shader_files;
         std::unique_ptr<vulkan_device_t>                        _device;
         std::unique_ptr<vulkan_swapchain_t>                     _swapchain;

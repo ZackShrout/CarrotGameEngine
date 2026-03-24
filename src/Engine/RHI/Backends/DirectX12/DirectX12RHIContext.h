@@ -10,7 +10,9 @@
 #include "RHI/RHI.h"
 
 #include <array>
-
+#include <memory>
+#include <span>
+#include <vector>
 
 namespace carrot::rhi::dx12 {
     class dx12_device_t;
@@ -47,9 +49,8 @@ namespace carrot::rhi::dx12 {
 
         [[nodiscard]] std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) override;
-        void set_textured_quad_texture(const rhi_texture_t& texture) override {}
         void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer, const rhi_buffer_t& index_buffer) override {}
-        void set_textured_quad_push_constants(const renderer::textured_quad_push_constants_t& constants) override {}
+        void set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches) override {}
 
         void wait_idle() override;
 
@@ -65,5 +66,7 @@ namespace carrot::rhi::dx12 {
         ID3D12RootSignature*                                _root_signature{ nullptr };
         ID3D12PipelineState*                                _pipeline_state{ nullptr };
         uint32_t                                            _frame_counter{ 0 };
+
+        std::vector<renderer::textured_quad_batch_t> _textured_quad_batches;
     };
 } // namespace carrot::rhi::dx12

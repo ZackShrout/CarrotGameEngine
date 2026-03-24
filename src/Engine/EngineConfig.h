@@ -8,6 +8,9 @@
 #include "RHI/RHI.h"
 
 namespace carrot {
+    namespace io {
+        class virtual_file_system_t;
+    }
 
     struct engine_graphics_config_t
     {

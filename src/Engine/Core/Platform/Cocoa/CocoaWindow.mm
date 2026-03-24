@@ -213,7 +213,7 @@ namespace carrot::core::platform {
     {
         NSEvent* event{ (NSEvent*)eventPtr };
 
-        events::mouse_scrolled_event_t e{};
+        events::mouse_scrolled_event_t e{ };
         e._delta = {
             static_cast<float>([event scrollingDeltaX]),
             static_cast<float>([event scrollingDeltaY])
@@ -226,7 +226,7 @@ namespace carrot::core::platform {
     {
         NSEvent* event{ (NSEvent*)eventPtr };
 
-        events::key_event_t e{};
+        events::key_event_t e{ };
         e._key = input::to_carrot_key([event keyCode]);
         e._action = is_press ? events::key_action::press : events::key_action::release;
         e._repeat = is_press ? [event isARepeat] : false;

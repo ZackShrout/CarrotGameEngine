@@ -81,7 +81,7 @@ namespace carrot::rhi::vulkan {
             _swapchain.reset();
         }
 
-        for (const auto& frame : _frames)
+        for (const auto& frame: _frames)
         {
             if (frame.image_acquire)
                 vkDestroySemaphore(device, frame.image_acquire, nullptr);
@@ -230,6 +230,9 @@ namespace carrot::rhi::vulkan {
             return;
         }
 
+        if (_textured_quad_batches.empty())
+            return;
+
         VkViewport viewport{ };
         viewport.x = 0.0f;
         viewport.y = 0.0f;
@@ -245,36 +248,57 @@ namespace carrot::rhi::vulkan {
         vkCmdSetViewport(frame.command_buffer, 0, 1, &viewport);
         vkCmdSetScissor(frame.command_buffer, 0, 1, &scissor);
 
-        vkCmdBindPipeline(frame.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          _textured_quad_pipeline->vk_pipeline());
-
-        vkCmdBindDescriptorSets(
+        vkCmdBindPipeline(
             frame.command_buffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
-            _textured_quad_pipeline->vk_layout(),
-            0,
-            1,
-            &_textured_quad_descriptor_set,
-            0,
-            nullptr
+            _textured_quad_pipeline->vk_pipeline()
         );
 
         const VkBuffer vertex_buffers[]{ _textured_quad_vertex_buffer->vk_buffer() };
         const VkDeviceSize offsets[]{ 0 };
 
         vkCmdBindVertexBuffers(frame.command_buffer, 0, 1, vertex_buffers, offsets);
-        vkCmdBindIndexBuffer(frame.command_buffer, _textured_quad_index_buffer->vk_buffer(), 0, VK_INDEX_TYPE_UINT16);
-
-        vkCmdPushConstants(
+        vkCmdBindIndexBuffer(
             frame.command_buffer,
-            _textured_quad_pipeline->vk_layout(),
-            VK_SHADER_STAGE_VERTEX_BIT,
+            _textured_quad_index_buffer->vk_buffer(),
             0,
-            sizeof(_textured_quad_push_constants),
-            &_textured_quad_push_constants
+            VK_INDEX_TYPE_UINT32
         );
 
-        vkCmdDrawIndexed(frame.command_buffer, 6, 1, 0, 0, 0);
+        _bound_textured_quad_texture = nullptr;
+
+        for (const renderer::textured_quad_batch_t& batch: _textured_quad_batches)
+        {
+            if (batch.texture == nullptr || batch.index_count == 0)
+                continue;
+
+            if (batch.texture != _bound_textured_quad_texture)
+            {
+                update_textured_quad_descriptor_set(*batch.texture);
+
+                vkCmdBindDescriptorSets(
+                    frame.command_buffer,
+                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    _textured_quad_pipeline->vk_layout(),
+                    0,
+                    1,
+                    &_textured_quad_descriptor_set,
+                    0,
+                    nullptr
+                );
+
+                _bound_textured_quad_texture = batch.texture;
+            }
+
+            vkCmdDrawIndexed(
+                frame.command_buffer,
+                batch.index_count,
+                1,
+                batch.first_index,
+                0,
+                0
+            );
+        }
     }
 
     void vulkan_rhi_context_t::end_frame()
@@ -721,50 +745,19 @@ namespace carrot::rhi::vulkan {
         return result;
     }
 
-    void vulkan_rhi_context_t::set_textured_quad_texture(const rhi_texture_t& texture)
-    {
-        if (&texture == _bound_textured_quad_texture)
-            return;
-
-        if (_textured_quad_descriptor_set == VK_NULL_HANDLE)
-        {
-            LOG_GRAPHICS_FATAL("Textured quad descriptor set has not been allocated");
-            return;
-        }
-
-        update_textured_quad_descriptor_set(texture);
-        _bound_textured_quad_texture = &texture;
-    }
-
     void vulkan_rhi_context_t::set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer,
                                                           const rhi_buffer_t& index_buffer)
     {
-        const vulkan_buffer_t* vk_vertex_buffer{ dynamic_cast<const vulkan_buffer_t*>(&vertex_buffer) };
+        _textured_quad_vertex_buffer = dynamic_cast<const vulkan_buffer_t *>(&vertex_buffer);
+        _textured_quad_index_buffer = dynamic_cast<const vulkan_buffer_t *>(&index_buffer);
 
-        if (vk_vertex_buffer == nullptr)
-        {
-            LOG_GRAPHICS_FATAL("set_textured_quad_geometry received non-Vulkan vertex buffer");
-            return;
-        }
-
-        const vulkan_buffer_t* vk_index_buffer{ dynamic_cast<const vulkan_buffer_t*>(&index_buffer) };
-
-        if (vk_index_buffer == nullptr)
-        {
-            LOG_GRAPHICS_FATAL("set_textured_quad_geometry received non-Vulkan index buffer");
-            return;
-        }
-
-        _textured_quad_vertex_buffer = vk_vertex_buffer;
-        _textured_quad_index_buffer = vk_index_buffer;
-
-        LOG_GRAPHICS_INFO("Textured quad geometry bound successfully");
+        if (_textured_quad_vertex_buffer == nullptr || _textured_quad_index_buffer == nullptr)
+            LOG_GRAPHICS_FATAL("set_textured_quad_geometry received invalid backend buffers");
     }
 
-    void vulkan_rhi_context_t::set_textured_quad_push_constants(
-        const renderer::textured_quad_push_constants_t& constants)
+    void vulkan_rhi_context_t::set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches)
     {
-        _textured_quad_push_constants = constants;
+        _textured_quad_batches.assign(batches.begin(), batches.end());
     }
 
     void vulkan_rhi_context_t::wait_idle()
@@ -780,7 +773,7 @@ namespace carrot::rhi::vulkan {
         _shader_files = desc.shader_files;
 
         // ── 1. Create Vulkan Instance ─────────────────────────────────────────────
-        std::vector<const char*> instance_extensions{
+        std::vector<const char *> instance_extensions{
             VK_KHR_SURFACE_EXTENSION_NAME,
 #if defined(CARROT_PLATFORM_WAYLAND)
             VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME
@@ -899,7 +892,7 @@ namespace carrot::rhi::vulkan {
         queue_info.queueCount = 1;
         queue_info.pQueuePriorities = &priority;
 
-        std::vector<const char*> device_extensions{
+        std::vector<const char *> device_extensions{
             VK_KHR_SWAPCHAIN_EXTENSION_NAME
         };
 
@@ -1191,7 +1184,7 @@ namespace carrot::rhi::vulkan {
 
         const VkDescriptorSetLayout layout{ _textured_quad_pipeline->vk_descriptor_set_layout() };
 
-        VkDescriptorSetAllocateInfo alloc_info{};
+        VkDescriptorSetAllocateInfo alloc_info{ };
         alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         alloc_info.descriptorPool = _descriptor_pool;
         alloc_info.descriptorSetCount = 1;
@@ -1214,7 +1207,7 @@ namespace carrot::rhi::vulkan {
             return;
         }
 
-        const vulkan_texture_t* vk_texture{ dynamic_cast<const vulkan_texture_t*>(&texture) };
+        const vulkan_texture_t* vk_texture{ dynamic_cast<const vulkan_texture_t *>(&texture) };
 
         if (vk_texture == nullptr)
         {
@@ -1222,12 +1215,12 @@ namespace carrot::rhi::vulkan {
             return;
         }
 
-        VkDescriptorImageInfo image_info{};
+        VkDescriptorImageInfo image_info{ };
         image_info.sampler = vk_texture->sampler();
         image_info.imageView = vk_texture->view();
         image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-        VkWriteDescriptorSet write{};
+        VkWriteDescriptorSet write{ };
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write.dstSet = _textured_quad_descriptor_set;
         write.dstBinding = 0;

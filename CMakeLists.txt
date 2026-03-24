@@ -202,6 +202,7 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/RHI/Backends/Vulkan/VulkanTexture.cpp
         src/Engine/RHI/Backends/Vulkan/VulkanTexture.h
         src/Engine/RHI/Backends/Vulkan/VulkanUtils.h
+        src/Engine/Renderer/Draw/TexturedQuadBatch.h
 )
 
 # ------------------------------------------------------------------------

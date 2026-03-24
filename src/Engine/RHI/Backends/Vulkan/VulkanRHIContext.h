@@ -63,19 +63,20 @@ namespace carrot::rhi::vulkan {
         void copy_buffer(VkBuffer src, VkBuffer dst, VkDeviceSize size) const;
         void create_descriptor_pool();
         void destroy_descriptor_pool() noexcept;
-        void allocate_textured_quad_descriptor_set();
+        void allocate_textured_quad_descriptor_sets();
         void update_textured_quad_descriptor_set(const rhi_texture_t& texture) const;
 
         VkInstance                                              _vk_instance{ VK_NULL_HANDLE };
         VkSurfaceKHR                                            _vk_surface{ VK_NULL_HANDLE };
         VkCommandPool                                           _command_pool{ VK_NULL_HANDLE };
         VkDescriptorPool                                        _descriptor_pool{ VK_NULL_HANDLE };
-        VkDescriptorSet                                         _textured_quad_descriptor_set{ VK_NULL_HANDLE };
+
+        std::array<VkDescriptorSet, k_max_frames_in_flight>     _textured_quad_descriptor_sets{};
+        std::array<const rhi_texture_t*, k_max_frames_in_flight> _textured_quad_descriptor_set_textures{ };
 
         const vulkan_buffer_t*                                  _textured_quad_vertex_buffer{ nullptr };
         const vulkan_buffer_t*                                  _textured_quad_index_buffer{ nullptr };
         std::vector<renderer::textured_quad_batch_t>            _textured_quad_batches;
-        const rhi_texture_t*                                    _bound_textured_quad_texture{ nullptr };
 
         assets::shader_file_provider_t*                         _shader_files;
         std::unique_ptr<vulkan_device_t>                        _device;

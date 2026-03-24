@@ -94,18 +94,8 @@ namespace carrot::renderer {
         uint64_t _frame_index{ 0 };
         uint32_t _draw_calls_this_frame{ 0 };
 
-        // std::unique_ptr<rhi::rhi_buffer_t> _quad_vertex_buffer;
-        // std::unique_ptr<rhi::rhi_buffer_t> _quad_index_buffer;
-        //
-        // const rhi::rhi_texture_t* _test_texture{ nullptr };
-        //
-        // std::optional<textured_quad_draw_info_t> _pending_textured_quad;
-        // const rhi::rhi_texture_t* _current_textured_quad_texture{ nullptr };
-
-        std::unique_ptr<rhi::rhi_buffer_t> _quad_vertex_buffer;
-        std::unique_ptr<rhi::rhi_buffer_t> _quad_index_buffer;
-
-        const rhi::rhi_texture_t* _test_texture{ nullptr };
+        const rhi::rhi_texture_t* _test_texture1{ nullptr };
+        const rhi::rhi_texture_t* _test_texture2{ nullptr };
 
         // Per-frame CPU-side textured quad batching
         std::vector<quad_vertex_t> _textured_quad_vertices_cpu;

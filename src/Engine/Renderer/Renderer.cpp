@@ -11,7 +11,6 @@
 #include "Assets/AssetService.h"
 #include "Assets/Texture/TextureAsset.h"
 #include "IO/VirtualFileSystem.h"
-#include "Primitives/QuadMesh.h"
 #include "Utils/File/FileUtils.h"
 #include "Window/Window.h"
 #include "RHI/Texture.h"
@@ -91,16 +90,16 @@ namespace carrot::renderer {
         // - set common global state (samplers, etc)
 
         textured_quad_draw_info_t quad1{ };
-        quad1.texture = _test_texture;
+        quad1.texture = _test_texture1;
         quad1.x = -0.9f;
         quad1.y = -0.9f;
-        quad1.width = 0.4f;
-        quad1.height = 0.4f;
-        quad1.color = 0xFFFFFFFFu;
+        quad1.width = 0.3f;
+        quad1.height = 0.3f;
+        quad1.color = 0xFFFF0000u;
         draw_textured_quad(quad1);
 
         textured_quad_draw_info_t quad2{ };
-        quad2.texture = _test_texture;
+        quad2.texture = _test_texture1;
         quad2.x = -0.2f;
         quad2.y = -0.2f;
         quad2.width = 0.4f;
@@ -109,13 +108,31 @@ namespace carrot::renderer {
         draw_textured_quad(quad2);
 
         textured_quad_draw_info_t quad3{ };
-        quad3.texture = _test_texture;
+        quad3.texture = _test_texture1;
         quad3.x = 0.5f;
-        quad3.y = 0.5f;
+        quad3.y = -0.9f;
         quad3.width = 0.3f;
         quad3.height = 0.3f;
-        quad3.color = 0xFFFFFFFFu;
+        quad3.color = 0xFFFF00FFu;
         draw_textured_quad(quad3);
+
+        textured_quad_draw_info_t quad4{ };
+        quad4.texture = _test_texture1;
+        quad4.x = -0.9f;
+        quad4.y = 0.5f;
+        quad4.width = 0.3f;
+        quad4.height = 0.3f;
+        quad4.color = 0xFF00FF00u;
+        draw_textured_quad(quad4);
+
+        textured_quad_draw_info_t quad5{ };
+        quad5.texture = _test_texture1;
+        quad5.x = 0.5f;
+        quad5.y = 0.5f;
+        quad5.width = 0.3f;
+        quad5.height = 0.3f;
+        quad5.color = 0xFF0000FFu;
+        draw_textured_quad(quad5);
     }
 
     void renderer_t::record_frame()
@@ -124,6 +141,7 @@ namespace carrot::renderer {
 
         if (!_textured_quad_batches.empty())
         {
+            ensure_textured_quad_frame_buffers();
             upload_textured_quad_frame_data();
 
             if (_textured_quad_frame_vertex_buffer && _textured_quad_frame_index_buffer)
@@ -242,9 +260,8 @@ namespace carrot::renderer {
     // PRIVATE
     void renderer_t::create_common_resources()
     {
-        _test_texture = nullptr;
-        _quad_vertex_buffer.reset();
-        _quad_index_buffer.reset();
+        _test_texture1 = nullptr;
+        _test_texture2 = nullptr;
 
         const assets::loaded_texture_asset_t* botan_texture{
             assets::asset_service_t::manager().textures().get("engine.botan_test")
@@ -256,44 +273,29 @@ namespace carrot::renderer {
             return;
         }
 
-        _test_texture = botan_texture->texture.get();
+        _test_texture1 = botan_texture->texture.get();
 
         LOG_GRAPHICS_INFO(
             "Loaded texture asset '{}' successfully",
             botan_texture->record->logical_id
         );
 
-        rhi::buffer_create_info_t vertex_buffer_info{ };
-        vertex_buffer_info.size_bytes = sizeof(k_unit_quad_vertices);
-        vertex_buffer_info.usage = rhi::buffer_usage_t::vertex;
-        vertex_buffer_info.initial_data = k_unit_quad_vertices.data();
+        const assets::loaded_texture_asset_t* vraden_texture{
+            assets::asset_service_t::manager().textures().get("engine.vraden_test")
+        };
 
-        _quad_vertex_buffer = _rhi->create_buffer(vertex_buffer_info);
-        if (!_quad_vertex_buffer)
+        if (vraden_texture == nullptr || !vraden_texture->valid())
         {
-            LOG_GRAPHICS_FATAL("Failed to create canonical quad vertex buffer");
+            LOG_GRAPHICS_ERROR("Failed to load texture asset 'engine.vraden_test'");
             return;
         }
 
-        rhi::buffer_create_info_t index_buffer_info{ };
-        index_buffer_info.size_bytes = sizeof(k_unit_quad_indices);
-        index_buffer_info.usage = rhi::buffer_usage_t::index;
-        index_buffer_info.initial_data = k_unit_quad_indices.data();
-
-        _quad_index_buffer = _rhi->create_buffer(index_buffer_info);
-        if (!_quad_index_buffer)
-        {
-            LOG_GRAPHICS_FATAL("Failed to create canonical quad index buffer");
-            return;
-        }
+        _test_texture2 = vraden_texture->texture.get();
 
         LOG_GRAPHICS_INFO(
-            "Common graphics resources created: quad VB={} bytes, quad IB={} bytes",
-            _quad_vertex_buffer->size_bytes(),
-            _quad_index_buffer->size_bytes()
+            "Loaded texture asset '{}' successfully",
+            vraden_texture->record->logical_id
         );
-
-        _rhi->set_textured_quad_geometry(*_quad_vertex_buffer, *_quad_index_buffer);
     }
 
     void renderer_t::destroy_common_resources()
@@ -302,14 +304,11 @@ namespace carrot::renderer {
         _textured_quad_indices_cpu.clear();
         _textured_quad_batches.clear();
 
-        _quad_index_buffer.reset();
-        _quad_vertex_buffer.reset();
-        _test_texture = nullptr;
-
         _textured_quad_frame_vertex_buffer.reset();
         _textured_quad_frame_index_buffer.reset();
-        _textured_quad_vertex_capacity = 0;
-        _textured_quad_index_capacity = 0;
+
+        _test_texture1 = nullptr;
+        _test_texture2 = nullptr;
     }
 
     void renderer_t::submit_immediate_triangle(uint32_t abgr_color)
@@ -331,27 +330,39 @@ namespace carrot::renderer {
 
         if (_textured_quad_frame_vertex_buffer == nullptr || _textured_quad_vertex_capacity < required_vertex_bytes)
         {
-            _textured_quad_frame_vertex_buffer.reset();
-
             rhi::buffer_create_info_t info{ };
             info.size_bytes = required_vertex_bytes;
             info.usage = rhi::buffer_usage_t::vertex;
-            info.initial_data = _textured_quad_vertices_cpu.data();
+            info.initial_data = nullptr;
+            info.cpu_writable = true;
 
             _textured_quad_frame_vertex_buffer = _rhi->create_buffer(info);
+            if (!_textured_quad_frame_vertex_buffer)
+            {
+                LOG_GRAPHICS_FATAL("Failed to create textured quad frame vertex buffer");
+                _textured_quad_vertex_capacity = 0;
+                return;
+            }
+
             _textured_quad_vertex_capacity = required_vertex_bytes;
         }
 
         if (_textured_quad_frame_index_buffer == nullptr || _textured_quad_index_capacity < required_index_bytes)
         {
-            _textured_quad_frame_index_buffer.reset();
-
             rhi::buffer_create_info_t info{ };
             info.size_bytes = required_index_bytes;
             info.usage = rhi::buffer_usage_t::index;
-            info.initial_data = _textured_quad_indices_cpu.data();
+            info.initial_data = nullptr;
+            info.cpu_writable = true;
 
             _textured_quad_frame_index_buffer = _rhi->create_buffer(info);
+            if (!_textured_quad_frame_index_buffer)
+            {
+                LOG_GRAPHICS_FATAL("Failed to create textured quad frame index buffer");
+                _textured_quad_index_capacity = 0;
+                return;
+            }
+
             _textured_quad_index_capacity = required_index_bytes;
         }
     }
@@ -361,18 +372,22 @@ namespace carrot::renderer {
         if (_textured_quad_vertices_cpu.empty() || _textured_quad_indices_cpu.empty())
             return;
 
-        rhi::buffer_create_info_t vertex_info{ };
-        vertex_info.size_bytes = _textured_quad_vertices_cpu.size() * sizeof(quad_vertex_t);
-        vertex_info.usage = rhi::buffer_usage_t::vertex;
-        vertex_info.initial_data = _textured_quad_vertices_cpu.data();
+        if (!_textured_quad_frame_vertex_buffer || !_textured_quad_frame_index_buffer)
+        {
+            LOG_GRAPHICS_FATAL("Textured quad frame buffers are not available for upload");
+            return;
+        }
 
-        _textured_quad_frame_vertex_buffer = _rhi->create_buffer(vertex_info);
+        const size_t vertex_bytes = _textured_quad_vertices_cpu.size() * sizeof(quad_vertex_t);
+        const size_t index_bytes = _textured_quad_indices_cpu.size() * sizeof(uint32_t);
 
-        rhi::buffer_create_info_t index_info{ };
-        index_info.size_bytes = _textured_quad_indices_cpu.size() * sizeof(uint32_t);
-        index_info.usage = rhi::buffer_usage_t::index;
-        index_info.initial_data = _textured_quad_indices_cpu.data();
+        if (!_textured_quad_frame_vertex_buffer->write(_textured_quad_vertices_cpu.data(), vertex_bytes, 0))
+        {
+            LOG_GRAPHICS_FATAL("Failed to upload textured quad vertex data");
+            return;
+        }
 
-        _textured_quad_frame_index_buffer = _rhi->create_buffer(index_info);
+        if (!_textured_quad_frame_index_buffer->write(_textured_quad_indices_cpu.data(), index_bytes, 0))
+            LOG_GRAPHICS_FATAL("Failed to upload textured quad index data");
     }
 } // namespace carrot::renderer

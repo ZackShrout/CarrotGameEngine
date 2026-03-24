@@ -24,6 +24,14 @@ namespace carrot::rhi::vulkan {
     class vulkan_pipeline_t;
     class vulkan_render_pass_t;
 
+    struct textured_quad_state_t
+    {
+        const vulkan_buffer_t* vertex_buffer{ nullptr };
+        const vulkan_buffer_t* index_buffer{ nullptr };
+        std::vector<renderer::textured_quad_batch_t> batches;
+        std::array<std::vector<VkDescriptorSet>, k_max_frames_in_flight> descriptor_sets;
+    };
+
     class vulkan_rhi_context_t final : public rhi_context_t
     {
     public:
@@ -39,7 +47,7 @@ namespace carrot::rhi::vulkan {
         void resize(uint32_t width, uint32_t height) override;
 
         [[nodiscard]] rhi_device_t* get_device() const noexcept override { return _device.get(); }
-        [[nodiscard]] rhi_swapchain_t* get_swapchain() const noexcept override { return _swapchain.get();}
+        [[nodiscard]] rhi_swapchain_t* get_swapchain() const noexcept override { return _swapchain.get(); }
         [[nodiscard]] rhi_command_queue_t* get_command_queue() const noexcept override { return _graphics_queue.get(); }
 
         [[nodiscard]] std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) override;
@@ -68,36 +76,40 @@ namespace carrot::rhi::vulkan {
         void ensure_textured_quad_descriptor_sets_for_frame(uint32_t frame_index, uint32_t batch_count);
         void write_textured_quad_descriptor_set(VkDescriptorSet descriptor_set, const rhi_texture_t& texture) const;
 
-        VkInstance                                                          _vk_instance{ VK_NULL_HANDLE };
-        VkSurfaceKHR                                                        _vk_surface{ VK_NULL_HANDLE };
-        VkCommandPool                                                       _command_pool{ VK_NULL_HANDLE };
-        VkDescriptorPool                                                    _descriptor_pool{ VK_NULL_HANDLE };
+        // ── Core Vulkan handles ──
+        VkInstance          _vk_instance{ VK_NULL_HANDLE };
+        VkSurfaceKHR        _vk_surface{ VK_NULL_HANDLE };
+        VkCommandPool       _command_pool{ VK_NULL_HANDLE };
+        VkDescriptorPool    _descriptor_pool{ VK_NULL_HANDLE };
 
-        std::array<std::vector<VkDescriptorSet>, k_max_frames_in_flight>    _textured_quad_descriptor_sets;
+        // ── Renderer submission state ──
+        textured_quad_state_t _textured_quad;
 
-        const vulkan_buffer_t*                                              _textured_quad_vertex_buffer{ nullptr };
-        const vulkan_buffer_t*                                              _textured_quad_index_buffer{ nullptr };
-        std::vector<renderer::textured_quad_batch_t>                        _textured_quad_batches;
+        // ── Backend-owned services and persistent GPU objects ──
+        assets::shader_file_provider_t*                     _shader_files{ nullptr };
+        std::unique_ptr<vulkan_device_t>                    _device;
+        std::unique_ptr<vulkan_swapchain_t>                 _swapchain;
+        std::unique_ptr<vulkan_command_queue_t>             _graphics_queue;
+        std::unique_ptr<vulkan_render_pass_t>               _render_pass;
+        std::unique_ptr<vulkan_textured_quad_pipeline_t>    _textured_quad_pipeline;
+        framebuffer_array_t                                 _framebuffers;
 
-        assets::shader_file_provider_t*                                     _shader_files{ nullptr };
-        std::unique_ptr<vulkan_device_t>                                    _device;
-        std::unique_ptr<vulkan_swapchain_t>                                 _swapchain;
-        std::unique_ptr<vulkan_command_queue_t>                             _graphics_queue;
-        std::unique_ptr<vulkan_render_pass_t>                               _render_pass;
-        std::unique_ptr<vulkan_textured_quad_pipeline_t>                    _textured_quad_pipeline;
-        framebuffer_array_t                                                 _framebuffers;
-        std::array<frame_resources_t, k_max_frames_in_flight>               _frames;
-        std::vector<VkSemaphore>                                            _render_finished_semaphores;
-        uint32_t                                                            _frame_counter{ 0 };
-        uint32_t                                                            _current_frame{ 0 };
-        uint32_t                                                            _current_image_index{ 0 };
-        bool                                                                _pending_pipeline_reload{ false };
-        bool                                                                _frame_active{ false };
-        bool                                                                _render_pass_active{ false };
-        bool                                                                _skip_frame{ false };
-        bool                                                                _swapchain_dirty{ false };
-        uint32_t                                                            _pending_resize_width{ 0 };
-        uint32_t                                                            _pending_resize_height{ 0 };
+        // ── Per-frame GPU resources ──
+        std::array<frame_resources_t, k_max_frames_in_flight>   _frames;
+        std::vector<VkSemaphore>                                _render_finished_semaphores;
+
+        // ── Frame progression / swapchain bookkeeping ──
+        uint32_t _frame_counter{ 0 };
+        uint32_t _current_frame{ 0 };
+        uint32_t _current_image_index{ 0 };
+        uint32_t _pending_resize_width{ 0 };
+        uint32_t _pending_resize_height{ 0 };
+
+        // ── Deferred actions and lifecycle flags ──
+        bool _pending_pipeline_reload{ false };
+        bool _frame_active{ false };
+        bool _render_pass_active{ false };
+        bool _skip_frame{ false };
+        bool _swapchain_dirty{ false };
     };
-
 } // namespace carrot::rhi::vulkan

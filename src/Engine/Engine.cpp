@@ -314,6 +314,7 @@ namespace carrot {
         register_texture_asset_manifest("engine://textures/botan_test.texture.json");
         register_texture_asset_manifest("engine://textures/vraden_test.texture.json");
         register_texture_asset_manifest("engine://textures/16x16orange.texture.json");
+        register_texture_asset_manifest("engine://textures/carrot_engine_logo_512.texture.json");
     }
 
     bool engine_t::register_texture_asset_manifest(std::string_view manifest_uri)

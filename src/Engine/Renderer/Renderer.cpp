@@ -99,7 +99,7 @@ namespace carrot::renderer {
         draw_textured_quad(quad1);
 
         textured_quad_draw_info_t quad2{ };
-        quad2.texture = _test_texture1;
+        quad2.texture = _test_texture3;
         quad2.x = -0.2f;
         quad2.y = -0.2f;
         quad2.width = 0.4f;
@@ -108,7 +108,7 @@ namespace carrot::renderer {
         draw_textured_quad(quad2);
 
         textured_quad_draw_info_t quad3{ };
-        quad3.texture = _test_texture1;
+        quad3.texture = _test_texture2;
         quad3.x = 0.5f;
         quad3.y = -0.9f;
         quad3.width = 0.3f;
@@ -117,7 +117,7 @@ namespace carrot::renderer {
         draw_textured_quad(quad3);
 
         textured_quad_draw_info_t quad4{ };
-        quad4.texture = _test_texture1;
+        quad4.texture = _test_texture2;
         quad4.x = -0.9f;
         quad4.y = 0.5f;
         quad4.width = 0.3f;
@@ -262,6 +262,7 @@ namespace carrot::renderer {
     {
         _test_texture1 = nullptr;
         _test_texture2 = nullptr;
+        _test_texture3 = nullptr;
 
         const assets::loaded_texture_asset_t* botan_texture{
             assets::asset_service_t::manager().textures().get("engine.botan_test")
@@ -295,6 +296,23 @@ namespace carrot::renderer {
         LOG_GRAPHICS_INFO(
             "Loaded texture asset '{}' successfully",
             vraden_texture->record->logical_id
+        );
+
+        const assets::loaded_texture_asset_t* logo_texture{
+            assets::asset_service_t::manager().textures().get("engine.carrot_engine_logo_512")
+        };
+
+        if (logo_texture == nullptr || !logo_texture->valid())
+        {
+            LOG_GRAPHICS_ERROR("Failed to load texture asset 'engine.carrot_engine_logo_512'");
+            return;
+        }
+
+        _test_texture3 = logo_texture->texture.get();
+
+        LOG_GRAPHICS_INFO(
+            "Loaded texture asset '{}' successfully",
+            logo_texture->record->logical_id
         );
     }
 

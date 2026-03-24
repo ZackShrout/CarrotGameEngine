@@ -96,6 +96,7 @@ namespace carrot::renderer {
 
         const rhi::rhi_texture_t* _test_texture1{ nullptr };
         const rhi::rhi_texture_t* _test_texture2{ nullptr };
+        const rhi::rhi_texture_t* _test_texture3{ nullptr };
 
         // Per-frame CPU-side textured quad batching
         std::vector<quad_vertex_t> _textured_quad_vertices_cpu;

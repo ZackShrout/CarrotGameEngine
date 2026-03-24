@@ -50,6 +50,8 @@ namespace carrot {
     private:
         void tick();
 
+        void render_world();
+
         [[nodiscard]] core::engine_paths_t make_default_engine_paths() noexcept;
         [[nodiscard]] static std::optional<std::filesystem::path> find_repo_root(std::filesystem::path start) noexcept;
         void configure_paths(const core::engine_paths_t& paths);
@@ -74,5 +76,6 @@ namespace carrot {
         std::unique_ptr<assets::asset_manager_t>            _asset_manager{ nullptr };
 
         on_tick_t                                           _on_tick;
+        renderer::renderer_stats_t                          _last_logged_renderer_stats;
     };
 } // namespace carrot

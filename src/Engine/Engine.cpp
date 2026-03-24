@@ -92,8 +92,6 @@ namespace carrot {
         register_builtin_audio_assets();
         register_builtin_texture_assets();
 
-        _renderer->init_common_resources();
-
         LOG_CORE_INFO("Carrot Engine Initialized (Pure RHI Mode)");
         _initialized = true;
     }
@@ -164,7 +162,7 @@ namespace carrot {
             if (window::is_minimized()) continue;
 
             _renderer->begin_frame();
-            _renderer->record_frame();
+            render_world();
 
             // Initialize debug overlay AFTER the first swapchain image exists
             if (!_debug_overlay_initialized)
@@ -205,7 +203,91 @@ namespace carrot {
         // debug::text(20.f, 30.f, "FPS: %u", _current_fps);
         // debug::text(20.f, 65.f, "Frame: %.3f ms", _delta_time * 1000.f);
 
+        if ((_renderer->get_frame_index() % 120) == 0)
+        {
+            const renderer::renderer_stats_t& stats{ _renderer->get_stats() };
+
+            if (stats.draw_calls != _last_logged_renderer_stats.draw_calls ||
+                stats.textured_quad_count != _last_logged_renderer_stats.textured_quad_count ||
+                stats.textured_quad_batch_count != _last_logged_renderer_stats.textured_quad_batch_count ||
+                stats.vertex_count != _last_logged_renderer_stats.vertex_count ||
+                stats.index_count != _last_logged_renderer_stats.index_count)
+            {
+                LOG_GRAPHICS_INFO(
+                    "Renderer stats: draws={}, quads={}, batches={}, verts={}, indices={}",
+                    stats.draw_calls,
+                    stats.textured_quad_count,
+                    stats.textured_quad_batch_count,
+                    stats.vertex_count,
+                    stats.index_count
+                );
+
+                _last_logged_renderer_stats = stats;
+            }
+        }
+
         _on_tick.broadcast(_delta_time);
+    }
+
+    void engine_t::render_world()
+    {
+        const assets::loaded_texture_asset_t* botan{
+            assets::asset_service_t::manager().textures().get("engine.botan_test")
+        };
+        const assets::loaded_texture_asset_t* vraden{
+            assets::asset_service_t::manager().textures().get("engine.vraden_test")
+        };
+        const assets::loaded_texture_asset_t* orange{
+            assets::asset_service_t::manager().textures().get("engine.16x16orange")
+        };
+        const assets::loaded_texture_asset_t* logo{
+            assets::asset_service_t::manager().textures().get("engine.carrot_engine_logo_512")
+        };
+
+        renderer::textured_quad_draw_info_t quad1{ };
+        quad1.texture = botan->texture.get();
+        quad1.x = -0.9f;
+        quad1.y = -0.9f;
+        quad1.width = 0.3f;
+        quad1.height = 0.3f;
+        quad1.color = 0xFFFF0000u;
+        _renderer->draw_textured_quad(quad1);
+
+        renderer::textured_quad_draw_info_t quad2{ };
+        quad2.texture = logo->texture.get();
+        quad2.x = -0.2f;
+        quad2.y = -0.2f;
+        quad2.width = 0.4f;
+        quad2.height = 0.4f;
+        quad2.color = 0xFFFFFFFFu;
+        _renderer->draw_textured_quad(quad2);
+
+        renderer::textured_quad_draw_info_t quad3{ };
+        quad3.texture = vraden->texture.get();
+        quad3.x = 0.5f;
+        quad3.y = -0.9f;
+        quad3.width = 0.3f;
+        quad3.height = 0.3f;
+        quad3.color = 0xFFFF00FFu;
+        _renderer->draw_textured_quad(quad3);
+
+        renderer::textured_quad_draw_info_t quad4{ };
+        quad4.texture = vraden->texture.get();
+        quad4.x = -0.9f;
+        quad4.y = 0.5f;
+        quad4.width = 0.3f;
+        quad4.height = 0.3f;
+        quad4.color = 0xFF00FF00u;
+        _renderer->draw_textured_quad(quad4);
+
+        renderer::textured_quad_draw_info_t quad5{ };
+        quad5.texture = botan->texture.get();
+        quad5.x = 0.5f;
+        quad5.y = 0.5f;
+        quad5.width = 0.3f;
+        quad5.height = 0.3f;
+        quad5.color = 0xFF0000FFu;
+        _renderer->draw_textured_quad(quad5);
     }
 
     core::engine_paths_t engine_t::make_default_engine_paths() noexcept

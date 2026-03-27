@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "SamplerTypes.h"
 #include "RHI/Texture.h"
 
 #include <cstdint>
@@ -15,5 +16,6 @@ namespace carrot::renderer {
         const rhi::rhi_texture_t* texture{ nullptr };
         uint32_t first_index{ 0 };
         uint32_t index_count{ 0 };
+        sampler_filter_t filter{ sampler_filter_t::nearest };
     };
 } // namespace carrot::renderer

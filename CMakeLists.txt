@@ -205,6 +205,9 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/RHI/Backends/Metal/Pipelines/MetalTexturedQuadPipeline.cpp
         src/Engine/RHI/Backends/Metal/Pipelines/MetalTexturedQuadPipeline.h
         shaders/ShaderCommon.h
+        src/Engine/RHI/Backends/Metal/MetalUtils.h
+        src/Engine/RHI/Backends/Metal/MetalDescriptorEncoding.h
+        src/Engine/Renderer/Draw/SamplerTypes.h
 )
 
 # ------------------------------------------------------------------------

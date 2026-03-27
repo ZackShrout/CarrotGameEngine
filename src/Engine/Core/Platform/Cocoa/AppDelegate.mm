@@ -108,7 +108,7 @@
 
     CAMetalLayer* metal_layer{ [CAMetalLayer layer] };
     metal_layer.device = MTLCreateSystemDefaultDevice();
-    metal_layer.pixelFormat = MTLPixelFormatBGRA8Unorm_sRGB;
+    metal_layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
     metal_layer.framebufferOnly = YES;
     metal_layer.drawableSize = CGSizeMake(content_view.bounds.size.width, content_view.bounds.size.height);
 

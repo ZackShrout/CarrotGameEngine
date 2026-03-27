@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "Core/CoreDefines.h"
 #include "RHI/Backends/Metal/MetalCommon.h"
 
 #include <memory>
@@ -16,13 +17,6 @@ namespace carrot::assets {
 namespace carrot::rhi::metal {
     class metal_device_t;
 
-    struct descriptor_table_entry_t
-    {
-        uint64_t gpu_address_or_resource_id;
-        uint64_t texture_or_sampler_resource_id;
-        uint64_t metadata;
-    };
-
     struct textured_quad_root_argument_buffer_t
     {
         uint64_t srv_table_gpu_address;
@@ -32,18 +26,17 @@ namespace carrot::rhi::metal {
     class metal_textured_quad_pipeline_t final
     {
     public:
-        metal_textured_quad_pipeline_t(const metal_device_t& device, assets::shader_file_provider_t& shader_files,
+        metal_textured_quad_pipeline_t(const metal_device_t& device, const assets::shader_file_provider_t& shader_files,
                                        MTL::PixelFormat color_format);
 
-        ~metal_textured_quad_pipeline_t();
+        ~metal_textured_quad_pipeline_t() = default;
 
-        metal_textured_quad_pipeline_t(const metal_textured_quad_pipeline_t&) = delete;
-        metal_textured_quad_pipeline_t& operator=(const metal_textured_quad_pipeline_t&) = delete;
+        DISABLE_COPY(metal_textured_quad_pipeline_t)
 
-        [[nodiscard]] bool is_valid() const noexcept;
+        [[nodiscard]] bool is_valid() const noexcept { return _state != nullptr; }
 
-        [[nodiscard]] MTL::RenderPipelineState* state() const noexcept;
-        [[nodiscard]] MTL::VertexDescriptor* vertex_descriptor() const noexcept;
+        [[nodiscard]] MTL::RenderPipelineState* state() const noexcept { return _state.get(); }
+        [[nodiscard]] MTL::VertexDescriptor* vertex_descriptor() const noexcept { return _vertex_descriptor.get(); }
 
     private:
         [[nodiscard]] static MTL::VertexDescriptor* create_vertex_descriptor();

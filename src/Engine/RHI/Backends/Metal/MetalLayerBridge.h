@@ -11,12 +11,8 @@
 extern "C" {
 #endif
 
-void* metal_create_layer(
-    void* ns_view,
-    void* mtl_device,
-    uint32_t width,
-    uint32_t height);
-
+void* metal_create_layer(void* ns_view, void* mtl_device, uint32_t width, uint32_t height);
+void metal_set_layer_pixel_format_srgb(void* layer);
 void metal_destroy_layer(void* layer);
 void metal_resize_layer(void* layer, uint32_t width, uint32_t height);
 void* metal_next_drawable(void* layer);

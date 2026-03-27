@@ -9,6 +9,10 @@
 #include "MetalRenderEncoder.h"
 #include "RHI/RHI.h"
 
+#include <memory>
+#include <span>
+#include <vector>
+
 namespace carrot::rhi::metal {
     class metal_swapchain_t;
     class metal_command_queue_t;
@@ -49,13 +53,13 @@ namespace carrot::rhi::metal {
         [[nodiscard]] bool is_frame_active() const noexcept;
         void reset_frame_state() noexcept;
 
+        [[nodiscard]] MTL::SamplerState* get_textured_quad_sampler(renderer::sampler_filter_t filter) const noexcept;
         void ensure_textured_quad_argument_capacity(size_t batch_count);
-        void initialize_textured_quad_sampler_table();
-        void encode_textured_quad_argument_buffers(const metal_texture_t& texture,
-                                                   size_t batch_index,
-                                                   size_t& out_root_ab_offset);
+        void encode_textured_quad_argument_buffers(const metal_texture_t& texture, size_t batch_index,
+                                                   size_t& out_root_ab_offset) const;
 
-        [[nodiscard]] static size_t align_up(size_t value, size_t alignment) noexcept;
+
+        [[nodiscard]] static size_t align_up(size_t value, size_t alignment = 8) noexcept;
 
         std::unique_ptr<metal_device_t>                 _device;
         std::unique_ptr<metal_swapchain_t>              _swapchain;
@@ -66,7 +70,9 @@ namespace carrot::rhi::metal {
         void*                                           _metal_layer{ nullptr };
 
         dispatch_semaphore_t                            _frame_semaphore{ nullptr };
-        MTL::SamplerState*                              _textured_quad_sampler{ nullptr };
+        // MTL::SamplerState*                              _textured_quad_sampler{ nullptr };
+        MTL::SamplerState*                              _textured_quad_sampler_nearest{ nullptr };
+        MTL::SamplerState*                              _textured_quad_sampler_linear{ nullptr };
 
         const metal_buffer_t*                           _textured_quad_vertex_buffer{ nullptr };
         const metal_buffer_t*                           _textured_quad_index_buffer{ nullptr };
@@ -79,6 +85,7 @@ namespace carrot::rhi::metal {
 
         size_t                                          _textured_quad_root_stride{ 0 };
         size_t                                          _textured_quad_srv_stride{ 0 };
+        size_t                                          _textured_quad_sampler_stride{ 0 };
         size_t                                          _textured_quad_argument_capacity{ 0 };
 
         MTL::CommandBuffer*                             _active_command_buffer{ nullptr };

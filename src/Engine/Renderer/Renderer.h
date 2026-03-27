@@ -81,7 +81,7 @@ namespace carrot::renderer {
     private:
         void release_frame_resources();
         void ensure_textured_quad_frame_buffers();
-        void upload_textured_quad_frame_data();
+        void upload_textured_quad_frame_data() const;
 
         // ── External context / configuration ──────────────────────────────────────
         io::virtual_file_system_t&  _vfs;

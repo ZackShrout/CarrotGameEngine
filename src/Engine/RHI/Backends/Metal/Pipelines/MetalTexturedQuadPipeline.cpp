@@ -14,9 +14,6 @@
 
 namespace carrot::rhi::metal {
     namespace {
-        constexpr std::string_view k_vertex_shader_path{ "engine://shaders/metal/textured_quad.vert.metallib" };
-        constexpr std::string_view k_fragment_shader_path{ "engine://shaders/metal/textured_quad.frag.metallib" };
-
         template<typename T>
         std::shared_ptr<T> make_mtl_shared(T* obj)
         {
@@ -24,10 +21,12 @@ namespace carrot::rhi::metal {
                 if (p) p->release();
             });
         }
-    }
+    } // anonymous namespace
+
+    // PUBLIC
 
     metal_textured_quad_pipeline_t::metal_textured_quad_pipeline_t(const metal_device_t& device,
-                                                                   assets::shader_file_provider_t& shader_files,
+                                                                   const assets::shader_file_provider_t& shader_files,
                                                                    const MTL::PixelFormat color_format)
     {
         MTL::Device* mtl_device{ device.mtl_device() };
@@ -44,8 +43,12 @@ namespace carrot::rhi::metal {
             return;
         }
 
-        MTL::Library* vs_lib{ load_library(mtl_device, shader_files, k_vertex_shader_path) };
-        MTL::Library* fs_lib{ load_library(mtl_device, shader_files, k_fragment_shader_path) };
+        MTL::Library* vs_lib{
+            load_library(mtl_device, shader_files, "engine://shaders/metal/textured_quad.vert.metallib")
+        };
+        MTL::Library* fs_lib{
+            load_library(mtl_device, shader_files, "engine://shaders/metal/textured_quad.frag.metallib")
+        };
 
         if (!vs_lib || !fs_lib)
         {
@@ -53,11 +56,11 @@ namespace carrot::rhi::metal {
             return;
         }
 
-        std::shared_ptr<MTL::Library> vs_library = make_mtl_shared(vs_lib);
-        std::shared_ptr<MTL::Library> fs_library = make_mtl_shared(fs_lib);
+        const std::shared_ptr<MTL::Library> vs_library{ make_mtl_shared(vs_lib) };
+        const std::shared_ptr<MTL::Library> fs_library{ make_mtl_shared(fs_lib) };
 
-        std::shared_ptr<MTL::Function> vs_func = make_mtl_shared(load_function(vs_library.get()));
-        std::shared_ptr<MTL::Function> fs_func = make_mtl_shared(load_function(fs_library.get()));
+        const std::shared_ptr<MTL::Function> vs_func{ make_mtl_shared(load_function(vs_library.get())) };
+        const std::shared_ptr<MTL::Function> fs_func{ make_mtl_shared(load_function(fs_library.get())) };
 
         if (!vs_func || !fs_func)
         {
@@ -65,7 +68,7 @@ namespace carrot::rhi::metal {
             return;
         }
 
-        MTL::RenderPipelineDescriptor* desc = MTL::RenderPipelineDescriptor::alloc()->init();
+        MTL::RenderPipelineDescriptor* desc{ MTL::RenderPipelineDescriptor::alloc()->init() };
         if (!desc)
         {
             LOG_GRAPHICS_FATAL("Failed to allocate pipeline descriptor");
@@ -76,10 +79,9 @@ namespace carrot::rhi::metal {
         desc->setFragmentFunction(fs_func.get());
         desc->setVertexDescriptor(_vertex_descriptor.get());
 
-        auto* color = desc->colorAttachments()->object(0);
+        MTL::RenderPipelineColorAttachmentDescriptor* color{ desc->colorAttachments()->object(0) };
         color->setPixelFormat(color_format);
 
-        // Alpha blending (very important for sprites)
         color->setBlendingEnabled(true);
         color->setSourceRGBBlendFactor(MTL::BlendFactorSourceAlpha);
         color->setDestinationRGBBlendFactor(MTL::BlendFactorOneMinusSourceAlpha);
@@ -89,7 +91,7 @@ namespace carrot::rhi::metal {
         color->setAlphaBlendOperation(MTL::BlendOperationAdd);
 
         NS::Error* error{ nullptr };
-        MTL::RenderPipelineState* state = mtl_device->newRenderPipelineState(desc, &error);
+        MTL::RenderPipelineState* state{ mtl_device->newRenderPipelineState(desc, &error) };
 
         desc->release();
 
@@ -105,47 +107,32 @@ namespace carrot::rhi::metal {
         LOG_GRAPHICS_INFO("Metal textured quad pipeline created");
     }
 
-    metal_textured_quad_pipeline_t::~metal_textured_quad_pipeline_t() = default;
-
-    bool metal_textured_quad_pipeline_t::is_valid() const noexcept
-    {
-        return _state != nullptr;
-    }
-
-    MTL::RenderPipelineState* metal_textured_quad_pipeline_t::state() const noexcept
-    {
-        return _state.get();
-    }
-
-    MTL::VertexDescriptor* metal_textured_quad_pipeline_t::vertex_descriptor() const noexcept
-    {
-        return _vertex_descriptor.get();
-    }
+    // PRIVATE
 
     MTL::VertexDescriptor* metal_textured_quad_pipeline_t::create_vertex_descriptor()
     {
-        MTL::VertexDescriptor* desc = MTL::VertexDescriptor::alloc()->init();
+        MTL::VertexDescriptor* desc{ MTL::VertexDescriptor::alloc()->init() };
         if (!desc)
             return nullptr;
 
-        constexpr NS::UInteger stride = sizeof(renderer::quad_vertex_t);
+        constexpr NS::UInteger stride{ sizeof(renderer::quad_vertex_t) };
 
-        auto* layout = desc->layouts()->object(0);
+        MTL::VertexBufferLayoutDescriptor* layout{ desc->layouts()->object(0) };
         layout->setStride(stride);
         layout->setStepFunction(MTL::VertexStepFunctionPerVertex);
         layout->setStepRate(1);
 
-        auto* pos = desc->attributes()->object(11);
+        MTL::VertexAttributeDescriptor* pos{ desc->attributes()->object(11) };
         pos->setFormat(MTL::VertexFormatFloat2);
         pos->setOffset(offsetof(renderer::quad_vertex_t, x));
         pos->setBufferIndex(0);
 
-        auto* uv = desc->attributes()->object(12);
+        MTL::VertexAttributeDescriptor* uv{ desc->attributes()->object(12) };
         uv->setFormat(MTL::VertexFormatFloat2);
         uv->setOffset(offsetof(renderer::quad_vertex_t, u));
         uv->setBufferIndex(0);
 
-        auto* col = desc->attributes()->object(13);
+        MTL::VertexAttributeDescriptor* col{ desc->attributes()->object(13) };
         col->setFormat(MTL::VertexFormatUChar4Normalized);
         col->setOffset(offsetof(renderer::quad_vertex_t, color));
         col->setBufferIndex(0);
@@ -157,26 +144,24 @@ namespace carrot::rhi::metal {
                                                                const assets::shader_file_provider_t& shader_files,
                                                                const std::string_view virtual_path)
     {
-        const auto native = shader_files.resolve(virtual_path);
+        const auto native{ shader_files.resolve(virtual_path) };
         if (!native)
         {
             LOG_GRAPHICS_FATAL("Failed to resolve shader path: {}", virtual_path);
             return nullptr;
         }
 
-        auto bytes = utils::file::load_binary_file(*native);
+        const auto bytes{ utils::file::load_binary_file(*native) };
         if (!bytes || bytes->empty())
         {
             LOG_GRAPHICS_FATAL("Failed to read shader file: {}", utils::file::to_log_string(*native));
             return nullptr;
         }
 
-        dispatch_data_t data = dispatch_data_create(
-            bytes->data(),
-            bytes->size(),
-            dispatch_get_main_queue(),
-            DISPATCH_DATA_DESTRUCTOR_DEFAULT
-        );
+        dispatch_data_t data{
+            dispatch_data_create(bytes->data(), bytes->size(), dispatch_get_main_queue(),
+                                 DISPATCH_DATA_DESTRUCTOR_DEFAULT)
+        };
 
         if (!data)
         {
@@ -185,7 +170,7 @@ namespace carrot::rhi::metal {
         }
 
         NS::Error* error{ nullptr };
-        MTL::Library* lib = device->newLibrary(data, &error);
+        MTL::Library* lib{ device->newLibrary(data, &error) };
 
         dispatch_release(data);
 
@@ -201,21 +186,21 @@ namespace carrot::rhi::metal {
 
     MTL::Function* metal_textured_quad_pipeline_t::load_function(MTL::Library* lib)
     {
-        auto* names = lib->functionNames();
+        const NS::Array* names{ lib->functionNames() };
         if (!names || names->count() == 0)
         {
             LOG_GRAPHICS_FATAL("Shader library has no functions");
             return nullptr;
         }
 
-        auto* name = static_cast<NS::String*>(names->object(0));
+        const NS::String* name{ reinterpret_cast<NS::String*>(names->object(0)) };
         if (!name)
         {
             LOG_GRAPHICS_FATAL("Null function name in shader library");
             return nullptr;
         }
 
-        MTL::Function* func = lib->newFunction(name);
+        MTL::Function* func{ lib->newFunction(name) };
         if (!func)
         {
             LOG_GRAPHICS_FATAL("Failed to create function '{}'", name->utf8String());

@@ -237,7 +237,7 @@ namespace carrot::renderer {
         }
     }
 
-    void renderer_t::upload_textured_quad_frame_data()
+    void renderer_t::upload_textured_quad_frame_data() const
     {
         if (_textured_quad.vertices_cpu.empty() || _textured_quad.indices_cpu.empty())
             return;
@@ -248,8 +248,8 @@ namespace carrot::renderer {
             return;
         }
 
-        const size_t vertex_bytes = _textured_quad.vertices_cpu.size() * sizeof(quad_vertex_t);
-        const size_t index_bytes = _textured_quad.indices_cpu.size() * sizeof(uint32_t);
+        const size_t vertex_bytes{ _textured_quad.vertices_cpu.size() * sizeof(quad_vertex_t) };
+        const size_t index_bytes{ _textured_quad.indices_cpu.size() * sizeof(uint32_t) };
 
         if (!_textured_quad.frame_vertex_buffer->write(_textured_quad.vertices_cpu.data(), vertex_bytes, 0))
         {

@@ -35,6 +35,16 @@ void* metal_create_layer(void* ns_view, void* mtl_device, uint32_t width, uint32
     return static_cast<void*>(layer);
 }
 
+void metal_set_layer_pixel_format_srgb(void* layer)
+{
+    CAMetalLayer* metal_layer{ static_cast<CAMetalLayer*>(layer) };
+
+    if (!metal_layer)
+        return;
+    
+    metal_layer.pixelFormat = MTLPixelFormatBGRA8Unorm_sRGB;
+}
+
 void metal_destroy_layer(void* layer)
 {
     CAMetalLayer* metal_layer{ static_cast<CAMetalLayer*>(layer) };

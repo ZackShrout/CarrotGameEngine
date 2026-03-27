@@ -9,11 +9,7 @@
 
 #include "Assets/Shaders/ShaderFileProvider.h"
 #include "Renderer/Primitives/QuadVertex.h"
-#include "Renderer/Primitives/TexturedQuadPushConstants.h"
 #include "RHI/Backends/Vulkan/VulkanUtils.h"
-#include "Utils/File/FileUtils.h"
-
-#include <fstream>
 
 namespace carrot::rhi::vulkan {
     namespace {
@@ -21,7 +17,7 @@ namespace carrot::rhi::vulkan {
         {
             VkVertexInputBindingDescription binding{ };
             binding.binding = 0;
-            binding.stride = sizeof(carrot::renderer::quad_vertex_t);
+            binding.stride = sizeof(renderer::quad_vertex_t);
             binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
             return binding;
         }
@@ -34,19 +30,19 @@ namespace carrot::rhi::vulkan {
             attributes[0].location = 0;
             attributes[0].binding = 0;
             attributes[0].format = VK_FORMAT_R32G32_SFLOAT;
-            attributes[0].offset = offsetof(carrot::renderer::quad_vertex_t, x);
+            attributes[0].offset = offsetof(renderer::quad_vertex_t, x);
 
             // float u, v
             attributes[1].location = 1;
             attributes[1].binding = 0;
             attributes[1].format = VK_FORMAT_R32G32_SFLOAT;
-            attributes[1].offset = offsetof(carrot::renderer::quad_vertex_t, u);
+            attributes[1].offset = offsetof(renderer::quad_vertex_t, u);
 
             // packed ABGR color
             attributes[2].location = 2;
             attributes[2].binding = 0;
             attributes[2].format = VK_FORMAT_R8G8B8A8_UNORM;
-            attributes[2].offset = offsetof(carrot::renderer::quad_vertex_t, color);
+            attributes[2].offset = offsetof(renderer::quad_vertex_t, color);
 
             return attributes;
         }
@@ -83,8 +79,8 @@ namespace carrot::rhi::vulkan {
         stages[1].module = frag_module;
         stages[1].pName = "main";
 
-        const VkVertexInputBindingDescription binding_desc = make_vertex_binding_description();
-        const auto attribute_descs = make_vertex_attribute_descriptions();
+        const VkVertexInputBindingDescription binding_desc{ make_vertex_binding_description() };
+        const auto attribute_descs{ make_vertex_attribute_descriptions() };
 
         VkPipelineVertexInputStateCreateInfo vertex_input{ };
         vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -138,7 +134,7 @@ namespace carrot::rhi::vulkan {
         color_blending.attachmentCount = 1;
         color_blending.pAttachments = &color_blend_attachment;
 
-        VkDynamicState dynamic_states[] = {
+        VkDynamicState dynamic_states[]{
             VK_DYNAMIC_STATE_VIEWPORT,
             VK_DYNAMIC_STATE_SCISSOR
         };
@@ -160,31 +156,18 @@ namespace carrot::rhi::vulkan {
         descriptor_set_layout_info.bindingCount = 1;
         descriptor_set_layout_info.pBindings = &texture_binding;
 
-        VK_CHECK_FATAL(vkCreateDescriptorSetLayout(
-            _device->vk_device(),
-            &descriptor_set_layout_info,
-            nullptr,
-            &_descriptor_set_layout
-        ));
-
-        VkPushConstantRange push_range{ };
-        push_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        push_range.offset = 0;
-        push_range.size = sizeof(renderer::textured_quad_push_constants_t);
+        VK_CHECK_FATAL(
+            vkCreateDescriptorSetLayout(_device->vk_device(), &descriptor_set_layout_info, nullptr, &
+                _descriptor_set_layout));
 
         VkPipelineLayoutCreateInfo layout_info{ };
         layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         layout_info.setLayoutCount = 1;
         layout_info.pSetLayouts = &_descriptor_set_layout;
-        layout_info.pushConstantRangeCount = 1;
-        layout_info.pPushConstantRanges = &push_range;
+        layout_info.pushConstantRangeCount = 0;
+        layout_info.pPushConstantRanges = nullptr;
 
-        VK_CHECK_FATAL(vkCreatePipelineLayout(
-            _device->vk_device(),
-            &layout_info,
-            nullptr,
-            &_layout
-        ));
+        VK_CHECK_FATAL(vkCreatePipelineLayout(_device->vk_device(), &layout_info, nullptr, &_layout));
 
         VkGraphicsPipelineCreateInfo pipeline_info{ };
         pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -204,14 +187,8 @@ namespace carrot::rhi::vulkan {
         pipeline_info.basePipelineHandle = VK_NULL_HANDLE;
         pipeline_info.basePipelineIndex = -1;
 
-        VK_CHECK_FATAL(vkCreateGraphicsPipelines(
-            _device->vk_device(),
-            VK_NULL_HANDLE,
-            1,
-            &pipeline_info,
-            nullptr,
-            &_pipeline
-        ));
+        VK_CHECK_FATAL(
+            vkCreateGraphicsPipelines(_device->vk_device(), VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &_pipeline));
 
         vkDestroyShaderModule(_device->vk_device(), vert_module, nullptr);
         vkDestroyShaderModule(_device->vk_device(), frag_module, nullptr);

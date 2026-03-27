@@ -1,3 +1,5 @@
+#include "ShaderCommon.h"
+
 struct VSInput
 {
     float2 position : POSITION;
@@ -12,6 +14,7 @@ struct VSOutput
     float4 color    : COLOR0;
 };
 
+CARROT_ROOT_SIGNATURE(CARROT_RS_TEXTURED_QUAD)
 VSOutput main(VSInput input)
 {
     VSOutput output;

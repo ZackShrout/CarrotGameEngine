@@ -73,4 +73,56 @@ void* metal_layer_get_device(void* layer)
     return static_cast<void*>(device); // not retained; device lifetime is global
 }
 
+void metal_add_command_buffer_completion_signal(void* command_buffer, void* semaphore) noexcept
+{
+    id<MTLCommandBuffer> cb{ static_cast<id<MTLCommandBuffer>>(command_buffer) };
+    dispatch_semaphore_t sem{ static_cast<dispatch_semaphore_t>(semaphore) };
+
+    [cb addCompletedHandler:^(id<MTLCommandBuffer>) {
+        dispatch_semaphore_signal(sem);
+    }];
+}
+
+void metal_present_drawable(void* command_buffer, void* drawable) noexcept
+{
+    id<MTLCommandBuffer> cb{ static_cast<id<MTLCommandBuffer>>(command_buffer) };
+    id<CAMetalDrawable> d{ static_cast<id<CAMetalDrawable>>(drawable) };
+
+    if (!cb || !d)
+        return;
+
+    [cb presentDrawable:d];
+}
+
+uint64_t metal_texture_resource_id(void* texture) noexcept
+{
+    id<MTLTexture> tex{ static_cast<id<MTLTexture>>(texture) };
+    
+    if (!tex)
+        return 0;
+
+    return tex.gpuResourceID._impl;
+}
+
+uint64_t metal_sampler_resource_id(void* sampler) noexcept
+{
+    id<MTLSamplerState> samp{ static_cast<id<MTLSamplerState>>(sampler) };
+    
+    if (!samp)
+        return 0;
+    
+    return samp.gpuResourceID._impl;
+}
+
+uint64_t metal_buffer_gpu_address(void* buffer) noexcept
+{
+    id<MTLBuffer> buff{ static_cast<id<MTLBuffer>>(buffer) };
+    
+    if (!buff)
+        return 0;
+    
+    return buff.gpuAddress;
+}
+
+
 }

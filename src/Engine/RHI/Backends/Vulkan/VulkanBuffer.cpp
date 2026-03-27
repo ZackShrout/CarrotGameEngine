@@ -8,6 +8,10 @@
 #include "VulkanBuffer.h"
 
 namespace carrot::rhi::vulkan {
+    vulkan_buffer_t::vulkan_buffer_t(VkDevice device, const size_t size_bytes,
+                                     const buffer_usage_t usage) noexcept
+        : rhi_buffer_t{ size_bytes, usage }, _device{ device } {}
+
     vulkan_buffer_t::~vulkan_buffer_t()
     {
         if (_buffer != VK_NULL_HANDLE)
@@ -17,7 +21,7 @@ namespace carrot::rhi::vulkan {
             vkFreeMemory(_device, _memory, nullptr);
     }
 
-    bool vulkan_buffer_t::write(const void* data, const size_t size_bytes, const size_t offset_bytes)
+    bool vulkan_buffer_t::write(const void* data, const size_t size_bytes, const size_t offset_bytes/* = 0*/)
     {
         if (data == nullptr)
         {

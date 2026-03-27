@@ -12,9 +12,7 @@ namespace carrot::rhi::vulkan {
     class vulkan_buffer_t final : public rhi_buffer_t
     {
     public:
-        vulkan_buffer_t(VkDevice device, const size_t size_bytes, const buffer_usage_t usage) noexcept
-            : rhi_buffer_t(size_bytes, usage), _device(device) {}
-
+        vulkan_buffer_t(VkDevice device, const size_t size_bytes, const buffer_usage_t usage) noexcept;
         ~vulkan_buffer_t() override;
 
         bool write(const void* data, size_t size_bytes, size_t offset_bytes) override;

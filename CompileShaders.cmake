@@ -126,8 +126,8 @@ function(compile_hlsl_to_metallib TARGET_NAME HLSL_FILE OUTPUT_DIR)
             COMMAND ${DXC_EXECUTABLE}
             -T ${PROFILE} -E main
             -DMETAL
-            # Add any other flags you need, e.g. -Zi for debug, -Od, etc.
-            # -HV 2021   # HLSL version if needed
+            -DCARROT_USE_ROOT_SIGNATURES
+            -Zi -Qembed_debug
             "${ABS_HLSL}" -Fo "${DXIL_OUTPUT}"
             DEPENDS "${ABS_HLSL}"
             COMMENT "DXC → DXIL: ${OUTPUT_BASE} (${PROFILE})"
@@ -140,7 +140,7 @@ function(compile_hlsl_to_metallib TARGET_NAME HLSL_FILE OUTPUT_DIR)
             COMMAND ${METAL_SHADERCONVERTER_EXECUTABLE}
             "${DXIL_OUTPUT}" -o "${METALLIB_OUTPUT}"
             --output-reflection-file=${JSON_OUTPUT}
-            # Optional useful flags (see metal-shaderconverter --help):
+            --minimum-os-build-version 14.0
             # --minimum-os-build-version 13.0     # e.g. target macOS 13+
             # --output-reflection-file "${METALLIB_OUTPUT}.json"   # if you want reflection data
             # --entry-point-name main             # usually not needed if entry is 'main'
@@ -197,6 +197,7 @@ function(compile_hlsl_to_dxil TARGET_NAME HLSL_FILE OUTPUT_DIR)
             COMMAND ${DXC_EXECUTABLE}
             -T ${PROFILE} -E main
             -DDX12
+            -DCARROT_USE_ROOT_SIGNATURES
             # Add any other flags you need, e.g. -Zi for debug, -Od, etc.
             # -HV 2021   # HLSL version if needed
             "${ABS_HLSL}" -Fo "${DXIL_OUTPUT}"

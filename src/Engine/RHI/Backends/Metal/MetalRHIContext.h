@@ -6,7 +6,6 @@
 #pragma once
 
 #include "MetalCommon.h"
-#include "MetalCore.h"
 #include "MetalRenderEncoder.h"
 #include "RHI/RHI.h"
 
@@ -14,6 +13,9 @@ namespace carrot::rhi::metal {
     class metal_swapchain_t;
     class metal_command_queue_t;
     class metal_device_t;
+    class metal_buffer_t;
+    class metal_texture_t;
+    class metal_textured_quad_pipeline_t;
 
     class metal_rhi_context_t final : public rhi_context_t
     {
@@ -35,26 +37,51 @@ namespace carrot::rhi::metal {
 
         [[nodiscard]] std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) override;
-        void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer, const rhi_buffer_t& index_buffer) override {}
-        void set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches) override {}
+
+        void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer,
+                                        const rhi_buffer_t& index_buffer) override;
+
+        void set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches) override;
 
         void wait_idle() override;
 
     private:
-        std::unique_ptr<metal_device_t>         _device;
-        std::unique_ptr<metal_swapchain_t>      _swapchain;
-        std::unique_ptr<metal_command_queue_t>  _command_queue;
-        render_pipeline_state_t                 _triangle_pipeline;
-        metal_render_encoder_t                  _render_encoder;
-        void*                                   _metal_layer{ nullptr }; // CAMetalLayer*
+        [[nodiscard]] bool is_frame_active() const noexcept;
+        void reset_frame_state() noexcept;
 
-        static constexpr uint32_t               k_push_buffer_count{ 3 };
-        MTL::Buffer*                            _push_buffers[k_push_buffer_count] { nullptr };
-        uint32_t                                _current_push_index{ 0 };
-        uint32_t                                _frame_counter{ 0 };
+        void ensure_textured_quad_argument_capacity(size_t batch_count);
+        void initialize_textured_quad_sampler_table();
+        void encode_textured_quad_argument_buffers(const metal_texture_t& texture,
+                                                   size_t batch_index,
+                                                   size_t& out_root_ab_offset);
 
-        dispatch_semaphore_t                    _frame_semaphore{ nullptr };
+        [[nodiscard]] static size_t align_up(size_t value, size_t alignment) noexcept;
 
-        std::vector<renderer::textured_quad_batch_t> _textured_quad_batches;
+        std::unique_ptr<metal_device_t>                 _device;
+        std::unique_ptr<metal_swapchain_t>              _swapchain;
+        std::unique_ptr<metal_command_queue_t>          _command_queue;
+        std::unique_ptr<metal_textured_quad_pipeline_t> _textured_quad_pipeline;
+
+        metal_render_encoder_t                          _render_encoder;
+        void*                                           _metal_layer{ nullptr };
+
+        dispatch_semaphore_t                            _frame_semaphore{ nullptr };
+        MTL::SamplerState*                              _textured_quad_sampler{ nullptr };
+
+        const metal_buffer_t*                           _textured_quad_vertex_buffer{ nullptr };
+        const metal_buffer_t*                           _textured_quad_index_buffer{ nullptr };
+        std::vector<renderer::textured_quad_batch_t>    _textured_quad_batches;
+
+        // Dynamic per-batch explicit root-signature data.
+        std::unique_ptr<metal_buffer_t>                 _textured_quad_root_argument_buffer;
+        std::unique_ptr<metal_buffer_t>                 _textured_quad_srv_descriptor_table;
+        std::unique_ptr<metal_buffer_t>                 _textured_quad_sampler_descriptor_table;
+
+        size_t                                          _textured_quad_root_stride{ 0 };
+        size_t                                          _textured_quad_srv_stride{ 0 };
+        size_t                                          _textured_quad_argument_capacity{ 0 };
+
+        MTL::CommandBuffer*                             _active_command_buffer{ nullptr };
+        const CA::MetalDrawable*                        _active_drawable{ nullptr };
     };
 } // namespace carrot::rhi::metal

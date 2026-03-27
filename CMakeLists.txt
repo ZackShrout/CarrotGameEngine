@@ -162,7 +162,6 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/AssetManager.h
         src/Engine/Renderer/Primitives/QuadVertex.h
         src/Engine/Renderer/Primitives/QuadMesh.h
-        src/Engine/Renderer/Primitives/TexturedQuadPushConstants.h
         src/Engine/Assets/Audio/AudioAssetManifestImporter.cpp
         src/Engine/Assets/Audio/AudioAssetManifestImporter.h
         src/Engine/Assets/Audio/AudioAssetLoader.cpp
@@ -203,6 +202,9 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/RHI/Backends/Vulkan/VulkanTexture.h
         src/Engine/RHI/Backends/Vulkan/VulkanUtils.h
         src/Engine/Renderer/Draw/TexturedQuadBatch.h
+        src/Engine/RHI/Backends/Metal/Pipelines/MetalTexturedQuadPipeline.cpp
+        src/Engine/RHI/Backends/Metal/Pipelines/MetalTexturedQuadPipeline.h
+        shaders/ShaderCommon.h
 )
 
 # ------------------------------------------------------------------------
@@ -242,6 +244,10 @@ if (APPLE)
             src/Engine/RHI/Backends/Metal/MetalSwapchain.h
             src/Engine/RHI/Backends/Metal/MetalRenderEncoder.cpp
             src/Engine/RHI/Backends/Metal/MetalRenderEncoder.h
+            src/Engine/RHI/Backends/Metal/MetalBuffer.cpp
+            src/Engine/RHI/Backends/Metal/MetalBuffer.h
+            src/Engine/RHI/Backends/Metal/MetalTexture.cpp
+            src/Engine/RHI/Backends/Metal/MetalTexture.h
 
             src/Engine/Audio/Backend/Apple/AppleAudioBackend.cpp
             src/Engine/Audio/Backend/Apple/AppleAudioBackend.h

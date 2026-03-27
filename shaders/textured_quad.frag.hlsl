@@ -1,3 +1,5 @@
+#include "ShaderCommon.h"
+
 Texture2D    g_texture  : register(t0);
 SamplerState g_sampler  : register(s0);
 
@@ -8,6 +10,7 @@ struct PSInput
     float4 color    : COLOR0;
 };
 
+CARROT_ROOT_SIGNATURE(CARROT_RS_TEXTURED_QUAD)
 float4 main(PSInput input) : SV_Target
 {
     float4 texel = g_texture.Sample(g_sampler, input.uv);

@@ -17,4 +17,13 @@
 "DescriptorTable(SRV(t0, numDescriptors=1))," \
 "DescriptorTable(Sampler(s0, numDescriptors=1))"
 
+// Backend-specific clip-space normalization.
+// Carrot shared shaders apply this when writing SV_Position so that
+// Vulkan / Metal / DX12 can share the same higher-level 2D conventions.
+#ifndef CARROT_CLIP_SPACE_Y_SIGN
+    #define CARROT_CLIP_SPACE_Y_SIGN 1.0
+#endif
+
+#define CARROT_APPLY_CLIP_SPACE_Y(pos) float2((pos).x, (pos).y * CARROT_CLIP_SPACE_Y_SIGN)
+
 #endif

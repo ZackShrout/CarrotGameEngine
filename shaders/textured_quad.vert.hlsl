@@ -19,7 +19,9 @@ VSOutput main(VSInput input)
 {
     VSOutput output;
 
-    output.position = float4(input.position, 0.0f, 1.0f);
+    const float2 clip_pos = CARROT_APPLY_CLIP_SPACE_Y(input.position);
+
+    output.position = float4(clip_pos, 0.0f, 1.0f);
     output.uv = input.uv;
     output.color = input.color;
 

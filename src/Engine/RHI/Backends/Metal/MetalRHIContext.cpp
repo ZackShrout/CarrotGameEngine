@@ -8,7 +8,6 @@
 #include "MetalRHIContext.h"
 
 #include "MetalBuffer.h"
-#include "MetalUtils.h"
 #include "MetalCommandQueue.h"
 #include "MetalDevice.h"
 #include "MetalDescriptorEncoding.h"
@@ -315,18 +314,7 @@ namespace carrot::rhi::metal {
                 info.initial_data_stride_bytes ? info.initial_data_stride_bytes : info.width * 4
             };
 
-            const std::vector<uint8_t> flipped{
-                flip_rgba8_rows_for_metal(info.initial_data, info.width, info.height, bytes_per_row)
-            };
-
-            if (flipped.empty())
-            {
-                LOG_GRAPHICS_ERROR("Failed to prepare flipped Metal texture upload buffer");
-                texture->release();
-                return nullptr;
-            }
-
-            texture->replaceRegion(MTL::Region(0, 0, 0, info.width, info.height, 1), 0, flipped.data(), bytes_per_row);
+            texture->replaceRegion(MTL::Region(0, 0, 0, info.width, info.height, 1), 0, info.initial_data, bytes_per_row);
         }
 
         return std::make_unique<metal_texture_t>(texture, info.width, info.height, info.format);

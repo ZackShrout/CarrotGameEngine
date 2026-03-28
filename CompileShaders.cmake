@@ -127,6 +127,7 @@ function(compile_hlsl_to_metallib TARGET_NAME HLSL_FILE OUTPUT_DIR)
             -T ${PROFILE} -E main
             -DMETAL
             -DCARROT_USE_ROOT_SIGNATURES
+            -DCARROT_CLIP_SPACE_Y_SIGN=-1.0
             -Zi -Qembed_debug
             "${ABS_HLSL}" -Fo "${DXIL_OUTPUT}"
             DEPENDS "${ABS_HLSL}"

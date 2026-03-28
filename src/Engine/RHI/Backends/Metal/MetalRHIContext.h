@@ -41,7 +41,7 @@ namespace carrot::rhi::metal {
 
         [[nodiscard]] std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) override;
-        [[nodiscard]] std::unique_ptr<rhi_sampler_t> create_sampler(const sampler_desc_t& desc) const;
+        [[nodiscard]] std::unique_ptr<rhi_sampler_t> create_sampler(const sampler_desc_t& desc) const override;
 
         void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer,
                                         const rhi_buffer_t& index_buffer) override;

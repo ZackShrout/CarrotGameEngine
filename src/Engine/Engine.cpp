@@ -46,8 +46,8 @@ namespace carrot {
 
         if (_asset_manager)
         {
-            _asset_manager->clear();   // optional but good
-            _asset_manager.reset();    // destroys loaded textures while RHI/device still alive
+            _asset_manager->clear(); // optional but good
+            _asset_manager.reset(); // destroys loaded textures while RHI/device still alive
         }
 
         _audio_module->shutdown();
@@ -244,55 +244,141 @@ namespace carrot {
             assets::asset_service_t::manager().textures().get("engine.carrot_engine_logo_512")
         };
 
-        renderer::textured_quad_draw_info_t quad1{ };
-        quad1.texture = botan->texture.get();
-        quad1.x = -0.9f;
-        quad1.y = -0.9f;
-        quad1.width = 0.3f;
-        quad1.height = 0.3f;
-        quad1.color = 0xFFFF0000u;
-        quad1.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
-        _renderer->draw_textured_quad(quad1);
+        if (!botan || !vraden || !orange || !logo)
+            return;
 
-        renderer::textured_quad_draw_info_t quad2{ };
-        quad2.texture = logo->texture.get();
-        quad2.x = -0.2f;
-        quad2.y = -0.2f;
-        quad2.width = 0.4f;
-        quad2.height = 0.4f;
-        quad2.color = 0xFFFFFFFFu;
-        quad2.sampler_preset = renderer::quad_sampler_preset_t::smooth_clamp;
-        _renderer->draw_textured_quad(quad2);
+        static float x_offset{ 0.0f };
+        static bool moving_right{ true };
 
-        renderer::textured_quad_draw_info_t quad3{ };
-        quad3.texture = vraden->texture.get();
-        quad3.x = 0.5f;
-        quad3.y = -0.9f;
-        quad3.width = 0.3f;
-        quad3.height = 0.3f;
-        quad3.color = 0xFFFF00FFu;
-        quad3.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
-        _renderer->draw_textured_quad(quad3);
+        float next_offset{ moving_right ? x_offset + 0.01f : x_offset - 0.01f };
 
-        renderer::textured_quad_draw_info_t quad4{ };
-        quad4.texture = vraden->texture.get();
-        quad4.x = -0.9f;
-        quad4.y = 0.5f;
-        quad4.width = 0.3f;
-        quad4.height = 0.3f;
-        quad4.color = 0xFF00FF00u;
-        quad4.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
-        _renderer->draw_textured_quad(quad4);
+        if (next_offset > 1.0f)
+        {
+            moving_right = false;
+            next_offset = 1.0f;
+        }
+        else if (next_offset < -1.0f)
+        {
+            moving_right = true;
+            next_offset = -1.0f;
+        }
 
-        renderer::textured_quad_draw_info_t quad5{ };
-        quad5.texture = botan->texture.get();
-        quad5.x = 0.5f;
-        quad5.y = 0.5f;
-        quad5.width = 0.3f;
-        quad5.height = 0.3f;
-        quad5.color = 0xFF0000FFu;
-        quad5.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
-        _renderer->draw_textured_quad(quad5);
+        x_offset = next_offset;
+
+        // ─────────────────────────────────────────────────────────────────────────────
+        // Corner parity checks
+        // ─────────────────────────────────────────────────────────────────────────────
+
+        renderer::textured_quad_draw_info_t top_left_botan{ };
+        top_left_botan.texture = botan->texture.get();
+        top_left_botan.x = -0.90f;
+        top_left_botan.y = -0.90f;
+        top_left_botan.width = 0.30f;
+        top_left_botan.height = 0.30f;
+        top_left_botan.color = 0xFFFF0000u;
+        top_left_botan.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
+        _renderer->draw_textured_quad(top_left_botan);
+
+        renderer::textured_quad_draw_info_t top_right_vraden{ };
+        top_right_vraden.texture = vraden->texture.get();
+        top_right_vraden.x = 0.60f;
+        top_right_vraden.y = -0.90f;
+        top_right_vraden.width = 0.30f;
+        top_right_vraden.height = 0.30f;
+        top_right_vraden.color = 0xFFFF00FFu;
+        top_right_vraden.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
+        _renderer->draw_textured_quad(top_right_vraden);
+
+        renderer::textured_quad_draw_info_t bottom_left_vraden{ };
+        bottom_left_vraden.texture = vraden->texture.get();
+        bottom_left_vraden.x = -0.90f;
+        bottom_left_vraden.y = 0.60f;
+        bottom_left_vraden.width = 0.30f;
+        bottom_left_vraden.height = 0.30f;
+        bottom_left_vraden.color = 0xFF00FF00u;
+        bottom_left_vraden.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
+        _renderer->draw_textured_quad(bottom_left_vraden);
+
+        renderer::textured_quad_draw_info_t bottom_right_botan{ };
+        bottom_right_botan.texture = botan->texture.get();
+        bottom_right_botan.x = 0.60f;
+        bottom_right_botan.y = 0.60f;
+        bottom_right_botan.width = 0.30f;
+        bottom_right_botan.height = 0.30f;
+        bottom_right_botan.color = 0xFF0000FFu;
+        bottom_right_botan.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
+        _renderer->draw_textured_quad(bottom_right_botan);
+
+        // ─────────────────────────────────────────────────────────────────────────────
+        // Center motion + smooth sampling
+        // ─────────────────────────────────────────────────────────────────────────────
+
+        renderer::textured_quad_draw_info_t center_logo{ };
+        center_logo.texture = logo->texture.get();
+        center_logo.x = -0.20f + (x_offset * 0.40f);
+        center_logo.y = -0.20f;
+        center_logo.width = 0.40f;
+        center_logo.height = 0.40f;
+        center_logo.color = 0xFFFFFFFFu;
+        center_logo.sampler_preset = renderer::quad_sampler_preset_t::smooth_clamp;
+        _renderer->draw_textured_quad(center_logo);
+
+        // ─────────────────────────────────────────────────────────────────────────────
+        // UV test: use only the upper-left quarter of the logo texture
+        // ─────────────────────────────────────────────────────────────────────────────
+
+        renderer::textured_quad_draw_info_t uv_test_logo{ };
+        uv_test_logo.texture = logo->texture.get();
+        uv_test_logo.x = -0.55f;
+        uv_test_logo.y = -0.10f;
+        uv_test_logo.width = 0.18f;
+        uv_test_logo.height = 0.18f;
+        uv_test_logo.color = 0xFFFFFFFFu;
+        uv_test_logo.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
+        uv_test_logo.u0 = 0.0f;
+        uv_test_logo.v0 = 0.0f;
+        uv_test_logo.u1 = 0.5f;
+        uv_test_logo.v1 = 0.5f;
+        _renderer->draw_textured_quad(uv_test_logo);
+
+        // ─────────────────────────────────────────────────────────────────────────────
+        // Alpha overlap test
+        // Back quad first, then front quad with partial alpha
+        // ─────────────────────────────────────────────────────────────────────────────
+
+        renderer::textured_quad_draw_info_t alpha_back{ };
+        alpha_back.texture = orange->texture.get();
+        alpha_back.x = 0.35f;
+        alpha_back.y = -0.05f;
+        alpha_back.width = 0.20f;
+        alpha_back.height = 0.20f;
+        alpha_back.color = 0xFF00FFFFu;
+        alpha_back.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
+        _renderer->draw_textured_quad(alpha_back);
+
+        renderer::textured_quad_draw_info_t alpha_front{ };
+        alpha_front.texture = orange->texture.get();
+        alpha_front.x = 0.43f;
+        alpha_front.y = 0.03f;
+        alpha_front.width = 0.20f;
+        alpha_front.height = 0.20f;
+        alpha_front.color = 0x88FF0000u;
+        alpha_front.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
+        _renderer->draw_textured_quad(alpha_front);
+
+        // ─────────────────────────────────────────────────────────────────────────────
+        // Edge clipping test: partially off-screen at top edge
+        // ─────────────────────────────────────────────────────────────────────────────
+
+        renderer::textured_quad_draw_info_t top_edge_clip{ };
+        top_edge_clip.texture = orange->texture.get();
+        top_edge_clip.x = -0.10f;
+        top_edge_clip.y = -1.05f;
+        top_edge_clip.width = 0.20f;
+        top_edge_clip.height = 0.20f;
+        top_edge_clip.color = 0xFFFFFFFFu;
+        top_edge_clip.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
+        _renderer->draw_textured_quad(top_edge_clip);
     }
 
     core::engine_paths_t engine_t::make_default_engine_paths() noexcept

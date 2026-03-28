@@ -10,10 +10,12 @@
 #include "VulkanBuffer.h"
 #include "VulkanPipeline.h"
 #include "VulkanRenderPass.h"
+#include "VulkanSampler.h"
 #include "VulkanTexture.h"
 #include "Window/Window.h"
 #include "HotReload/ShaderWatcher.h"
 #include "Pipelines/VulkanTexturedQuadPipeline.h"
+#include "RHI/SamplerPresets.h"
 
 namespace carrot::rhi::vulkan {
     namespace {
@@ -36,12 +38,44 @@ namespace carrot::rhi::vulkan {
             }
         }
 
+        [[nodiscard]] VkFilter to_vk_filter(const sampler_filter_t filter) noexcept
+        {
+            switch (filter)
+            {
+                case sampler_filter_t::nearest: return VK_FILTER_NEAREST;
+                case sampler_filter_t::linear: return VK_FILTER_LINEAR;
+                default: return VK_FILTER_NEAREST;
+            }
+        }
+
+        [[nodiscard]] VkSamplerMipmapMode to_vk_mip_filter(const sampler_mip_filter_t filter) noexcept
+        {
+            switch (filter)
+            {
+                case sampler_mip_filter_t::nearest: return VK_SAMPLER_MIPMAP_MODE_NEAREST;
+                case sampler_mip_filter_t::linear: return VK_SAMPLER_MIPMAP_MODE_LINEAR;
+                default: return VK_SAMPLER_MIPMAP_MODE_NEAREST;
+            }
+        }
+
+        [[nodiscard]] VkSamplerAddressMode to_vk_address_mode(const sampler_address_mode_t mode) noexcept
+        {
+            switch (mode)
+            {
+                case sampler_address_mode_t::clamp_to_edge: return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+                case sampler_address_mode_t::repeat: return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+                case sampler_address_mode_t::mirrored_repeat: return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+                default: return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            }
+        }
+
         constexpr uint32_t k_initial_textured_quad_descriptor_sets_per_frame{ 16 };
 
         constexpr uint32_t k_max_textured_quad_descriptor_sets{
             k_max_frames_in_flight * k_initial_textured_quad_descriptor_sets_per_frame
         };
     } // anonymous namespace
+
     // PUBLIC
     vulkan_rhi_context_t::vulkan_rhi_context_t(const rhi_desc_t& desc)
     {
@@ -72,6 +106,7 @@ namespace carrot::rhi::vulkan {
 
         _framebuffers = { };
         destroy_descriptor_pool();
+        _sampler_cache.clear();
         _textured_quad_pipeline.reset();
         _render_pass.reset();
 
@@ -267,7 +302,16 @@ namespace carrot::rhi::vulkan {
                 continue;
 
             VkDescriptorSet descriptor_set{ frame_descriptor_sets[batch_index] };
-            write_textured_quad_descriptor_set(descriptor_set, *batch.texture);
+
+            const sampler_desc_t sampler_desc{ sampler_desc_from_preset(batch.sampler_preset) };
+            const rhi_sampler_t* sampler{ get_or_create_sampler(sampler_desc) };
+            if (!sampler)
+            {
+                LOG_GRAPHICS_WARN("Failed to resolve Vulkan sampler for textured quad batch");
+                continue;
+            }
+
+            write_textured_quad_descriptor_set(descriptor_set, *batch.texture, *sampler);
 
             vkCmdBindDescriptorSets(frame.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                     _textured_quad_pipeline->vk_layout(), 0, 1, &descriptor_set, 0, nullptr);
@@ -576,42 +620,6 @@ namespace carrot::rhi::vulkan {
             }
         }
 
-        // -------------------------------------------------------------------------
-        // 5. Create sampler
-        // -------------------------------------------------------------------------
-        VkSampler sampler{ VK_NULL_HANDLE };
-        {
-            VkSamplerCreateInfo sampler_info{ };
-            sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-            sampler_info.magFilter = VK_FILTER_NEAREST;
-            sampler_info.minFilter = VK_FILTER_NEAREST;
-            sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-            sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-            sampler_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-            sampler_info.anisotropyEnable = VK_FALSE;
-            sampler_info.maxAnisotropy = 1.f;
-            sampler_info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-            sampler_info.unnormalizedCoordinates = VK_FALSE;
-            sampler_info.compareEnable = VK_FALSE;
-            sampler_info.compareOp = VK_COMPARE_OP_ALWAYS;
-            sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-            sampler_info.mipLodBias = 0.f;
-            sampler_info.minLod = 0.f;
-            sampler_info.maxLod = 0.f;
-
-            if (vkCreateSampler(device, &sampler_info, nullptr, &sampler) != VK_SUCCESS)
-            {
-                LOG_GRAPHICS_ERROR("create_texture_2d failed: could not create sampler");
-
-                vkDestroyImageView(device, image_view, nullptr);
-                vkDestroyImage(device, image, nullptr);
-                vkFreeMemory(device, image_memory, nullptr);
-                vkFreeMemory(device, staging_memory, nullptr);
-                vkDestroyBuffer(device, staging_buffer, nullptr);
-                return nullptr;
-            }
-        }
-
         // staging resources are no longer needed after upload
         vkFreeMemory(device, staging_memory, nullptr);
         vkDestroyBuffer(device, staging_buffer, nullptr);
@@ -623,7 +631,6 @@ namespace carrot::rhi::vulkan {
         texture->set_image(image);
         texture->set_memory(image_memory);
         texture->set_view(image_view);
-        texture->set_sampler(sampler);
 
         LOG_GRAPHICS_INFO("Created Vulkan texture: {}x{}", info.width, info.height);
 
@@ -713,6 +720,39 @@ namespace carrot::rhi::vulkan {
         return result;
     }
 
+    std::unique_ptr<rhi_sampler_t> vulkan_rhi_context_t::create_sampler(const sampler_desc_t& desc) const
+    {
+        if (!_device)
+            return nullptr;
+
+        VkSamplerCreateInfo sampler_info{ };
+        sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        sampler_info.magFilter = to_vk_filter(desc.mag_filter);
+        sampler_info.minFilter = to_vk_filter(desc.min_filter);
+        sampler_info.mipmapMode = to_vk_mip_filter(desc.mip_filter);
+        sampler_info.addressModeU = to_vk_address_mode(desc.address_u);
+        sampler_info.addressModeV = to_vk_address_mode(desc.address_v);
+        sampler_info.addressModeW = to_vk_address_mode(desc.address_w);
+        sampler_info.mipLodBias = desc.mip_lod_bias;
+        sampler_info.anisotropyEnable = VK_FALSE;
+        sampler_info.maxAnisotropy = 1.0f;
+        sampler_info.compareEnable = VK_FALSE;
+        sampler_info.compareOp = VK_COMPARE_OP_ALWAYS;
+        sampler_info.minLod = desc.min_lod;
+        sampler_info.maxLod = desc.max_lod;
+        sampler_info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        sampler_info.unnormalizedCoordinates = VK_FALSE;
+
+        VkSampler sampler{ VK_NULL_HANDLE };
+        if (vkCreateSampler(_device->vk_device(), &sampler_info, nullptr, &sampler) != VK_SUCCESS)
+        {
+            LOG_GRAPHICS_ERROR("Failed to create Vulkan sampler");
+            return nullptr;
+        }
+
+        return std::make_unique<vulkan_sampler_t>(_device->vk_device(), sampler, desc);
+    }
+
     void vulkan_rhi_context_t::set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer,
                                                           const rhi_buffer_t& index_buffer)
     {
@@ -726,6 +766,21 @@ namespace carrot::rhi::vulkan {
     void vulkan_rhi_context_t::set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches)
     {
         _textured_quad.batches.assign(batches.begin(), batches.end());
+    }
+
+    rhi_sampler_t* vulkan_rhi_context_t::get_or_create_sampler(const sampler_desc_t& desc)
+    {
+        if (const auto it{ _sampler_cache.find(desc) }; it != _sampler_cache.end())
+            return it->second.get();
+
+        std::unique_ptr<rhi_sampler_t> sampler{ create_sampler(desc) };
+        if (!sampler)
+            return nullptr;
+
+        rhi_sampler_t* result{ sampler.get() };
+        _sampler_cache.emplace(desc, std::move(sampler));
+
+        return result;
     }
 
     void vulkan_rhi_context_t::wait_idle()
@@ -1174,17 +1229,25 @@ namespace carrot::rhi::vulkan {
     }
 
     void vulkan_rhi_context_t::write_textured_quad_descriptor_set(VkDescriptorSet descriptor_set,
-                                                                  const rhi_texture_t& texture) const
+                                                                  const rhi_texture_t& texture,
+                                                                  const rhi_sampler_t& sampler) const
     {
         const vulkan_texture_t* vk_texture{ dynamic_cast<const vulkan_texture_t*>(&texture) };
         if (vk_texture == nullptr)
         {
-            LOG_GRAPHICS_FATAL("update_textured_quad_descriptor_set received non-Vulkan texture");
+            LOG_GRAPHICS_FATAL("write_textured_quad_descriptor_set received non-Vulkan texture");
+            return;
+        }
+
+        const vulkan_sampler_t* vk_sampler_wrapper{ dynamic_cast<const vulkan_sampler_t*>(&sampler) };
+        if (vk_sampler_wrapper == nullptr)
+        {
+            LOG_GRAPHICS_FATAL("write_textured_quad_descriptor_set received non-Vulkan sampler");
             return;
         }
 
         VkDescriptorImageInfo image_info{ };
-        image_info.sampler = vk_texture->sampler();
+        image_info.sampler = vk_sampler_wrapper->vk_sampler();
         image_info.imageView = vk_texture->view();
         image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 

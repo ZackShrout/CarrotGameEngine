@@ -13,9 +13,11 @@
 #include "MetalDevice.h"
 #include "MetalDescriptorEncoding.h"
 #include "MetalLayerBridge.h"
+#include "MetalSampler.h"
 #include "MetalSwapchain.h"
 #include "Pipelines/MetalTexturedQuadPipeline.h"
 #include "MetalTexture.h"
+#include "RHI/SamplerPresets.h"
 #include "Window/Window.h"
 
 namespace carrot::rhi::metal {
@@ -29,8 +31,38 @@ namespace carrot::rhi::metal {
                 default: return MTL::PixelFormatRGBA8Unorm_sRGB;
             }
         }
-    } // namespace
 
+        [[nodiscard]] MTL::SamplerMinMagFilter to_metal_filter(const sampler_filter_t filter) noexcept
+        {
+            switch (filter)
+            {
+                case sampler_filter_t::nearest: return MTL::SamplerMinMagFilterNearest;
+                case sampler_filter_t::linear: return MTL::SamplerMinMagFilterLinear;
+                default: return MTL::SamplerMinMagFilterNearest;
+            }
+        }
+
+        [[nodiscard]] MTL::SamplerMipFilter to_metal_mip_filter(const sampler_mip_filter_t filter) noexcept
+        {
+            switch (filter)
+            {
+                case sampler_mip_filter_t::nearest: return MTL::SamplerMipFilterNearest;
+                case sampler_mip_filter_t::linear: return MTL::SamplerMipFilterLinear;
+                default: return MTL::SamplerMipFilterNearest;
+            }
+        }
+
+        [[nodiscard]] MTL::SamplerAddressMode to_metal_address_mode(const sampler_address_mode_t mode) noexcept
+        {
+            switch (mode)
+            {
+                case sampler_address_mode_t::clamp_to_edge: return MTL::SamplerAddressModeClampToEdge;
+                case sampler_address_mode_t::repeat: return MTL::SamplerAddressModeRepeat;
+                case sampler_address_mode_t::mirrored_repeat: return MTL::SamplerAddressModeMirrorRepeat;
+                default: return MTL::SamplerAddressModeClampToEdge;
+            }
+        }
+    } // namespace
     // PUBLIC
 
     metal_rhi_context_t::metal_rhi_context_t(const rhi_desc_t& desc)
@@ -74,42 +106,6 @@ namespace carrot::rhi::metal {
             return;
         }
 
-        MTL::SamplerDescriptor* sampler_desc{ MTL::SamplerDescriptor::alloc()->init() };
-        if (!sampler_desc)
-        {
-            LOG_GRAPHICS_FATAL("Failed to allocate Metal sampler descriptor");
-            return;
-        }
-
-        sampler_desc->setMinFilter(MTL::SamplerMinMagFilterNearest);
-        sampler_desc->setMagFilter(MTL::SamplerMinMagFilterNearest);
-        sampler_desc->setSAddressMode(MTL::SamplerAddressModeClampToEdge);
-        sampler_desc->setTAddressMode(MTL::SamplerAddressModeClampToEdge);
-        sampler_desc->setSupportArgumentBuffers(true);
-
-        _textured_quad_sampler_nearest = mtl_device->newSamplerState(sampler_desc);
-
-        if (!_textured_quad_sampler_nearest)
-        {
-            LOG_GRAPHICS_FATAL("Failed to create Metal nearest sampler state");
-            return;
-        }
-
-        sampler_desc->setMinFilter(MTL::SamplerMinMagFilterLinear);
-        sampler_desc->setMagFilter(MTL::SamplerMinMagFilterLinear);
-        sampler_desc->setSAddressMode(MTL::SamplerAddressModeClampToEdge);
-        sampler_desc->setTAddressMode(MTL::SamplerAddressModeClampToEdge);
-        sampler_desc->setSupportArgumentBuffers(true);
-
-        _textured_quad_sampler_linear = mtl_device->newSamplerState(sampler_desc);
-        sampler_desc->release();
-
-        if (!_textured_quad_sampler_linear)
-        {
-            LOG_GRAPHICS_FATAL("Failed to create Metal linear sampler state");
-            return;
-        }
-
         _textured_quad_root_stride = align_up(sizeof(textured_quad_root_argument_buffer_t));
         _textured_quad_srv_stride = align_up(sizeof(descriptor_table_entry_t));
         _textured_quad_sampler_stride = align_up(sizeof(descriptor_table_entry_t));
@@ -131,17 +127,7 @@ namespace carrot::rhi::metal {
         wait_idle();
         reset_frame_state();
 
-        if (_textured_quad_sampler_nearest)
-        {
-            _textured_quad_sampler_nearest->release();
-            _textured_quad_sampler_nearest = nullptr;
-        }
-
-        if (_textured_quad_sampler_linear)
-        {
-            _textured_quad_sampler_linear->release();
-            _textured_quad_sampler_linear = nullptr;
-        }
+        _sampler_cache.clear();
 
 #if !OS_OBJECT_USE_OBJC
         if (_frame_semaphore)
@@ -228,7 +214,6 @@ namespace carrot::rhi::metal {
 
             size_t root_ab_offset{ 0 };
             encode_textured_quad_argument_buffers(*texture, i, root_ab_offset);
-
             encoder->setFragmentBuffer(_textured_quad_root_argument_buffer->mtl_buffer(), root_ab_offset, 2);
 
             encoder->useResource(_textured_quad_srv_descriptor_table->mtl_buffer(), MTL::ResourceUsageRead,
@@ -381,6 +366,42 @@ namespace carrot::rhi::metal {
         return result;
     }
 
+    std::unique_ptr<rhi_sampler_t> metal_rhi_context_t::create_sampler(const sampler_desc_t& desc) const
+    {
+        if (!_device || !_device->mtl_device())
+            return nullptr;
+
+        metal_sampler_create_info_t info{};
+
+        // Filters
+        info.min_filter = static_cast<uint32_t>(to_metal_filter(desc.min_filter));
+        info.mag_filter = static_cast<uint32_t>(to_metal_filter(desc.mag_filter));
+        info.mip_filter = static_cast<uint32_t>(to_metal_mip_filter(desc.mip_filter));
+
+        // Address modes
+        info.address_u = static_cast<uint32_t>(to_metal_address_mode(desc.address_u));
+        info.address_v = static_cast<uint32_t>(to_metal_address_mode(desc.address_v));
+        info.address_w = static_cast<uint32_t>(to_metal_address_mode(desc.address_w));
+
+        // LOD controls
+        info.mip_lod_bias = desc.mip_lod_bias;
+        info.min_lod = desc.min_lod;
+        info.max_lod = desc.max_lod;
+
+        void* sampler_ptr{ metal_create_sampler_state(_device->mtl_device(), &info) };
+
+        if (!sampler_ptr)
+        {
+            LOG_GRAPHICS_ERROR("Failed to create Metal sampler state via bridge");
+            return nullptr;
+        }
+
+        // Wrap in RAII object
+        MTL::SamplerState* sampler{ static_cast<MTL::SamplerState*>(sampler_ptr) };
+
+        return std::make_unique<metal_sampler_t>(sampler, desc);
+    }
+
     void metal_rhi_context_t::set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer,
                                                          const rhi_buffer_t& index_buffer)
     {
@@ -394,6 +415,21 @@ namespace carrot::rhi::metal {
     void metal_rhi_context_t::set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches)
     {
         _textured_quad_batches.assign(batches.begin(), batches.end());
+    }
+
+    rhi_sampler_t* metal_rhi_context_t::get_or_create_sampler(const sampler_desc_t& desc)
+    {
+        if (const auto it{ _sampler_cache.find(desc) }; it != _sampler_cache.end())
+            return it->second.get();
+
+        std::unique_ptr<rhi_sampler_t> sampler{ create_sampler(desc) };
+        if (!sampler)
+            return nullptr;
+
+        rhi_sampler_t* result{ sampler.get() };
+        _sampler_cache.emplace(desc, std::move(sampler));
+
+        return result;
     }
 
     void metal_rhi_context_t::wait_idle()
@@ -423,17 +459,6 @@ namespace carrot::rhi::metal {
         _textured_quad_vertex_buffer = nullptr;
         _textured_quad_index_buffer = nullptr;
         _textured_quad_batches.clear();
-    }
-
-    MTL::SamplerState* metal_rhi_context_t::get_textured_quad_sampler(
-        const renderer::sampler_filter_t filter) const noexcept
-    {
-        switch (filter)
-        {
-            case renderer::sampler_filter_t::nearest: return _textured_quad_sampler_nearest;
-            case renderer::sampler_filter_t::linear: return _textured_quad_sampler_linear;
-            default: return _textured_quad_sampler_nearest;
-        }
     }
 
     void metal_rhi_context_t::ensure_textured_quad_argument_capacity(const size_t batch_count)
@@ -487,16 +512,26 @@ namespace carrot::rhi::metal {
 
     void metal_rhi_context_t::encode_textured_quad_argument_buffers(const metal_texture_t& texture,
                                                                     const size_t batch_index,
-                                                                    size_t& out_root_ab_offset) const
+                                                                    size_t& out_root_ab_offset)
     {
         const renderer::textured_quad_batch_t& batch{ _textured_quad_batches[batch_index] };
 
-        MTL::SamplerState* sampler{ get_textured_quad_sampler(batch.filter) };
-        if (!sampler)
+        const sampler_desc_t sampler_desc{ sampler_desc_from_preset(batch.sampler_preset) };
+        const rhi_sampler_t* sampler_base{ get_or_create_sampler(sampler_desc) };
+        if (!sampler_base)
         {
-            LOG_GRAPHICS_WARN("Metal textured quad batch has no valid sampler; using nearest sampler");
-            sampler = _textured_quad_sampler_nearest;
+            LOG_GRAPHICS_WARN("Metal textured quad batch failed to resolve sampler");
+            return;
         }
+
+        const metal_sampler_t* metal_sampler{ dynamic_cast<const metal_sampler_t*>(sampler_base) };
+        if (!metal_sampler || !metal_sampler->mtl_sampler())
+        {
+            LOG_GRAPHICS_WARN("Metal textured quad batch resolved non-Metal sampler");
+            return;
+        }
+
+        MTL::SamplerState* sampler{ metal_sampler->mtl_sampler() };
 
         const size_t srv_offset{ batch_index * _textured_quad_srv_stride };
         const size_t sampler_offset{ batch_index * _textured_quad_sampler_stride };

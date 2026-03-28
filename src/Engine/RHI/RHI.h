@@ -13,6 +13,8 @@
 #include <span>
 #include <string_view>
 
+#include "Sampler.h"
+
 namespace carrot::assets {
     class shader_file_provider_t;
 }
@@ -47,9 +49,6 @@ namespace carrot::rhi {
         uint32_t height{ 720 };
         bool enable_debug_layers{ true };
         assets::shader_file_provider_t* shader_files{ nullptr };
-
-        // Temporary bridge for migration
-        // renderer::renderer_t* existing_renderer = nullptr;
     };
 
     class rhi_context_t
@@ -71,8 +70,12 @@ namespace carrot::rhi {
 
         [[nodiscard]] virtual std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) = 0;
         [[nodiscard]] virtual std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) = 0;
+        [[nodiscard]] virtual std::unique_ptr<rhi_sampler_t> create_sampler(const sampler_desc_t& desc) const = 0;
         virtual void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer, const rhi_buffer_t& index_buffer) = 0;
         virtual void set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches) = 0;
+
+        [[nodiscard]] virtual rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) = 0;
+        virtual void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) = 0;
 
         virtual void wait_idle() = 0;
     };

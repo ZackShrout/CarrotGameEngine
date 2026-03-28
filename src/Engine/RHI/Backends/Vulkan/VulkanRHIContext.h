@@ -17,6 +17,7 @@
 #include <memory>
 #include <span>
 #include <vector>
+#include <unordered_map>
 
 namespace carrot::rhi::vulkan {
     class vulkan_buffer_t;
@@ -52,8 +53,12 @@ namespace carrot::rhi::vulkan {
 
         [[nodiscard]] std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) override;
+        [[nodiscard]] std::unique_ptr<rhi_sampler_t> create_sampler(const sampler_desc_t& desc) const;
         void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer, const rhi_buffer_t& index_buffer) override;
         void set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches) override;
+
+        [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
+        void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) override {}
 
         void wait_idle() override;
 
@@ -74,16 +79,13 @@ namespace carrot::rhi::vulkan {
 
         void allocate_textured_quad_descriptor_sets(uint32_t frame_index, uint32_t count);
         void ensure_textured_quad_descriptor_sets_for_frame(uint32_t frame_index, uint32_t batch_count);
-        void write_textured_quad_descriptor_set(VkDescriptorSet descriptor_set, const rhi_texture_t& texture) const;
+        void write_textured_quad_descriptor_set(VkDescriptorSet descriptor_set, const rhi_texture_t& texture, const rhi_sampler_t& sampler) const;
 
         // ── Core Vulkan handles ──
         VkInstance          _vk_instance{ VK_NULL_HANDLE };
         VkSurfaceKHR        _vk_surface{ VK_NULL_HANDLE };
         VkCommandPool       _command_pool{ VK_NULL_HANDLE };
         VkDescriptorPool    _descriptor_pool{ VK_NULL_HANDLE };
-
-        // ── Renderer submission state ──
-        textured_quad_state_t _textured_quad;
 
         // ── Backend-owned services and persistent GPU objects ──
         assets::shader_file_provider_t*                     _shader_files{ nullptr };
@@ -97,6 +99,10 @@ namespace carrot::rhi::vulkan {
         // ── Per-frame GPU resources ──
         std::array<frame_resources_t, k_max_frames_in_flight>   _frames;
         std::vector<VkSemaphore>                                _render_finished_semaphores;
+
+        // ── Renderer submission state ──
+        textured_quad_state_t                                                                   _textured_quad;
+        std::unordered_map<sampler_desc_t, std::unique_ptr<rhi_sampler_t>, sampler_desc_hash_t> _sampler_cache;
 
         // ── Frame progression / swapchain bookkeeping ──
         uint32_t _frame_counter{ 0 };

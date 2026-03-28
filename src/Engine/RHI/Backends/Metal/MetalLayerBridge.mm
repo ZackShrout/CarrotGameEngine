@@ -134,5 +134,48 @@ uint64_t metal_buffer_gpu_address(void* buffer) noexcept
     return buff.gpuAddress;
 }
 
+void* metal_create_sampler_state(void* device_ptr, const metal_sampler_create_info_t* info) noexcept
+{
+    id<MTLDevice> device{ static_cast<id<MTLDevice>>(device_ptr) };
+    if (!device || !info)
+        return nullptr;
+    
+    MTLSamplerDescriptor* desc{ [[MTLSamplerDescriptor alloc] init] };
+    if (!desc)
+        return nullptr;
+    
+    desc.minFilter = (MTLSamplerMinMagFilter)info->min_filter;
+    desc.magFilter = (MTLSamplerMinMagFilter)info->mag_filter;
+    desc.mipFilter = (MTLSamplerMipFilter)info->mip_filter;
+    
+    desc.sAddressMode = (MTLSamplerAddressMode)info->address_u;
+    desc.tAddressMode = (MTLSamplerAddressMode)info->address_v;
+    desc.rAddressMode = (MTLSamplerAddressMode)info->address_w;
+    
+    desc.lodMinClamp = info->min_lod;
+    desc.lodMaxClamp = info->max_lod;
+    
+    if ([desc respondsToSelector:@selector(setLodBias:)])
+        desc.lodBias = info->mip_lod_bias;
+    
+    desc.supportArgumentBuffers = YES;
+    
+    id<MTLSamplerState> sampler{ [device newSamplerStateWithDescriptor:desc] };
+    [desc release];
+
+    if (!sampler)
+        return nullptr;
+
+    [sampler retain];
+    
+    return static_cast<void*>(sampler);
+}
+
+void metal_release_sampler_state(void* sampler_ptr) noexcept
+{
+    id<MTLSamplerState> sampler{ static_cast<id<MTLSamplerState>>(sampler_ptr) };
+    [sampler release];
+}
+
 
 }

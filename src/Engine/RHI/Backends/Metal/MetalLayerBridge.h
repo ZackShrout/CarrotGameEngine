@@ -11,6 +11,19 @@
 extern "C" {
 #endif
 
+struct metal_sampler_create_info_t
+{
+    uint32_t min_filter;
+    uint32_t mag_filter;
+    uint32_t mip_filter;
+    uint32_t address_u;
+    uint32_t address_v;
+    uint32_t address_w;
+    float mip_lod_bias;
+    float min_lod;
+    float max_lod;
+};
+
 void* metal_create_layer(void* ns_view, void* mtl_device, uint32_t width, uint32_t height);
 void metal_set_layer_pixel_format_srgb(void* layer);
 void metal_destroy_layer(void* layer);
@@ -23,6 +36,8 @@ void metal_present_drawable(void* command_buffer, void* drawable) noexcept;
 uint64_t metal_texture_resource_id(void* texture) noexcept;
 uint64_t metal_sampler_resource_id(void* sampler) noexcept;
 uint64_t metal_buffer_gpu_address(void* buffer) noexcept;
+void* metal_create_sampler_state(void* device, const metal_sampler_create_info_t* info) noexcept;
+void metal_release_sampler_state(void* sampler) noexcept;
 
 #ifdef __cplusplus
 }

@@ -9,7 +9,7 @@
 #include "Assets/Shaders/VFSShaderFileProvider.h"
 #include "Core/Module.h"
 #include "Draw/TexturedQuadBatch.h"
-#include "Draw/TexturedQuadDrawInfo.h"
+#include "Draw/TexturedQuadTypes.h"
 #include "Primitives/QuadVertex.h"
 #include "RHI/RHI.h"
 

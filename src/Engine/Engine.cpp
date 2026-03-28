@@ -251,6 +251,7 @@ namespace carrot {
         quad1.width = 0.3f;
         quad1.height = 0.3f;
         quad1.color = 0xFFFF0000u;
+        quad1.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
         _renderer->draw_textured_quad(quad1);
 
         renderer::textured_quad_draw_info_t quad2{ };
@@ -260,6 +261,7 @@ namespace carrot {
         quad2.width = 0.4f;
         quad2.height = 0.4f;
         quad2.color = 0xFFFFFFFFu;
+        quad2.sampler_preset = renderer::quad_sampler_preset_t::smooth_clamp;
         _renderer->draw_textured_quad(quad2);
 
         renderer::textured_quad_draw_info_t quad3{ };
@@ -269,6 +271,7 @@ namespace carrot {
         quad3.width = 0.3f;
         quad3.height = 0.3f;
         quad3.color = 0xFFFF00FFu;
+        quad3.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
         _renderer->draw_textured_quad(quad3);
 
         renderer::textured_quad_draw_info_t quad4{ };
@@ -278,6 +281,7 @@ namespace carrot {
         quad4.width = 0.3f;
         quad4.height = 0.3f;
         quad4.color = 0xFF00FF00u;
+        quad4.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
         _renderer->draw_textured_quad(quad4);
 
         renderer::textured_quad_draw_info_t quad5{ };
@@ -287,6 +291,7 @@ namespace carrot {
         quad5.width = 0.3f;
         quad5.height = 0.3f;
         quad5.color = 0xFF0000FFu;
+        quad5.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
         _renderer->draw_textured_quad(quad5);
     }
 

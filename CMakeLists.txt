@@ -29,185 +29,231 @@ endforeach()
 # Engine Sources
 # ------------------------------------------------------------------------
 set(CARROT_ENGINE_SOURCES
+        # ========================================
+        # Engine Core & Root
+        # ========================================
+        src/Engine/CarrotEngine.h
         src/Engine/Engine.cpp
         src/Engine/Engine.h
+        src/Engine/EngineConfig.cpp
+        src/Engine/EngineConfig.h
+
+        # ========================================
+        # Core Systems
+        # ========================================
         src/Engine/Core/Application.cpp
         src/Engine/Core/Application.h
-        src/Engine/Debug/DebugOverlay.cpp
-        src/Engine/Debug/DebugOverlay.h
-        src/Engine/HotReload/ShaderWatcher.cpp
-        src/Engine/HotReload/ShaderWatcher.h
-        src/Engine/Utils/ShaderUtils.cpp
-        src/Engine/Utils/ShaderUtils.h
-        src/Engine/Window/Window.cpp
-        src/Engine/Window/Window.h
         src/Engine/Core/CoreDefines.h
-        src/Engine/Utils/MulticastDelegate.h
+        src/Engine/Core/EnginePaths.h
+        src/Engine/Core/LogSink.cpp
+        src/Engine/Core/LogSink.h
         src/Engine/Core/Logger.cpp
         src/Engine/Core/Logger.h
-        src/Engine/Utils/DebugBreak.h
-        src/Engine/Utils/Assert.h
-        src/Engine/Core/LogSink.h
-        src/Engine/Core/LogSink.cpp
-        src/Engine/CarrotEngine.h
-        src/Engine/Renderer/Renderer.h
-        src/Engine/Renderer/Renderer.cpp
-        src/Engine/RHI/RHI.h
-        src/Engine/RHI/Device.h
-        src/Engine/RHI/Swapchain.h
-        src/Engine/RHI/CommandQueue.h
-        src/Engine/RHI/CommandList.h
-        src/Engine/RHI/Buffer.h
-        src/Engine/RHI/Texture.h
-        src/Engine/RHI/Pipeline.h
-        src/Engine/RHI/Fence.h
-        src/Engine/RHI/Semaphore.h
-        src/Engine/RHI/RHI.cpp
+        src/Engine/Core/Memory/Arena.cpp
+        src/Engine/Core/Memory/Arena.h
         src/Engine/Core/Module.h
         src/Engine/Core/Platform/Platform.h
         src/Engine/Core/Platform/Window.h
+
+        # ========================================
+        # Events & Input
+        # ========================================
         src/Engine/Events/Events.h
         src/Engine/Input/KeyCodes.h
         src/Engine/Input/PlatformKeyMapping.cpp
         src/Engine/Input/PlatformKeyMapping.h
-        src/Engine/Utils/JSON/Private/JsonToken.h
-        src/Engine/Utils/JSON/Private/JsonAST.h
-        src/Engine/Utils/JSON/Private/JsonLexer.cpp
-        src/Engine/Utils/JSON/Private/JsonLexer.h
-        src/Engine/Utils/JSON/Private/JsonParser.cpp
-        src/Engine/Utils/JSON/Private/JsonParser.h
-        src/Engine/Utils/JSON/Private/JsonDocument.cpp
-        src/Engine/Utils/JSON/Public/JsonDocument.h
-        src/Engine/Utils/File/FileUtils.cpp
-        src/Engine/Utils/File/FileUtils.h
-        src/Engine/Core/Memory/Arena.cpp
-        src/Engine/Core/Memory/Arena.h
-        src/Engine/Utils/JSON/Private/JsonObjectView.cpp
-        src/Engine/Utils/JSON/Public/JsonObjectView.h
-        src/Engine/Utils/JSON/Private/JsonValueView.cpp
-        src/Engine/Utils/JSON/Public/JsonValueView.h
-        src/Engine/Utils/JSON/Private/JsonArrayView.cpp
-        src/Engine/Utils/JSON/Public/JsonArrayView.h
-        src/Engine/EngineConfig.cpp
-        src/Engine/EngineConfig.h
-        src/Engine/Audio/Core/AudioClock.h
-        src/Engine/Audio/AudioModule.cpp
-        src/Engine/Audio/AudioModule.h
-        src/Engine/Audio/Backend/AudioBackend.cpp
-        src/Engine/Audio/Backend/AudioBackend.h
-        src/Engine/Audio/Core/AudioEngine.cpp
-        src/Engine/Audio/Core/AudioEngine.h
-        src/Engine/Audio/Backend/Null/NullAudioBackend.cpp
-        src/Engine/Audio/Backend/Null/NullAudioBackend.h
-        src/Engine/Audio/Core/AudioCommand.h
-        src/Engine/Audio/Core/AudioCommandQueue.h
-        src/Engine/Audio/Voice/Voice.h
-        src/Engine/Audio/Core/AudioCore.h
-        src/Engine/Audio/DSP/Envelope.cpp
-        src/Engine/Audio/DSP/Envelope.h
-        src/Engine/Audio/DSP/Pan.h
-        src/Engine/Audio/Mixer/AudioBus.h
-        src/Engine/Audio/Mixer/AudioRouting.h
-        src/Engine/Audio/Mixer/AudioMixer.cpp
-        src/Engine/Audio/Mixer/AudioMixer.h
-        src/Engine/Audio/Sample/AudioSample.h
-        src/Engine/Audio/Sample/WavLoader.cpp
-        src/Engine/Audio/Sample/WavLoader.h
-        src/Engine/Audio/Audio.h
-        src/Engine/Audio/Audio.cpp
-        src/Engine/Audio/AudioTypes.h
-        src/Engine/Audio/Core/AudioService.h
-        src/Engine/Audio/Core/AudioService.cpp
-        src/Engine/Assets/AssetID.h
-        src/Engine/Assets/AssetHandle.h
-        src/Engine/Assets/AssetRegistry.h
-        src/Engine/Assets/AssetDatabase.h
-        src/Engine/Assets/Audio/AudioAsset.h
-        src/Engine/Assets/Audio/AudioAssetRegistry.cpp
-        src/Engine/Assets/Audio/AudioAssetRegistry.h
-        src/Engine/Assets/AssetService.cpp
-        src/Engine/Assets/AssetService.h
-        src/Engine/Audio/Voice/VoiceHandle.h
-        src/Engine/Audio/Core/AudioEvent.h
-        src/Engine/Audio/Core/AudioEventQueue.h
-        src/Engine/Audio/Streaming/AudioStream.h
-        src/Engine/Audio/Core/AudioRingBuffer.h
-        src/Engine/Audio/Streaming/TestStreamDecoder.cpp
-        src/Engine/Audio/Streaming/TestStreamDecoder.h
-        src/Engine/Audio/Sample/WavCore.h
-        src/Engine/Audio/Streaming/WavStreamDecoder.cpp
-        src/Engine/Audio/Streaming/WavStreamDecoder.h
-        src/Engine/Audio/DSP/Resampler.h
-        src/Engine/Audio/DSP/DspUnit.h
-        src/Engine/Audio/Mixer/FxChain.h
-        src/Engine/Audio/DSP/BiquadFilter.h
-        src/Engine/Audio/DSP/Delay.h
-        src/Engine/Audio/DSP/SchroederReverb.h
-        src/Engine/Audio/DSP/Saturator.h
-        src/Engine/Audio/DSP/Limiter.h
-        src/Engine/Audio/DSP/Baxandall.h
-        src/Engine/Audio/DSP/VcaBusComp.h
-        src/Engine/Assets/Image/ImageAsset.h
-        src/Engine/Assets/Image/ImageLoadError.h
-        src/Engine/Assets/Image/ImageLoadError.cpp
-        src/Engine/Assets/Image/ImageAssetImporter.cpp
-        src/Engine/Assets/Image/ImageAssetImporter.h
-        src/Engine/Assets/Texture/TextureAsset.h
-        src/Engine/Assets/Texture/TextureAssetLoader.cpp
-        src/Engine/Assets/Texture/TextureAssetLoader.h
-        src/Engine/IO/VirtualFileSystem.cpp
-        src/Engine/IO/VirtualFileSystem.h
-        src/Engine/Core/EnginePaths.h
-        src/Engine/Assets/AssetManager.cpp
-        src/Engine/Assets/AssetManager.h
-        src/Engine/Renderer/Primitives/QuadVertex.h
+
+        # ========================================
+        # Window, Debug & Hot Reload
+        # ========================================
+        src/Engine/Window/Window.cpp
+        src/Engine/Window/Window.h
+        src/Engine/Debug/DebugOverlay.cpp
+        src/Engine/Debug/DebugOverlay.h
+        src/Engine/HotReload/ShaderWatcher.cpp
+        src/Engine/HotReload/ShaderWatcher.h
+
+        # ========================================
+        # Renderer (High-level)
+        # ========================================
+        src/Engine/Renderer/Draw/QuadSamplerPreset.h
+        src/Engine/Renderer/Draw/TexturedQuadBatch.h
+        src/Engine/Renderer/Draw/TexturedQuadTypes.h
         src/Engine/Renderer/Primitives/QuadMesh.h
-        src/Engine/Assets/Audio/AudioAssetManifestImporter.cpp
-        src/Engine/Assets/Audio/AudioAssetManifestImporter.h
-        src/Engine/Assets/Audio/AudioAssetLoader.cpp
-        src/Engine/Assets/Audio/AudioAssetLoader.h
-        src/Engine/Assets/Audio/AudioAssetSystem.cpp
-        src/Engine/Assets/Audio/AudioAssetSystem.h
-        src/Engine/Utils/File/PlatformPaths.h
-        src/Engine/Assets/Shaders/ShaderFileProvider.h
-        src/Engine/Assets/Shaders/VFSShaderFileProvider.h
-        src/Engine/Renderer/Draw/TexturedQuadDrawInfo.h
-        src/Engine/Assets/Texture/TextureAssetRegistry.cpp
-        src/Engine/Assets/Texture/TextureAssetRegistry.h
-        src/Engine/Assets/Texture/TextureAssetManifestImporter.cpp
-        src/Engine/Assets/Texture/TextureAssetManifestImporter.h
-        src/Engine/Assets/Texture/TextureAssetSystem.cpp
-        src/Engine/Assets/Texture/TextureAssetSystem.h
+        src/Engine/Renderer/Primitives/QuadVertex.h
+        src/Engine/Renderer/Renderer.cpp
+        src/Engine/Renderer/Renderer.h
         src/Engine/Renderer/RendererService.cpp
         src/Engine/Renderer/RendererService.h
-        src/Engine/RHI/Backends/Vulkan/VulkanDevice.cpp
-        src/Engine/RHI/Backends/Vulkan/VulkanDevice.h
-        src/Engine/RHI/Backends/Vulkan/VulkanSwapchain.cpp
-        src/Engine/RHI/Backends/Vulkan/VulkanSwapchain.h
-        src/Engine/RHI/Backends/Vulkan/VulkanCommandQueue.cpp
-        src/Engine/RHI/Backends/Vulkan/VulkanCommandQueue.h
-        src/Engine/RHI/Backends/Vulkan/VulkanRenderPass.cpp
-        src/Engine/RHI/Backends/Vulkan/VulkanRenderPass.h
-        src/Engine/RHI/Backends/Vulkan/VulkanPipeline.cpp
-        src/Engine/RHI/Backends/Vulkan/VulkanPipeline.h
-        src/Engine/RHI/Backends/Vulkan/VulkanCommon.h
-        src/Engine/RHI/Backends/Vulkan/VulkanCore.h
-        src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.cpp
-        src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.h
-        src/Engine/RHI/Backends/Vulkan/VulkanBuffer.cpp
-        src/Engine/RHI/Backends/Vulkan/VulkanBuffer.h
+
+        # ========================================
+        # RHI - Abstract Interface
+        # ========================================
+        src/Engine/RHI/Buffer.h
+        src/Engine/RHI/CommandList.h
+        src/Engine/RHI/CommandQueue.h
+        src/Engine/RHI/Device.h
+        src/Engine/RHI/Fence.h
+        src/Engine/RHI/Pipeline.h
+        src/Engine/RHI/RHI.cpp
+        src/Engine/RHI/RHI.h
+        src/Engine/RHI/Sampler.h
+        src/Engine/RHI/SamplerPresets.h
+        src/Engine/RHI/Semaphore.h
+        src/Engine/RHI/Swapchain.h
+        src/Engine/RHI/Texture.h
+
+        # ========================================
+        # RHI - Vulkan Backend
+        # ========================================
         src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.cpp
         src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.h
+        src/Engine/RHI/Backends/Vulkan/VulkanBuffer.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanBuffer.h
+        src/Engine/RHI/Backends/Vulkan/VulkanCommandQueue.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanCommandQueue.h
+        src/Engine/RHI/Backends/Vulkan/VulkanCommon.h
+        src/Engine/RHI/Backends/Vulkan/VulkanCore.h
+        src/Engine/RHI/Backends/Vulkan/VulkanDevice.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanDevice.h
+        src/Engine/RHI/Backends/Vulkan/VulkanPipeline.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanPipeline.h
+        src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.h
+        src/Engine/RHI/Backends/Vulkan/VulkanRenderPass.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanRenderPass.h
+        src/Engine/RHI/Backends/Vulkan/VulkanSampler.h
+        src/Engine/RHI/Backends/Vulkan/VulkanSwapchain.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanSwapchain.h
         src/Engine/RHI/Backends/Vulkan/VulkanTexture.cpp
         src/Engine/RHI/Backends/Vulkan/VulkanTexture.h
         src/Engine/RHI/Backends/Vulkan/VulkanUtils.h
-        src/Engine/Renderer/Draw/TexturedQuadBatch.h
-        src/Engine/RHI/Backends/Metal/Pipelines/MetalTexturedQuadPipeline.cpp
-        src/Engine/RHI/Backends/Metal/Pipelines/MetalTexturedQuadPipeline.h
+
+        # ========================================
+        # Audio System
+        # ========================================
+        src/Engine/Audio/Audio.cpp
+        src/Engine/Audio/Audio.h
+        src/Engine/Audio/AudioModule.cpp
+        src/Engine/Audio/AudioModule.h
+        src/Engine/Audio/AudioTypes.h
+        src/Engine/Audio/Backend/AudioBackend.cpp
+        src/Engine/Audio/Backend/AudioBackend.h
+        src/Engine/Audio/Backend/Null/NullAudioBackend.cpp
+        src/Engine/Audio/Backend/Null/NullAudioBackend.h
+        src/Engine/Audio/Core/AudioClock.h
+        src/Engine/Audio/Core/AudioCommand.h
+        src/Engine/Audio/Core/AudioCommandQueue.h
+        src/Engine/Audio/Core/AudioCore.h
+        src/Engine/Audio/Core/AudioEngine.cpp
+        src/Engine/Audio/Core/AudioEngine.h
+        src/Engine/Audio/Core/AudioEvent.h
+        src/Engine/Audio/Core/AudioEventQueue.h
+        src/Engine/Audio/Core/AudioRingBuffer.h
+        src/Engine/Audio/Core/AudioService.cpp
+        src/Engine/Audio/Core/AudioService.h
+        src/Engine/Audio/DSP/Baxandall.h
+        src/Engine/Audio/DSP/BiquadFilter.h
+        src/Engine/Audio/DSP/Delay.h
+        src/Engine/Audio/DSP/DspUnit.h
+        src/Engine/Audio/DSP/Envelope.cpp
+        src/Engine/Audio/DSP/Envelope.h
+        src/Engine/Audio/DSP/Limiter.h
+        src/Engine/Audio/DSP/Pan.h
+        src/Engine/Audio/DSP/Resampler.h
+        src/Engine/Audio/DSP/Saturator.h
+        src/Engine/Audio/DSP/SchroederReverb.h
+        src/Engine/Audio/DSP/VcaBusComp.h
+        src/Engine/Audio/Mixer/AudioBus.h
+        src/Engine/Audio/Mixer/AudioMixer.cpp
+        src/Engine/Audio/Mixer/AudioMixer.h
+        src/Engine/Audio/Mixer/AudioRouting.h
+        src/Engine/Audio/Mixer/FxChain.h
+        src/Engine/Audio/Sample/AudioSample.h
+        src/Engine/Audio/Sample/WavCore.h
+        src/Engine/Audio/Sample/WavLoader.cpp
+        src/Engine/Audio/Sample/WavLoader.h
+        src/Engine/Audio/Streaming/AudioStream.h
+        src/Engine/Audio/Streaming/TestStreamDecoder.cpp
+        src/Engine/Audio/Streaming/TestStreamDecoder.h
+        src/Engine/Audio/Streaming/WavStreamDecoder.cpp
+        src/Engine/Audio/Streaming/WavStreamDecoder.h
+        src/Engine/Audio/Voice/Voice.h
+        src/Engine/Audio/Voice/VoiceHandle.h
+
+        # ========================================
+        # Asset System
+        # ========================================
+        src/Engine/Assets/AssetDatabase.h
+        src/Engine/Assets/AssetHandle.h
+        src/Engine/Assets/AssetID.h
+        src/Engine/Assets/AssetManager.cpp
+        src/Engine/Assets/AssetManager.h
+        src/Engine/Assets/AssetRegistry.h
+        src/Engine/Assets/AssetService.cpp
+        src/Engine/Assets/AssetService.h
+        src/Engine/Assets/Audio/AudioAsset.h
+        src/Engine/Assets/Audio/AudioAssetLoader.cpp
+        src/Engine/Assets/Audio/AudioAssetLoader.h
+        src/Engine/Assets/Audio/AudioAssetManifestImporter.cpp
+        src/Engine/Assets/Audio/AudioAssetManifestImporter.h
+        src/Engine/Assets/Audio/AudioAssetRegistry.cpp
+        src/Engine/Assets/Audio/AudioAssetRegistry.h
+        src/Engine/Assets/Audio/AudioAssetSystem.cpp
+        src/Engine/Assets/Audio/AudioAssetSystem.h
+        src/Engine/Assets/Image/ImageAsset.h
+        src/Engine/Assets/Image/ImageAssetImporter.cpp
+        src/Engine/Assets/Image/ImageAssetImporter.h
+        src/Engine/Assets/Image/ImageLoadError.cpp
+        src/Engine/Assets/Image/ImageLoadError.h
+        src/Engine/Assets/Shaders/ShaderFileProvider.h
+        src/Engine/Assets/Shaders/VFSShaderFileProvider.h
+        src/Engine/Assets/Texture/TextureAsset.h
+        src/Engine/Assets/Texture/TextureAssetLoader.cpp
+        src/Engine/Assets/Texture/TextureAssetLoader.h
+        src/Engine/Assets/Texture/TextureAssetManifestImporter.cpp
+        src/Engine/Assets/Texture/TextureAssetManifestImporter.h
+        src/Engine/Assets/Texture/TextureAssetRegistry.cpp
+        src/Engine/Assets/Texture/TextureAssetRegistry.h
+        src/Engine/Assets/Texture/TextureAssetSystem.cpp
+        src/Engine/Assets/Texture/TextureAssetSystem.h
+
+        # ========================================
+        # Utilities
+        # ========================================
+        src/Engine/Utils/Assert.h
+        src/Engine/Utils/DebugBreak.h
+        src/Engine/Utils/File/FileUtils.cpp
+        src/Engine/Utils/File/FileUtils.h
+        src/Engine/Utils/File/PlatformPaths.h
+        src/Engine/Utils/JSON/Private/JsonAST.h
+        src/Engine/Utils/JSON/Private/JsonArrayView.cpp
+        src/Engine/Utils/JSON/Private/JsonDocument.cpp
+        src/Engine/Utils/JSON/Private/JsonLexer.cpp
+        src/Engine/Utils/JSON/Private/JsonLexer.h
+        src/Engine/Utils/JSON/Private/JsonObjectView.cpp
+        src/Engine/Utils/JSON/Private/JsonParser.cpp
+        src/Engine/Utils/JSON/Private/JsonParser.h
+        src/Engine/Utils/JSON/Private/JsonToken.h
+        src/Engine/Utils/JSON/Private/JsonValueView.cpp
+        src/Engine/Utils/JSON/Public/JsonArrayView.h
+        src/Engine/Utils/JSON/Public/JsonDocument.h
+        src/Engine/Utils/JSON/Public/JsonObjectView.h
+        src/Engine/Utils/JSON/Public/JsonValueView.h
+        src/Engine/Utils/MulticastDelegate.h
+        src/Engine/Utils/ShaderUtils.cpp
+        src/Engine/Utils/ShaderUtils.h
+
+        # ========================================
+        # IO & Virtual File System
+        # ========================================
+        src/Engine/IO/VirtualFileSystem.cpp
+        src/Engine/IO/VirtualFileSystem.h
+
+        # ========================================
+        # Shaders
+        # ========================================
         shaders/ShaderCommon.h
-        src/Engine/RHI/Backends/Metal/MetalUtils.h
-        src/Engine/RHI/Backends/Metal/MetalDescriptorEncoding.h
-        src/Engine/Renderer/Draw/SamplerTypes.h
 )
 
 # ------------------------------------------------------------------------
@@ -251,6 +297,11 @@ if (APPLE)
             src/Engine/RHI/Backends/Metal/MetalBuffer.h
             src/Engine/RHI/Backends/Metal/MetalTexture.cpp
             src/Engine/RHI/Backends/Metal/MetalTexture.h
+            src/Engine/RHI/Backends/Metal/Pipelines/MetalTexturedQuadPipeline.cpp
+            src/Engine/RHI/Backends/Metal/Pipelines/MetalTexturedQuadPipeline.h
+            src/Engine/RHI/Backends/Metal/MetalUtils.h
+            src/Engine/RHI/Backends/Metal/MetalDescriptorEncoding.h
+            src/Engine/RHI/Backends/Metal/MetalSampler.h
 
             src/Engine/Audio/Backend/Apple/AppleAudioBackend.cpp
             src/Engine/Audio/Backend/Apple/AppleAudioBackend.h

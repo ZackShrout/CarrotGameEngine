@@ -113,12 +113,15 @@ namespace carrot::renderer {
             return;
         }
 
-        if (_textured_quad.batches.empty() || _textured_quad.batches.back().texture != quad.texture)
+        if (_textured_quad.batches.empty() ||
+            _textured_quad.batches.back().texture != quad.texture ||
+            _textured_quad.batches.back().sampler_preset != quad.sampler_preset)
         {
             _textured_quad.batches.push_back(textured_quad_batch_t{
                 .texture = quad.texture,
                 .first_index = static_cast<uint32_t>(_textured_quad.indices_cpu.size()),
-                .index_count = 0
+                .index_count = 0,
+                .sampler_preset = quad.sampler_preset
             });
         }
 

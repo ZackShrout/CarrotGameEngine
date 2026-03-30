@@ -1,5 +1,10 @@
-# CARROT GAME ENGINE – CODING STANDARDS (v1.0 – FINAL)
-## Locked November 27, 2025 – BunnySoft
+# Carrot Game Engine – Coding Standards
+
+**BunnySoft**  
+**Project Coding Standards**  
+**Last Updated: March 2026**
+
+---
 
 ### File & Folder Naming
 - Headers:        `.h`

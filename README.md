@@ -185,12 +185,12 @@ Other compiler / platform combinations may eventually be supported, but should n
 ```text
 CarrotGameEngine/
 ├── CMakeLists.txt
+├── CompileShaders.cmake
 ├── README.md
-├── CARROT_MASTER_PLAN.md
-├── CODING_STANDARDS.md
-├── ARCHITECTURE_NOTES.md
+├── docs/
 ├── assets/
 ├── deps/
+├── shaders/
 ├── src/
 │   ├── Engine/
 │   └── Game/

@@ -72,11 +72,15 @@ A recurring design rule in Carrot is:
 
 This is especially important for:
 
-* ECS
+* world/object architecture
 * scene/world systems
 * editor/tooling
 * cooked asset pipelines
 * save/persistence architecture
+
+Carrot should not introduce major architectural layers simply because they are common engine features.
+
+A system should arrive when it solves a real structural problem in the engine.
 
 ---
 
@@ -92,7 +96,7 @@ At a high level, the engine currently trends toward the following structure:
 4. **Renderer Layer**
 5. **Asset System**
 6. **Audio System**
-7. **Future World / ECS Layer**
+7. **Future World / Object Layer**
 8. **Game Layer**
 
 These layers are not meant to be dogmatic, but they provide a useful structural model.
@@ -255,6 +259,31 @@ Examples of renderer-level concerns:
 * debug rendering
 * future text/UI rendering
 * world-facing rendering flow
+
+### Engine-Owned Rendering Flow
+Carrot’s long-term rendering model is intended to be **engine-driven**, not **game-code-driven**.
+
+That means game code should define:
+
+* world state
+* object state
+* animation state
+* UI state
+* gameplay-facing visibility or behavior
+
+…but should not need to manually issue renderer calls in normal engine usage.
+
+The intended direction is for the engine to own rendering flow through functions such as:
+
+* `render_world()`
+* `render_ui()`
+* future debug or overlay rendering passes where appropriate
+
+In that model, the engine determines what needs to be rendered for a given frame and submits that information to the renderer.
+
+This is an important architectural boundary.
+
+It keeps rendering policy inside the engine rather than scattering rendering behavior throughout gameplay code.
 
 ### Intended Evolution
 
@@ -639,39 +668,107 @@ For more detail, see `docs/systems/audio_engine.md`.
 
 ---
 
-## 12. ECS and World Direction
+## 12. World and Object Direction
 
 Carrot is intended to eventually move toward a world-driven architecture.
 
 This includes future systems such as:
 
-* entity/component storage
 * world state
+* `world_object_t` lifetime and ownership
 * gameplay simulation
 * renderable world objects
 * audio emitters or world-facing audio integration
 * scene/world organization
 
-### 12.1 ECS Design Intent
+The engine should ultimately move from isolated rendering and subsystem testing toward a coherent world model that can drive rendering, audio, input, and gameplay systems together.
 
-When introduced, ECS should aim to be:
+### 12.1 Object Model Design Intent
 
-* data-oriented
-* explicit
-* performant
-* understandable
-* tightly integrated with real engine needs
+Carrot’s intended world architecture is based on:
 
-The intended design direction favors:
+* `world_object_t` instances with clear identity
+* behavior owned by those objects
+* modular `component_t` functionality where it provides real value
+* clear ownership and understandable runtime behavior
 
-* archetype-style organization
-* sparse-set-friendly access patterns where useful
-* minimal dispatch overhead
-* clear ownership and structural changes
+This is an intentional design choice.
 
-### 12.2 Timing
+Carrot is not currently intended to be a pure “everything is data and systems” engine.
 
-ECS should not be introduced merely because “engines are supposed to have one.”
+Instead, it should preserve a balance between:
+
+* object-oriented design
+* selective composition
+* explicit ownership
+* practical performance-conscious implementation
+
+This allows gameplay code to remain expressive and natural while still supporting modularity and scalability where appropriate.
+
+### 12.2 Components
+
+`component_t` is intended to provide reusable or orthogonal functionality that can be attached to or owned by `world_object_t` instances.
+
+Examples may eventually include:
+
+* `transform_component_t`
+* rendering-related state
+* sprite or animation support
+* collision and spatial data
+* audio emitters
+* interaction helpers
+
+Components should support object behavior, not replace object identity.
+
+That distinction matters.
+
+Carrot should avoid drifting into an architecture where every gameplay concept becomes a bag of detached behavior fragments.
+
+### 12.3 Spatial State and Transforms
+
+Not every `world_object_t` is expected to be spatial.
+
+That means Carrot should not force transform state directly into the base world object type by default.
+
+Instead, spatial state should remain explicit through something like `transform_component_t`.
+
+This is expected to be one of the most common components in the engine, especially for:
+
+* characters
+* NPCs
+* props
+* interactables
+* renderable objects
+* world-facing audio emitters
+
+…but it should still remain a component rather than a mandatory base-class feature.
+
+This keeps the world model flexible while still allowing spatial systems to remain consistent.
+
+### 12.4 Data-Oriented Performance Direction
+
+Although Carrot is not intended to be a pure ECS engine, it should still apply **data-oriented design where it meaningfully improves performance**.
+
+This includes goals such as:
+
+* minimizing unnecessary pointer chasing
+* reducing cache-unfriendly memory layouts
+* storing hot runtime data efficiently
+* keeping iteration tight in performance-critical paths
+* minimizing unnecessary dispatch overhead
+* preserving good data locality where practical
+
+In other words:
+
+> Carrot should remain architecturally expressive at the gameplay level while still being technically efficient in the hot paths.
+
+This is an important design rule.
+
+Carrot should not sacrifice performance out of attachment to object-oriented purity, but it also should not sacrifice clarity by forcing every subsystem into a pure ECS model.
+
+### 12.5 Timing
+
+This world/object layer should not be introduced merely because “engines are supposed to have one.”
 
 Its natural place is when Carrot is ready to transition from:
 
@@ -679,24 +776,32 @@ Its natural place is when Carrot is ready to transition from:
 
 to:
 
-* actual world-driven rendering and gameplay-facing organization
+* world-driven rendering
+* gameplay-facing simulation
+* `world_object_t`-based world organization
+* engine-owned frame orchestration
 
-That means ECS belongs alongside:
+That means this layer belongs alongside:
 
-* simple scene/world rendering flow
-* component-driven object organization
+* simple world rendering flow
+* object/component ownership
 * gameplay-facing engine structure
+* future UI/world integration
 
-### 12.3 Non-Goals
+### 12.6 Non-Goals
 
-The ECS should not become:
+This architecture should not become:
 
 * a justification for premature complexity
 * a doctrine that infects every single subsystem
 * a replacement for good engineering judgment
+* a pile of over-fragmented behavior attachments
+* a slow, over-virtualized object jungle
 
-If a system benefits from ECS integration, it should integrate well.
-If it does not, the architecture should remain practical.
+If a system benefits from more data-oriented handling, it should use it.
+If a system benefits from explicit object ownership, it should keep it.
+
+The engine should prefer the architecture that best serves the real problem.
 
 ---
 
@@ -825,7 +930,10 @@ As Carrot evolves, this document should continue preserving a few key ideas:
 * assets must distinguish source, authored metadata, runtime data, and future cooked data
 * Aseprite and Tiled are intentional content workflow targets
 * audio is a first-class subsystem
-* ECS is important, but should arrive at the right time
+* world/object architecture is important, but should arrive at the right time
+* `world_object_t` is the foundational world type
+* `component_t` should support identity, not replace it
+* data-oriented performance techniques should be applied where they genuinely matter
 * hot reload is a real architectural concern
 * future tooling should be earned, not assumed
 

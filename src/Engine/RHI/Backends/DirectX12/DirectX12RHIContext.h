@@ -49,8 +49,12 @@ namespace carrot::rhi::dx12 {
 
         [[nodiscard]] std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) override;
+        [[nodiscard]] std::unique_ptr<rhi_sampler_t> create_sampler(const sampler_desc_t& desc) const override;
         void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer, const rhi_buffer_t& index_buffer) override {}
         void set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches) override {}
+
+        [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
+        void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) override {}
 
         void wait_idle() override;
 

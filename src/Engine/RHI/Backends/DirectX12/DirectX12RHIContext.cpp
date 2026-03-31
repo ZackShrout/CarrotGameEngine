@@ -330,6 +330,17 @@ namespace carrot::rhi::dx12 {
         return nullptr;
     }
 
+    std::unique_ptr<rhi_sampler_t> dx12_rhi_context_t::create_sampler(const sampler_desc_t& desc) const
+    {
+        return nullptr;
+    }
+
+    rhi_sampler_t* dx12_rhi_context_t::get_or_create_sampler(const sampler_desc_t& desc)
+    {
+
+        return nullptr;
+    }
+
     void dx12_rhi_context_t::wait_idle()
     {
         if (_graphics_queue)

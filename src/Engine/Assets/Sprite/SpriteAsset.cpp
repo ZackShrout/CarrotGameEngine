@@ -113,25 +113,25 @@ namespace carrot::assets {
                 return false;
             }
 
-            if (animation.fps <= 0.f)
-            {
-                LOG_ASSET_ERROR("Sprite animation '{}' has invalid fps {}.",
-                                animation.name, animation.fps);
-                return false;
-            }
-
-            if (animation.frame_indices.empty())
+            if (animation.frames.empty())
             {
                 LOG_ASSET_WARN("Sprite animation '{}' has no frames.", animation.name);
                 continue;
             }
 
-            for (const uint32_t frame_index: animation.frame_indices)
+            for (const sprite_animation_frame_t& anim_frame: animation.frames)
             {
-                if (frame_index >= _frames.size())
+                if (anim_frame.frame_index >= _frames.size())
                 {
-                    LOG_ASSET_ERROR("Sprite animation '{}' references invalid frame index {}. ""Frame count is {}.",
-                                    animation.name, frame_index, _frames.size());
+                    LOG_ASSET_ERROR("Sprite animation '{}' references invalid frame index {}. Frame count is {}.",
+                                    animation.name, anim_frame.frame_index, _frames.size());
+                    return false;
+                }
+
+                if (anim_frame.duration_seconds <= 0.0f)
+                {
+                    LOG_ASSET_ERROR("Sprite animation '{}' contains invalid frame duration {}.", animation.name,
+                                    anim_frame.duration_seconds);
                     return false;
                 }
             }

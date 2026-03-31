@@ -7,9 +7,12 @@
   },
   "animations": {
     "idle_down": {
-      "fps": 12,
       "loop": true,
-      "frames": ["idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_1", "idle_1"]
+      "frames": [
+        { "frame": "idle_0", "duration": 1.6 },
+        { "frame": "idle_1", "duration": 0.06 },
+        { "frame": "idle_0", "duration": 0.12 }
+      ]
     }
   }
 }

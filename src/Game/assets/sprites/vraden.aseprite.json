@@ -5,7 +5,7 @@
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
     "sourceSize": { "w": 45, "h": 35 },
-    "duration": 100
+    "duration": 1600
    },
    "Vraden #Idle Down 1.aseprite": {
     "frame": { "x": 45, "y": 0, "w": 45, "h": 35 },
@@ -13,7 +13,15 @@
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
     "sourceSize": { "w": 45, "h": 35 },
-    "duration": 100
+    "duration": 60
+   },
+   "Vraden #Idle Down 2.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 45, "h": 35 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
+    "sourceSize": { "w": 45, "h": 35 },
+    "duration": 120
    },
    "Vraden #Idle Up 0.aseprite": {
     "frame": { "x": 0, "y": 35, "w": 45, "h": 35 },
@@ -24,7 +32,7 @@
     "duration": 100
    },
    "Vraden #Idle Up 1.aseprite": {
-    "frame": { "x": 45, "y": 35, "w": 45, "h": 35 },
+    "frame": { "x": 0, "y": 35, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
@@ -37,7 +45,7 @@
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
     "sourceSize": { "w": 45, "h": 35 },
-    "duration": 100
+    "duration": 1600
    },
    "Vraden #Idle Right 1.aseprite": {
     "frame": { "x": 45, "y": 70, "w": 45, "h": 35 },
@@ -45,7 +53,15 @@
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
     "sourceSize": { "w": 45, "h": 35 },
-    "duration": 100
+    "duration": 60
+   },
+   "Vraden #Idle Right 2.aseprite": {
+    "frame": { "x": 0, "y": 70, "w": 45, "h": 35 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
+    "sourceSize": { "w": 45, "h": 35 },
+    "duration": 120
    },
    "Vraden #Idle Left 0.aseprite": {
     "frame": { "x": 0, "y": 105, "w": 45, "h": 35 },
@@ -53,7 +69,7 @@
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
     "sourceSize": { "w": 45, "h": 35 },
-    "duration": 100
+    "duration": 1600
    },
    "Vraden #Idle Left 1.aseprite": {
     "frame": { "x": 45, "y": 105, "w": 45, "h": 35 },
@@ -61,7 +77,15 @@
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
     "sourceSize": { "w": 45, "h": 35 },
-    "duration": 100
+    "duration": 60
+   },
+   "Vraden #Idle Left 2.aseprite": {
+    "frame": { "x": 0, "y": 105, "w": 45, "h": 35 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
+    "sourceSize": { "w": 45, "h": 35 },
+    "duration": 120
    },
    "Vraden #Run Down 0.aseprite": {
     "frame": { "x": 0, "y": 140, "w": 45, "h": 35 },
@@ -255,7 +279,7 @@
     "sourceSize": { "w": 45, "h": 35 },
     "duration": 100
    },
-   "Vraden #Lift Right Hand 0.aseprite": {
+   "Vraden #Lift Right Hand.aseprite": {
     "frame": { "x": 0, "y": 280, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
@@ -312,7 +336,7 @@
     "duration": 100
    },
    "Vraden #Hair Sparkle 6.aseprite": {
-    "frame": { "x": 270, "y": 315, "w": 45, "h": 35 },
+    "frame": { "x": 0, "y": 280, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
@@ -352,7 +376,7 @@
     "duration": 100
    },
    "Vraden #Walk Down 4.aseprite": {
-    "frame": { "x": 180, "y": 350, "w": 45, "h": 35 },
+    "frame": { "x": 90, "y": 350, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
@@ -360,7 +384,7 @@
     "duration": 100
    },
    "Vraden #Walk Down 5.aseprite": {
-    "frame": { "x": 225, "y": 350, "w": 45, "h": 35 },
+    "frame": { "x": 45, "y": 350, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
@@ -400,7 +424,7 @@
     "duration": 100
    },
    "Vraden #Walk Up 4.aseprite": {
-    "frame": { "x": 180, "y": 385, "w": 45, "h": 35 },
+    "frame": { "x": 90, "y": 385, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
@@ -408,7 +432,7 @@
     "duration": 100
    },
    "Vraden #Walk Up 5.aseprite": {
-    "frame": { "x": 225, "y": 385, "w": 45, "h": 35 },
+    "frame": { "x": 45, "y": 385, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
@@ -511,7 +535,7 @@
     "sourceSize": { "w": 45, "h": 35 },
     "duration": 100
    },
-   "Vraden #Facepalm 0.aseprite": {
+   "Vraden #Facepalm.aseprite": {
     "frame": { "x": 0, "y": 490, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
@@ -519,7 +543,7 @@
     "sourceSize": { "w": 45, "h": 35 },
     "duration": 100
    },
-   "Vraden #Shocked 0.aseprite": {
+   "Vraden #Shocked.aseprite": {
     "frame": { "x": 0, "y": 525, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
@@ -527,7 +551,7 @@
     "sourceSize": { "w": 45, "h": 35 },
     "duration": 100
    },
-   "Vraden #Two Arm Underhand Gesture Right 0.aseprite": {
+   "Vraden #Two Arm Underhand Gesture Right.aseprite": {
     "frame": { "x": 0, "y": 560, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
@@ -535,7 +559,7 @@
     "sourceSize": { "w": 45, "h": 35 },
     "duration": 100
    },
-   "Vraden #Two Arm Underhand Gesture Left 0.aseprite": {
+   "Vraden #Two Arm Underhand Gesture Left.aseprite": {
     "frame": { "x": 0, "y": 595, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
@@ -543,7 +567,7 @@
     "sourceSize": { "w": 45, "h": 35 },
     "duration": 100
    },
-   "Vraden #Gesture Right 0.aseprite": {
+   "Vraden #Gesture Right.aseprite": {
     "frame": { "x": 0, "y": 630, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
@@ -551,7 +575,7 @@
     "sourceSize": { "w": 45, "h": 35 },
     "duration": 100
    },
-   "Vraden #Gesture Left 0.aseprite": {
+   "Vraden #Gesture Left.aseprite": {
     "frame": { "x": 0, "y": 665, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
@@ -559,7 +583,7 @@
     "sourceSize": { "w": 45, "h": 35 },
     "duration": 100
    },
-   "Vraden #Glance Right 0.aseprite": {
+   "Vraden #Glance Right.aseprite": {
     "frame": { "x": 0, "y": 700, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
@@ -567,7 +591,7 @@
     "sourceSize": { "w": 45, "h": 35 },
     "duration": 100
    },
-   "Vraden #Glance Left 0.aseprite": {
+   "Vraden #Glance Left.aseprite": {
     "frame": { "x": 0, "y": 735, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
@@ -576,7 +600,7 @@
     "duration": 100
    },
    "Vraden #Shake Head 0.aseprite": {
-    "frame": { "x": 0, "y": 770, "w": 45, "h": 35 },
+    "frame": { "x": 0, "y": 735, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
@@ -584,7 +608,7 @@
     "duration": 100
    },
    "Vraden #Shake Head 1.aseprite": {
-    "frame": { "x": 45, "y": 770, "w": 45, "h": 35 },
+    "frame": { "x": 0, "y": 0, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
@@ -592,7 +616,7 @@
     "duration": 100
    },
    "Vraden #Shake Head 2.aseprite": {
-    "frame": { "x": 90, "y": 770, "w": 45, "h": 35 },
+    "frame": { "x": 0, "y": 700, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
@@ -600,7 +624,7 @@
     "duration": 100
    },
    "Vraden #Shake Head 3.aseprite": {
-    "frame": { "x": 135, "y": 770, "w": 45, "h": 35 },
+    "frame": { "x": 0, "y": 0, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
@@ -608,7 +632,7 @@
     "duration": 100
    },
    "Vraden #Nod Right 0.aseprite": {
-    "frame": { "x": 0, "y": 805, "w": 45, "h": 35 },
+    "frame": { "x": 0, "y": 770, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
@@ -616,7 +640,7 @@
     "duration": 100
    },
    "Vraden #Nod Right 1.aseprite": {
-    "frame": { "x": 45, "y": 805, "w": 45, "h": 35 },
+    "frame": { "x": 0, "y": 70, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
@@ -624,7 +648,7 @@
     "duration": 100
    },
    "Vraden #Nod Left 0.aseprite": {
-    "frame": { "x": 0, "y": 840, "w": 45, "h": 35 },
+    "frame": { "x": 0, "y": 805, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
@@ -632,23 +656,23 @@
     "duration": 100
    },
    "Vraden #Nod Left 1.aseprite": {
-    "frame": { "x": 45, "y": 840, "w": 45, "h": 35 },
+    "frame": { "x": 0, "y": 105, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
     "sourceSize": { "w": 45, "h": 35 },
     "duration": 100
    },
-   "Vraden #Gesture Down 0.aseprite": {
+   "Vraden #Gesture Down.aseprite": {
+    "frame": { "x": 0, "y": 840, "w": 45, "h": 35 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
+    "sourceSize": { "w": 45, "h": 35 },
+    "duration": 100
+   },
+   "Vraden #Gesture Up.aseprite": {
     "frame": { "x": 0, "y": 875, "w": 45, "h": 35 },
-    "rotated": false,
-    "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
-    "sourceSize": { "w": 45, "h": 35 },
-    "duration": 100
-   },
-   "Vraden #Gesture Up 0.aseprite": {
-    "frame": { "x": 0, "y": 910, "w": 45, "h": 35 },
     "rotated": false,
     "trimmed": false,
     "spriteSourceSize": { "x": 0, "y": 0, "w": 45, "h": 35 },
@@ -658,39 +682,39 @@
  },
  "meta": {
   "app": "https://www.aseprite.org/",
-  "version": "1.3-rc4-x64",
+  "version": "1.3.2-arm64",
   "image": "Vraden.png",
   "format": "RGBA8888",
-  "size": { "w": 315, "h": 945 },
+  "size": { "w": 270, "h": 910 },
   "scale": "1",
   "frameTags": [
-   { "name": "Idle Down", "from": 0, "to": 1, "direction": "forward", "color": "#000000ff" },
-   { "name": "Idle Up", "from": 2, "to": 3, "direction": "forward", "color": "#000000ff" },
-   { "name": "Idle Right", "from": 4, "to": 5, "direction": "forward", "color": "#000000ff" },
-   { "name": "Idle Left", "from": 6, "to": 7, "direction": "forward", "color": "#000000ff" },
-   { "name": "Run Down", "from": 8, "to": 13, "direction": "forward", "color": "#000000ff" },
-   { "name": "Run Up", "from": 14, "to": 19, "direction": "forward", "color": "#000000ff" },
-   { "name": "Run Right", "from": 20, "to": 25, "direction": "forward", "color": "#000000ff" },
-   { "name": "Run Left", "from": 26, "to": 31, "direction": "forward", "color": "#000000ff" },
-   { "name": "Lift Right Hand", "from": 32, "to": 32, "direction": "forward", "color": "#000000ff" },
-   { "name": "Hair Sparkle", "from": 33, "to": 39, "direction": "forward", "color": "#000000ff" },
-   { "name": "Walk Down", "from": 40, "to": 45, "direction": "forward", "color": "#000000ff" },
-   { "name": "Walk Up", "from": 46, "to": 51, "direction": "forward", "color": "#000000ff" },
-   { "name": "Walk Right", "from": 52, "to": 57, "direction": "forward", "color": "#000000ff" },
-   { "name": "Walk Left", "from": 58, "to": 63, "direction": "forward", "color": "#000000ff" },
-   { "name": "Facepalm", "from": 64, "to": 64, "direction": "forward", "color": "#000000ff" },
-   { "name": "Shocked", "from": 65, "to": 65, "direction": "forward", "color": "#000000ff" },
-   { "name": "Two Arm Underhand Gesture Right", "from": 66, "to": 66, "direction": "forward", "color": "#000000ff" },
-   { "name": "Two Arm Underhand Gesture Left", "from": 67, "to": 67, "direction": "forward", "color": "#000000ff" },
-   { "name": "Gesture Right", "from": 68, "to": 68, "direction": "forward", "color": "#000000ff" },
-   { "name": "Gesture Left", "from": 69, "to": 69, "direction": "forward", "color": "#000000ff" },
-   { "name": "Glance Right", "from": 70, "to": 70, "direction": "forward", "color": "#000000ff" },
-   { "name": "Glance Left", "from": 71, "to": 71, "direction": "forward", "color": "#000000ff" },
-   { "name": "Shake Head", "from": 72, "to": 75, "direction": "forward", "color": "#000000ff" },
-   { "name": "Nod Right", "from": 76, "to": 77, "direction": "forward", "color": "#000000ff" },
-   { "name": "Nod Left", "from": 78, "to": 79, "direction": "forward", "color": "#000000ff" },
-   { "name": "Gesture Down", "from": 80, "to": 80, "direction": "forward", "color": "#000000ff" },
-   { "name": "Gesture Up", "from": 81, "to": 81, "direction": "forward", "color": "#000000ff" }
+   { "name": "Idle Down", "from": 0, "to": 2, "direction": "forward", "color": "#000000ff" },
+   { "name": "Idle Up", "from": 3, "to": 4, "direction": "forward", "color": "#000000ff" },
+   { "name": "Idle Right", "from": 5, "to": 7, "direction": "forward", "color": "#000000ff" },
+   { "name": "Idle Left", "from": 8, "to": 10, "direction": "forward", "color": "#000000ff" },
+   { "name": "Run Down", "from": 11, "to": 16, "direction": "forward", "color": "#000000ff" },
+   { "name": "Run Up", "from": 17, "to": 22, "direction": "forward", "color": "#000000ff" },
+   { "name": "Run Right", "from": 23, "to": 28, "direction": "forward", "color": "#000000ff" },
+   { "name": "Run Left", "from": 29, "to": 34, "direction": "forward", "color": "#000000ff" },
+   { "name": "Lift Right Hand", "from": 35, "to": 35, "direction": "forward", "color": "#000000ff" },
+   { "name": "Hair Sparkle", "from": 36, "to": 42, "direction": "forward", "repeat": "1", "color": "#000000ff" },
+   { "name": "Walk Down", "from": 43, "to": 48, "direction": "forward", "color": "#000000ff" },
+   { "name": "Walk Up", "from": 49, "to": 54, "direction": "forward", "color": "#000000ff" },
+   { "name": "Walk Right", "from": 55, "to": 60, "direction": "forward", "color": "#000000ff" },
+   { "name": "Walk Left", "from": 61, "to": 66, "direction": "forward", "color": "#000000ff" },
+   { "name": "Facepalm", "from": 67, "to": 67, "direction": "forward", "color": "#000000ff" },
+   { "name": "Shocked", "from": 68, "to": 68, "direction": "forward", "color": "#000000ff" },
+   { "name": "Two Arm Underhand Gesture Right", "from": 69, "to": 69, "direction": "forward", "color": "#000000ff" },
+   { "name": "Two Arm Underhand Gesture Left", "from": 70, "to": 70, "direction": "forward", "color": "#000000ff" },
+   { "name": "Gesture Right", "from": 71, "to": 71, "direction": "forward", "color": "#000000ff" },
+   { "name": "Gesture Left", "from": 72, "to": 72, "direction": "forward", "color": "#000000ff" },
+   { "name": "Glance Right", "from": 73, "to": 73, "direction": "forward", "color": "#000000ff" },
+   { "name": "Glance Left", "from": 74, "to": 74, "direction": "forward", "color": "#000000ff" },
+   { "name": "Shake Head", "from": 75, "to": 78, "direction": "forward", "color": "#000000ff" },
+   { "name": "Nod Right", "from": 79, "to": 80, "direction": "forward", "color": "#000000ff" },
+   { "name": "Nod Left", "from": 81, "to": 82, "direction": "forward", "color": "#000000ff" },
+   { "name": "Gesture Down", "from": 83, "to": 83, "direction": "forward", "color": "#000000ff" },
+   { "name": "Gesture Up", "from": 84, "to": 84, "direction": "forward", "color": "#000000ff" }
   ],
   "layers": [
    { "name": "Layer 1", "opacity": 255, "blendMode": "normal" }

@@ -83,19 +83,23 @@ namespace carrot::assets {
         if (delta_time <= 0.f)
             return;
 
-        if (_animation->frame_indices.empty())
+        if (_animation->frames.empty())
             return;
 
-        if (_animation->fps <= 0.f)
-            return;
-
-        const float frame_duration{ 1.f / _animation->fps };
         _accumulated_time += delta_time;
 
-        while (_accumulated_time >= frame_duration)
+        while (_frame_index_in_animation < _animation->frames.size())
         {
-            _accumulated_time -= frame_duration;
-            const uint32_t last_frame_index{ static_cast<uint32_t>(_animation->frame_indices.size() - 1) };
+            const sprite_animation_frame_t& current_anim_frame{ _animation->frames[_frame_index_in_animation] };
+
+            if (current_anim_frame.duration_seconds <= 0.f)
+                return;
+
+            if (_accumulated_time < current_anim_frame.duration_seconds)
+                break;
+
+            _accumulated_time -= current_anim_frame.duration_seconds;
+            const uint32_t last_frame_index{ static_cast<uint32_t>(_animation->frames.size() - 1) };
 
             if (_frame_index_in_animation < last_frame_index)
             {
@@ -121,14 +125,13 @@ namespace carrot::assets {
         if (!_sprite || !_animation)
             return nullptr;
 
-        if (_animation->frame_indices.empty())
+        if (_animation->frames.empty())
             return nullptr;
 
-        if (_frame_index_in_animation >= _animation->frame_indices.size())
+        if (_frame_index_in_animation >= _animation->frames.size())
             return nullptr;
 
-        const uint32_t frame_index{ _animation->frame_indices[_frame_index_in_animation] };
-
+        const uint32_t frame_index{ _animation->frames[_frame_index_in_animation].frame_index };
         return _sprite->sprite().frame_at(frame_index);
     }
 

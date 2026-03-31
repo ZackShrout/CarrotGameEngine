@@ -206,7 +206,8 @@ namespace carrot {
         }
 
         _audio_module->update(_delta_time);
-        _test_sprite_animator.update(_delta_time);
+        _vraden_animator.update(_delta_time);
+        _kelvara_animator.update(_delta_time);
 
         // debug::text(20.f, 30.f, "FPS: %u", _current_fps);
         // debug::text(20.f, 65.f, "Frame: %.3f ms", _delta_time * 1000.f);
@@ -392,10 +393,10 @@ namespace carrot {
         // Sprite Test
         // ─────────────────────────────────────────────────────────────────────────────
 
-        if (const assets::sprite_frame_t* current{ _test_sprite_animator.current_frame() })
+        if (const assets::sprite_frame_t* current{ _vraden_animator.current_frame() })
         {
             renderer::sprite_draw_info_t sprite_draw{ };
-            sprite_draw.sprite = _test_sprite;
+            sprite_draw.sprite = _test_sprite_vraden;
             sprite_draw.frame = current;
             sprite_draw.x = -0.85f;
             sprite_draw.y = -0.10f;
@@ -408,7 +409,26 @@ namespace carrot {
         }
         else
         {
-            LOG_CORE_WARN("Sprite smoke test animator returned no current frame.");
+            LOG_CORE_WARN("Vraden animator returned no current frame.");
+        }
+
+        if (const assets::sprite_frame_t* current{ _kelvara_animator.current_frame() })
+        {
+            renderer::sprite_draw_info_t sprite_draw{ };
+            sprite_draw.sprite = _test_sprite_kelvara;
+            sprite_draw.frame = current;
+            sprite_draw.x = 0.6f;
+            sprite_draw.y = -0.10f;
+            sprite_draw.width = 0.25f;
+            sprite_draw.height = 0.25f;
+            sprite_draw.color = 0xFFFFFFFFu;
+            sprite_draw.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
+
+            _renderer->draw_sprite(sprite_draw);
+        }
+        else
+        {
+            LOG_CORE_WARN("Kelvara animator returned no current frame.");
         }
     }
 
@@ -520,6 +540,7 @@ namespace carrot {
         register_texture_asset_manifest("engine://textures/16x16orange.texture.json");
         register_texture_asset_manifest("engine://textures/carrot_engine_logo_512.texture.json");
         register_texture_asset_manifest("game://textures/vraden.texture.json");
+        register_texture_asset_manifest("game://textures/kelvara.texture.json");
     }
 
     bool engine_t::register_texture_asset_manifest(std::string_view manifest_uri)
@@ -547,6 +568,7 @@ namespace carrot {
     void engine_t::register_builtin_sprite_assets()
     {
         register_sprite_asset_manifest("game://sprites/vraden.sprite.json");
+        register_sprite_asset_manifest("game://sprites/kelvara.sprite.json");
     }
 
     bool engine_t::register_sprite_asset_manifest(std::string_view manifest_uri)
@@ -573,12 +595,20 @@ namespace carrot {
 
     void engine_t::build_test_sprite()
     {
-        _test_sprite = _asset_manager->sprites().get("sprite.vraden");
+        _test_sprite_vraden = _asset_manager->sprites().get("sprite.vraden");
 
-        if (_test_sprite)
+        if (_test_sprite_vraden)
         {
-            _test_sprite_animator.set_sprite(_test_sprite);
-            _test_sprite_animator.play("idle_down");
+            _vraden_animator.set_sprite(_test_sprite_vraden);
+            _vraden_animator.play("idle_down");
+        }
+
+        _test_sprite_kelvara = _asset_manager->sprites().get("sprite.kelvara");
+
+        if (_test_sprite_kelvara)
+        {
+            _kelvara_animator.set_sprite(_test_sprite_kelvara);
+            _kelvara_animator.play("excited_left");
         }
     }
 } // namespace carrot

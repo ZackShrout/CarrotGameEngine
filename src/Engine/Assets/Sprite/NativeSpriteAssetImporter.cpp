@@ -146,7 +146,8 @@ namespace carrot::assets {
             {
                 if (anim_name_sv.empty())
                 {
-                    LOG_ASSET_ERROR("Sprite asset '{}' contains an animation with an empty name", logical_id);
+                    LOG_ASSET_ERROR("Sprite asset '{}' contains an animation with an empty name",
+                                    logical_id);
                     return false;
                 }
 
@@ -155,23 +156,24 @@ namespace carrot::assets {
 
                 sprite_animation_t animation{ };
                 animation.name = anim_name;
-                animation.fps = static_cast<float>(anim_json.get_number_or("fps", 12.0));
                 animation.loop = anim_json.get_bool_or("loop", true);
 
                 if (!anim_json.has("frames"))
                 {
-                    LOG_ASSET_ERROR("Sprite asset '{}' animation '{}' is missing required 'frames' array", logical_id,
-                                    anim_name);
+                    LOG_ASSET_ERROR("Sprite asset '{}' animation '{}' is missing required 'frames' array",
+                                    logical_id, anim_name);
                     return false;
                 }
 
                 const utils::json::json_array_view_t frame_array{ anim_json.get_array("frames") };
-                for (const auto& frame_name_value: frame_array)
+                for (const auto& frame_entry_value: frame_array)
                 {
-                    const std::string_view frame_name{ frame_name_value.as_string() };
+                    const utils::json::json_object_view_t frame_entry{ frame_entry_value.as_object() };
+
+                    const std::string_view frame_name{ frame_entry.get_string("frame") };
                     if (!frame_name.data())
                     {
-                        LOG_ASSET_ERROR("Sprite asset '{}' animation '{}' contains a non-string frame reference",
+                        LOG_ASSET_ERROR("Sprite asset '{}' animation '{}' contains an entry missing 'frame'",
                                         logical_id, anim_name);
                         return false;
                     }
@@ -179,12 +181,24 @@ namespace carrot::assets {
                     const auto it{ frame_name_to_index.find(std::string{ frame_name }) };
                     if (it == frame_name_to_index.end())
                     {
-                        LOG_ASSET_ERROR("Sprite asset '{}' animation '{}' references unknown frame '{}'", logical_id,
-                                        anim_name, frame_name);
+                        LOG_ASSET_ERROR("Sprite asset '{}' animation '{}' references unknown frame '{}'",
+                                        logical_id, anim_name, frame_name);
                         return false;
                     }
 
-                    animation.frame_indices.push_back(it->second);
+                    const double duration{ frame_entry.get_number_or("duration", -1.0) };
+                    if (duration <= 0.0)
+                    {
+                        LOG_ASSET_ERROR("Sprite asset '{}' animation '{}' frame '{}' has invalid duration {}",
+                                        logical_id, anim_name, frame_name, duration);
+                        return false;
+                    }
+
+                    sprite_animation_frame_t anim_frame{ };
+                    anim_frame.frame_index = it->second;
+                    anim_frame.duration_seconds = static_cast<float>(duration);
+
+                    animation.frames.emplace_back(anim_frame);
                 }
 
                 record.sprite.add_animation(std::move(animation));

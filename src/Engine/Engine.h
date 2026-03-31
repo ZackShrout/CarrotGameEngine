@@ -85,7 +85,9 @@ namespace carrot {
         on_tick_t                                           _on_tick;
         renderer::renderer_stats_t                          _last_logged_renderer_stats;
 
-        const assets::loaded_sprite_asset_t*                _test_sprite;
-        assets::sprite_animator_t                           _test_sprite_animator;
+        const assets::loaded_sprite_asset_t*                _test_sprite_vraden;
+        const assets::loaded_sprite_asset_t*                _test_sprite_kelvara;
+        assets::sprite_animator_t                           _vraden_animator;
+        assets::sprite_animator_t                           _kelvara_animator;
     };
 } // namespace carrot

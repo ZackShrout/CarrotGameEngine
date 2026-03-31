@@ -10,11 +10,16 @@
 #include <vector>
 
 namespace carrot::assets {
+    struct sprite_animation_frame_t
+    {
+        uint32_t frame_index{ 0 };
+        float duration_seconds{ 0.1f };
+    };
+
     struct sprite_animation_t
     {
         std::string name;
-        float fps{ 12.f };
         bool loop{ true };
-        std::vector<uint32_t> frame_indices;
+        std::vector<sprite_animation_frame_t> frames;
     };
 } // namespace carrot::assets

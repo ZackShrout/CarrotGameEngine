@@ -197,8 +197,8 @@ namespace carrot::assets {
 
                     if (direction.data() && direction != "forward")
                     {
-                        LOG_ASSET_ERROR("Aseprite sprite '{}' tag '{}' uses unsupported direction '{}'.", logical_id,
-                                        raw_name, direction);
+                        LOG_ASSET_ERROR("Aseprite sprite '{}' tag '{}' uses unsupported direction '{}'.",
+                                        logical_id, raw_name, direction);
                         return false;
                     }
 
@@ -209,25 +209,26 @@ namespace carrot::assets {
                         return false;
                     }
 
-                    const uint32_t first_duration{ frame_durations_ms[static_cast<size_t>(from)] };
-                    for (int64_t i{ static_cast<int64_t>(from) }; i <= static_cast<int64_t>(to); ++i)
-                    {
-                        if (frame_durations_ms[static_cast<size_t>(i)] != first_duration)
-                        {
-                            LOG_ASSET_ERROR(
-                                "Aseprite sprite '{}' tag '{}' has mixed frame durations, not supported yet.",
-                                logical_id, raw_name);
-                            return false;
-                        }
-                    }
-
                     sprite_animation_t animation{ };
                     animation.name = normalize_tag_name(raw_name);
                     animation.loop = true;
-                    animation.fps = 1000.0f / static_cast<float>(first_duration);
 
                     for (int64_t i{ static_cast<int64_t>(from) }; i <= static_cast<int64_t>(to); ++i)
-                        animation.frame_indices.push_back(static_cast<uint32_t>(i));
+                    {
+                        const uint32_t duration_ms{ frame_durations_ms[static_cast<size_t>(i)] };
+                        if (duration_ms == 0)
+                        {
+                            LOG_ASSET_ERROR("Aseprite sprite '{}' tag '{}' contains frame {} with invalid duration 0.",
+                                            logical_id, raw_name, i);
+                            return false;
+                        }
+
+                        sprite_animation_frame_t anim_frame{ };
+                        anim_frame.frame_index = static_cast<uint32_t>(i);
+                        anim_frame.duration_seconds = static_cast<float>(duration_ms) / 1000.0f;
+
+                        animation.frames.emplace_back(anim_frame);
+                    }
 
                     record.sprite.add_animation(std::move(animation));
                 }

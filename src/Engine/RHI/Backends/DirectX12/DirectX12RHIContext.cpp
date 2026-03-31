@@ -38,13 +38,11 @@ namespace carrot::rhi::dx12 {
         {
             dx12_frame_t& frame{ _frames[i] };
 
-            HRESULT hr{
-                _device->id3d12_device()->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
-                                                                 IID_PPV_ARGS(&frame.allocator))
-            };
+            DX12_CHECK(
+                _device->id3d12_device()->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&frame.
+                    allocator)));
 
-            if (FAILED(hr))
-                LOG_GRAPHICS_FATAL("Failed to create DX12 command allocator");
+            DX12_NAME_INDEXED(frame.allocator, i, L"DX12 Frame Command Allocator");
 
             frame.command_list = std::make_unique<dx12_command_list_t>(_device->id3d12_device(), frame.allocator);
             frame.fence = std::make_unique<dx12_fence_t>(_device->id3d12_device());
@@ -104,10 +102,10 @@ namespace carrot::rhi::dx12 {
 
     void dx12_rhi_context_t::begin_frame()
     {
-        dx12_frame_t& frame{ _frames[_frame_index] };
+        const dx12_frame_t& frame{ _frames[_frame_index] };
         frame.fence->wait(frame.fence_value);
 
-        frame.allocator->Reset();
+        DX12_CHECK(frame.allocator->Reset());
         frame.command_list->set_allocator(frame.allocator);
         frame.command_list->reset();
         frame.command_list->begin_recording();
@@ -281,6 +279,7 @@ namespace carrot::rhi::dx12 {
             nullptr,
             IID_PPV_ARGS(&texture)
         ));
+        DX12_NAME(texture, L"DX12 Texture2D");
 
         UINT64 upload_buffer_size{ 0 };
         device->GetCopyableFootprints(&texture_desc, 0, 1, 0, nullptr, nullptr, nullptr, &upload_buffer_size);
@@ -314,6 +313,7 @@ namespace carrot::rhi::dx12 {
             nullptr,
             IID_PPV_ARGS(&upload_buffer)
         ));
+        DX12_NAME(upload_buffer, L"DX12 Texture Upload Buffer");
 
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint{ };
         UINT num_rows{ 0 };
@@ -345,6 +345,9 @@ namespace carrot::rhi::dx12 {
             allocator,
             nullptr,
             IID_PPV_ARGS(&cmd)));
+
+        DX12_NAME(allocator, L"DX12 Texture Upload Command Allocator");
+        DX12_NAME(cmd, L"DX12 Texture Upload Command List");
 
         D3D12_TEXTURE_COPY_LOCATION dst{ };
         dst.pResource = texture;
@@ -449,8 +452,10 @@ namespace carrot::rhi::dx12 {
 
         const uint32_t target_capacity{ std::max(required_capacity, 16u) };
 
-        for (dx12_frame_t& frame: _frames)
+        for (uint32_t frame_index{ 0 }; frame_index < k_max_frames_in_flight; ++frame_index)
         {
+            dx12_frame_t& frame{ _frames[frame_index] };
+
             if (frame.textured_quad_descriptor_capacity >= target_capacity &&
                 frame.textured_quad_srv_heap != nullptr &&
                 frame.textured_quad_sampler_heap != nullptr)
@@ -478,6 +483,7 @@ namespace carrot::rhi::dx12 {
 
             DX12_CHECK(_device->id3d12_device()->CreateDescriptorHeap(&srv_heap_desc,
                 IID_PPV_ARGS(&frame.textured_quad_srv_heap)));
+            DX12_NAME_INDEXED(frame.textured_quad_srv_heap, frame_index, L"DX12 Textured Quad SRV Heap");
 
             D3D12_DESCRIPTOR_HEAP_DESC sampler_heap_desc{ };
             sampler_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
@@ -487,6 +493,7 @@ namespace carrot::rhi::dx12 {
 
             DX12_CHECK(_device->id3d12_device()->CreateDescriptorHeap(&sampler_heap_desc,
                 IID_PPV_ARGS(&frame.textured_quad_sampler_heap)));
+            DX12_NAME_INDEXED(frame.textured_quad_sampler_heap, frame_index, L"DX12 Textured Quad Sampler Heap");
 
             frame.textured_quad_descriptor_capacity = target_capacity;
         }

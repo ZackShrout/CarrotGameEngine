@@ -70,24 +70,29 @@ namespace carrot::rhi::dx12 {
     private:
         void ensure_textured_quad_descriptor_capacity(uint32_t required_capacity);
 
-        std::unique_ptr<dx12_device_t>                      _device;
-        std::unique_ptr<dx12_command_queue_t>               _graphics_queue;
-        std::unique_ptr<dx12_swapchain_t>                   _swapchain;
+        // ── Backend-owned services and persistent objects ──
+        std::unique_ptr<dx12_device_t>                    _device;
+        std::unique_ptr<dx12_command_queue_t>             _graphics_queue;
+        std::unique_ptr<dx12_swapchain_t>                 _swapchain;
+        std::unique_ptr<dx12_textured_quad_pipeline_t>    _textured_quad_pipeline;
 
-        std::array<dx12_frame_t, k_max_frames_in_flight>    _frames;
-        uint32_t                                            _frame_index{ 0 };
-        uint32_t                                            _rtv_descriptor_stride{ 0 };
+        // ── Per-frame GPU resources and frame progression ──
+        std::array<dx12_frame_t, k_max_frames_in_flight>  _frames;
+        uint32_t                                          _frame_index{ 0 };
 
-        std::vector<renderer::textured_quad_batch_t> _textured_quad_batches;
+        // ── Swapchain / render-target descriptor bookkeeping ──
+        uint32_t                                          _rtv_descriptor_stride{ 0 };
 
+        // ── Renderer submission state ──
+        const rhi_buffer_t*                               _textured_quad_vertex_buffer{ nullptr };
+        const rhi_buffer_t*                               _textured_quad_index_buffer{ nullptr };
+        std::vector<renderer::textured_quad_batch_t>      _textured_quad_batches;
+
+        // ── Dynamic per-batch descriptor state ──
+        uint32_t                                          _srv_descriptor_stride{ 0 };
+        uint32_t                                          _sampler_descriptor_stride{ 0 };
+
+        // ── Sampler caching ──
         std::unordered_map<sampler_desc_t, std::unique_ptr<dx12_sampler_t>, sampler_desc_hash_t> _sampler_cache;
-
-        const rhi_buffer_t* _textured_quad_vertex_buffer{ nullptr };
-        const rhi_buffer_t* _textured_quad_index_buffer{ nullptr };
-
-        std::unique_ptr<dx12_textured_quad_pipeline_t> _textured_quad_pipeline;
-
-        uint32_t _srv_descriptor_stride{ 0 };
-        uint32_t _sampler_descriptor_stride{ 0 };
     };
 } // namespace carrot::rhi::dx12

@@ -62,7 +62,9 @@ namespace carrot::rhi::dx12 {
         ID3DBlob* sig_blob{ nullptr };
         ID3DBlob* error_blob{ nullptr };
 
-        HRESULT hr{ D3D12SerializeRootSignature(&root_sig_desc, D3D_ROOT_SIGNATURE_VERSION_1, &sig_blob, &error_blob) };
+        const HRESULT hr{
+            D3D12SerializeRootSignature(&root_sig_desc, D3D_ROOT_SIGNATURE_VERSION_1, &sig_blob, &error_blob)
+        };
 
         if (FAILED(hr))
         {
@@ -70,22 +72,33 @@ namespace carrot::rhi::dx12 {
             {
                 LOG_GRAPHICS_ERROR("DX12 textured quad root signature error: {}",
                                    static_cast<const char*>(error_blob->GetBufferPointer()));
+                error_blob->Release();
+                error_blob = nullptr;
             }
 
-            if (sig_blob) sig_blob->Release();
-            if (error_blob) error_blob->Release();
+            if (sig_blob)
+            {
+                sig_blob->Release();
+                sig_blob = nullptr;
+            }
 
             LOG_GRAPHICS_FATAL("Failed to serialize DX12 textured quad root signature");
-
-            return;
         }
 
         DX12_CHECK(
             _device->CreateRootSignature(0, sig_blob->GetBufferPointer(), sig_blob->GetBufferSize(), IID_PPV_ARGS(&
                 _root_signature)));
 
-        if (sig_blob) sig_blob->Release();
-        if (error_blob) error_blob->Release();
+        DX12_NAME(_root_signature, L"DX12 Textured Quad Root Signature");
+
+        sig_blob->Release();
+        sig_blob = nullptr;
+
+        if (error_blob)
+        {
+            error_blob->Release();
+            error_blob = nullptr;
+        }
 
         const auto vs_path{ shader_files.resolve("engine://shaders/dx12/textured_quad.vert.dxil") };
         const auto ps_path{ shader_files.resolve("engine://shaders/dx12/textured_quad.frag.dxil") };
@@ -165,6 +178,7 @@ namespace carrot::rhi::dx12 {
         pso_desc.SampleDesc.Quality = 0;
 
         DX12_CHECK(_device->CreateGraphicsPipelineState(&pso_desc, IID_PPV_ARGS(&_pipeline_state)));
+        DX12_NAME(_pipeline_state, L"DX12 Textured Quad Pipeline State");
     }
 
     dx12_textured_quad_pipeline_t::~dx12_textured_quad_pipeline_t()
@@ -198,16 +212,16 @@ namespace carrot::rhi::dx12 {
 
         ID3D12GraphicsCommandList* cmd{ draw_context.command_list };
 
-        const auto& dx_vertex_buffer = static_cast<const dx12_buffer_t&>(*draw_context.vertex_buffer);
-        const auto& dx_index_buffer = static_cast<const dx12_buffer_t&>(*draw_context.index_buffer);
+        const dx12_buffer_t& dx_vertex_buffer{ dynamic_cast<const dx12_buffer_t&>(*draw_context.vertex_buffer) };
+        const dx12_buffer_t& dx_index_buffer{ dynamic_cast<const dx12_buffer_t&>(*draw_context.index_buffer) };
 
         D3D12_VIEWPORT viewport{ };
-        viewport.TopLeftX = 0.0f;
-        viewport.TopLeftY = 0.0f;
+        viewport.TopLeftX = 0.f;
+        viewport.TopLeftY = 0.f;
         viewport.Width = static_cast<float>(draw_context.render_width);
         viewport.Height = static_cast<float>(draw_context.render_height);
-        viewport.MinDepth = 0.0f;
-        viewport.MaxDepth = 1.0f;
+        viewport.MinDepth = 0.f;
+        viewport.MaxDepth = 1.f;
 
         D3D12_RECT scissor{ };
         scissor.left = 0;
@@ -247,7 +261,7 @@ namespace carrot::rhi::dx12 {
             descriptor_context.tables.sampler_heap->GetGPUDescriptorHandleForHeapStart()
         };
 
-        for (uint32_t i{ 0 }; i < draw_context.batches.size(); ++i)
+        for (uint32_t i{ 0 }; i < static_cast<uint32_t>(draw_context.batches.size()); ++i)
         {
             const auto& batch{ draw_context.batches[i] };
 
@@ -275,7 +289,7 @@ namespace carrot::rhi::dx12 {
             return;
         }
 
-        const auto* dx_texture = dynamic_cast<const dx12_texture_t*>(batch.texture);
+        const dx12_texture_t* dx_texture{ dynamic_cast<const dx12_texture_t*>(batch.texture) };
         if (!dx_texture)
         {
             LOG_GRAPHICS_FATAL("DX12 textured quad batch texture is not a dx12_texture_t");
@@ -289,7 +303,7 @@ namespace carrot::rhi::dx12 {
         srv_desc.Texture2D.MostDetailedMip = 0;
         srv_desc.Texture2D.MipLevels = 1;
         srv_desc.Texture2D.PlaneSlice = 0;
-        srv_desc.Texture2D.ResourceMinLODClamp = 0.0f;
+        srv_desc.Texture2D.ResourceMinLODClamp = 0.f;
 
         D3D12_CPU_DESCRIPTOR_HANDLE srv_handle{
             descriptor_context.tables.srv_heap->GetCPUDescriptorHandleForHeapStart()
@@ -299,8 +313,7 @@ namespace carrot::rhi::dx12 {
         _device->CreateShaderResourceView(dx_texture->resource(), &srv_desc, srv_handle);
 
         const sampler_desc_t sampler_desc{ sampler_desc_from_preset(batch.sampler_preset) };
-        rhi_sampler_t* sampler_base{ descriptor_context.sampler_provider->get_or_create_sampler(sampler_desc) };
-        if (!sampler_base)
+        if (!descriptor_context.sampler_provider->get_or_create_sampler(sampler_desc))
         {
             LOG_GRAPHICS_FATAL("DX12 textured quad pipeline failed to retrieve sampler");
             return;

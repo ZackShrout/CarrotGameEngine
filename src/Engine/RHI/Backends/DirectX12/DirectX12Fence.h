@@ -16,7 +16,7 @@ namespace carrot::rhi::dx12 {
         ~dx12_fence_t() override;
 
         void wait(uint64_t timeout_ns = ~0ULL) override;
-        void reset() override;
+        void advance() override;
 
         uint64_t signal(ID3D12CommandQueue* queue);
 

@@ -3,6 +3,8 @@
 // Copyright (c) 2026 BunnySoft. All rights reserved.
 //
 
+#include "Core/Pch.h"
+
 #include "DirectX12Buffer.h"
 
 namespace carrot::rhi::dx12 {
@@ -43,8 +45,20 @@ namespace carrot::rhi::dx12 {
             device->CreateCommittedResource(&heap_props, D3D12_HEAP_FLAG_NONE, &resource_desc, initial_state, nullptr,
                 IID_PPV_ARGS(&_resource)));
 
-        if (!_resource)
-            LOG_GRAPHICS_FATAL("Failed to create DX12 buffer resource");
+        const wchar_t* debug_name{ L"DX12 Buffer" };
+
+        if (info.cpu_writable)
+            debug_name = L"DX12 Upload Buffer";
+        else if (info.usage == buffer_usage_t::vertex)
+            debug_name = L"DX12 Vertex Buffer";
+        else if (info.usage == buffer_usage_t::index)
+            debug_name = L"DX12 Index Buffer";
+        else if (info.usage == buffer_usage_t::uniform)
+            debug_name = L"DX12 Uniform Buffer";
+        else if (info.usage == buffer_usage_t::staging)
+            debug_name = L"DX12 Staging Buffer";
+
+        DX12_NAME(_resource, debug_name);
 
         if (info.cpu_writable)
         {

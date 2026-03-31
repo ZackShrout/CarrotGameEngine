@@ -16,9 +16,7 @@ namespace carrot::rhi::dx12 {
         : _device{ device }, _width{ width }, _height{ height }
     {
         IDXGIFactory6* factory{ nullptr };
-        HRESULT hr{ CreateDXGIFactory2(0, IID_PPV_ARGS(&factory)) };
-        if (FAILED(hr))
-            LOG_GRAPHICS_FATAL("Failed to create DXGI factory");
+        DX12_CHECK(CreateDXGIFactory2(0, IID_PPV_ARGS(&factory)));
 
         DXGI_SWAP_CHAIN_DESC1 desc{ };
         desc.Width = width;
@@ -30,16 +28,11 @@ namespace carrot::rhi::dx12 {
         desc.SampleDesc.Count = 1;
 
         IDXGISwapChain1* sc1{ nullptr };
-        hr = factory->CreateSwapChainForHwnd(command_queue, hwnd, &desc, nullptr, nullptr, &sc1);
-        if (FAILED(hr))
-            LOG_GRAPHICS_FATAL("Failed to create DX12 swapchain");
-
-        hr = sc1->QueryInterface(IID_PPV_ARGS(&_swapchain));
-        if (FAILED(hr))
-            LOG_GRAPHICS_FATAL("Failed to query IDXGISwapChain4");
+        DX12_CHECK(factory->CreateSwapChainForHwnd(command_queue, hwnd, &desc, nullptr, nullptr, &sc1));
+        DX12_CHECK(sc1->QueryInterface(IID_PPV_ARGS(&_swapchain)));
 
         IDXGIFactory* parent_factory{ nullptr };
-        if ( SUCCEEDED(_swapchain->GetParent(IID_PPV_ARGS(&parent_factory))) && parent_factory)
+        if (SUCCEEDED(_swapchain->GetParent(IID_PPV_ARGS(&parent_factory))) && parent_factory)
         {
             if (FAILED(parent_factory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER | DXGI_MWA_NO_WINDOW_CHANGES)))
                 LOG_GRAPHICS_DEBUG("DX12: MakeWindowAssociation failed; falling back to default Alt+Enter behavior");
@@ -53,10 +46,14 @@ namespace carrot::rhi::dx12 {
         D3D12_DESCRIPTOR_HEAP_DESC rtv{ };
         rtv.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
         rtv.NumDescriptors = k_max_frames_in_flight;
-        device->CreateDescriptorHeap(&rtv, IID_PPV_ARGS(&_rtv_heap));
+        rtv.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+        rtv.NodeMask = 0;
+
+        DX12_CHECK(device->CreateDescriptorHeap(&rtv, IID_PPV_ARGS(&_rtv_heap)));
+        DX12_NAME(_rtv_heap, L"DX12 Swapchain RTV Heap");
 
         UINT stride{ device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV) };
-        auto handle{ _rtv_heap->GetCPUDescriptorHandleForHeapStart() };
+        D3D12_CPU_DESCRIPTOR_HANDLE handle{ _rtv_heap->GetCPUDescriptorHandleForHeapStart() };
 
         D3D12_RENDER_TARGET_VIEW_DESC rtv_desc{ };
         rtv_desc.Format = dx12_backbuffer_rtv_format();
@@ -66,11 +63,11 @@ namespace carrot::rhi::dx12 {
 
         for (uint32_t i{ 0 }; i < k_max_frames_in_flight; ++i)
         {
-            hr = _swapchain->GetBuffer(i, IID_PPV_ARGS(&_backbuffers[i]));
-            if (FAILED(hr))
-                LOG_GRAPHICS_FATAL("Failed to get DX12 backbuffer {}", i);
+            DX12_CHECK(_swapchain->GetBuffer(i, IID_PPV_ARGS(&_backbuffers[i])));
 
             device->CreateRenderTargetView(_backbuffers[i], &rtv_desc, handle);
+            DX12_NAME_INDEXED(_backbuffers[i], i, L"DX12 Swapchain Backbuffer");
+
             handle.ptr += stride;
         }
 
@@ -139,32 +136,17 @@ namespace carrot::rhi::dx12 {
 
         // Get current swapchain description so we preserve format/flags
         DXGI_SWAP_CHAIN_DESC desc{ };
-        HRESULT hr = _swapchain->GetDesc(&desc);
-        if (FAILED(hr))
-        {
-            LOG_GRAPHICS_FATAL("Failed to get DX12 swapchain desc");
-        }
+        DX12_CHECK(_swapchain->GetDesc(&desc));
 
         // Resize buffers
-        hr = _swapchain->ResizeBuffers(
-            k_max_frames_in_flight,
-            width,
-            height,
-            desc.BufferDesc.Format,
-            desc.Flags
-        );
+        const HRESULT hr{
+            _swapchain->ResizeBuffers(k_max_frames_in_flight, width, height, desc.BufferDesc.Format, desc.Flags)
+        };
 
-        if (FAILED(hr))
-        {
-            if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
-            {
-                LOG_GRAPHICS_FATAL("DX12 device lost during ResizeBuffers (hr={:#x})", hr);
-            }
-            else
-            {
-                LOG_GRAPHICS_FATAL("Failed to resize DX12 swapchain buffers (hr={:#x})", hr);
-            }
-        }
+        if (hr == DXGI_ERROR_DEVICE_REMOVED || hr == DXGI_ERROR_DEVICE_RESET)
+            LOG_GRAPHICS_FATAL("DX12 device lost during ResizeBuffers (hr={:#x})", static_cast<uint32_t>(hr));
+
+        DX12_CHECK(hr);
 
         // Recreate RTV heap
         D3D12_DESCRIPTOR_HEAP_DESC rtv{ };
@@ -173,12 +155,11 @@ namespace carrot::rhi::dx12 {
         rtv.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
         rtv.NodeMask = 0;
 
-        hr = _device->CreateDescriptorHeap(&rtv, IID_PPV_ARGS(&_rtv_heap));
-        if (FAILED(hr))
-            LOG_GRAPHICS_FATAL("Failed to recreate DX12 RTV heap after resize");
+        DX12_CHECK(_device->CreateDescriptorHeap(&rtv, IID_PPV_ARGS(&_rtv_heap)));
+        DX12_NAME(_rtv_heap, L"DX12 Swapchain RTV Heap");
 
-        UINT stride = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-        auto handle = _rtv_heap->GetCPUDescriptorHandleForHeapStart();
+        const UINT stride{ _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV) };
+        D3D12_CPU_DESCRIPTOR_HANDLE handle{ _rtv_heap->GetCPUDescriptorHandleForHeapStart() };
 
         D3D12_RENDER_TARGET_VIEW_DESC rtv_desc{ };
         rtv_desc.Format = dx12_backbuffer_rtv_format();
@@ -188,11 +169,11 @@ namespace carrot::rhi::dx12 {
 
         for (uint32_t i = 0; i < k_max_frames_in_flight; ++i)
         {
-            hr = _swapchain->GetBuffer(i, IID_PPV_ARGS(&_backbuffers[i]));
-            if (FAILED(hr))
-                LOG_GRAPHICS_FATAL("Failed to get DX12 backbuffer {} after resize", i);
+            DX12_CHECK(_swapchain->GetBuffer(i, IID_PPV_ARGS(&_backbuffers[i])));
 
             _device->CreateRenderTargetView(_backbuffers[i], &rtv_desc, handle);
+            DX12_NAME_INDEXED(_backbuffers[i], i, L"DX12 Swapchain Backbuffer");
+
             handle.ptr += stride;
         }
 
@@ -207,13 +188,12 @@ namespace carrot::rhi::dx12 {
 
     void dx12_swapchain_t::present([[maybe_unused]] rhi_semaphore_t* wait_semaphore)
     {
-        _swapchain->Present(1, 0);
+        DX12_CHECK(_swapchain->Present(1, 0));
     }
 
     rhi_texture_t* dx12_swapchain_t::get_current_backbuffer() const
     {
-        // Temporary until dx12_texture_t exists
-        return reinterpret_cast<rhi_texture_t *>(_backbuffers[_image_index]);
+        return reinterpret_cast<rhi_texture_t*>(_backbuffers[_image_index]);
     }
 
     D3D12_CPU_DESCRIPTOR_HANDLE dx12_swapchain_t::get_current_rtv(const uint32_t stride) const noexcept

@@ -13,6 +13,6 @@ namespace carrot::rhi {
     public:
         virtual ~rhi_fence_t() = default;
         virtual void wait(uint64_t timeout_ns = ~0ULL) = 0;
-        virtual void reset() = 0;
+        virtual void advance() = 0;
     };
 } // namespace carrot::rhi

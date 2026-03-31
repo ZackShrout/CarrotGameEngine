@@ -21,34 +21,34 @@ namespace carrot::rhi::dx12 {
                 debug->EnableDebugLayer();
                 debug->Release();
             }
+            else
+            {
+                LOG_GRAPHICS_WARN("Failed to enable DX12 debug layer");
+            }
         }
 #endif
 
         IDXGIFactory6* factory{ nullptr };
-        HRESULT hr{ CreateDXGIFactory2(0, IID_PPV_ARGS(&factory)) };
-        if (FAILED(hr))
-            LOG_GRAPHICS_FATAL("Failed to create IDXGI Factory");
+        DX12_CHECK(CreateDXGIFactory2(0, IID_PPV_ARGS(&factory)));
 
         IDXGIAdapter1* adapter{ nullptr };
 
-        for (uint32_t i{ 0 };
-             factory->EnumAdapters1(i, &adapter) != DXGI_ERROR_NOT_FOUND;
-             ++i)
+        for (uint32_t i{ 0 }; factory->EnumAdapters1(i, &adapter) != DXGI_ERROR_NOT_FOUND; ++i)
         {
-            DXGI_ADAPTER_DESC1 desc{ };
-            adapter->GetDesc1(&desc);
+            DXGI_ADAPTER_DESC1 adapter_desc{ };
+            DX12_CHECK(adapter->GetDesc1(&adapter_desc));
 
-            if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+            if (adapter_desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
             {
                 adapter->Release();
+                adapter = nullptr;
                 continue;
             }
 
-            if (SUCCEEDED(D3D12CreateDevice(
-                adapter,
-                D3D_FEATURE_LEVEL_12_0,
-                IID_PPV_ARGS(&_device))))
+            if (SUCCEEDED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&_device))))
             {
+                adapter->Release();
+                adapter = nullptr;
                 break;
             }
 
@@ -59,7 +59,13 @@ namespace carrot::rhi::dx12 {
         if (!_device)
             LOG_GRAPHICS_FATAL("Failed to create D3D12 device");
 
-        factory->Release();
+        DX12_NAME(_device, L"DX12 Device");
+
+        if (factory)
+        {
+            factory->Release();
+            factory = nullptr;
+        }
     }
 
     dx12_device_t::~dx12_device_t()
@@ -70,7 +76,7 @@ namespace carrot::rhi::dx12 {
             ID3D12DebugDevice* debug{ nullptr };
             if (SUCCEEDED(_device->QueryInterface(IID_PPV_ARGS(&debug))))
             {
-                debug->ReportLiveDeviceObjects(D3D12_RLDO_DETAIL);
+                DX12_CHECK(debug->ReportLiveDeviceObjects(D3D12_RLDO_DETAIL));
                 debug->Release();
             }
 #endif
@@ -80,17 +86,17 @@ namespace carrot::rhi::dx12 {
         }
     }
 
-    rhi_command_queue_t* dx12_device_t::create_command_queue(queue_type type)
+    rhi_command_queue_t* dx12_device_t::create_command_queue([[maybe_unused]] queue_type type)
     {
         return nullptr;
     }
 
-    rhi_swapchain_t* dx12_device_t::create_swapchain(uint32_t width, uint32_t height)
+    rhi_swapchain_t* dx12_device_t::create_swapchain([[maybe_unused]] uint32_t width, [[maybe_unused]] uint32_t height)
     {
         return nullptr;
     }
 
-    rhi_buffer_t* dx12_device_t::create_buffer(const buffer_desc_t& desc)
+    rhi_buffer_t* dx12_device_t::create_buffer([[maybe_unused]] const buffer_desc_t& desc)
     {
         return nullptr;
     }
@@ -105,5 +111,5 @@ namespace carrot::rhi::dx12 {
         return nullptr;
     }
 
-    void dx12_device_t::destroy_buffer(rhi_buffer_t* buffer) {}
+    void dx12_device_t::destroy_buffer([[maybe_unused]] rhi_buffer_t* buffer) {}
 } // namespace carrot::rhi::dx12

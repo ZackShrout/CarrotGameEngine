@@ -578,7 +578,7 @@ namespace carrot {
         if (_test_sprite)
         {
             _test_sprite_animator.set_sprite(_test_sprite);
-            _test_sprite_animator.play("idle");
+            _test_sprite_animator.play("idle_down");
         }
     }
 } // namespace carrot

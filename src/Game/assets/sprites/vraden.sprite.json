@@ -1,20 +1,7 @@
 {
   "id": "sprite.vraden",
   "texture": "texture.vraden_sprite",
-
+  "source": "game://sprites/vraden.aseprite.json",
   "pivot": { "x": 0.5, "y": 0.5 },
-  "pixels_per_unit": 32,
-
-  "frames": {
-    "idle_0": { "x": 0,  "y": 0,  "w": 45, "h": 35 },
-    "idle_1": { "x": 45, "y": 0,  "w": 45, "h": 35 }
-  },
-
-  "animations": {
-    "idle": {
-      "fps": 12,
-      "loop": true,
-      "frames": ["idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_0", "idle_1", "idle_1"]
-    }
-  }
+  "pixels_per_unit": 32
 }

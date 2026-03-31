@@ -77,6 +77,7 @@ set(CARROT_ENGINE_SOURCES
         # Renderer (High-level)
         # ========================================
         src/Engine/Renderer/Draw/QuadSamplerPreset.h
+        src/Engine/Renderer/Draw/SpriteDrawInfo.h
         src/Engine/Renderer/Draw/TexturedQuadBatch.h
         src/Engine/Renderer/Draw/TexturedQuadTypes.h
         src/Engine/Renderer/Primitives/QuadMesh.h
@@ -208,8 +209,12 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/Image/ImageLoadError.h
         src/Engine/Assets/Shaders/ShaderFileProvider.h
         src/Engine/Assets/Shaders/VFSShaderFileProvider.h
+        src/Engine/Assets/Sprite/AsepriteSpriteAssetImporter.cpp
+        src/Engine/Assets/Sprite/AsepriteSpriteAssetImporter.h
         src/Engine/Assets/Sprite/LoadedSpriteAsset.cpp
         src/Engine/Assets/Sprite/LoadedSpriteAsset.h
+        src/Engine/Assets/Sprite/NativeSpriteAssetImporter.cpp
+        src/Engine/Assets/Sprite/NativeSpriteAssetImporter.h
         src/Engine/Assets/Sprite/SpriteAnimation.h
         src/Engine/Assets/Sprite/SpriteAnimator.cpp
         src/Engine/Assets/Sprite/SpriteAnimator.h
@@ -219,6 +224,10 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/Sprite/SpriteAssetLoader.h
         src/Engine/Assets/Sprite/SpriteAssetManifestImporter.cpp
         src/Engine/Assets/Sprite/SpriteAssetManifestImporter.h
+        src/Engine/Assets/Sprite/SpriteAssetRegistry.cpp
+        src/Engine/Assets/Sprite/SpriteAssetRegistry.h
+        src/Engine/Assets/Sprite/SpriteAssetSystem.cpp
+        src/Engine/Assets/Sprite/SpriteAssetSystem.h
         src/Engine/Assets/Sprite/SpriteFrame.h
         src/Engine/Assets/Texture/TextureAsset.h
         src/Engine/Assets/Texture/TextureAssetLoader.cpp
@@ -266,11 +275,6 @@ set(CARROT_ENGINE_SOURCES
         # Shaders
         # ========================================
         shaders/ShaderCommon.h
-        src/Engine/Assets/Sprite/SpriteAssetRegistry.cpp
-        src/Engine/Assets/Sprite/SpriteAssetRegistry.h
-        src/Engine/Assets/Sprite/SpriteAssetSystem.cpp
-        src/Engine/Assets/Sprite/SpriteAssetSystem.h
-        src/Engine/Renderer/Draw/SpriteDrawInfo.h
 )
 
 # ------------------------------------------------------------------------

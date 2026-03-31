@@ -23,7 +23,7 @@ namespace carrot::rhi::dx12 {
         DXGI_SWAP_CHAIN_DESC1 desc{ };
         desc.Width = width;
         desc.Height = height;
-        desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        desc.Format = dx12_backbuffer_format();
         desc.BufferCount = k_max_frames_in_flight;
         desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
         desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
@@ -58,13 +58,19 @@ namespace carrot::rhi::dx12 {
         UINT stride{ device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV) };
         auto handle{ _rtv_heap->GetCPUDescriptorHandleForHeapStart() };
 
+        D3D12_RENDER_TARGET_VIEW_DESC rtv_desc{ };
+        rtv_desc.Format = dx12_backbuffer_rtv_format();
+        rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+        rtv_desc.Texture2D.MipSlice = 0;
+        rtv_desc.Texture2D.PlaneSlice = 0;
+
         for (uint32_t i{ 0 }; i < k_max_frames_in_flight; ++i)
         {
             hr = _swapchain->GetBuffer(i, IID_PPV_ARGS(&_backbuffers[i]));
             if (FAILED(hr))
                 LOG_GRAPHICS_FATAL("Failed to get DX12 backbuffer {}", i);
 
-            device->CreateRenderTargetView(_backbuffers[i], nullptr, handle);
+            device->CreateRenderTargetView(_backbuffers[i], &rtv_desc, handle);
             handle.ptr += stride;
         }
 
@@ -174,13 +180,19 @@ namespace carrot::rhi::dx12 {
         UINT stride = _device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
         auto handle = _rtv_heap->GetCPUDescriptorHandleForHeapStart();
 
+        D3D12_RENDER_TARGET_VIEW_DESC rtv_desc{ };
+        rtv_desc.Format = dx12_backbuffer_rtv_format();
+        rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+        rtv_desc.Texture2D.MipSlice = 0;
+        rtv_desc.Texture2D.PlaneSlice = 0;
+
         for (uint32_t i = 0; i < k_max_frames_in_flight; ++i)
         {
             hr = _swapchain->GetBuffer(i, IID_PPV_ARGS(&_backbuffers[i]));
             if (FAILED(hr))
                 LOG_GRAPHICS_FATAL("Failed to get DX12 backbuffer {} after resize", i);
 
-            _device->CreateRenderTargetView(_backbuffers[i], nullptr, handle);
+            _device->CreateRenderTargetView(_backbuffers[i], &rtv_desc, handle);
             handle.ptr += stride;
         }
 

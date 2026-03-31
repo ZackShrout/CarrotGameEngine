@@ -5,13 +5,18 @@
 
 #pragma once
 
+#include "DirectX12Buffer.h"
 #include "DirectX12Common.h"
 #include "DirectX12Core.h"
+#include "DirectX12Sampler.h"
+#include "DirectX12Texture.h"
+#include "Pipelines/DirectX12TexturedQuadPipeline.h"
 #include "RHI/RHI.h"
 
 #include <array>
 #include <memory>
 #include <span>
+#include <unordered_map>
 #include <vector>
 
 namespace carrot::rhi::dx12 {
@@ -23,13 +28,17 @@ namespace carrot::rhi::dx12 {
 
     struct dx12_frame_t
     {
-        ID3D12CommandAllocator*                  allocator{ nullptr };
-        std::unique_ptr<dx12_command_list_t>     command_list;
-        std::unique_ptr<dx12_fence_t>            fence;
-        uint64_t                                 fence_value{ 0 };
+        ID3D12CommandAllocator* allocator{ nullptr };
+        std::unique_ptr<dx12_command_list_t> command_list;
+        std::unique_ptr<dx12_fence_t> fence;
+        uint64_t fence_value{ 0 };
+
+        ID3D12DescriptorHeap* textured_quad_srv_heap{ nullptr };
+        ID3D12DescriptorHeap* textured_quad_sampler_heap{ nullptr };
+        uint32_t textured_quad_descriptor_capacity{ 0 };
     };
 
-    class dx12_rhi_context_t final : public rhi_context_t
+    class dx12_rhi_context_t final : public rhi_context_t, public dx12_textured_quad_sampler_provider_t
     {
     public:
         explicit dx12_rhi_context_t(const rhi_desc_t& desc);
@@ -50,15 +59,17 @@ namespace carrot::rhi::dx12 {
         [[nodiscard]] std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_sampler_t> create_sampler(const sampler_desc_t& desc) const override;
-        void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer, const rhi_buffer_t& index_buffer) override {}
-        void set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches) override {}
+        void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer, const rhi_buffer_t& index_buffer) override;
+        void set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches) override;
 
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
-        void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) override {}
+        void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) override;
 
         void wait_idle() override;
 
     private:
+        void ensure_textured_quad_descriptor_capacity(uint32_t required_capacity);
+
         std::unique_ptr<dx12_device_t>                      _device;
         std::unique_ptr<dx12_command_queue_t>               _graphics_queue;
         std::unique_ptr<dx12_swapchain_t>                   _swapchain;
@@ -67,10 +78,16 @@ namespace carrot::rhi::dx12 {
         uint32_t                                            _frame_index{ 0 };
         uint32_t                                            _rtv_descriptor_stride{ 0 };
 
-        ID3D12RootSignature*                                _root_signature{ nullptr };
-        ID3D12PipelineState*                                _pipeline_state{ nullptr };
-        uint32_t                                            _frame_counter{ 0 };
-
         std::vector<renderer::textured_quad_batch_t> _textured_quad_batches;
+
+        std::unordered_map<sampler_desc_t, std::unique_ptr<dx12_sampler_t>, sampler_desc_hash_t> _sampler_cache;
+
+        const rhi_buffer_t* _textured_quad_vertex_buffer{ nullptr };
+        const rhi_buffer_t* _textured_quad_index_buffer{ nullptr };
+
+        std::unique_ptr<dx12_textured_quad_pipeline_t> _textured_quad_pipeline;
+
+        uint32_t _srv_descriptor_stride{ 0 };
+        uint32_t _sampler_descriptor_stride{ 0 };
     };
 } // namespace carrot::rhi::dx12

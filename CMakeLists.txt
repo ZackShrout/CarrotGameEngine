@@ -254,6 +254,12 @@ set(CARROT_ENGINE_SOURCES
         # Shaders
         # ========================================
         shaders/ShaderCommon.h
+        src/Engine/RHI/Backends/DirectX12/DirectX12Sampler.h
+        src/Engine/RHI/Backends/DirectX12/DirectX12Buffer.cpp
+        src/Engine/RHI/Backends/DirectX12/DirectX12Buffer.h
+        src/Engine/RHI/Backends/DirectX12/DirectX12Texture.h
+        src/Engine/RHI/Backends/DirectX12/Pipelines/DirectX12TexturedQuadPipeline.cpp
+        src/Engine/RHI/Backends/DirectX12/Pipelines/DirectX12TexturedQuadPipeline.h
 )
 
 # ------------------------------------------------------------------------

@@ -40,7 +40,7 @@ namespace carrot::rhi::dx12 {
 
     void dx12_command_list_t::begin_recording()
     {
-
+        // ID3D12GraphicsCommandList enters recording state on Reset().
     }
 
     void dx12_command_list_t::end_recording()

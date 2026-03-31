@@ -199,6 +199,7 @@ function(compile_hlsl_to_dxil TARGET_NAME HLSL_FILE OUTPUT_DIR)
             -T ${PROFILE} -E main
             -DDX12
             -DCARROT_USE_ROOT_SIGNATURES
+            -DCARROT_CLIP_SPACE_Y_SIGN=-1.0
             # Add any other flags you need, e.g. -Zi for debug, -Od, etc.
             # -HV 2021   # HLSL version if needed
             "${ABS_HLSL}" -Fo "${DXIL_OUTPUT}"

@@ -1,0 +1,317 @@
+//
+// Created by zshro on 3/30/2026.
+// Copyright (c) 2026 BunnySoft. All rights reserved.
+//
+
+#include "Core/Pch.h"
+
+#include "DirectX12TexturedQuadPipeline.h"
+
+#include "Assets/Shaders/ShaderFileProvider.h"
+#include "Renderer/Primitives/QuadVertex.h"
+#include "RHI/SamplerPresets.h"
+#include "RHI/Backends/DirectX12/DirectX12Buffer.h"
+#include "RHI/Backends/DirectX12/DirectX12Core.h"
+#include "RHI/Backends/DirectX12/DirectX12Texture.h"
+#include "Utils/File/FileUtils.h"
+
+namespace carrot::rhi::dx12 {
+    dx12_textured_quad_pipeline_t::dx12_textured_quad_pipeline_t(ID3D12Device* device,
+                                                                 assets::shader_file_provider_t& shader_files)
+        : _device{ device }
+    {
+        if (!_device)
+        {
+            LOG_GRAPHICS_FATAL("DX12 textured quad pipeline created with null device");
+            return;
+        }
+
+        D3D12_DESCRIPTOR_RANGE srv_range{ };
+        srv_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+        srv_range.NumDescriptors = 1;
+        srv_range.BaseShaderRegister = 0;
+        srv_range.RegisterSpace = 0;
+        srv_range.OffsetInDescriptorsFromTableStart = 0;
+
+        D3D12_DESCRIPTOR_RANGE sampler_range{ };
+        sampler_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
+        sampler_range.NumDescriptors = 1;
+        sampler_range.BaseShaderRegister = 0;
+        sampler_range.RegisterSpace = 0;
+        sampler_range.OffsetInDescriptorsFromTableStart = 0;
+
+        D3D12_ROOT_PARAMETER root_params[2]{ };
+
+        root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+        root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+        root_params[0].DescriptorTable.NumDescriptorRanges = 1;
+        root_params[0].DescriptorTable.pDescriptorRanges = &srv_range;
+
+        root_params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+        root_params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+        root_params[1].DescriptorTable.NumDescriptorRanges = 1;
+        root_params[1].DescriptorTable.pDescriptorRanges = &sampler_range;
+
+        D3D12_ROOT_SIGNATURE_DESC root_sig_desc{ };
+        root_sig_desc.NumParameters = 2;
+        root_sig_desc.pParameters = root_params;
+        root_sig_desc.NumStaticSamplers = 0;
+        root_sig_desc.pStaticSamplers = nullptr;
+        root_sig_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+        ID3DBlob* sig_blob{ nullptr };
+        ID3DBlob* error_blob{ nullptr };
+
+        HRESULT hr{ D3D12SerializeRootSignature(&root_sig_desc, D3D_ROOT_SIGNATURE_VERSION_1, &sig_blob, &error_blob) };
+
+        if (FAILED(hr))
+        {
+            if (error_blob)
+            {
+                LOG_GRAPHICS_ERROR("DX12 textured quad root signature error: {}",
+                                   static_cast<const char*>(error_blob->GetBufferPointer()));
+            }
+
+            if (sig_blob) sig_blob->Release();
+            if (error_blob) error_blob->Release();
+
+            LOG_GRAPHICS_FATAL("Failed to serialize DX12 textured quad root signature");
+
+            return;
+        }
+
+        DX12_CHECK(
+            _device->CreateRootSignature(0, sig_blob->GetBufferPointer(), sig_blob->GetBufferSize(), IID_PPV_ARGS(&
+                _root_signature)));
+
+        if (sig_blob) sig_blob->Release();
+        if (error_blob) error_blob->Release();
+
+        const auto vs_path{ shader_files.resolve("engine://shaders/dx12/textured_quad.vert.dxil") };
+        const auto ps_path{ shader_files.resolve("engine://shaders/dx12/textured_quad.frag.dxil") };
+
+        if (!vs_path || !ps_path)
+            LOG_GRAPHICS_FATAL("Failed to resolve DX12 textured quad shader paths");
+
+        const auto vs_bytes{ utils::file::load_binary_file(*vs_path) };
+        const auto ps_bytes{ utils::file::load_binary_file(*ps_path) };
+
+        if (!vs_bytes || !ps_bytes)
+            LOG_GRAPHICS_FATAL("Failed to load DX12 textured quad shader bytecode");
+
+        D3D12_SHADER_BYTECODE vs_bc{ };
+        vs_bc.pShaderBytecode = vs_bytes->data();
+        vs_bc.BytecodeLength = vs_bytes->size();
+
+        D3D12_SHADER_BYTECODE ps_bc{ };
+        ps_bc.pShaderBytecode = ps_bytes->data();
+        ps_bc.BytecodeLength = ps_bytes->size();
+
+        constexpr D3D12_INPUT_ELEMENT_DESC input_layout[]{
+            { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+            { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 8, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+            { "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 16, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        };
+
+        D3D12_RASTERIZER_DESC rasterizer{ };
+        rasterizer.FillMode = D3D12_FILL_MODE_SOLID;
+        rasterizer.CullMode = D3D12_CULL_MODE_NONE;
+        rasterizer.FrontCounterClockwise = FALSE;
+        rasterizer.DepthBias = D3D12_DEFAULT_DEPTH_BIAS;
+        rasterizer.DepthBiasClamp = D3D12_DEFAULT_DEPTH_BIAS_CLAMP;
+        rasterizer.SlopeScaledDepthBias = D3D12_DEFAULT_SLOPE_SCALED_DEPTH_BIAS;
+        rasterizer.DepthClipEnable = TRUE;
+        rasterizer.MultisampleEnable = FALSE;
+        rasterizer.AntialiasedLineEnable = FALSE;
+        rasterizer.ForcedSampleCount = 0;
+        rasterizer.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+
+        D3D12_BLEND_DESC blend{ };
+        blend.AlphaToCoverageEnable = FALSE;
+        blend.IndependentBlendEnable = FALSE;
+
+        D3D12_RENDER_TARGET_BLEND_DESC& rt0{ blend.RenderTarget[0] };
+        rt0.BlendEnable = TRUE;
+        rt0.LogicOpEnable = FALSE;
+        rt0.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+        rt0.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+        rt0.BlendOp = D3D12_BLEND_OP_ADD;
+        rt0.SrcBlendAlpha = D3D12_BLEND_ONE;
+        rt0.DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
+        rt0.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+        rt0.LogicOp = D3D12_LOGIC_OP_NOOP;
+        rt0.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
+        D3D12_DEPTH_STENCIL_DESC depth_stencil{ };
+        depth_stencil.DepthEnable = FALSE;
+        depth_stencil.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+        depth_stencil.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+        depth_stencil.StencilEnable = FALSE;
+
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC pso_desc{ };
+        pso_desc.pRootSignature = _root_signature;
+        pso_desc.VS = vs_bc;
+        pso_desc.PS = ps_bc;
+        pso_desc.BlendState = blend;
+        pso_desc.SampleMask = UINT_MAX;
+        pso_desc.RasterizerState = rasterizer;
+        pso_desc.DepthStencilState = depth_stencil;
+        pso_desc.InputLayout = { input_layout, _countof(input_layout) };
+        pso_desc.IBStripCutValue = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;
+        pso_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+        pso_desc.NumRenderTargets = 1;
+        pso_desc.RTVFormats[0] = dx12_backbuffer_rtv_format();
+        pso_desc.SampleDesc.Count = 1;
+        pso_desc.SampleDesc.Quality = 0;
+
+        DX12_CHECK(_device->CreateGraphicsPipelineState(&pso_desc, IID_PPV_ARGS(&_pipeline_state)));
+    }
+
+    dx12_textured_quad_pipeline_t::~dx12_textured_quad_pipeline_t()
+    {
+        if (_pipeline_state)
+        {
+            _pipeline_state->Release();
+            _pipeline_state = nullptr;
+        }
+
+        if (_root_signature)
+        {
+            _root_signature->Release();
+            _root_signature = nullptr;
+        }
+    }
+
+    void dx12_textured_quad_pipeline_t::draw(const draw_context_t& draw_context,
+                                             const descriptor_context_t& descriptor_context) const
+    {
+        if (!draw_context.command_list ||
+            !draw_context.vertex_buffer ||
+            !draw_context.index_buffer ||
+            draw_context.batches.empty() ||
+            !descriptor_context.tables.srv_heap ||
+            !descriptor_context.tables.sampler_heap ||
+            !descriptor_context.sampler_provider)
+        {
+            return;
+        }
+
+        ID3D12GraphicsCommandList* cmd{ draw_context.command_list };
+
+        const auto& dx_vertex_buffer = static_cast<const dx12_buffer_t&>(*draw_context.vertex_buffer);
+        const auto& dx_index_buffer = static_cast<const dx12_buffer_t&>(*draw_context.index_buffer);
+
+        D3D12_VIEWPORT viewport{ };
+        viewport.TopLeftX = 0.0f;
+        viewport.TopLeftY = 0.0f;
+        viewport.Width = static_cast<float>(draw_context.render_width);
+        viewport.Height = static_cast<float>(draw_context.render_height);
+        viewport.MinDepth = 0.0f;
+        viewport.MaxDepth = 1.0f;
+
+        D3D12_RECT scissor{ };
+        scissor.left = 0;
+        scissor.top = 0;
+        scissor.right = static_cast<LONG>(draw_context.render_width);
+        scissor.bottom = static_cast<LONG>(draw_context.render_height);
+
+        D3D12_VERTEX_BUFFER_VIEW vbv{ };
+        vbv.BufferLocation = dx_vertex_buffer.resource()->GetGPUVirtualAddress();
+        vbv.SizeInBytes = static_cast<UINT>(dx_vertex_buffer.size_bytes());
+        vbv.StrideInBytes = sizeof(renderer::quad_vertex_t);
+
+        D3D12_INDEX_BUFFER_VIEW ibv{ };
+        ibv.BufferLocation = dx_index_buffer.resource()->GetGPUVirtualAddress();
+        ibv.SizeInBytes = static_cast<UINT>(dx_index_buffer.size_bytes());
+        ibv.Format = DXGI_FORMAT_R32_UINT;
+
+        ID3D12DescriptorHeap* descriptor_heaps[] = {
+            descriptor_context.tables.srv_heap,
+            descriptor_context.tables.sampler_heap
+        };
+
+        cmd->SetGraphicsRootSignature(_root_signature);
+        cmd->SetPipelineState(_pipeline_state);
+        cmd->SetDescriptorHeaps(_countof(descriptor_heaps), descriptor_heaps);
+        cmd->RSSetViewports(1, &viewport);
+        cmd->RSSetScissorRects(1, &scissor);
+        cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        cmd->IASetVertexBuffers(0, 1, &vbv);
+        cmd->IASetIndexBuffer(&ibv);
+
+        const D3D12_GPU_DESCRIPTOR_HANDLE srv_heap_start{
+            descriptor_context.tables.srv_heap->GetGPUDescriptorHandleForHeapStart()
+        };
+
+        const D3D12_GPU_DESCRIPTOR_HANDLE sampler_heap_start{
+            descriptor_context.tables.sampler_heap->GetGPUDescriptorHandleForHeapStart()
+        };
+
+        for (uint32_t i{ 0 }; i < draw_context.batches.size(); ++i)
+        {
+            const auto& batch{ draw_context.batches[i] };
+
+            write_batch_descriptors(i, batch, descriptor_context);
+
+            D3D12_GPU_DESCRIPTOR_HANDLE srv_handle{ srv_heap_start };
+            srv_handle.ptr += static_cast<SIZE_T>(i) * descriptor_context.tables.srv_descriptor_size;
+
+            D3D12_GPU_DESCRIPTOR_HANDLE sampler_handle{ sampler_heap_start };
+            sampler_handle.ptr += static_cast<SIZE_T>(i) * descriptor_context.tables.sampler_descriptor_size;
+
+            cmd->SetGraphicsRootDescriptorTable(0, srv_handle);
+            cmd->SetGraphicsRootDescriptorTable(1, sampler_handle);
+            cmd->DrawIndexedInstanced(batch.index_count, 1, batch.first_index, 0, 0);
+        }
+    }
+
+    void dx12_textured_quad_pipeline_t::write_batch_descriptors(const uint32_t batch_index,
+                                                                const renderer::textured_quad_batch_t& batch,
+                                                                const descriptor_context_t& descriptor_context) const
+    {
+        if (!batch.texture)
+        {
+            LOG_GRAPHICS_FATAL("DX12 textured quad batch has null texture");
+            return;
+        }
+
+        const auto* dx_texture = dynamic_cast<const dx12_texture_t*>(batch.texture);
+        if (!dx_texture)
+        {
+            LOG_GRAPHICS_FATAL("DX12 textured quad batch texture is not a dx12_texture_t");
+            return;
+        }
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc{ };
+        srv_desc.Format = dx_texture->srv_format();
+        srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srv_desc.Texture2D.MostDetailedMip = 0;
+        srv_desc.Texture2D.MipLevels = 1;
+        srv_desc.Texture2D.PlaneSlice = 0;
+        srv_desc.Texture2D.ResourceMinLODClamp = 0.0f;
+
+        D3D12_CPU_DESCRIPTOR_HANDLE srv_handle{
+            descriptor_context.tables.srv_heap->GetCPUDescriptorHandleForHeapStart()
+        };
+        srv_handle.ptr += static_cast<SIZE_T>(batch_index) * descriptor_context.tables.srv_descriptor_size;
+
+        _device->CreateShaderResourceView(dx_texture->resource(), &srv_desc, srv_handle);
+
+        const sampler_desc_t sampler_desc{ sampler_desc_from_preset(batch.sampler_preset) };
+        rhi_sampler_t* sampler_base{ descriptor_context.sampler_provider->get_or_create_sampler(sampler_desc) };
+        if (!sampler_base)
+        {
+            LOG_GRAPHICS_FATAL("DX12 textured quad pipeline failed to retrieve sampler");
+            return;
+        }
+
+        D3D12_CPU_DESCRIPTOR_HANDLE sampler_handle{
+            descriptor_context.tables.sampler_heap->GetCPUDescriptorHandleForHeapStart()
+        };
+        sampler_handle.ptr += static_cast<SIZE_T>(batch_index) * descriptor_context.tables.sampler_descriptor_size;
+
+        const D3D12_SAMPLER_DESC d3d_sampler_desc{ dx12_sampler_desc(sampler_desc) };
+        _device->CreateSampler(&d3d_sampler_desc, sampler_handle);
+    }
+} // namespace carrot::rhi::dx12

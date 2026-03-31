@@ -1,0 +1,83 @@
+//
+// Created by zshro on 3/30/2026.
+// Copyright (c) 2026 BunnySoft. All rights reserved.
+//
+
+#pragma once
+
+#include "Renderer/Draw/TexturedQuadBatch.h"
+#include "RHI/Sampler.h"
+#include "RHI/Backends/DirectX12/DirectX12Common.h"
+
+#include <span>
+
+namespace carrot::assets {
+    class shader_file_provider_t;
+}
+
+namespace carrot::rhi {
+    class rhi_buffer_t;
+    class rhi_sampler_t;
+}
+
+namespace carrot::rhi::dx12 {
+    class dx12_texture_t;
+
+    class dx12_textured_quad_sampler_provider_t
+    {
+    public:
+        virtual ~dx12_textured_quad_sampler_provider_t() = default;
+        [[nodiscard]] virtual rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) = 0;
+    };
+
+    struct draw_context_t
+    {
+        ID3D12GraphicsCommandList* command_list{ nullptr };
+
+        uint32_t render_width{ 0 };
+        uint32_t render_height{ 0 };
+
+        const rhi_buffer_t* vertex_buffer{ nullptr };
+        const rhi_buffer_t* index_buffer{ nullptr };
+
+        std::span<const renderer::textured_quad_batch_t> batches{ };
+    };
+
+    struct descriptor_tables_t
+    {
+        ID3D12DescriptorHeap* srv_heap{ nullptr };
+        uint32_t srv_descriptor_size{ 0 };
+
+        ID3D12DescriptorHeap* sampler_heap{ nullptr };
+        uint32_t sampler_descriptor_size{ 0 };
+    };
+
+    struct descriptor_context_t
+    {
+        descriptor_tables_t tables{ };
+
+        dx12_textured_quad_sampler_provider_t* sampler_provider{ nullptr };
+    };
+
+    class dx12_textured_quad_pipeline_t final
+    {
+    public:
+        dx12_textured_quad_pipeline_t(ID3D12Device* device, assets::shader_file_provider_t& shader_files);
+        ~dx12_textured_quad_pipeline_t();
+
+        [[nodiscard]] bool is_valid() const noexcept
+        {
+            return _root_signature != nullptr && _pipeline_state != nullptr;
+        }
+
+        void draw(const draw_context_t& draw_context, const descriptor_context_t& descriptor_context) const;
+
+    private:
+        void write_batch_descriptors(uint32_t batch_index, const renderer::textured_quad_batch_t& batch,
+                                     const descriptor_context_t& descriptor_context) const;
+
+        ID3D12Device* _device{ nullptr };
+        ID3D12RootSignature* _root_signature{ nullptr };
+        ID3D12PipelineState* _pipeline_state{ nullptr };
+    };
+} // namespace carrot::rhi::dx12

@@ -12,7 +12,6 @@
 #include "DirectX12Device.h"
 #include "DirectX12Fence.h"
 #include "DirectX12Swapchain.h"
-#include "Assets/Shaders/ShaderFileProvider.h"
 #include "RHI/RHI.h"
 #include "Utils/File/FileUtils.h"
 #include "Window/Window.h"
@@ -52,142 +51,41 @@ namespace carrot::rhi::dx12 {
             frame.fence_value = 0;
         }
 
+        _srv_descriptor_stride = _device->id3d12_device()->GetDescriptorHandleIncrementSize(
+            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+        _sampler_descriptor_stride = _device->id3d12_device()->GetDescriptorHandleIncrementSize(
+            D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+
+        _textured_quad_pipeline = std::make_unique<dx12_textured_quad_pipeline_t>(
+            _device->id3d12_device(), *desc.shader_files);
+
+        if (!_textured_quad_pipeline || !_textured_quad_pipeline->is_valid())
+            LOG_GRAPHICS_FATAL("Failed to create DX12 textured quad pipeline");
+
         _rtv_descriptor_stride = _device->id3d12_device()->GetDescriptorHandleIncrementSize(
             D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-
-        D3D12_ROOT_PARAMETER root_param{ };
-        root_param.ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-        root_param.ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
-        root_param.Constants.Num32BitValues = 1;
-        root_param.Constants.ShaderRegister = 0; // b0
-        root_param.Constants.RegisterSpace = 0;
-
-        D3D12_ROOT_SIGNATURE_DESC rs_desc{ };
-        rs_desc.NumParameters = 1;
-        rs_desc.pParameters = &root_param;
-        rs_desc.NumStaticSamplers = 0;
-        rs_desc.pStaticSamplers = nullptr;
-        rs_desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
-
-        ID3DBlob* sig_blob{ nullptr };
-        ID3DBlob* error_blob{ nullptr };
-        HRESULT hr = D3D12SerializeRootSignature(
-            &rs_desc,
-            D3D_ROOT_SIGNATURE_VERSION_1,
-            &sig_blob,
-            &error_blob
-        );
-
-        if (FAILED(hr))
-        {
-            if (error_blob)
-            {
-                LOG_GRAPHICS_ERROR("DX12 root signature error: {}",
-                                   static_cast<const char*>(error_blob->GetBufferPointer()));
-                error_blob->Release();
-            }
-            LOG_GRAPHICS_FATAL("Failed to serialize DX12 root signature");
-        }
-
-        hr = _device->id3d12_device()->CreateRootSignature(
-            0,
-            sig_blob->GetBufferPointer(),
-            sig_blob->GetBufferSize(),
-            IID_PPV_ARGS(&_root_signature)
-        );
-
-        sig_blob->Release();
-        if (error_blob) error_blob->Release();
-
-        if (FAILED(hr))
-            LOG_GRAPHICS_FATAL("Failed to create DX12 root signature");
-
-        const auto vs_path{ desc.shader_files->resolve("engine://shaders/dx12/triangle.vert.dxil") };
-        const auto ps_path{ desc.shader_files->resolve("engine://shaders/dx12/triangle.frag.dxil") };
-
-        if (!vs_path || !ps_path)
-            LOG_GRAPHICS_FATAL("Failed to resolve shader paths");
-
-        auto vs_bytes{ utils::file::load_binary_file(*vs_path) };
-        auto ps_bytes{ utils::file::load_binary_file(*ps_path) };
-
-        if (!vs_bytes || !ps_bytes)
-            LOG_GRAPHICS_FATAL("Failed to load DX12 shader bytecode");
-
-        D3D12_SHADER_BYTECODE vs_bc{ };
-        vs_bc.pShaderBytecode = vs_bytes->data();
-        vs_bc.BytecodeLength = vs_bytes->size();
-
-        D3D12_SHADER_BYTECODE ps_bc{ };
-        ps_bc.pShaderBytecode = ps_bytes->data();
-        ps_bc.BytecodeLength = ps_bytes->size();
-
-        D3D12_GRAPHICS_PIPELINE_STATE_DESC pso_desc{ };
-        pso_desc.pRootSignature = _root_signature;
-        pso_desc.VS = vs_bc;
-        pso_desc.PS = ps_bc;
-
-        // No input layout (SV_VertexID only)
-        pso_desc.InputLayout = { nullptr, 0 };
-
-        // Rasterizer
-        D3D12_RASTERIZER_DESC rast{ };
-        rast.FillMode = D3D12_FILL_MODE_SOLID;
-        rast.CullMode = D3D12_CULL_MODE_BACK;
-        rast.FrontCounterClockwise = FALSE;
-        rast.DepthClipEnable = TRUE;
-        pso_desc.RasterizerState = rast;
-
-        // Blend
-        D3D12_BLEND_DESC blend{ };
-        blend.AlphaToCoverageEnable = FALSE;
-        blend.IndependentBlendEnable = FALSE;
-        auto& rt0 = blend.RenderTarget[0];
-        rt0.BlendEnable = FALSE;
-        rt0.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-        pso_desc.BlendState = blend;
-
-        // Depth-stencil off
-        D3D12_DEPTH_STENCIL_DESC ds{ };
-        ds.DepthEnable = FALSE;
-        ds.StencilEnable = FALSE;
-        pso_desc.DepthStencilState = ds;
-
-        pso_desc.SampleMask = UINT_MAX;
-        pso_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-        pso_desc.NumRenderTargets = 1;
-        pso_desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-        pso_desc.SampleDesc.Count = 1;
-        pso_desc.SampleDesc.Quality = 0;
-
-        hr = _device->id3d12_device()->CreateGraphicsPipelineState(
-            &pso_desc,
-            IID_PPV_ARGS(&_pipeline_state)
-        );
-
-        if (FAILED(hr))
-            LOG_GRAPHICS_FATAL("Failed to create DX12 pipeline state for triangle");
     }
 
     dx12_rhi_context_t::~dx12_rhi_context_t()
     {
         wait_idle();
 
-        if (_pipeline_state)
-        {
-            _pipeline_state->Release();
-            _pipeline_state = nullptr;
-        }
-
-        if (_root_signature)
-        {
-            _root_signature->Release();
-            _root_signature = nullptr;
-        }
-
         for (uint32_t i{ 0 }; i < k_max_frames_in_flight; ++i)
         {
             dx12_frame_t& frame{ _frames[i] };
+
+            if (frame.textured_quad_srv_heap)
+            {
+                frame.textured_quad_srv_heap->Release();
+                frame.textured_quad_srv_heap = nullptr;
+            }
+
+            if (frame.textured_quad_sampler_heap)
+            {
+                frame.textured_quad_sampler_heap->Release();
+                frame.textured_quad_sampler_heap = nullptr;
+            }
 
             frame.command_list.reset();
             frame.fence.reset();
@@ -222,14 +120,9 @@ namespace carrot::rhi::dx12 {
         ID3D12GraphicsCommandList* cmd{ _frames[_frame_index].command_list->id3d12_graphics_command_list() };
         const dx12_swapchain_t* sc{ _swapchain.get() };
 
-        const UINT stride{
-            _device->id3d12_device()->GetDescriptorHandleIncrementSize(
-                D3D12_DESCRIPTOR_HEAP_TYPE_RTV)
-        };
-
         float clear[]{ 0.02f, 0.02f, 0.04f, 1.0f };
 
-        const D3D12_CPU_DESCRIPTOR_HANDLE rtv{ sc->get_current_rtv(stride) };
+        const D3D12_CPU_DESCRIPTOR_HANDLE rtv{ sc->get_current_rtv(_rtv_descriptor_stride) };
         ID3D12Resource* backbuffer{ sc->get_backbuffer(sc->get_current_image_index()) };
 
         D3D12_RESOURCE_BARRIER to_rtv{ };
@@ -243,7 +136,7 @@ namespace carrot::rhi::dx12 {
         cmd->ResourceBarrier(1, &to_rtv);
 
         cmd->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
-        cmd->ClearRenderTargetView(sc->get_current_rtv(stride), clear, 0, nullptr);
+        cmd->ClearRenderTargetView(rtv, clear, 0, nullptr);
 
         D3D12_VIEWPORT viewport{ };
         viewport.TopLeftX = 0.0f;
@@ -262,18 +155,37 @@ namespace carrot::rhi::dx12 {
         cmd->RSSetViewports(1, &viewport);
         cmd->RSSetScissorRects(1, &scissor);
 
-        // ── Bind pipeline + root constants ────────
-        cmd->SetGraphicsRootSignature(_root_signature);
-        cmd->SetPipelineState(_pipeline_state);
-        cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        if (_textured_quad_pipeline &&
+            _textured_quad_pipeline->is_valid() &&
+            _textured_quad_vertex_buffer != nullptr &&
+            _textured_quad_index_buffer != nullptr &&
+            !_textured_quad_batches.empty())
+        {
+            ensure_textured_quad_descriptor_capacity(static_cast<uint32_t>(_textured_quad_batches.size()));
 
-        // frameCount for rotation
-        cmd->SetGraphicsRoot32BitConstant(0, _frame_counter, 0);
+            const dx12_frame_t& frame{ _frames[_frame_index] };
 
-        // No vertex buffer needed (SV_VertexID)
-        cmd->DrawInstanced(3, 1, 0, 0);
+            const draw_context_t draw_context{
+                .command_list = cmd,
+                .render_width = sc->get_width(),
+                .render_height = sc->get_height(),
+                .vertex_buffer = _textured_quad_vertex_buffer,
+                .index_buffer = _textured_quad_index_buffer,
+                .batches = _textured_quad_batches
+            };
 
-        _frame_counter++;
+            const descriptor_context_t descriptor_context{
+                .tables{
+                    .srv_heap = frame.textured_quad_srv_heap,
+                    .srv_descriptor_size = _srv_descriptor_stride,
+                    .sampler_heap = frame.textured_quad_sampler_heap,
+                    .sampler_descriptor_size = _sampler_descriptor_stride
+                },
+                .sampler_provider = this
+            };
+
+            _textured_quad_pipeline->draw(draw_context, descriptor_context);
+        }
 
         std::swap(to_rtv.Transition.StateBefore, to_rtv.Transition.StateAfter);
         cmd->ResourceBarrier(1, &to_rtv);
@@ -322,23 +234,200 @@ namespace carrot::rhi::dx12 {
 
     std::unique_ptr<rhi_texture_t> dx12_rhi_context_t::create_texture_2d(const texture_create_info_t& info)
     {
-        return nullptr;
+        if (info.width == 0 || info.height == 0)
+        {
+            LOG_GRAPHICS_ERROR("DX12 create_texture_2d called with invalid dimensions {}x{}",
+                               info.width, info.height);
+            return nullptr;
+        }
+
+        if (!info.initial_data || info.initial_data_size == 0 || info.initial_data_stride_bytes == 0)
+        {
+            LOG_GRAPHICS_ERROR("DX12 create_texture_2d currently requires initial data");
+            return nullptr;
+        }
+
+        ID3D12Device* device{ _device->id3d12_device() };
+
+        const DXGI_FORMAT resource_format{ dx12_texture_resource_format(info.format) };
+        const DXGI_FORMAT srv_format{ dx12_texture_srv_format(info.format) };
+
+        D3D12_HEAP_PROPERTIES default_heap{ };
+        default_heap.Type = D3D12_HEAP_TYPE_DEFAULT;
+        default_heap.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+        default_heap.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+        default_heap.CreationNodeMask = 1;
+        default_heap.VisibleNodeMask = 1;
+
+        D3D12_RESOURCE_DESC texture_desc{ };
+        texture_desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+        texture_desc.Alignment = 0;
+        texture_desc.Width = info.width;
+        texture_desc.Height = info.height;
+        texture_desc.DepthOrArraySize = 1;
+        texture_desc.MipLevels = 1;
+        texture_desc.Format = resource_format;
+        texture_desc.SampleDesc.Count = 1;
+        texture_desc.SampleDesc.Quality = 0;
+        texture_desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+        texture_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+        ID3D12Resource* texture{ nullptr };
+        DX12_CHECK(device->CreateCommittedResource(
+            &default_heap,
+            D3D12_HEAP_FLAG_NONE,
+            &texture_desc,
+            D3D12_RESOURCE_STATE_COPY_DEST,
+            nullptr,
+            IID_PPV_ARGS(&texture)
+        ));
+
+        UINT64 upload_buffer_size{ 0 };
+        device->GetCopyableFootprints(&texture_desc, 0, 1, 0, nullptr, nullptr, nullptr, &upload_buffer_size);
+
+        D3D12_HEAP_PROPERTIES upload_heap{ };
+        upload_heap.Type = D3D12_HEAP_TYPE_UPLOAD;
+        upload_heap.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+        upload_heap.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+        upload_heap.CreationNodeMask = 1;
+        upload_heap.VisibleNodeMask = 1;
+
+        D3D12_RESOURCE_DESC upload_desc{ };
+        upload_desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+        upload_desc.Alignment = 0;
+        upload_desc.Width = upload_buffer_size;
+        upload_desc.Height = 1;
+        upload_desc.DepthOrArraySize = 1;
+        upload_desc.MipLevels = 1;
+        upload_desc.Format = DXGI_FORMAT_UNKNOWN;
+        upload_desc.SampleDesc.Count = 1;
+        upload_desc.SampleDesc.Quality = 0;
+        upload_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+        upload_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+        ID3D12Resource* upload_buffer{ nullptr };
+        DX12_CHECK(device->CreateCommittedResource(
+            &upload_heap,
+            D3D12_HEAP_FLAG_NONE,
+            &upload_desc,
+            D3D12_RESOURCE_STATE_GENERIC_READ,
+            nullptr,
+            IID_PPV_ARGS(&upload_buffer)
+        ));
+
+        D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint{ };
+        UINT num_rows{ 0 };
+        UINT64 row_size_in_bytes{ 0 };
+        UINT64 total_bytes{ 0 };
+        device->GetCopyableFootprints(&texture_desc, 0, 1, 0, &footprint, &num_rows, &row_size_in_bytes, &total_bytes);
+
+        void* mapped{ nullptr };
+        DX12_CHECK(upload_buffer->Map(0, nullptr, &mapped));
+
+        const std::byte* src_bytes{ static_cast<const std::byte*>(info.initial_data) };
+        std::byte* dst_bytes{ static_cast<std::byte*>(mapped) + footprint.Offset };
+
+        for (UINT row{ 0 }; row < num_rows; ++row)
+        {
+            std::memcpy(dst_bytes + row * footprint.Footprint.RowPitch,
+                        src_bytes + row * info.initial_data_stride_bytes,
+                        info.initial_data_stride_bytes);
+        }
+
+        upload_buffer->Unmap(0, nullptr);
+
+        ID3D12CommandAllocator* allocator{ nullptr };
+        ID3D12GraphicsCommandList* cmd{ nullptr };
+
+        DX12_CHECK(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&allocator)));
+        DX12_CHECK(device->CreateCommandList(0,
+            D3D12_COMMAND_LIST_TYPE_DIRECT,
+            allocator,
+            nullptr,
+            IID_PPV_ARGS(&cmd)));
+
+        D3D12_TEXTURE_COPY_LOCATION dst{ };
+        dst.pResource = texture;
+        dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+        dst.SubresourceIndex = 0;
+
+        D3D12_TEXTURE_COPY_LOCATION src{ };
+        src.pResource = upload_buffer;
+        src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+        src.PlacedFootprint = footprint;
+
+        cmd->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+
+        D3D12_RESOURCE_BARRIER barrier{ };
+        barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        barrier.Transition.pResource = texture;
+        barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+        barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+
+        cmd->ResourceBarrier(1, &barrier);
+
+        DX12_CHECK(cmd->Close());
+
+        ID3D12CommandList* command_lists[]{ cmd };
+        _graphics_queue->id3d12_command_queue()->ExecuteCommandLists(1, command_lists);
+
+        auto upload_fence = std::make_unique<dx12_fence_t>(device);
+        upload_fence->signal(_graphics_queue->id3d12_command_queue());
+        upload_fence->wait();
+
+        cmd->Release();
+        allocator->Release();
+        upload_buffer->Release();
+
+        return std::make_unique<dx12_texture_t>(info.width,
+                                                info.height,
+                                                info.format,
+                                                texture,
+                                                resource_format,
+                                                srv_format);
     }
 
     std::unique_ptr<rhi_buffer_t> dx12_rhi_context_t::create_buffer(const buffer_create_info_t& info)
     {
-        return nullptr;
+        return std::make_unique<dx12_buffer_t>(_device->id3d12_device(), info);
     }
 
     std::unique_ptr<rhi_sampler_t> dx12_rhi_context_t::create_sampler(const sampler_desc_t& desc) const
     {
-        return nullptr;
+        return std::make_unique<dx12_sampler_t>(desc);
+    }
+
+    void dx12_rhi_context_t::set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer,
+                                                        const rhi_buffer_t& index_buffer)
+    {
+        _textured_quad_vertex_buffer = &vertex_buffer;
+        _textured_quad_index_buffer = &index_buffer;
+    }
+
+    void dx12_rhi_context_t::set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches)
+    {
+        _textured_quad_batches.assign(batches.begin(), batches.end());
     }
 
     rhi_sampler_t* dx12_rhi_context_t::get_or_create_sampler(const sampler_desc_t& desc)
     {
+        if (const auto it = _sampler_cache.find(desc); it != _sampler_cache.end())
+            return it->second.get();
 
-        return nullptr;
+        auto sampler = std::make_unique<dx12_sampler_t>(desc);
+        rhi_sampler_t* ptr = sampler.get();
+        _sampler_cache.emplace(desc, std::move(sampler));
+
+        return ptr;
+    }
+
+    void dx12_rhi_context_t::bind_textured_quad_resources([[maybe_unused]] const rhi_texture_t& texture,
+                                                          [[maybe_unused]] const rhi_sampler_t& sampler)
+    {
+        // DX12 binding is performed during draw recording via descriptor heaps.
+        // This is a valid no-op for now to satisfy the RHI contract cleanly.
     }
 
     void dx12_rhi_context_t::wait_idle()
@@ -349,5 +438,57 @@ namespace carrot::rhi::dx12 {
         // These should all be completed now, but we are being safe
         for (uint32_t i{ 0 }; i < k_max_frames_in_flight; ++i)
             _frames[i].fence->wait(_frames[i].fence_value);
+    }
+
+    // PRIVATE
+
+    void dx12_rhi_context_t::ensure_textured_quad_descriptor_capacity(const uint32_t required_capacity)
+    {
+        if (required_capacity == 0)
+            return;
+
+        const uint32_t target_capacity{ std::max(required_capacity, 16u) };
+
+        for (dx12_frame_t& frame: _frames)
+        {
+            if (frame.textured_quad_descriptor_capacity >= target_capacity &&
+                frame.textured_quad_srv_heap != nullptr &&
+                frame.textured_quad_sampler_heap != nullptr)
+            {
+                continue;
+            }
+
+            if (frame.textured_quad_srv_heap)
+            {
+                frame.textured_quad_srv_heap->Release();
+                frame.textured_quad_srv_heap = nullptr;
+            }
+
+            if (frame.textured_quad_sampler_heap)
+            {
+                frame.textured_quad_sampler_heap->Release();
+                frame.textured_quad_sampler_heap = nullptr;
+            }
+
+            D3D12_DESCRIPTOR_HEAP_DESC srv_heap_desc{ };
+            srv_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+            srv_heap_desc.NumDescriptors = target_capacity;
+            srv_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+            srv_heap_desc.NodeMask = 0;
+
+            DX12_CHECK(_device->id3d12_device()->CreateDescriptorHeap(&srv_heap_desc,
+                IID_PPV_ARGS(&frame.textured_quad_srv_heap)));
+
+            D3D12_DESCRIPTOR_HEAP_DESC sampler_heap_desc{ };
+            sampler_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
+            sampler_heap_desc.NumDescriptors = target_capacity;
+            sampler_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+            sampler_heap_desc.NodeMask = 0;
+
+            DX12_CHECK(_device->id3d12_device()->CreateDescriptorHeap(&sampler_heap_desc,
+                IID_PPV_ARGS(&frame.textured_quad_sampler_heap)));
+
+            frame.textured_quad_descriptor_capacity = target_capacity;
+        }
     }
 } // namespace carrot::rhi::dx12

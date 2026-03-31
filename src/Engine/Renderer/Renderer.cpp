@@ -7,6 +7,9 @@
 
 #include "Renderer.h"
 
+#include "Assets/Sprite/LoadedSpriteAsset.h"
+#include "Assets/Texture/TextureAsset.h"
+#include "Draw/SpriteDrawInfo.h"
 #include "IO/VirtualFileSystem.h"
 #include "Window/Window.h"
 #include "RHI/Buffer.h"
@@ -171,6 +174,60 @@ namespace carrot::renderer {
         _stats.textured_quad_count++;
     }
 
+    void renderer_t::draw_sprite(const sprite_draw_info_t& info)
+    {
+        if (!info.sprite)
+        {
+            LOG_GRAPHICS_WARN("renderer_t::draw_sprite called with null sprite.");
+            return;
+        }
+
+        if (!info.frame)
+        {
+            LOG_GRAPHICS_WARN("renderer_t::draw_sprite called with null frame.");
+            return;
+        }
+
+        const assets::loaded_texture_asset_t* texture_asset{ info.sprite->texture() };
+        if (!texture_asset || !texture_asset->texture)
+        {
+            LOG_GRAPHICS_WARN("renderer_t::draw_sprite called with sprite missing loaded texture.");
+            return;
+        }
+
+        const float texture_width{ static_cast<float>(texture_asset->texture->width()) };
+        const float texture_height{ static_cast<float>(texture_asset->texture->height()) };
+
+        if (texture_width <= 0.f || texture_height <= 0.f)
+        {
+            LOG_GRAPHICS_WARN("renderer_t::draw_sprite encountered invalid texture dimensions ({}x{}).",
+                              texture_width, texture_height);
+            return;
+        }
+
+        const chlm::uint_rect& rect{ info.frame->pixel_rect };
+
+        const float u0{ static_cast<float>(rect.position.x) / texture_width };
+        const float v0{ static_cast<float>(rect.position.y) / texture_height };
+        const float u1{ static_cast<float>(rect.position.x + rect.size.x) / texture_width };
+        const float v1{ static_cast<float>(rect.position.y + rect.size.y) / texture_height };
+
+        textured_quad_draw_info_t quad{ };
+        quad.texture = texture_asset->texture.get();
+        quad.x = info.x;
+        quad.y = info.y;
+        quad.width = info.width;
+        quad.height = info.height;
+        quad.color = info.color;
+        quad.sampler_preset = info.sampler_preset;
+        quad.u0 = u0;
+        quad.v0 = v0;
+        quad.u1 = u1;
+        quad.v1 = v1;
+
+        draw_textured_quad(quad);
+    }
+
     void renderer_t::notify_shader_changed(std::string_view path)
     {
         LOG_GRAPHICS_INFO("Shader changed: {}, notifying RHI...", path);
@@ -190,7 +247,7 @@ namespace carrot::renderer {
         _textured_quad.vertex_capacity = 0;
         _textured_quad.index_capacity = 0;
 
-        _stats = {};
+        _stats = { };
     }
 
     void renderer_t::ensure_textured_quad_frame_buffers()

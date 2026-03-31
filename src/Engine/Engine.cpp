@@ -9,6 +9,10 @@
 
 #include "Assets/AssetService.h"
 #include "Assets/Audio/AudioAssetManifestImporter.h"
+#include "Assets/Sprite/LoadedSpriteAsset.h"
+#include "Assets/Sprite/SpriteAnimator.h"
+#include "Assets/Sprite/SpriteAsset.h"
+#include "Assets/Sprite/SpriteAssetManifestImporter.h"
 #include "Assets/Texture/TextureAssetManifestImporter.h"
 #include "Audio/Audio.h"
 #include "Core/Application.h"
@@ -16,6 +20,7 @@
 #include "Debug/DebugOverlay.h"
 #include "HotReload/ShaderWatcher.h"
 #include "Renderer/RendererService.h"
+#include "Renderer/Draw/SpriteDrawInfo.h"
 #include "RHI/RHI.h"
 #include "Utils/MulticastDelegate.h"
 #include "Utils/File/FileUtils.h"
@@ -91,6 +96,8 @@ namespace carrot {
         // Load built-in assets
         register_builtin_audio_assets();
         register_builtin_texture_assets();
+        register_builtin_sprite_assets();
+        build_test_sprite();
 
         LOG_CORE_INFO("Carrot Engine Initialized (Pure RHI Mode)");
         _initialized = true;
@@ -199,6 +206,7 @@ namespace carrot {
         }
 
         _audio_module->update(_delta_time);
+        _test_sprite_animator.update(_delta_time);
 
         // debug::text(20.f, 30.f, "FPS: %u", _current_fps);
         // debug::text(20.f, 65.f, "Frame: %.3f ms", _delta_time * 1000.f);
@@ -379,6 +387,29 @@ namespace carrot {
         top_edge_clip.color = 0xFFFFFFFFu;
         top_edge_clip.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
         _renderer->draw_textured_quad(top_edge_clip);
+
+        // ─────────────────────────────────────────────────────────────────────────────
+        // Sprite Test
+        // ─────────────────────────────────────────────────────────────────────────────
+
+        if (const assets::sprite_frame_t* current{ _test_sprite_animator.current_frame() })
+        {
+            renderer::sprite_draw_info_t sprite_draw{ };
+            sprite_draw.sprite = _test_sprite;
+            sprite_draw.frame = current;
+            sprite_draw.x = -0.85f;
+            sprite_draw.y = -0.10f;
+            sprite_draw.width = 0.25f;
+            sprite_draw.height = 0.25f;
+            sprite_draw.color = 0xFFFFFFFFu;
+            sprite_draw.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
+
+            _renderer->draw_sprite(sprite_draw);
+        }
+        else
+        {
+            LOG_CORE_WARN("Sprite smoke test animator returned no current frame.");
+        }
     }
 
     core::engine_paths_t engine_t::make_default_engine_paths() noexcept
@@ -488,6 +519,7 @@ namespace carrot {
         register_texture_asset_manifest("engine://textures/vraden_test.texture.json");
         register_texture_asset_manifest("engine://textures/16x16orange.texture.json");
         register_texture_asset_manifest("engine://textures/carrot_engine_logo_512.texture.json");
+        register_texture_asset_manifest("game://textures/vraden.texture.json");
     }
 
     bool engine_t::register_texture_asset_manifest(std::string_view manifest_uri)
@@ -510,5 +542,43 @@ namespace carrot {
         }
 
         return assets::texture_asset_manifest_importer_t::import(doc, _asset_manager->textures().registry(), _vfs);
+    }
+
+    void engine_t::register_builtin_sprite_assets()
+    {
+        register_sprite_asset_manifest("game://sprites/vraden.sprite.json");
+    }
+
+    bool engine_t::register_sprite_asset_manifest(std::string_view manifest_uri)
+    {
+        const std::optional<std::filesystem::path> native_path{
+            _asset_manager->vfs().resolve_native_path(manifest_uri)
+        };
+
+        if (!native_path)
+        {
+            LOG_ASSET_ERROR("Failed to resolve sprite asset manifest '{}'", manifest_uri);
+            return false;
+        }
+
+        utils::json::json_document_t doc;
+        if (!doc.parse_from_file(native_path->string().c_str()))
+        {
+            LOG_ASSET_ERROR("Failed to parse sprite asset manifest '{}'", manifest_uri);
+            return false;
+        }
+
+        return assets::sprite_asset_manifest_importer_t::import(doc, _asset_manager->sprites().registry(), _vfs);
+    }
+
+    void engine_t::build_test_sprite()
+    {
+        _test_sprite = _asset_manager->sprites().get("sprite.vraden");
+
+        if (_test_sprite)
+        {
+            _test_sprite_animator.set_sprite(_test_sprite);
+            _test_sprite_animator.play("idle");
+        }
     }
 } // namespace carrot

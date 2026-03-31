@@ -6,6 +6,8 @@
 #pragma once
 
 #include "Assets/AssetManager.h"
+#include "Assets/Sprite/LoadedSpriteAsset.h"
+#include "Assets/Sprite/SpriteAnimator.h"
 #include "Audio/AudioModule.h"
 #include "Core/CoreDefines.h"
 #include "IO/VirtualFileSystem.h"
@@ -62,6 +64,11 @@ namespace carrot {
         void register_builtin_texture_assets();
         bool register_texture_asset_manifest(std::string_view manifest_uri);
 
+        void register_builtin_sprite_assets();
+        bool register_sprite_asset_manifest(std::string_view manifest_uri);
+
+        void build_test_sprite();
+
         bool                                                _initialized{ false };
         bool                                                _running{ false };
         bool                                                _should_quit{ false };
@@ -77,5 +84,8 @@ namespace carrot {
 
         on_tick_t                                           _on_tick;
         renderer::renderer_stats_t                          _last_logged_renderer_stats;
+
+        const assets::loaded_sprite_asset_t*                _test_sprite;
+        assets::sprite_animator_t                           _test_sprite_animator;
     };
 } // namespace carrot

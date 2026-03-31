@@ -27,6 +27,8 @@ namespace carrot::rhi {
 }
 
 namespace carrot::renderer {
+    struct sprite_draw_info_t;
+
     struct renderer_stats_t
     {
         uint32_t draw_calls{ 0 };
@@ -69,6 +71,7 @@ namespace carrot::renderer {
 
         // Very high-level drawing commands (immediate mode for now)
         void draw_textured_quad(const textured_quad_draw_info_t& quad);
+        void draw_sprite(const sprite_draw_info_t& info);
 
         // Hot-reload & debug support
         void notify_shader_changed(std::string_view path);

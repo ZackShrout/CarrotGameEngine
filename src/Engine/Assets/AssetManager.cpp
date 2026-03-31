@@ -12,5 +12,6 @@ namespace carrot::assets {
     {
         _audio.clear_all();
         _textures.clear_all();
+        _sprites.clear_all();
     }
 } // namespace carrot::assets

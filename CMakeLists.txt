@@ -208,6 +208,18 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/Image/ImageLoadError.h
         src/Engine/Assets/Shaders/ShaderFileProvider.h
         src/Engine/Assets/Shaders/VFSShaderFileProvider.h
+        src/Engine/Assets/Sprite/LoadedSpriteAsset.cpp
+        src/Engine/Assets/Sprite/LoadedSpriteAsset.h
+        src/Engine/Assets/Sprite/SpriteAnimation.h
+        src/Engine/Assets/Sprite/SpriteAnimator.cpp
+        src/Engine/Assets/Sprite/SpriteAnimator.h
+        src/Engine/Assets/Sprite/SpriteAsset.cpp
+        src/Engine/Assets/Sprite/SpriteAsset.h
+        src/Engine/Assets/Sprite/SpriteAssetLoader.cpp
+        src/Engine/Assets/Sprite/SpriteAssetLoader.h
+        src/Engine/Assets/Sprite/SpriteAssetManifestImporter.cpp
+        src/Engine/Assets/Sprite/SpriteAssetManifestImporter.h
+        src/Engine/Assets/Sprite/SpriteFrame.h
         src/Engine/Assets/Texture/TextureAsset.h
         src/Engine/Assets/Texture/TextureAssetLoader.cpp
         src/Engine/Assets/Texture/TextureAssetLoader.h
@@ -254,6 +266,11 @@ set(CARROT_ENGINE_SOURCES
         # Shaders
         # ========================================
         shaders/ShaderCommon.h
+        src/Engine/Assets/Sprite/SpriteAssetRegistry.cpp
+        src/Engine/Assets/Sprite/SpriteAssetRegistry.h
+        src/Engine/Assets/Sprite/SpriteAssetSystem.cpp
+        src/Engine/Assets/Sprite/SpriteAssetSystem.h
+        src/Engine/Renderer/Draw/SpriteDrawInfo.h
 )
 
 # ------------------------------------------------------------------------

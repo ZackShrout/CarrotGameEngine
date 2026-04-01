@@ -86,7 +86,7 @@ namespace carrot::renderer {
         [[nodiscard]] rhi::rhi_context_t* get_rhi() const noexcept { return _rhi.get(); }
 
     private:
-        void sync_camera_viewport_to_render_target();
+        [[nodiscard]] chlm::uint2 current_render_target_size() const noexcept;
         void release_frame_resources();
         void ensure_textured_quad_frame_buffers();
         void upload_textured_quad_frame_data() const;

@@ -205,14 +205,23 @@ namespace carrot::rhi::metal {
 
         ensure_textured_quad_argument_capacity(_textured_quad_batches.size());
 
+        const chlm::uint_rect viewport_rect{ _textured_quad_viewport.rect_px };
+
         MTL::Viewport viewport{ };
-        viewport.originX = 0.0;
-        viewport.originY = 0.0;
-        viewport.width = static_cast<double>(_swapchain->get_width());
-        viewport.height = static_cast<double>(_swapchain->get_height());
+        viewport.originX = static_cast<double>(viewport_rect.position.x);
+        viewport.originY = static_cast<double>(viewport_rect.position.y);
+        viewport.width = static_cast<double>(viewport_rect.size.x);
+        viewport.height = static_cast<double>(viewport_rect.size.y);
         viewport.znear = 0.0;
         viewport.zfar = 1.0;
         encoder->setViewport(viewport);
+
+        MTL::ScissorRect scissor{ };
+        scissor.x = viewport_rect.position.x;
+        scissor.y = viewport_rect.position.y;
+        scissor.width = viewport_rect.size.x;
+        scissor.height = viewport_rect.size.y;
+        encoder->setScissorRect(scissor);
 
         encoder->setRenderPipelineState(_textured_quad_pipeline->state());
         encoder->setVertexBuffer(_textured_quad_vertex_buffer->mtl_buffer(), 0, 0);
@@ -444,6 +453,11 @@ namespace carrot::rhi::metal {
     void metal_rhi_context_t::set_textured_quad_view_projection(const chlm::float4x4& view_projection)
     {
         _textured_quad_view_projection = view_projection;
+    }
+
+    void metal_rhi_context_t::set_textured_quad_viewport(const render_viewport_t& viewport)
+    {
+        _textured_quad_viewport = viewport;
     }
 
     rhi_sampler_t* metal_rhi_context_t::get_or_create_sampler(const sampler_desc_t& desc)

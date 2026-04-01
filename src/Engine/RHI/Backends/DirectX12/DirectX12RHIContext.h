@@ -62,6 +62,7 @@ namespace carrot::rhi::dx12 {
         void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer, const rhi_buffer_t& index_buffer) override;
         void set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches) override;
         void set_textured_quad_view_projection(const chlm::float4x4& view_projection) override {}
+        void set_textured_quad_viewport(const render_viewport_t& viewport) override;
 
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
         void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) override;
@@ -88,6 +89,7 @@ namespace carrot::rhi::dx12 {
         const rhi_buffer_t*                               _textured_quad_vertex_buffer{ nullptr };
         const rhi_buffer_t*                               _textured_quad_index_buffer{ nullptr };
         std::vector<renderer::textured_quad_batch_t>      _textured_quad_batches;
+        render_viewport_t                                 _textured_quad_viewport{ };
 
         // ── Dynamic per-batch descriptor state ──
         uint32_t                                          _srv_descriptor_stride{ 0 };

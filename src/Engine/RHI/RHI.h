@@ -28,6 +28,14 @@ namespace carrot::rhi {
     class rhi_swapchain_t;
     class rhi_device_t;
 
+    struct render_viewport_t
+    {
+        chlm::uint_rect rect_px{
+            .position = { 0u, 0u },
+            .size = { 1u, 1u }
+        };
+    };
+
     enum class graphics_api { vulkan, direct_x12, metal, default_api, count };
 
     [[nodiscard]] static std::string_view graphics_api_to_string(const graphics_api api) noexcept
@@ -74,6 +82,7 @@ namespace carrot::rhi {
         virtual void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer, const rhi_buffer_t& index_buffer) = 0;
         virtual void set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches) = 0;
         virtual void set_textured_quad_view_projection(const chlm::float4x4& view_projection) = 0;
+        virtual void set_textured_quad_viewport(const render_viewport_t& viewport) = 0;
 
         [[nodiscard]] virtual rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) = 0;
         virtual void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) = 0;

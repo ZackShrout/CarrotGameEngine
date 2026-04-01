@@ -34,8 +34,7 @@ namespace carrot::rhi::dx12 {
     {
         ID3D12GraphicsCommandList* command_list{ nullptr };
 
-        uint32_t render_width{ 0 };
-        uint32_t render_height{ 0 };
+        render_viewport_t viewport{ };
 
         const rhi_buffer_t* vertex_buffer{ nullptr };
         const rhi_buffer_t* index_buffer{ nullptr };

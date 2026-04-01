@@ -88,7 +88,8 @@ namespace carrot {
         // CAMERA (test code)
         renderer::camera_2d_t camera{ };
         camera.position = { 0.f, 0.f };
-        camera.viewport_size = { static_cast<float>(width), static_cast<float>(height) };
+        camera.design_view_size = { static_cast<float>(width), static_cast<float>(height) };
+        camera.sizing_mode = renderer::camera_2d_sizing_mode_t::fixed_aspect_letterbox;
         camera.zoom = 1.f;
 
         _renderer->set_camera_2d(camera);

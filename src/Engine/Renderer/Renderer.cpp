@@ -80,8 +80,6 @@ namespace carrot::renderer {
 
         _stats = { };
 
-        sync_camera_viewport_to_render_target();
-
         _rhi->begin_frame();
     }
 
@@ -101,7 +99,13 @@ namespace carrot::renderer {
             }
         }
 
-        _rhi->set_textured_quad_view_projection(_active_camera.view_projection_matrix());
+        const chlm::uint2 render_target_size{ current_render_target_size() };
+        const resolved_camera_2d_t resolved_camera{ _active_camera.resolve(render_target_size) };
+
+        _rhi->set_textured_quad_view_projection(_active_camera.view_projection_matrix(render_target_size));
+        _rhi->set_textured_quad_viewport({
+            .rect_px = resolved_camera.viewport_rect_px
+        });
         _rhi->record_frame();
 
         _stats.vertex_count = static_cast<uint32_t>(_textured_quad.vertices_cpu.size());
@@ -240,17 +244,16 @@ namespace carrot::renderer {
 
     // PRIVATE
 
-    void renderer_t::sync_camera_viewport_to_render_target()
+    chlm::uint2 renderer_t::current_render_target_size() const noexcept
     {
         const rhi::rhi_swapchain_t* swapchain{ _rhi->get_swapchain() };
 
         if (swapchain && swapchain->get_width() > 0 && swapchain->get_height() > 0)
         {
-            _active_camera.viewport_size = {
-                static_cast<float>(swapchain->get_width()),
-                static_cast<float>(swapchain->get_height())
-            };
+            return { swapchain->get_width(), swapchain->get_height() };
         }
+
+        return { 1u, 1u };
     }
 
     void renderer_t::release_frame_resources()

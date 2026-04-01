@@ -274,17 +274,25 @@ namespace carrot::rhi::vulkan {
 
         const std::vector<VkDescriptorSet_T*>& frame_descriptor_sets{ _textured_quad.descriptor_sets[_current_frame] };
 
+        const chlm::uint_rect viewport_rect{ _textured_quad.viewport.rect_px };
+
         VkViewport viewport{ };
-        viewport.x = 0.f;
-        viewport.y = 0.f;
-        viewport.width = static_cast<float>(_swapchain->get_width());
-        viewport.height = static_cast<float>(_swapchain->get_height());
+        viewport.x = static_cast<float>(viewport_rect.position.x);
+        viewport.y = static_cast<float>(viewport_rect.position.y);
+        viewport.width = static_cast<float>(viewport_rect.size.x);
+        viewport.height = static_cast<float>(viewport_rect.size.y);
         viewport.minDepth = 0.f;
         viewport.maxDepth = 1.f;
 
         VkRect2D scissor{ };
-        scissor.offset = { 0, 0 };
-        scissor.extent = { _swapchain->get_width(), _swapchain->get_height() };
+        scissor.offset = {
+            static_cast<int32_t>(viewport_rect.position.x),
+            static_cast<int32_t>(viewport_rect.position.y)
+        };
+        scissor.extent = {
+            viewport_rect.size.x,
+            viewport_rect.size.y
+        };
 
         vkCmdSetViewport(frame.command_buffer, 0, 1, &viewport);
         vkCmdSetScissor(frame.command_buffer, 0, 1, &scissor);
@@ -789,6 +797,11 @@ namespace carrot::rhi::vulkan {
     void vulkan_rhi_context_t::set_textured_quad_view_projection(const chlm::float4x4& view_projection)
     {
         _textured_quad.view_projection = view_projection;
+    }
+
+    void vulkan_rhi_context_t::set_textured_quad_viewport(const render_viewport_t& viewport)
+    {
+        _textured_quad.viewport = viewport;
     }
 
     rhi_sampler_t* vulkan_rhi_context_t::get_or_create_sampler(const sampler_desc_t& desc)

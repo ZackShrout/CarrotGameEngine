@@ -46,6 +46,7 @@ namespace carrot::rhi::metal {
         void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer, const rhi_buffer_t& index_buffer) override;
         void set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches) override;
         void set_textured_quad_view_projection(const chlm::float4x4& view_projection) override;
+        void set_textured_quad_viewport(const render_viewport_t& viewport) override;
 
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
         void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) override {}
@@ -82,6 +83,7 @@ namespace carrot::rhi::metal {
         const metal_buffer_t*                           _textured_quad_index_buffer{ nullptr };
         std::vector<renderer::textured_quad_batch_t>    _textured_quad_batches;
         chlm::float4x4                                  _textured_quad_view_projection{ chlm::float4x4::identity() };
+        render_viewport_t                               _textured_quad_viewport{ };
         std::unique_ptr<metal_buffer_t>                 _textured_quad_camera_uniform_buffer;
 
         // ── Dynamic per-batch argument / root signature data ──

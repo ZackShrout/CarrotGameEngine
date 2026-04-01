@@ -31,6 +31,7 @@ namespace carrot::rhi::vulkan {
         const vulkan_buffer_t* index_buffer{ nullptr };
 
         chlm::float4x4 view_projection{ chlm::float4x4::identity() };
+        render_viewport_t viewport{ };
 
         std::array<std::unique_ptr<rhi_buffer_t>, k_max_frames_in_flight> camera_uniform_buffers;
         std::array<VkDescriptorSet, k_max_frames_in_flight> camera_descriptor_sets{ };
@@ -63,6 +64,7 @@ namespace carrot::rhi::vulkan {
         void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer, const rhi_buffer_t& index_buffer) override;
         void set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches) override;
         void set_textured_quad_view_projection(const chlm::float4x4& view_projection) override;
+        void set_textured_quad_viewport(const render_viewport_t& viewport) override;
 
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
         void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) override {}

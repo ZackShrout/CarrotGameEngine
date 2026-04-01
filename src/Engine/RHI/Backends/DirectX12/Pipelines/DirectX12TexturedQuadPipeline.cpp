@@ -216,18 +216,18 @@ namespace carrot::rhi::dx12 {
         const dx12_buffer_t& dx_index_buffer{ dynamic_cast<const dx12_buffer_t&>(*draw_context.index_buffer) };
 
         D3D12_VIEWPORT viewport{ };
-        viewport.TopLeftX = 0.f;
-        viewport.TopLeftY = 0.f;
-        viewport.Width = static_cast<float>(draw_context.render_width);
-        viewport.Height = static_cast<float>(draw_context.render_height);
+        viewport.TopLeftX = static_cast<float>(draw_context.viewport.rect_px.position.x);
+        viewport.TopLeftY = static_cast<float>(draw_context.viewport.rect_px.position.y);
+        viewport.Width = static_cast<float>(draw_context.viewport.rect_px.size.x);
+        viewport.Height = static_cast<float>(draw_context.viewport.rect_px.size.y);
         viewport.MinDepth = 0.f;
         viewport.MaxDepth = 1.f;
 
         D3D12_RECT scissor{ };
-        scissor.left = 0;
-        scissor.top = 0;
-        scissor.right = static_cast<LONG>(draw_context.render_width);
-        scissor.bottom = static_cast<LONG>(draw_context.render_height);
+        scissor.left = static_cast<LONG>(draw_context.viewport.rect_px.position.x);
+        scissor.top = static_cast<LONG>(draw_context.viewport.rect_px.position.y);
+        scissor.right = static_cast<LONG>(draw_context.viewport.rect_px.position.x + draw_context.viewport.rect_px.size.x);
+        scissor.bottom = static_cast<LONG>(draw_context.viewport.rect_px.position.y + draw_context.viewport.rect_px.size.y);
 
         D3D12_VERTEX_BUFFER_VIEW vbv{ };
         vbv.BufferLocation = dx_vertex_buffer.resource()->GetGPUVirtualAddress();

@@ -165,8 +165,7 @@ namespace carrot::rhi::dx12 {
 
             const draw_context_t draw_context{
                 .command_list = cmd,
-                .render_width = sc->get_width(),
-                .render_height = sc->get_height(),
+                .viewport = _textured_quad_viewport,
                 .vertex_buffer = _textured_quad_vertex_buffer,
                 .index_buffer = _textured_quad_index_buffer,
                 .batches = _textured_quad_batches
@@ -412,6 +411,11 @@ namespace carrot::rhi::dx12 {
     void dx12_rhi_context_t::set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches)
     {
         _textured_quad_batches.assign(batches.begin(), batches.end());
+    }
+
+    void dx12_rhi_context_t::set_textured_quad_viewport(const render_viewport_t& viewport)
+    {
+        _textured_quad_viewport = viewport;
     }
 
     rhi_sampler_t* dx12_rhi_context_t::get_or_create_sampler(const sampler_desc_t& desc)

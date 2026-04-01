@@ -247,7 +247,7 @@ namespace carrot::debug {
             glyph.v1 = quad.t1;
             glyph.layer = renderer::render_layer_t::debug;
             glyph.color = 0xFFFFFFFFu;
-            glyph.sampler_preset = renderer::quad_sampler_preset_t::smooth_clamp;
+            glyph.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
 
             if (glyph.width > 0.f && glyph.height > 0.f)
                 g_renderer->draw_textured_quad(glyph);

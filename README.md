@@ -112,6 +112,10 @@ This is one of the reasons Carrot leans heavily into **JSON-based authored metad
   * explicit draw layering and intra-layer ordering
   * frame/default pivot support with per-draw pivot override
   * sprite flip X / flip Y support
+* Tilemap Foundation V1 including:
+  * Tiled-backed tilemap asset import
+  * Carrot runtime tilemap structures preserving tile layers, object layers, and tilesets
+  * first orthogonal tile-layer rendering through the renderer
 * Engine-owned debug text / overlay support for runtime renderer diagnostics
 * Future direction includes:
 

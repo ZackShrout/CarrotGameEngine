@@ -242,6 +242,7 @@ Key current priorities include:
 * presentation policy support such as responsive framing vs fixed-aspect gameplay framing
 * explicit 2D draw ordering via layers and stable ordering rules
 * sprite-facing placement behavior such as pivot/origin and flip
+* first tilemap rendering support built on top of Tiled-backed runtime tilemap data
 * frame lifecycle clarity
 * debug-friendly rendering flow
 * engine-owned debug text overlays for runtime renderer diagnostics
@@ -263,6 +264,7 @@ Examples of renderer-level concerns:
 * sprite pivot/origin policy
 * sprite flip policy
 * camera/projection handling
+* tilemap layer rendering policy
 * debug rendering
 * future text/UI rendering
 * world-facing rendering flow

@@ -114,6 +114,7 @@ namespace carrot {
 
         if (const assets::loaded_tilemap_asset_t* tilemap{ _asset_manager->tilemaps().get("tilemap.test.overworld") })
         {
+            _test_tilemap_overworld = tilemap;
             const assets::tilemap_asset_t& map{ tilemap->tilemap() };
 
             uint32_t object_count{ 0 };
@@ -311,6 +312,18 @@ namespace carrot {
 
         if (!botan || !vraden || !orange || !logo)
             return;
+
+        if (_test_tilemap_overworld && _test_tilemap_overworld->valid())
+        {
+            _renderer->draw_tilemap({
+                .tilemap = _test_tilemap_overworld,
+                .origin = { 320.f, 96.f },
+                .layer = renderer::render_layer_t::world_back,
+                .order_in_layer = -100,
+                .sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp,
+                .color = 0xFFFFFFFFu
+            });
+        }
 
         static float x_offset{ 0.0f };
         static bool moving_right{ true };

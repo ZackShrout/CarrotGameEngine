@@ -181,8 +181,8 @@ Examples include:
 
 * `*.audio.json`
 * `*.texture.json`
-* future `*.sprite.json`
-* future `*.tilemap.json`
+* `*.sprite.json`
+* `*.tilemap.json`
 
 These files define things such as:
 

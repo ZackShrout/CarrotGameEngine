@@ -143,7 +143,7 @@ Examples:
 * streaming audio state
 * GPU texture resources
 * loaded sprite definitions
-* future tile map runtime structures
+* loaded tilemap runtime structures
 
 These are the objects runtime systems actually use.
 

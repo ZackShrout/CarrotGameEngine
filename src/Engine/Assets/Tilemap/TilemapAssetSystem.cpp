@@ -11,6 +11,22 @@
 #include "TilemapAssetLoader.h"
 
 namespace carrot::assets {
+    namespace {
+        [[nodiscard]] std::string_view to_string(const tilemap_asset_load_error_t error) noexcept
+        {
+            switch (error)
+            {
+                case tilemap_asset_load_error_t::none: return "none";
+                case tilemap_asset_load_error_t::invalid_record: return "invalid_record";
+                case tilemap_asset_load_error_t::resolve_failed: return "resolve_failed";
+                case tilemap_asset_load_error_t::source_not_found: return "source_not_found";
+                case tilemap_asset_load_error_t::decode_failed: return "decode_failed";
+                case tilemap_asset_load_error_t::texture_create_failed: return "texture_create_failed";
+                default: return "unknown";
+            }
+        }
+    }
+
     const loaded_tilemap_asset_t* tilemap_asset_system_t::get(const asset_id_t id)
     {
         if (const auto it{ _loaded.find(id) }; it != _loaded.end())
@@ -23,10 +39,10 @@ namespace carrot::assets {
             return nullptr;
         }
 
-        tilemap_asset_load_result_t result{ load_tilemap_asset(*record) };
+        tilemap_asset_load_result_t result{ load_tilemap_asset(*record, _vfs, _rhi) };
         if (!result.success())
         {
-            LOG_ASSET_ERROR("Failed to load tilemap asset '{}'", record->logical_id);
+            LOG_ASSET_ERROR("Failed to load tilemap asset '{}': {}", record->logical_id, to_string(result.error));
             return nullptr;
         }
 

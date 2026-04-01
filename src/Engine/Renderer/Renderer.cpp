@@ -7,6 +7,7 @@
 
 #include "Renderer.h"
 
+#include "Assets/Tilemap/LoadedTilemapAsset.h"
 #include "Assets/Sprite/LoadedSpriteAsset.h"
 #include "Assets/Texture/TextureAsset.h"
 #include "Draw/SpriteDrawInfo.h"
@@ -195,6 +196,98 @@ namespace carrot::renderer {
         quad.v1 = final_v1;
 
         draw_textured_quad(quad);
+    }
+
+    void renderer_t::draw_tilemap(const tilemap_draw_info_t& info)
+    {
+        if (!info.tilemap || !info.tilemap->valid())
+        {
+            LOG_GRAPHICS_WARN("renderer_t::draw_tilemap called with invalid tilemap.");
+            return;
+        }
+
+        const assets::tilemap_asset_t& tilemap{ info.tilemap->tilemap() };
+        const auto& tilesets{ tilemap.tilesets() };
+        const auto& textures{ info.tilemap->tileset_textures() };
+
+        for (const assets::tilemap_layer_t& layer : tilemap.layers())
+        {
+            if (!layer.visible || layer.kind != assets::tilemap_layer_kind_t::tile)
+                continue;
+
+            for (uint32_t row{ 0 }; row < layer.height; ++row)
+            {
+                for (uint32_t col{ 0 }; col < layer.width; ++col)
+                {
+                    const uint32_t cell_index{ row * layer.width + col };
+                    if (cell_index >= layer.gids.size())
+                        continue;
+
+                    const uint32_t gid{ layer.gids[cell_index] };
+                    if (gid == 0)
+                        continue;
+
+                    size_t tileset_index{ static_cast<size_t>(-1) };
+                    for (size_t i{ 0 }; i < tilesets.size(); ++i)
+                    {
+                        const uint32_t first_gid{ tilesets[i].first_gid };
+                        const uint32_t next_first_gid{
+                            (i + 1u) < tilesets.size() ? tilesets[i + 1u].first_gid : std::numeric_limits<uint32_t>::max()
+                        };
+
+                        if (gid >= first_gid && gid < next_first_gid)
+                        {
+                            tileset_index = i;
+                            break;
+                        }
+                    }
+
+                    if (tileset_index == static_cast<size_t>(-1) ||
+                        tileset_index >= textures.size() ||
+                        !textures[tileset_index])
+                    {
+                        continue;
+                    }
+
+                    const assets::tilemap_tileset_t& tileset{ tilesets[tileset_index] };
+                    if (tileset.columns == 0 || tileset.tile_width == 0 || tileset.tile_height == 0 ||
+                        tileset.image_width == 0 || tileset.image_height == 0)
+                    {
+                        continue;
+                    }
+
+                    const uint32_t local_tile_index{ gid - tileset.first_gid };
+                    const uint32_t tile_u_index{ local_tile_index % tileset.columns };
+                    const uint32_t tile_v_index{ local_tile_index / tileset.columns };
+
+                    const float u0{ static_cast<float>(tile_u_index * tileset.tile_width) /
+                                    static_cast<float>(tileset.image_width) };
+                    const float v0{ static_cast<float>(tile_v_index * tileset.tile_height) /
+                                    static_cast<float>(tileset.image_height) };
+                    const float u1{ static_cast<float>((tile_u_index + 1u) * tileset.tile_width) /
+                                    static_cast<float>(tileset.image_width) };
+                    const float v1{ static_cast<float>((tile_v_index + 1u) * tileset.tile_height) /
+                                    static_cast<float>(tileset.image_height) };
+
+                    textured_quad_draw_info_t tile_quad{ };
+                    tile_quad.texture = textures[tileset_index].get();
+                    tile_quad.x = info.origin.x + (static_cast<float>(col) * static_cast<float>(tilemap.tile_width()));
+                    tile_quad.y = info.origin.y + (static_cast<float>(row) * static_cast<float>(tilemap.tile_height()));
+                    tile_quad.width = static_cast<float>(tilemap.tile_width());
+                    tile_quad.height = static_cast<float>(tilemap.tile_height());
+                    tile_quad.u0 = u0;
+                    tile_quad.v0 = v0;
+                    tile_quad.u1 = u1;
+                    tile_quad.v1 = v1;
+                    tile_quad.layer = info.layer;
+                    tile_quad.order_in_layer = info.order_in_layer;
+                    tile_quad.color = info.color;
+                    tile_quad.sampler_preset = info.sampler_preset;
+
+                    draw_textured_quad(tile_quad);
+                }
+            }
+        }
     }
 
     void renderer_t::notify_shader_changed(std::string_view path)

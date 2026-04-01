@@ -8,11 +8,23 @@
 #include "LoadedTilemapAsset.h"
 #include "TilemapAsset.h"
 
+namespace carrot::io {
+    class virtual_file_system_t;
+}
+
+namespace carrot::rhi {
+    class rhi_context_t;
+}
+
 namespace carrot::assets {
     enum class tilemap_asset_load_error_t
     {
         none = 0,
-        invalid_record
+        invalid_record,
+        resolve_failed,
+        source_not_found,
+        decode_failed,
+        texture_create_failed
     };
 
     struct tilemap_asset_load_result_t
@@ -27,4 +39,7 @@ namespace carrot::assets {
     };
 
     [[nodiscard]] tilemap_asset_load_result_t load_tilemap_asset(const tilemap_asset_record_t& record);
+    [[nodiscard]] tilemap_asset_load_result_t load_tilemap_asset(const tilemap_asset_record_t& record,
+                                                                 const io::virtual_file_system_t& vfs,
+                                                                 rhi::rhi_context_t& rhi) noexcept;
 } // namespace carrot::assets

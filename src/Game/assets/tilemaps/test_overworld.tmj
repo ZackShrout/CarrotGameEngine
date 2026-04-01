@@ -66,7 +66,7 @@
         {
          "columns":32,
          "firstgid":1,
-         "image":"..\/..\/..\/..\/..\/Library\/CloudStorage\/Dropbox\/Spirit Storm\/Map Tiles\/Exterior\/ground.png",
+         "image":"tilesets\/ground.png",
          "imageheight":1056,
          "imagewidth":1024,
          "margin":0,

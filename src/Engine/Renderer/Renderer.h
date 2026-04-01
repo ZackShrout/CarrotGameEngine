@@ -28,8 +28,22 @@ namespace carrot::rhi {
     class rhi_buffer_t;
 }
 
+namespace carrot::assets {
+    class loaded_tilemap_asset_t;
+}
+
 namespace carrot::renderer {
     struct sprite_draw_info_t;
+
+    struct tilemap_draw_info_t
+    {
+        const assets::loaded_tilemap_asset_t* tilemap{ nullptr };
+        chlm::float2 origin{ 0.f, 0.f };
+        render_layer_t layer{ render_layer_t::world_back };
+        int32_t order_in_layer{ 0 };
+        quad_sampler_preset_t sampler_preset{ quad_sampler_preset_t::pixel_clamp };
+        uint32_t color{ 0xFFFFFFFFu };
+    };
 
     struct renderer_stats_t
     {
@@ -84,6 +98,7 @@ namespace carrot::renderer {
         // Very high-level drawing commands (immediate mode for now)
         void draw_textured_quad(const textured_quad_draw_info_t& quad);
         void draw_sprite(const sprite_draw_info_t& info);
+        void draw_tilemap(const tilemap_draw_info_t& info);
 
         // Hot-reload & debug support
         void notify_shader_changed(std::string_view path);

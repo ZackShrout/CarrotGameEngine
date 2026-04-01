@@ -8,6 +8,7 @@
 #include "Assets/AssetManager.h"
 #include "Assets/Sprite/LoadedSpriteAsset.h"
 #include "Assets/Sprite/SpriteAnimator.h"
+#include "Assets/Tilemap/LoadedTilemapAsset.h"
 #include "Audio/AudioModule.h"
 #include "Core/CoreDefines.h"
 #include "IO/VirtualFileSystem.h"
@@ -90,6 +91,7 @@ namespace carrot {
 
         const assets::loaded_sprite_asset_t*                _test_sprite_vraden;
         const assets::loaded_sprite_asset_t*                _test_sprite_kelvara;
+        const assets::loaded_tilemap_asset_t*               _test_tilemap_overworld{ nullptr };
         assets::sprite_animator_t                           _vraden_animator;
         assets::sprite_animator_t                           _kelvara_animator;
     };

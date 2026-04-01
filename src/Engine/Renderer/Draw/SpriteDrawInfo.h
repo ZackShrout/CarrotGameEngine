@@ -6,8 +6,10 @@
 #pragma once
 
 #include "QuadSamplerPreset.h"
+#include "RenderLayer.h"
 
 #include <cstdint>
+#include <chlm/CarrotHLM.h>
 
 namespace carrot::assets {
     struct sprite_frame_t;
@@ -24,6 +26,13 @@ namespace carrot::renderer {
         float y{ 0.f };
         float width{ 1.f };
         float height{ 1.f };
+        bool use_custom_pivot{ false };
+        chlm::float2 pivot{ 0.5f, 0.5f };
+        bool flip_x{ false };
+        bool flip_y{ false };
+
+        render_layer_t layer{ render_layer_t::actors };
+        int32_t order_in_layer{ 0 };
 
         uint32_t color{ 0xFFFFFFFFu };
         quad_sampler_preset_t sampler_preset{ quad_sampler_preset_t::pixel_clamp };

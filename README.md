@@ -108,9 +108,12 @@ This is one of the reasons Carrot leans heavily into **JSON-based authored metad
 * 2D camera / projection support with both:
   * responsive world-view framing
   * fixed-aspect letterboxed gameplay framing
+* Early 2D sprite-facing renderer features including:
+  * explicit draw layering and intra-layer ordering
+  * frame/default pivot support with per-draw pivot override
+  * sprite flip X / flip Y support
 * Future direction includes:
 
-    * sprite rendering
     * animation
     * debug text / overlays
     * UI layers

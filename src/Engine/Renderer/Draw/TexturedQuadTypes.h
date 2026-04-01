@@ -6,6 +6,7 @@
 #pragma once
 
 #include "QuadSamplerPreset.h"
+#include "RenderLayer.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -40,6 +41,9 @@ namespace carrot::renderer {
         float v0{ 0.f };
         float u1{ 1.f };
         float v1{ 1.f };
+
+        render_layer_t layer{ render_layer_t::world_back };
+        int32_t order_in_layer{ 0 };
 
         uint32_t color{ 0xFFFFFFFF }; // ABGR
 

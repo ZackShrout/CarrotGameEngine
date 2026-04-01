@@ -74,6 +74,7 @@ namespace carrot::renderer {
     {
         _frame_index++;
 
+        _textured_quad.submissions.clear();
         _textured_quad.vertices_cpu.clear();
         _textured_quad.indices_cpu.clear();
         _textured_quad.batches.clear();
@@ -85,6 +86,8 @@ namespace carrot::renderer {
 
     void renderer_t::end_frame()
     {
+        build_textured_quad_batches();
+
         if (!_textured_quad.batches.empty())
         {
             ensure_textured_quad_frame_buffers();
@@ -124,60 +127,10 @@ namespace carrot::renderer {
             return;
         }
 
-        if (_textured_quad.batches.empty() ||
-            _textured_quad.batches.back().texture != quad.texture ||
-            _textured_quad.batches.back().sampler_preset != quad.sampler_preset)
-        {
-            _textured_quad.batches.push_back(textured_quad_batch_t{
-                .texture = quad.texture,
-                .first_index = static_cast<uint32_t>(_textured_quad.indices_cpu.size()),
-                .index_count = 0,
-                .sampler_preset = quad.sampler_preset
-            });
-        }
-
-        const uint32_t base_vertex{ static_cast<uint32_t>(_textured_quad.vertices_cpu.size()) };
-
-        _textured_quad.vertices_cpu.push_back(quad_vertex_t{
-            .x = quad.x,
-            .y = quad.y,
-            .u = quad.u0,
-            .v = quad.v0,
-            .color = quad.color
+        _textured_quad.submissions.push_back({
+            .quad = quad,
+            .submission_index = static_cast<uint64_t>(_textured_quad.submissions.size())
         });
-
-        _textured_quad.vertices_cpu.push_back(quad_vertex_t{
-            .x = quad.x + quad.width,
-            .y = quad.y,
-            .u = quad.u1,
-            .v = quad.v0,
-            .color = quad.color
-        });
-
-        _textured_quad.vertices_cpu.push_back(quad_vertex_t{
-            .x = quad.x + quad.width,
-            .y = quad.y + quad.height,
-            .u = quad.u1,
-            .v = quad.v1,
-            .color = quad.color
-        });
-
-        _textured_quad.vertices_cpu.push_back(quad_vertex_t{
-            .x = quad.x,
-            .y = quad.y + quad.height,
-            .u = quad.u0,
-            .v = quad.v1,
-            .color = quad.color
-        });
-
-        _textured_quad.indices_cpu.push_back(base_vertex + 0);
-        _textured_quad.indices_cpu.push_back(base_vertex + 1);
-        _textured_quad.indices_cpu.push_back(base_vertex + 2);
-        _textured_quad.indices_cpu.push_back(base_vertex + 0);
-        _textured_quad.indices_cpu.push_back(base_vertex + 2);
-        _textured_quad.indices_cpu.push_back(base_vertex + 3);
-
-        _textured_quad.batches.back().index_count += 6;
 
         _stats.textured_quad_count++;
     }
@@ -219,19 +172,26 @@ namespace carrot::renderer {
         const float v0{ static_cast<float>(rect.position.y) / texture_height };
         const float u1{ static_cast<float>(rect.position.x + rect.size.x) / texture_width };
         const float v1{ static_cast<float>(rect.position.y + rect.size.y) / texture_height };
+        const chlm::float2 pivot{ info.use_custom_pivot ? info.pivot : info.frame->pivot };
+        const float final_u0{ info.flip_x ? u1 : u0 };
+        const float final_v0{ info.flip_y ? v1 : v0 };
+        const float final_u1{ info.flip_x ? u0 : u1 };
+        const float final_v1{ info.flip_y ? v0 : v1 };
 
         textured_quad_draw_info_t quad{ };
         quad.texture = texture_asset->texture.get();
-        quad.x = info.x;
-        quad.y = info.y;
+        quad.x = info.x - (pivot.x * info.width);
+        quad.y = info.y - (pivot.y * info.height);
         quad.width = info.width;
         quad.height = info.height;
+        quad.layer = info.layer;
+        quad.order_in_layer = info.order_in_layer;
         quad.color = info.color;
         quad.sampler_preset = info.sampler_preset;
-        quad.u0 = u0;
-        quad.v0 = v0;
-        quad.u1 = u1;
-        quad.v1 = v1;
+        quad.u0 = final_u0;
+        quad.v0 = final_v0;
+        quad.u1 = final_u1;
+        quad.v1 = final_v1;
 
         draw_textured_quad(quad);
     }
@@ -256,8 +216,95 @@ namespace carrot::renderer {
         return { 1u, 1u };
     }
 
+    void renderer_t::build_textured_quad_batches()
+    {
+        _textured_quad.vertices_cpu.clear();
+        _textured_quad.indices_cpu.clear();
+        _textured_quad.batches.clear();
+
+        if (_textured_quad.submissions.empty())
+            return;
+
+        std::stable_sort(_textured_quad.submissions.begin(), _textured_quad.submissions.end(),
+                         [](const textured_quad_state_t::submission_t& lhs,
+                            const textured_quad_state_t::submission_t& rhs) noexcept
+                         {
+                             const auto lhs_layer{ static_cast<uint16_t>(lhs.quad.layer) };
+                             const auto rhs_layer{ static_cast<uint16_t>(rhs.quad.layer) };
+
+                             if (lhs_layer != rhs_layer)
+                                 return lhs_layer < rhs_layer;
+
+                             if (lhs.quad.order_in_layer != rhs.quad.order_in_layer)
+                                 return lhs.quad.order_in_layer < rhs.quad.order_in_layer;
+
+                             return lhs.submission_index < rhs.submission_index;
+                         });
+
+        for (const textured_quad_state_t::submission_t& submission: _textured_quad.submissions)
+        {
+            const textured_quad_draw_info_t& quad{ submission.quad };
+
+            if (_textured_quad.batches.empty() ||
+                _textured_quad.batches.back().texture != quad.texture ||
+                _textured_quad.batches.back().sampler_preset != quad.sampler_preset)
+            {
+                _textured_quad.batches.push_back(textured_quad_batch_t{
+                    .texture = quad.texture,
+                    .first_index = static_cast<uint32_t>(_textured_quad.indices_cpu.size()),
+                    .index_count = 0,
+                    .sampler_preset = quad.sampler_preset
+                });
+            }
+
+            const uint32_t base_vertex{ static_cast<uint32_t>(_textured_quad.vertices_cpu.size()) };
+
+            _textured_quad.vertices_cpu.push_back(quad_vertex_t{
+                .x = quad.x,
+                .y = quad.y,
+                .u = quad.u0,
+                .v = quad.v0,
+                .color = quad.color
+            });
+
+            _textured_quad.vertices_cpu.push_back(quad_vertex_t{
+                .x = quad.x + quad.width,
+                .y = quad.y,
+                .u = quad.u1,
+                .v = quad.v0,
+                .color = quad.color
+            });
+
+            _textured_quad.vertices_cpu.push_back(quad_vertex_t{
+                .x = quad.x + quad.width,
+                .y = quad.y + quad.height,
+                .u = quad.u1,
+                .v = quad.v1,
+                .color = quad.color
+            });
+
+            _textured_quad.vertices_cpu.push_back(quad_vertex_t{
+                .x = quad.x,
+                .y = quad.y + quad.height,
+                .u = quad.u0,
+                .v = quad.v1,
+                .color = quad.color
+            });
+
+            _textured_quad.indices_cpu.push_back(base_vertex + 0);
+            _textured_quad.indices_cpu.push_back(base_vertex + 1);
+            _textured_quad.indices_cpu.push_back(base_vertex + 2);
+            _textured_quad.indices_cpu.push_back(base_vertex + 0);
+            _textured_quad.indices_cpu.push_back(base_vertex + 2);
+            _textured_quad.indices_cpu.push_back(base_vertex + 3);
+
+            _textured_quad.batches.back().index_count += 6;
+        }
+    }
+
     void renderer_t::release_frame_resources()
     {
+        _textured_quad.submissions.clear();
         _textured_quad.vertices_cpu.clear();
         _textured_quad.indices_cpu.clear();
         _textured_quad.batches.clear();

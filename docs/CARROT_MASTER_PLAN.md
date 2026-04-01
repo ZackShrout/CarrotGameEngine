@@ -229,6 +229,8 @@ Near-term renderer priorities include:
 * camera / projection support
 * gameplay-facing presentation policies such as fixed-aspect letterboxing
 * sprite rendering
+* stable layered 2D draw ordering
+* sprite placement controls such as pivot/origin and flip
 * debug rendering and text
 
 Over time, the renderer should evolve from “test scene rendering” into a world-aware rendering system that can support actual gameplay-driven rendering flows.
@@ -553,6 +555,7 @@ These are the most immediate engine priorities.
 * Introduce **sprite asset support**
 * Support **sprite animation workflows**
 * Continue expanding **camera / projection support** into stronger gameplay/editor camera workflows
+* Continue expanding sprite-facing renderer behavior such as layered draw ordering, pivot/origin handling, and flip support
 * Improve **debug rendering / debug text / overlay direction**
 * Continue strengthening the asset system and authored asset workflows
 

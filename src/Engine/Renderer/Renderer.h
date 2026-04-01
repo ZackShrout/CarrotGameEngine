@@ -42,6 +42,14 @@ namespace carrot::renderer {
 
     struct textured_quad_state_t
     {
+        struct submission_t
+        {
+            textured_quad_draw_info_t quad;
+            uint64_t submission_index{ 0 };
+        };
+
+        std::vector<submission_t> submissions;
+
         // CPU-side submission/batching for the current frame
         std::vector<quad_vertex_t> vertices_cpu;
         std::vector<uint32_t> indices_cpu;
@@ -87,6 +95,7 @@ namespace carrot::renderer {
 
     private:
         [[nodiscard]] chlm::uint2 current_render_target_size() const noexcept;
+        void build_textured_quad_batches();
         void release_frame_resources();
         void ensure_textured_quad_frame_buffers();
         void upload_textured_quad_frame_data() const;

@@ -240,6 +240,8 @@ Key current priorities include:
 * backend parity
 * camera / projection behavior
 * presentation policy support such as responsive framing vs fixed-aspect gameplay framing
+* explicit 2D draw ordering via layers and stable ordering rules
+* sprite-facing placement behavior such as pivot/origin and flip
 * frame lifecycle clarity
 * debug-friendly rendering flow
 
@@ -257,6 +259,8 @@ Examples of renderer-level concerns:
 * batching
 * draw ordering
 * sprite rendering
+* sprite pivot/origin policy
+* sprite flip policy
 * camera/projection handling
 * debug rendering
 * future text/UI rendering

@@ -293,6 +293,7 @@ namespace carrot {
         top_left_botan.y = 36.f;
         top_left_botan.width = 180.f;
         top_left_botan.height = 140.f;
+        top_left_botan.layer = renderer::render_layer_t::background;
         top_left_botan.color = 0xFFFF0000u;
         top_left_botan.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
         _renderer->draw_textured_quad(top_left_botan);
@@ -303,6 +304,7 @@ namespace carrot {
         top_right_vraden.y = 36.f;
         top_right_vraden.width = 180.f;
         top_right_vraden.height = 140.f;
+        top_right_vraden.layer = renderer::render_layer_t::background;
         top_right_vraden.color = 0xFFFF00FFu;
         top_right_vraden.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
         _renderer->draw_textured_quad(top_right_vraden);
@@ -313,6 +315,7 @@ namespace carrot {
         bottom_left_vraden.y = 576.f;
         bottom_left_vraden.width = 180.f;
         bottom_left_vraden.height = 140.f;
+        bottom_left_vraden.layer = renderer::render_layer_t::background;
         bottom_left_vraden.color = 0xFF00FF00u;
         bottom_left_vraden.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
         _renderer->draw_textured_quad(bottom_left_vraden);
@@ -323,6 +326,7 @@ namespace carrot {
         bottom_right_botan.y = 576.f;
         bottom_right_botan.width = 180.f;
         bottom_right_botan.height = 140.f;
+        bottom_right_botan.layer = renderer::render_layer_t::background;
         bottom_right_botan.color = 0xFF0000FFu;
         bottom_right_botan.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
         _renderer->draw_textured_quad(bottom_right_botan);
@@ -337,6 +341,8 @@ namespace carrot {
         center_logo.y = 288.f;
         center_logo.width = 256.f;
         center_logo.height = 256;
+        center_logo.layer = renderer::render_layer_t::actors;
+        center_logo.order_in_layer = -20;
         center_logo.color = 0xFFFFFFFFu;
         center_logo.sampler_preset = renderer::quad_sampler_preset_t::smooth_clamp;
         _renderer->draw_textured_quad(center_logo);
@@ -351,6 +357,8 @@ namespace carrot {
         uv_test_logo.y = 324.f;
         uv_test_logo.width = 128.f;
         uv_test_logo.height = 128.f;
+        uv_test_logo.layer = renderer::render_layer_t::world_back;
+        uv_test_logo.order_in_layer = -10;
         uv_test_logo.color = 0xFFFFFFFFu;
         uv_test_logo.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
         uv_test_logo.u0 = 0.f;
@@ -370,6 +378,8 @@ namespace carrot {
         alpha_back.y = 342.f;
         alpha_back.width = 128.f;
         alpha_back.height = 128.f;
+        alpha_back.layer = renderer::render_layer_t::world_back;
+        alpha_back.order_in_layer = 10;
         alpha_back.color = 0xFF00FFFFu;
         alpha_back.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
         _renderer->draw_textured_quad(alpha_back);
@@ -380,6 +390,8 @@ namespace carrot {
         alpha_front.y = 370.8f;
         alpha_front.width = 128.f;
         alpha_front.height = 128.f;
+        alpha_front.layer = renderer::render_layer_t::world_front;
+        alpha_front.order_in_layer = 10;
         alpha_front.color = 0x88FF0000u;
         alpha_front.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
         _renderer->draw_textured_quad(alpha_front);
@@ -394,6 +406,8 @@ namespace carrot {
         top_edge_clip.y = -62.f;
         top_edge_clip.width = 128.f;
         top_edge_clip.height = 128.f;
+        top_edge_clip.layer = renderer::render_layer_t::world_front;
+        top_edge_clip.order_in_layer = 100;
         top_edge_clip.color = 0xFFFFFFFFu;
         top_edge_clip.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
         _renderer->draw_textured_quad(top_edge_clip);
@@ -411,6 +425,8 @@ namespace carrot {
             sprite_draw.y = 324.f;
             sprite_draw.width = 180;
             sprite_draw.height = 140.f;
+            sprite_draw.layer = renderer::render_layer_t::actors;
+            sprite_draw.order_in_layer = 0;
             sprite_draw.color = 0xFFFFFFFFu;
             sprite_draw.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
 
@@ -430,6 +446,10 @@ namespace carrot {
             sprite_draw.y = 324.f;
             sprite_draw.width = 180.f;
             sprite_draw.height = 140.f;
+            sprite_draw.use_custom_pivot = true;
+            sprite_draw.pivot = { 0.5f, 1.f };
+            sprite_draw.layer = renderer::render_layer_t::actors;
+            sprite_draw.order_in_layer = 10;
             sprite_draw.color = 0xFFFFFFFFu;
             sprite_draw.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
 

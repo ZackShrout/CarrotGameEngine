@@ -13,6 +13,7 @@
 #include "IO/VirtualFileSystem.h"
 #include "Window/Window.h"
 #include "RHI/Buffer.h"
+#include "RHI/Swapchain.h"
 
 namespace carrot::renderer {
     // PUBLIC
@@ -79,6 +80,8 @@ namespace carrot::renderer {
 
         _stats = { };
 
+        sync_camera_viewport_to_render_target();
+
         _rhi->begin_frame();
     }
 
@@ -98,6 +101,7 @@ namespace carrot::renderer {
             }
         }
 
+        _rhi->set_textured_quad_view_projection(_active_camera.view_projection_matrix());
         _rhi->record_frame();
 
         _stats.vertex_count = static_cast<uint32_t>(_textured_quad.vertices_cpu.size());
@@ -235,6 +239,20 @@ namespace carrot::renderer {
     }
 
     // PRIVATE
+
+    void renderer_t::sync_camera_viewport_to_render_target()
+    {
+        const rhi::rhi_swapchain_t* swapchain{ _rhi->get_swapchain() };
+
+        if (swapchain && swapchain->get_width() > 0 && swapchain->get_height() > 0)
+        {
+            _active_camera.viewport_size = {
+                static_cast<float>(swapchain->get_width()),
+                static_cast<float>(swapchain->get_height())
+            };
+        }
+    }
+
     void renderer_t::release_frame_resources()
     {
         _textured_quad.vertices_cpu.clear();

@@ -29,6 +29,12 @@ namespace carrot::rhi::vulkan {
     {
         const vulkan_buffer_t* vertex_buffer{ nullptr };
         const vulkan_buffer_t* index_buffer{ nullptr };
+
+        chlm::float4x4 view_projection{ chlm::float4x4::identity() };
+
+        std::array<std::unique_ptr<rhi_buffer_t>, k_max_frames_in_flight> camera_uniform_buffers;
+        std::array<VkDescriptorSet, k_max_frames_in_flight> camera_descriptor_sets{ };
+
         std::vector<renderer::textured_quad_batch_t> batches;
         std::array<std::vector<VkDescriptorSet>, k_max_frames_in_flight> descriptor_sets;
     };
@@ -56,6 +62,7 @@ namespace carrot::rhi::vulkan {
         [[nodiscard]] std::unique_ptr<rhi_sampler_t> create_sampler(const sampler_desc_t& desc) const override;
         void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer, const rhi_buffer_t& index_buffer) override;
         void set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches) override;
+        void set_textured_quad_view_projection(const chlm::float4x4& view_projection) override;
 
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
         void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) override {}
@@ -77,9 +84,15 @@ namespace carrot::rhi::vulkan {
         void create_descriptor_pool();
         void destroy_descriptor_pool() noexcept;
 
+        void release_textured_quad_resources() noexcept;
+
         void allocate_textured_quad_descriptor_sets(uint32_t frame_index, uint32_t count);
         void ensure_textured_quad_descriptor_sets_for_frame(uint32_t frame_index, uint32_t batch_count);
         void write_textured_quad_descriptor_set(VkDescriptorSet descriptor_set, const rhi_texture_t& texture, const rhi_sampler_t& sampler) const;
+
+        void allocate_textured_quad_camera_descriptor_sets();
+        void write_textured_quad_camera_descriptor_set(uint32_t frame_index) const;
+        void upload_textured_quad_camera_uniform(uint32_t frame_index) const;
 
         // ── Core Vulkan handles ──
         VkInstance          _vk_instance{ VK_NULL_HANDLE };

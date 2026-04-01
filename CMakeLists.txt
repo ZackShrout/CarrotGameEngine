@@ -275,6 +275,7 @@ set(CARROT_ENGINE_SOURCES
         # Shaders
         # ========================================
         shaders/ShaderCommon.h
+        src/Engine/Renderer/Draw/TexturedQuadCameraUniform.h
 )
 
 # ------------------------------------------------------------------------

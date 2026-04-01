@@ -144,26 +144,93 @@ namespace carrot::rhi::vulkan {
         dynamic_state.dynamicStateCount = 2;
         dynamic_state.pDynamicStates = dynamic_states;
 
+        // VkDescriptorSetLayoutBinding texture_binding{ };
+        // texture_binding.binding = 0;
+        // texture_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        // texture_binding.descriptorCount = 1;
+        // texture_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        // texture_binding.pImmutableSamplers = nullptr;
+        //
+        // VkDescriptorSetLayoutCreateInfo descriptor_set_layout_info{ };
+        // descriptor_set_layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        // descriptor_set_layout_info.bindingCount = 1;
+        // descriptor_set_layout_info.pBindings = &texture_binding;
+        //
+        // VK_CHECK_FATAL(
+        //     vkCreateDescriptorSetLayout(_device->vk_device(), &descriptor_set_layout_info, nullptr, &
+        //         _descriptor_set_layout));
+        //
+        // VkPipelineLayoutCreateInfo layout_info{ };
+        // layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        // layout_info.setLayoutCount = 1;
+        // layout_info.pSetLayouts = &_descriptor_set_layout;
+        // layout_info.pushConstantRangeCount = 0;
+        // layout_info.pPushConstantRanges = nullptr;
+        //
+        // VK_CHECK_FATAL(vkCreatePipelineLayout(_device->vk_device(), &layout_info, nullptr, &_layout));
+
+        // Camera descriptor set layout (set 0)
+        VkDescriptorSetLayoutBinding camera_binding{ };
+        camera_binding.binding = 0;
+        camera_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        camera_binding.descriptorCount = 1;
+        camera_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        camera_binding.pImmutableSamplers = nullptr;
+
+        VkDescriptorSetLayoutCreateInfo camera_layout_info{ };
+        camera_layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        camera_layout_info.bindingCount = 1;
+        camera_layout_info.pBindings = &camera_binding;
+
+        VK_CHECK_FATAL(vkCreateDescriptorSetLayout(
+            _device->vk_device(),
+            &camera_layout_info,
+            nullptr,
+            &_camera_descriptor_set_layout));
+
+        // Texture descriptor set layout (set 1)
+        // binding 0 -> Texture2D
         VkDescriptorSetLayoutBinding texture_binding{ };
         texture_binding.binding = 0;
-        texture_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        texture_binding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
         texture_binding.descriptorCount = 1;
         texture_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         texture_binding.pImmutableSamplers = nullptr;
 
-        VkDescriptorSetLayoutCreateInfo descriptor_set_layout_info{ };
-        descriptor_set_layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        descriptor_set_layout_info.bindingCount = 1;
-        descriptor_set_layout_info.pBindings = &texture_binding;
+        // binding 1 -> SamplerState
+        VkDescriptorSetLayoutBinding sampler_binding{ };
+        sampler_binding.binding = 1;
+        sampler_binding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+        sampler_binding.descriptorCount = 1;
+        sampler_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        sampler_binding.pImmutableSamplers = nullptr;
 
-        VK_CHECK_FATAL(
-            vkCreateDescriptorSetLayout(_device->vk_device(), &descriptor_set_layout_info, nullptr, &
-                _descriptor_set_layout));
+        std::array<VkDescriptorSetLayoutBinding, 2> texture_set_bindings{
+            texture_binding,
+            sampler_binding
+        };
+
+        VkDescriptorSetLayoutCreateInfo texture_layout_info{ };
+        texture_layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        texture_layout_info.bindingCount = static_cast<uint32_t>(texture_set_bindings.size());
+        texture_layout_info.pBindings = texture_set_bindings.data();
+
+        VK_CHECK_FATAL(vkCreateDescriptorSetLayout(
+            _device->vk_device(),
+            &texture_layout_info,
+            nullptr,
+            &_texture_descriptor_set_layout));
+
+        // Pipeline layout
+        const VkDescriptorSetLayout set_layouts[] = {
+            _camera_descriptor_set_layout,
+            _texture_descriptor_set_layout
+        };
 
         VkPipelineLayoutCreateInfo layout_info{ };
         layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        layout_info.setLayoutCount = 1;
-        layout_info.pSetLayouts = &_descriptor_set_layout;
+        layout_info.setLayoutCount = 2;
+        layout_info.pSetLayouts = set_layouts;
         layout_info.pushConstantRangeCount = 0;
         layout_info.pPushConstantRanges = nullptr;
 
@@ -204,8 +271,24 @@ namespace carrot::rhi::vulkan {
         if (_layout != VK_NULL_HANDLE)
             vkDestroyPipelineLayout(_device->vk_device(), _layout, nullptr);
 
-        if (_descriptor_set_layout != VK_NULL_HANDLE)
-            vkDestroyDescriptorSetLayout(_device->vk_device(), _descriptor_set_layout, nullptr);
+        // if (_descriptor_set_layout != VK_NULL_HANDLE)
+        //     vkDestroyDescriptorSetLayout(_device->vk_device(), _descriptor_set_layout, nullptr);
+
+        if (_camera_descriptor_set_layout != VK_NULL_HANDLE)
+            vkDestroyDescriptorSetLayout(_device->vk_device(), _camera_descriptor_set_layout, nullptr);
+
+        if (_texture_descriptor_set_layout != VK_NULL_HANDLE)
+            vkDestroyDescriptorSetLayout(_device->vk_device(), _texture_descriptor_set_layout, nullptr);
+    }
+
+    VkDescriptorSetLayout vulkan_textured_quad_pipeline_t::vk_camera_descriptor_set_layout() const noexcept
+    {
+        return _camera_descriptor_set_layout;
+    }
+
+    VkDescriptorSetLayout vulkan_textured_quad_pipeline_t::vk_texture_descriptor_set_layout() const noexcept
+    {
+        return _texture_descriptor_set_layout;
     }
 
     VkShaderModule vulkan_textured_quad_pipeline_t::create_shader_module(const std::vector<uint32_t>& code) const

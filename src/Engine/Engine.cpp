@@ -85,6 +85,14 @@ namespace carrot {
         _renderer = std::make_unique<renderer::renderer_t>(_vfs, config.graphics);
         renderer::renderer_service_t::provide(_renderer.get());
 
+        // CAMERA (test code)
+        renderer::camera_2d_t camera{ };
+        camera.position = { 0.f, 0.f };
+        camera.viewport_size = { static_cast<float>(width), static_cast<float>(height) };
+        camera.zoom = 1.f;
+
+        _renderer->set_camera_2d(camera);
+
         // AUDIO
         _audio_module = std::make_unique<audio::audio_module_t>(config.audio);
         _audio_module->init();
@@ -280,40 +288,40 @@ namespace carrot {
 
         renderer::textured_quad_draw_info_t top_left_botan{ };
         top_left_botan.texture = botan->texture.get();
-        top_left_botan.x = -0.90f;
-        top_left_botan.y = -0.90f;
-        top_left_botan.width = 0.30f;
-        top_left_botan.height = 0.30f;
+        top_left_botan.x = 64.f;
+        top_left_botan.y = 36.f;
+        top_left_botan.width = 180.f;
+        top_left_botan.height = 140.f;
         top_left_botan.color = 0xFFFF0000u;
         top_left_botan.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
         _renderer->draw_textured_quad(top_left_botan);
 
         renderer::textured_quad_draw_info_t top_right_vraden{ };
         top_right_vraden.texture = vraden->texture.get();
-        top_right_vraden.x = 0.60f;
-        top_right_vraden.y = -0.90f;
-        top_right_vraden.width = 0.30f;
-        top_right_vraden.height = 0.30f;
+        top_right_vraden.x = 1024.f;
+        top_right_vraden.y = 36.f;
+        top_right_vraden.width = 180.f;
+        top_right_vraden.height = 140.f;
         top_right_vraden.color = 0xFFFF00FFu;
         top_right_vraden.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
         _renderer->draw_textured_quad(top_right_vraden);
 
         renderer::textured_quad_draw_info_t bottom_left_vraden{ };
         bottom_left_vraden.texture = vraden->texture.get();
-        bottom_left_vraden.x = -0.90f;
-        bottom_left_vraden.y = 0.60f;
-        bottom_left_vraden.width = 0.30f;
-        bottom_left_vraden.height = 0.30f;
+        bottom_left_vraden.x = 64.f;
+        bottom_left_vraden.y = 576.f;
+        bottom_left_vraden.width = 180.f;
+        bottom_left_vraden.height = 140.f;
         bottom_left_vraden.color = 0xFF00FF00u;
         bottom_left_vraden.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
         _renderer->draw_textured_quad(bottom_left_vraden);
 
         renderer::textured_quad_draw_info_t bottom_right_botan{ };
         bottom_right_botan.texture = botan->texture.get();
-        bottom_right_botan.x = 0.60f;
-        bottom_right_botan.y = 0.60f;
-        bottom_right_botan.width = 0.30f;
-        bottom_right_botan.height = 0.30f;
+        bottom_right_botan.x = 1024.f;
+        bottom_right_botan.y = 576.f;
+        bottom_right_botan.width = 180.f;
+        bottom_right_botan.height = 140.f;
         bottom_right_botan.color = 0xFF0000FFu;
         bottom_right_botan.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
         _renderer->draw_textured_quad(bottom_right_botan);
@@ -324,10 +332,10 @@ namespace carrot {
 
         renderer::textured_quad_draw_info_t center_logo{ };
         center_logo.texture = logo->texture.get();
-        center_logo.x = -0.20f + (x_offset * 0.40f);
-        center_logo.y = -0.20f;
-        center_logo.width = 0.40f;
-        center_logo.height = 0.40f;
+        center_logo.x = 512.f + (x_offset * 256.f);
+        center_logo.y = 288.f;
+        center_logo.width = 256.f;
+        center_logo.height = 256;
         center_logo.color = 0xFFFFFFFFu;
         center_logo.sampler_preset = renderer::quad_sampler_preset_t::smooth_clamp;
         _renderer->draw_textured_quad(center_logo);
@@ -338,14 +346,14 @@ namespace carrot {
 
         renderer::textured_quad_draw_info_t uv_test_logo{ };
         uv_test_logo.texture = logo->texture.get();
-        uv_test_logo.x = -0.55f;
-        uv_test_logo.y = -0.10f;
-        uv_test_logo.width = 0.18f;
-        uv_test_logo.height = 0.18f;
+        uv_test_logo.x = 288.f;
+        uv_test_logo.y = 324.f;
+        uv_test_logo.width = 128.f;
+        uv_test_logo.height = 128.f;
         uv_test_logo.color = 0xFFFFFFFFu;
         uv_test_logo.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
-        uv_test_logo.u0 = 0.0f;
-        uv_test_logo.v0 = 0.0f;
+        uv_test_logo.u0 = 0.f;
+        uv_test_logo.v0 = 0.f;
         uv_test_logo.u1 = 0.5f;
         uv_test_logo.v1 = 0.5f;
         _renderer->draw_textured_quad(uv_test_logo);
@@ -357,20 +365,20 @@ namespace carrot {
 
         renderer::textured_quad_draw_info_t alpha_back{ };
         alpha_back.texture = orange->texture.get();
-        alpha_back.x = 0.35f;
-        alpha_back.y = -0.05f;
-        alpha_back.width = 0.20f;
-        alpha_back.height = 0.20f;
+        alpha_back.x = 864.f;
+        alpha_back.y = 342.f;
+        alpha_back.width = 128.f;
+        alpha_back.height = 128.f;
         alpha_back.color = 0xFF00FFFFu;
         alpha_back.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
         _renderer->draw_textured_quad(alpha_back);
 
         renderer::textured_quad_draw_info_t alpha_front{ };
         alpha_front.texture = orange->texture.get();
-        alpha_front.x = 0.43f;
-        alpha_front.y = 0.03f;
-        alpha_front.width = 0.20f;
-        alpha_front.height = 0.20f;
+        alpha_front.x = 915.2f;
+        alpha_front.y = 370.8f;
+        alpha_front.width = 128.f;
+        alpha_front.height = 128.f;
         alpha_front.color = 0x88FF0000u;
         alpha_front.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
         _renderer->draw_textured_quad(alpha_front);
@@ -381,10 +389,10 @@ namespace carrot {
 
         renderer::textured_quad_draw_info_t top_edge_clip{ };
         top_edge_clip.texture = orange->texture.get();
-        top_edge_clip.x = -0.10f;
-        top_edge_clip.y = -1.05f;
-        top_edge_clip.width = 0.20f;
-        top_edge_clip.height = 0.20f;
+        top_edge_clip.x = 576.f;
+        top_edge_clip.y = -62.f;
+        top_edge_clip.width = 128.f;
+        top_edge_clip.height = 128.f;
         top_edge_clip.color = 0xFFFFFFFFu;
         top_edge_clip.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
         _renderer->draw_textured_quad(top_edge_clip);
@@ -398,10 +406,10 @@ namespace carrot {
             renderer::sprite_draw_info_t sprite_draw{ };
             sprite_draw.sprite = _test_sprite_vraden;
             sprite_draw.frame = current;
-            sprite_draw.x = -0.85f;
-            sprite_draw.y = -0.10f;
-            sprite_draw.width = 0.25f;
-            sprite_draw.height = 0.25f;
+            sprite_draw.x = 96.f;
+            sprite_draw.y = 324.f;
+            sprite_draw.width = 180;
+            sprite_draw.height = 140.f;
             sprite_draw.color = 0xFFFFFFFFu;
             sprite_draw.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
 
@@ -417,10 +425,10 @@ namespace carrot {
             renderer::sprite_draw_info_t sprite_draw{ };
             sprite_draw.sprite = _test_sprite_kelvara;
             sprite_draw.frame = current;
-            sprite_draw.x = 0.6f;
-            sprite_draw.y = -0.10f;
-            sprite_draw.width = 0.25f;
-            sprite_draw.height = 0.25f;
+            sprite_draw.x = 1024.f;
+            sprite_draw.y = 324.f;
+            sprite_draw.width = 180.f;
+            sprite_draw.height = 140.f;
             sprite_draw.color = 0xFFFFFFFFu;
             sprite_draw.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
 

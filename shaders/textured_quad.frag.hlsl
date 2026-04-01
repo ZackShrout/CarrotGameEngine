@@ -1,7 +1,10 @@
 #include "ShaderCommon.h"
 
-Texture2D    g_texture  : register(t0);
-SamplerState g_sampler  : register(s0);
+[[vk::binding(0, 1)]]
+Texture2D g_texture;
+
+[[vk::binding(1, 1)]]
+SamplerState g_sampler;
 
 struct PSInput
 {

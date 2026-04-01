@@ -1,5 +1,11 @@
 #include "ShaderCommon.h"
 
+[[vk::binding(0, 0)]]
+cbuffer TexturedQuadCamera
+{
+    float4x4 g_view_projection;
+};
+
 struct VSInput
 {
     float2 position : POSITION;
@@ -19,9 +25,10 @@ VSOutput main(VSInput input)
 {
     VSOutput output;
 
-    const float2 clip_pos = CARROT_APPLY_CLIP_SPACE_Y(input.position);
+    float4 clip = mul(g_view_projection, float4(input.position, 0.0f, 1.0f));
+    clip.y *= CARROT_CLIP_SPACE_Y_SIGN;
 
-    output.position = float4(clip_pos, 0.0f, 1.0f);
+    output.position = clip;
     output.uv = input.uv;
     output.color = input.color;
 

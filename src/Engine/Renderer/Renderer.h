@@ -18,6 +18,8 @@
 #include <string_view>
 #include <vector>
 
+#include "Camera/Camera2D.h"
+
 namespace carrot::io {
     class virtual_file_system_t;
 }
@@ -69,6 +71,8 @@ namespace carrot::renderer {
         void begin_frame();
         void end_frame();
 
+        void set_camera_2d(const camera_2d_t& camera) noexcept { _active_camera = camera; }
+
         // Very high-level drawing commands (immediate mode for now)
         void draw_textured_quad(const textured_quad_draw_info_t& quad);
         void draw_sprite(const sprite_draw_info_t& info);
@@ -82,6 +86,7 @@ namespace carrot::renderer {
         [[nodiscard]] rhi::rhi_context_t* get_rhi() const noexcept { return _rhi.get(); }
 
     private:
+        void sync_camera_viewport_to_render_target();
         void release_frame_resources();
         void ensure_textured_quad_frame_buffers();
         void upload_textured_quad_frame_data() const;
@@ -100,5 +105,7 @@ namespace carrot::renderer {
 
         // ── Renderer path state: textured quads ───────────────────────────────────
         textured_quad_state_t _textured_quad;
+
+        camera_2d_t _active_camera{ };
     };
 } // namespace carrot::renderer

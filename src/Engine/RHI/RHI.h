@@ -6,14 +6,14 @@
 #pragma once
 
 #include "Buffer.h"
+#include "Sampler.h"
 #include "Texture.h"
 #include "Renderer/Draw/TexturedQuadBatch.h"
 
 #include <memory>
 #include <span>
 #include <string_view>
-
-#include "Sampler.h"
+#include <chlm/CarrotHLM.h>
 
 namespace carrot::assets {
     class shader_file_provider_t;
@@ -73,6 +73,7 @@ namespace carrot::rhi {
         [[nodiscard]] virtual std::unique_ptr<rhi_sampler_t> create_sampler(const sampler_desc_t& desc) const = 0;
         virtual void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer, const rhi_buffer_t& index_buffer) = 0;
         virtual void set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches) = 0;
+        virtual void set_textured_quad_view_projection(const chlm::float4x4& view_projection) = 0;
 
         [[nodiscard]] virtual rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) = 0;
         virtual void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) = 0;

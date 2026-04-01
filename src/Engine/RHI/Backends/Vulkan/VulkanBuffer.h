@@ -18,6 +18,7 @@ namespace carrot::rhi::vulkan {
         bool write(const void* data, size_t size_bytes, size_t offset_bytes) override;
 
         [[nodiscard]] VkBuffer vk_buffer() const noexcept { return _buffer; }
+        [[nodiscard]] VkDeviceMemory vk_memory() const noexcept { return _memory; }
 
         void set_buffer(VkBuffer buffer) noexcept { _buffer = buffer; }
         void set_memory(VkDeviceMemory memory) noexcept { _memory = memory; }

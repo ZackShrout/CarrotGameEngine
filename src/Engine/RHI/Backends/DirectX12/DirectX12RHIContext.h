@@ -12,6 +12,7 @@
 #include "DirectX12Texture.h"
 #include "Pipelines/DirectX12TexturedQuadPipeline.h"
 #include "RHI/RHI.h"
+#include "Renderer/Draw/TexturedQuadCameraUniform.h"
 
 #include <array>
 #include <memory>
@@ -32,6 +33,7 @@ namespace carrot::rhi::dx12 {
         std::unique_ptr<dx12_command_list_t> command_list;
         std::unique_ptr<dx12_fence_t> fence;
         uint64_t fence_value{ 0 };
+        std::unique_ptr<dx12_buffer_t> textured_quad_camera_uniform_buffer;
 
         ID3D12DescriptorHeap* textured_quad_srv_heap{ nullptr };
         ID3D12DescriptorHeap* textured_quad_sampler_heap{ nullptr };
@@ -61,7 +63,7 @@ namespace carrot::rhi::dx12 {
         [[nodiscard]] std::unique_ptr<rhi_sampler_t> create_sampler(const sampler_desc_t& desc) const override;
         void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer, const rhi_buffer_t& index_buffer) override;
         void set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches) override;
-        void set_textured_quad_view_projection(const chlm::float4x4& view_projection) override {}
+        void set_textured_quad_view_projection(const chlm::float4x4& view_projection) override;
         void set_textured_quad_viewport(const render_viewport_t& viewport) override;
 
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
@@ -89,6 +91,7 @@ namespace carrot::rhi::dx12 {
         const rhi_buffer_t*                               _textured_quad_vertex_buffer{ nullptr };
         const rhi_buffer_t*                               _textured_quad_index_buffer{ nullptr };
         std::vector<renderer::textured_quad_batch_t>      _textured_quad_batches;
+        chlm::float4x4                                    _textured_quad_view_projection{ chlm::float4x4::identity() };
         render_viewport_t                                 _textured_quad_viewport{ };
 
         // ── Dynamic per-batch descriptor state ──

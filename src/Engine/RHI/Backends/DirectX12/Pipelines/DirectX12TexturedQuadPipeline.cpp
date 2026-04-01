@@ -33,6 +33,13 @@ namespace carrot::rhi::dx12 {
         srv_range.RegisterSpace = 0;
         srv_range.OffsetInDescriptorsFromTableStart = 0;
 
+        D3D12_DESCRIPTOR_RANGE cbv_range{ };
+        cbv_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+        cbv_range.NumDescriptors = 1;
+        cbv_range.BaseShaderRegister = 0;
+        cbv_range.RegisterSpace = 0;
+        cbv_range.OffsetInDescriptorsFromTableStart = 0;
+
         D3D12_DESCRIPTOR_RANGE sampler_range{ };
         sampler_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER;
         sampler_range.NumDescriptors = 1;
@@ -40,20 +47,25 @@ namespace carrot::rhi::dx12 {
         sampler_range.RegisterSpace = 0;
         sampler_range.OffsetInDescriptorsFromTableStart = 0;
 
-        D3D12_ROOT_PARAMETER root_params[2]{ };
+        D3D12_ROOT_PARAMETER root_params[3]{ };
 
         root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-        root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+        root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
         root_params[0].DescriptorTable.NumDescriptorRanges = 1;
-        root_params[0].DescriptorTable.pDescriptorRanges = &srv_range;
+        root_params[0].DescriptorTable.pDescriptorRanges = &cbv_range;
 
         root_params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
         root_params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
         root_params[1].DescriptorTable.NumDescriptorRanges = 1;
-        root_params[1].DescriptorTable.pDescriptorRanges = &sampler_range;
+        root_params[1].DescriptorTable.pDescriptorRanges = &srv_range;
+
+        root_params[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+        root_params[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+        root_params[2].DescriptorTable.NumDescriptorRanges = 1;
+        root_params[2].DescriptorTable.pDescriptorRanges = &sampler_range;
 
         D3D12_ROOT_SIGNATURE_DESC root_sig_desc{ };
-        root_sig_desc.NumParameters = 2;
+        root_sig_desc.NumParameters = 3;
         root_sig_desc.pParameters = root_params;
         root_sig_desc.NumStaticSamplers = 0;
         root_sig_desc.pStaticSamplers = nullptr;
@@ -205,6 +217,7 @@ namespace carrot::rhi::dx12 {
             draw_context.batches.empty() ||
             !descriptor_context.tables.srv_heap ||
             !descriptor_context.tables.sampler_heap ||
+            descriptor_context.tables.camera_cbv_handle.ptr == 0 ||
             !descriptor_context.sampler_provider)
         {
             return;
@@ -252,6 +265,7 @@ namespace carrot::rhi::dx12 {
         cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         cmd->IASetVertexBuffers(0, 1, &vbv);
         cmd->IASetIndexBuffer(&ibv);
+        cmd->SetGraphicsRootDescriptorTable(0, descriptor_context.tables.camera_cbv_handle);
 
         const D3D12_GPU_DESCRIPTOR_HANDLE srv_heap_start{
             descriptor_context.tables.srv_heap->GetGPUDescriptorHandleForHeapStart()
@@ -268,13 +282,13 @@ namespace carrot::rhi::dx12 {
             write_batch_descriptors(i, batch, descriptor_context);
 
             D3D12_GPU_DESCRIPTOR_HANDLE srv_handle{ srv_heap_start };
-            srv_handle.ptr += static_cast<SIZE_T>(i) * descriptor_context.tables.srv_descriptor_size;
+            srv_handle.ptr += static_cast<SIZE_T>(i + 1u) * descriptor_context.tables.srv_descriptor_size;
 
             D3D12_GPU_DESCRIPTOR_HANDLE sampler_handle{ sampler_heap_start };
             sampler_handle.ptr += static_cast<SIZE_T>(i) * descriptor_context.tables.sampler_descriptor_size;
 
-            cmd->SetGraphicsRootDescriptorTable(0, srv_handle);
-            cmd->SetGraphicsRootDescriptorTable(1, sampler_handle);
+            cmd->SetGraphicsRootDescriptorTable(1, srv_handle);
+            cmd->SetGraphicsRootDescriptorTable(2, sampler_handle);
             cmd->DrawIndexedInstanced(batch.index_count, 1, batch.first_index, 0, 0);
         }
     }
@@ -308,7 +322,7 @@ namespace carrot::rhi::dx12 {
         D3D12_CPU_DESCRIPTOR_HANDLE srv_handle{
             descriptor_context.tables.srv_heap->GetCPUDescriptorHandleForHeapStart()
         };
-        srv_handle.ptr += static_cast<SIZE_T>(batch_index) * descriptor_context.tables.srv_descriptor_size;
+        srv_handle.ptr += static_cast<SIZE_T>(batch_index + 1u) * descriptor_context.tables.srv_descriptor_size;
 
         _device->CreateShaderResourceView(dx_texture->resource(), &srv_desc, srv_handle);
 

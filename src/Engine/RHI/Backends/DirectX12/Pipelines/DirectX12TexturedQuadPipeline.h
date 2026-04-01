@@ -46,6 +46,7 @@ namespace carrot::rhi::dx12 {
     {
         ID3D12DescriptorHeap* srv_heap{ nullptr };
         uint32_t srv_descriptor_size{ 0 };
+        D3D12_GPU_DESCRIPTOR_HANDLE camera_cbv_handle{ };
 
         ID3D12DescriptorHeap* sampler_heap{ nullptr };
         uint32_t sampler_descriptor_size{ 0 };

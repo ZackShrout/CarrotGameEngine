@@ -17,6 +17,14 @@
 #include "Window/Window.h"
 
 namespace carrot::rhi::dx12 {
+    namespace {
+        [[nodiscard]] constexpr uint32_t align_constant_buffer_size(const uint32_t size_bytes) noexcept
+        {
+            return (size_bytes + D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT - 1u) &
+                   ~(D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT - 1u);
+        }
+    }
+
     dx12_rhi_context_t::dx12_rhi_context_t(const rhi_desc_t& desc)
     {
         if (core::platform::current_platform() != core::platform::platform_type::win32)
@@ -47,6 +55,16 @@ namespace carrot::rhi::dx12 {
             frame.command_list = std::make_unique<dx12_command_list_t>(_device->id3d12_device(), frame.allocator);
             frame.fence = std::make_unique<dx12_fence_t>(_device->id3d12_device());
             frame.fence_value = 0;
+
+            buffer_create_info_t camera_buffer_info{ };
+            camera_buffer_info.size_bytes = align_constant_buffer_size(sizeof(renderer::textured_quad_camera_uniform_t));
+            camera_buffer_info.usage = buffer_usage_t::uniform;
+            camera_buffer_info.cpu_writable = true;
+
+            frame.textured_quad_camera_uniform_buffer = std::make_unique<dx12_buffer_t>(
+                _device->id3d12_device(),
+                camera_buffer_info
+            );
         }
 
         _srv_descriptor_stride = _device->id3d12_device()->GetDescriptorHandleIncrementSize(
@@ -163,6 +181,16 @@ namespace carrot::rhi::dx12 {
 
             const dx12_frame_t& frame{ _frames[_frame_index] };
 
+            renderer::textured_quad_camera_uniform_t camera_uniform{ };
+            camera_uniform.view_projection = _textured_quad_view_projection;
+
+            if (!frame.textured_quad_camera_uniform_buffer ||
+                !frame.textured_quad_camera_uniform_buffer->write(&camera_uniform, sizeof(camera_uniform), 0))
+            {
+                LOG_GRAPHICS_FATAL("Failed to upload DX12 textured quad camera uniform");
+                return;
+            }
+
             const draw_context_t draw_context{
                 .command_list = cmd,
                 .viewport = _textured_quad_viewport,
@@ -175,6 +203,7 @@ namespace carrot::rhi::dx12 {
                 .tables{
                     .srv_heap = frame.textured_quad_srv_heap,
                     .srv_descriptor_size = _srv_descriptor_stride,
+                    .camera_cbv_handle = frame.textured_quad_srv_heap->GetGPUDescriptorHandleForHeapStart(),
                     .sampler_heap = frame.textured_quad_sampler_heap,
                     .sampler_descriptor_size = _sampler_descriptor_stride
                 },
@@ -413,6 +442,11 @@ namespace carrot::rhi::dx12 {
         _textured_quad_batches.assign(batches.begin(), batches.end());
     }
 
+    void dx12_rhi_context_t::set_textured_quad_view_projection(const chlm::float4x4& view_projection)
+    {
+        _textured_quad_view_projection = view_projection;
+    }
+
     void dx12_rhi_context_t::set_textured_quad_viewport(const render_viewport_t& viewport)
     {
         _textured_quad_viewport = viewport;
@@ -455,6 +489,7 @@ namespace carrot::rhi::dx12 {
             return;
 
         const uint32_t target_capacity{ std::max(required_capacity, 16u) };
+        const uint32_t srv_heap_descriptor_count{ target_capacity + 1u };
 
         for (uint32_t frame_index{ 0 }; frame_index < k_max_frames_in_flight; ++frame_index)
         {
@@ -481,7 +516,7 @@ namespace carrot::rhi::dx12 {
 
             D3D12_DESCRIPTOR_HEAP_DESC srv_heap_desc{ };
             srv_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-            srv_heap_desc.NumDescriptors = target_capacity;
+            srv_heap_desc.NumDescriptors = srv_heap_descriptor_count;
             srv_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
             srv_heap_desc.NodeMask = 0;
 
@@ -498,6 +533,15 @@ namespace carrot::rhi::dx12 {
             DX12_CHECK(_device->id3d12_device()->CreateDescriptorHeap(&sampler_heap_desc,
                 IID_PPV_ARGS(&frame.textured_quad_sampler_heap)));
             DX12_NAME_INDEXED(frame.textured_quad_sampler_heap, frame_index, L"DX12 Textured Quad Sampler Heap");
+
+            D3D12_CONSTANT_BUFFER_VIEW_DESC cbv_desc{ };
+            cbv_desc.BufferLocation = frame.textured_quad_camera_uniform_buffer->resource()->GetGPUVirtualAddress();
+            cbv_desc.SizeInBytes = align_constant_buffer_size(sizeof(renderer::textured_quad_camera_uniform_t));
+
+            _device->id3d12_device()->CreateConstantBufferView(
+                &cbv_desc,
+                frame.textured_quad_srv_heap->GetCPUDescriptorHandleForHeapStart()
+            );
 
             frame.textured_quad_descriptor_capacity = target_capacity;
         }

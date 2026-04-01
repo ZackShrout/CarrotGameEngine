@@ -1,9 +1,9 @@
 #include "ShaderCommon.h"
 
-[[vk::binding(0, 1)]]
+CARROT_VK_BINDING(0, 1)
 Texture2D g_texture;
 
-[[vk::binding(1, 1)]]
+CARROT_VK_BINDING(1, 1)
 SamplerState g_sampler;
 
 struct PSInput

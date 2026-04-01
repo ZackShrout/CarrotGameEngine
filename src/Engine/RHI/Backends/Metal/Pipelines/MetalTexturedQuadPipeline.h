@@ -19,6 +19,7 @@ namespace carrot::rhi::metal {
 
     struct textured_quad_root_argument_buffer_t
     {
+        uint64_t cbv_table_gpu_address;
         uint64_t srv_table_gpu_address;
         uint64_t sampler_table_gpu_address;
     };

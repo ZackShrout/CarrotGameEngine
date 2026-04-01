@@ -16,11 +16,14 @@
 #include "MetalSwapchain.h"
 #include "Pipelines/MetalTexturedQuadPipeline.h"
 #include "MetalTexture.h"
+#include "Renderer/Draw/TexturedQuadCameraUniform.h"
 #include "RHI/SamplerPresets.h"
 #include "Window/Window.h"
 
 namespace carrot::rhi::metal {
     namespace {
+        constexpr NS::UInteger k_textured_quad_root_argument_buffer_index{ 2 };
+
         [[nodiscard]] MTL::PixelFormat to_metal_pixel_format(const texture_format_t format) noexcept
         {
             switch (format)
@@ -106,10 +109,24 @@ namespace carrot::rhi::metal {
         }
 
         _textured_quad_root_stride = align_up(sizeof(textured_quad_root_argument_buffer_t));
+        _textured_quad_cbv_stride = align_up(sizeof(descriptor_table_entry_t));
         _textured_quad_srv_stride = align_up(sizeof(descriptor_table_entry_t));
         _textured_quad_sampler_stride = align_up(sizeof(descriptor_table_entry_t));
 
         ensure_textured_quad_argument_capacity(16);
+
+        _textured_quad_camera_uniform_buffer = std::make_unique<metal_buffer_t>(
+            _device->mtl_device()->newBuffer(sizeof(renderer::textured_quad_camera_uniform_t),
+                                             MTL::ResourceStorageModeShared),
+            sizeof(renderer::textured_quad_camera_uniform_t),
+            buffer_usage_t::uniform
+        );
+
+        if (!_textured_quad_camera_uniform_buffer || !_textured_quad_camera_uniform_buffer->mtl_buffer())
+        {
+            LOG_GRAPHICS_FATAL("Failed to allocate Metal textured quad camera uniform buffer");
+            return;
+        }
 
         _frame_semaphore = dispatch_semaphore_create(3);
         if (!_frame_semaphore)
@@ -200,6 +217,15 @@ namespace carrot::rhi::metal {
         encoder->setRenderPipelineState(_textured_quad_pipeline->state());
         encoder->setVertexBuffer(_textured_quad_vertex_buffer->mtl_buffer(), 0, 0);
 
+        renderer::textured_quad_camera_uniform_t camera_uniform{ };
+        camera_uniform.view_projection = _textured_quad_view_projection;
+
+        if (!_textured_quad_camera_uniform_buffer->write(&camera_uniform, sizeof(camera_uniform), 0))
+        {
+            LOG_GRAPHICS_WARN("Failed to upload Metal textured quad camera uniform");
+            return;
+        }
+
         for (size_t i{ 0 }; i < _textured_quad_batches.size(); ++i)
         {
             const renderer::textured_quad_batch_t& batch{ _textured_quad_batches[i] };
@@ -213,7 +239,17 @@ namespace carrot::rhi::metal {
 
             size_t root_ab_offset{ 0 };
             encode_textured_quad_argument_buffers(*texture, i, root_ab_offset);
-            encoder->setFragmentBuffer(_textured_quad_root_argument_buffer->mtl_buffer(), root_ab_offset, 2);
+            encoder->setVertexBuffer(_textured_quad_root_argument_buffer->mtl_buffer(),
+                                     root_ab_offset,
+                                     k_textured_quad_root_argument_buffer_index);
+            encoder->setFragmentBuffer(_textured_quad_root_argument_buffer->mtl_buffer(),
+                                       root_ab_offset,
+                                       k_textured_quad_root_argument_buffer_index);
+
+            encoder->useResource(_textured_quad_cbv_descriptor_table->mtl_buffer(), MTL::ResourceUsageRead,
+                                 MTL::RenderStageVertex);
+            encoder->useResource(_textured_quad_camera_uniform_buffer->mtl_buffer(), MTL::ResourceUsageRead,
+                                 MTL::RenderStageVertex);
 
             encoder->useResource(_textured_quad_srv_descriptor_table->mtl_buffer(), MTL::ResourceUsageRead,
                                  MTL::RenderStageFragment);
@@ -405,6 +441,11 @@ namespace carrot::rhi::metal {
         _textured_quad_batches.assign(batches.begin(), batches.end());
     }
 
+    void metal_rhi_context_t::set_textured_quad_view_projection(const chlm::float4x4& view_projection)
+    {
+        _textured_quad_view_projection = view_projection;
+    }
+
     rhi_sampler_t* metal_rhi_context_t::get_or_create_sampler(const sampler_desc_t& desc)
     {
         if (const auto it{ _sampler_cache.find(desc) }; it != _sampler_cache.end())
@@ -460,18 +501,21 @@ namespace carrot::rhi::metal {
         };
 
         const size_t root_buffer_size{ _textured_quad_root_stride * new_capacity };
+        const size_t cbv_buffer_size{ _textured_quad_cbv_stride * new_capacity };
         const size_t srv_buffer_size{ _textured_quad_srv_stride * new_capacity };
         const size_t sampler_buffer_size{ _textured_quad_sampler_stride * new_capacity };
 
         MTL::Buffer* root_ab{ _device->mtl_device()->newBuffer(root_buffer_size, MTL::ResourceStorageModeShared) };
+        MTL::Buffer* cbv_table{ _device->mtl_device()->newBuffer(cbv_buffer_size, MTL::ResourceStorageModeShared) };
         MTL::Buffer* srv_table{ _device->mtl_device()->newBuffer(srv_buffer_size, MTL::ResourceStorageModeShared) };
         MTL::Buffer* sampler_table{
             _device->mtl_device()->newBuffer(sampler_buffer_size, MTL::ResourceStorageModeShared)
         };
 
-        if (!root_ab || !srv_table || !sampler_table)
+        if (!root_ab || !cbv_table || !srv_table || !sampler_table)
         {
             if (root_ab) root_ab->release();
+            if (cbv_table) cbv_table->release();
             if (srv_table) srv_table->release();
             if (sampler_table) sampler_table->release();
 
@@ -483,6 +527,10 @@ namespace carrot::rhi::metal {
             root_ab, root_buffer_size, buffer_usage_t::uniform
         );
 
+        _textured_quad_cbv_descriptor_table = std::make_unique<metal_buffer_t>(
+            cbv_table, cbv_buffer_size, buffer_usage_t::uniform
+        );
+
         _textured_quad_srv_descriptor_table = std::make_unique<metal_buffer_t>(
             srv_table, srv_buffer_size, buffer_usage_t::uniform
         );
@@ -492,6 +540,7 @@ namespace carrot::rhi::metal {
         );
 
         std::memset(_textured_quad_root_argument_buffer->mtl_buffer()->contents(), 0, root_buffer_size);
+        std::memset(_textured_quad_cbv_descriptor_table->mtl_buffer()->contents(), 0, cbv_buffer_size);
         std::memset(_textured_quad_srv_descriptor_table->mtl_buffer()->contents(), 0, srv_buffer_size);
         std::memset(_textured_quad_sampler_descriptor_table->mtl_buffer()->contents(), 0, sampler_buffer_size);
 
@@ -521,9 +570,16 @@ namespace carrot::rhi::metal {
 
         MTL::SamplerState* sampler{ metal_sampler->mtl_sampler() };
 
+        const size_t cbv_offset{ batch_index * _textured_quad_cbv_stride };
         const size_t srv_offset{ batch_index * _textured_quad_srv_stride };
         const size_t sampler_offset{ batch_index * _textured_quad_sampler_stride };
         const size_t root_offset{ batch_index * _textured_quad_root_stride };
+
+        descriptor_table_entry_t* const cbv_ptr{
+            reinterpret_cast<descriptor_table_entry_t*>(
+                static_cast<uint8_t*>(_textured_quad_cbv_descriptor_table->mtl_buffer()->contents()) + cbv_offset
+            )
+        };
 
         descriptor_table_entry_t* const srv_ptr{
             reinterpret_cast<descriptor_table_entry_t*>(
@@ -544,10 +600,15 @@ namespace carrot::rhi::metal {
             )
         };
 
+        *cbv_ptr = encode_metal_constant_buffer_cbv_descriptor(_textured_quad_camera_uniform_buffer->mtl_buffer(),
+                                                               0,
+                                                               sizeof(renderer::textured_quad_camera_uniform_t));
         *srv_ptr = encode_metal_texture_srv_descriptor(texture.mtl_texture());
         *sampler_ptr = encode_metal_sampler_descriptor(sampler);
 
-        *root_ptr = encode_textured_quad_root_argument_buffer(_textured_quad_srv_descriptor_table->mtl_buffer(),
+        *root_ptr = encode_textured_quad_root_argument_buffer(_textured_quad_cbv_descriptor_table->mtl_buffer(),
+                                                              cbv_offset,
+                                                              _textured_quad_srv_descriptor_table->mtl_buffer(),
                                                               srv_offset,
                                                               _textured_quad_sampler_descriptor_table->mtl_buffer(),
                                                               sampler_offset);

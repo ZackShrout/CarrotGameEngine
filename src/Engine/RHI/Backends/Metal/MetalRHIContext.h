@@ -10,6 +10,7 @@
 #include "RHI/RHI.h"
 
 #include <memory>
+#include <unordered_map>
 #include <span>
 #include <vector>
 
@@ -44,7 +45,7 @@ namespace carrot::rhi::metal {
         [[nodiscard]] std::unique_ptr<rhi_sampler_t> create_sampler(const sampler_desc_t& desc) const override;
         void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer, const rhi_buffer_t& index_buffer) override;
         void set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches) override;
-        void set_textured_quad_view_projection(const chlm::float4x4& view_projection) override {}
+        void set_textured_quad_view_projection(const chlm::float4x4& view_projection) override;
 
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
         void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) override {}
@@ -80,13 +81,17 @@ namespace carrot::rhi::metal {
         const metal_buffer_t*                           _textured_quad_vertex_buffer{ nullptr };
         const metal_buffer_t*                           _textured_quad_index_buffer{ nullptr };
         std::vector<renderer::textured_quad_batch_t>    _textured_quad_batches;
+        chlm::float4x4                                  _textured_quad_view_projection{ chlm::float4x4::identity() };
+        std::unique_ptr<metal_buffer_t>                 _textured_quad_camera_uniform_buffer;
 
         // ── Dynamic per-batch argument / root signature data ──
         std::unique_ptr<metal_buffer_t>                 _textured_quad_root_argument_buffer;
+        std::unique_ptr<metal_buffer_t>                 _textured_quad_cbv_descriptor_table;
         std::unique_ptr<metal_buffer_t>                 _textured_quad_srv_descriptor_table;
         std::unique_ptr<metal_buffer_t>                 _textured_quad_sampler_descriptor_table;
 
         size_t                                          _textured_quad_root_stride{ 0 };
+        size_t                                          _textured_quad_cbv_stride{ 0 };
         size_t                                          _textured_quad_srv_stride{ 0 };
         size_t                                          _textured_quad_sampler_stride{ 0 };
         size_t                                          _textured_quad_argument_capacity{ 0 };

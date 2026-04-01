@@ -52,11 +52,29 @@ namespace carrot::rhi::metal {
         return entry;
     }
 
+    [[nodiscard]] inline descriptor_table_entry_t encode_metal_constant_buffer_cbv_descriptor(
+        MTL::Buffer* buffer, const size_t offset_bytes, const size_t size_bytes) noexcept
+    {
+        descriptor_table_entry_t entry{ };
+
+        if (!buffer || size_bytes == 0)
+            return entry;
+
+        entry.gpu_address_or_resource_id = metal_buffer_gpu_address(buffer) + offset_bytes;
+        entry.texture_or_sampler_resource_id = 0;
+        entry.metadata = size_bytes;
+
+        return entry;
+    }
+
     [[nodiscard]] inline textured_quad_root_argument_buffer_t encode_textured_quad_root_argument_buffer(
-        MTL::Buffer* srv_table_buffer, const size_t srv_table_offset, MTL::Buffer* sampler_table_buffer,
-        const size_t sampler_table_offset) noexcept
+        MTL::Buffer* cbv_table_buffer, const size_t cbv_table_offset, MTL::Buffer* srv_table_buffer,
+        const size_t srv_table_offset, MTL::Buffer* sampler_table_buffer, const size_t sampler_table_offset) noexcept
     {
         textured_quad_root_argument_buffer_t root{ };
+
+        if (cbv_table_buffer)
+            root.cbv_table_gpu_address = metal_buffer_gpu_address(cbv_table_buffer) + cbv_table_offset;
 
         if (srv_table_buffer)
             root.srv_table_gpu_address = metal_buffer_gpu_address(srv_table_buffer) + srv_table_offset;

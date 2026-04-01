@@ -12,6 +12,12 @@
     #define CARROT_ROOT_SIGNATURE(x)
 #endif
 
+#if defined(VULKAN)
+    #define CARROT_VK_BINDING(binding_index, set_index) [[vk::binding(binding_index, set_index)]]
+#else
+    #define CARROT_VK_BINDING(binding_index, set_index)
+#endif
+
 #define CARROT_RS_TEXTURED_QUAD \
 "RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)," \
 "DescriptorTable(CBV(b0, numDescriptors=1))," \

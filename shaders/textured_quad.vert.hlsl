@@ -1,6 +1,6 @@
 #include "ShaderCommon.h"
 
-[[vk::binding(0, 0)]]
+CARROT_VK_BINDING(0, 0)
 cbuffer TexturedQuadCamera
 {
     float4x4 g_view_projection;

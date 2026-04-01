@@ -144,31 +144,6 @@ namespace carrot::rhi::vulkan {
         dynamic_state.dynamicStateCount = 2;
         dynamic_state.pDynamicStates = dynamic_states;
 
-        // VkDescriptorSetLayoutBinding texture_binding{ };
-        // texture_binding.binding = 0;
-        // texture_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        // texture_binding.descriptorCount = 1;
-        // texture_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        // texture_binding.pImmutableSamplers = nullptr;
-        //
-        // VkDescriptorSetLayoutCreateInfo descriptor_set_layout_info{ };
-        // descriptor_set_layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        // descriptor_set_layout_info.bindingCount = 1;
-        // descriptor_set_layout_info.pBindings = &texture_binding;
-        //
-        // VK_CHECK_FATAL(
-        //     vkCreateDescriptorSetLayout(_device->vk_device(), &descriptor_set_layout_info, nullptr, &
-        //         _descriptor_set_layout));
-        //
-        // VkPipelineLayoutCreateInfo layout_info{ };
-        // layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        // layout_info.setLayoutCount = 1;
-        // layout_info.pSetLayouts = &_descriptor_set_layout;
-        // layout_info.pushConstantRangeCount = 0;
-        // layout_info.pPushConstantRanges = nullptr;
-        //
-        // VK_CHECK_FATAL(vkCreatePipelineLayout(_device->vk_device(), &layout_info, nullptr, &_layout));
-
         // Camera descriptor set layout (set 0)
         VkDescriptorSetLayoutBinding camera_binding{ };
         camera_binding.binding = 0;
@@ -270,9 +245,6 @@ namespace carrot::rhi::vulkan {
 
         if (_layout != VK_NULL_HANDLE)
             vkDestroyPipelineLayout(_device->vk_device(), _layout, nullptr);
-
-        // if (_descriptor_set_layout != VK_NULL_HANDLE)
-        //     vkDestroyDescriptorSetLayout(_device->vk_device(), _descriptor_set_layout, nullptr);
 
         if (_camera_descriptor_set_layout != VK_NULL_HANDLE)
             vkDestroyDescriptorSetLayout(_device->vk_device(), _camera_descriptor_set_layout, nullptr);

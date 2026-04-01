@@ -227,6 +227,7 @@ Near-term renderer priorities include:
 * batching
 * backend parity
 * camera / projection support
+* gameplay-facing presentation policies such as fixed-aspect letterboxing
 * sprite rendering
 * debug rendering and text
 
@@ -546,12 +547,12 @@ Carrot’s roadmap is best understood in terms of **capabilities**, not fake cal
 
 These are the most immediate engine priorities.
 
-* Bring **Vulkan**, **Metal**, and **DirectX 12** textured quad rendering to practical parity
+* Preserve and verify **Vulkan**, **Metal**, and **DirectX 12** textured quad parity as renderer features expand
 * Continue stabilizing the renderer / RHI boundary
 * Expand textured quad rendering into a stronger general 2D rendering foundation
 * Introduce **sprite asset support**
 * Support **sprite animation workflows**
-* Add **camera / projection support**
+* Continue expanding **camera / projection support** into stronger gameplay/editor camera workflows
 * Improve **debug rendering / debug text / overlay direction**
 * Continue strengthening the asset system and authored asset workflows
 

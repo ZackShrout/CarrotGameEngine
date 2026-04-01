@@ -1228,49 +1228,6 @@ namespace carrot::rhi::vulkan {
         LOG_GRAPHICS_INFO("Textured quad descriptor pool created successfully");
     }
 
-    // void vulkan_rhi_context_t::create_descriptor_pool()
-    // {
-    //     std::array<VkDescriptorPoolSize, 2> pool_sizes{};
-    //
-    //     pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    //     pool_sizes[0].descriptorCount = k_max_frames_in_flight;
-    //
-    //     pool_sizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    //     pool_sizes[1].descriptorCount = k_max_textured_quad_descriptor_sets;
-    //
-    //     VkDescriptorPoolCreateInfo pool_info{ };
-    //     pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    //     pool_info.poolSizeCount = static_cast<uint32_t>(pool_sizes.size());
-    //     pool_info.pPoolSizes = pool_sizes.data();
-    //     pool_info.maxSets = k_max_frames_in_flight + k_max_textured_quad_descriptor_sets;
-    //
-    //     // VkDescriptorPoolSize pool_size{ };
-    //     // pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    //     // pool_size.descriptorCount = k_max_textured_quad_descriptor_sets;
-    //
-    //     // VkDescriptorPoolCreateInfo pool_info{ };
-    //     // pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    //     // pool_info.poolSizeCount = 1;
-    //     // pool_info.pPoolSizes = &pool_size;
-    //     // pool_info.maxSets = k_max_textured_quad_descriptor_sets;
-    //
-    //     VK_CHECK_FATAL(vkCreateDescriptorPool(_device->vk_device(), &pool_info, nullptr, &_descriptor_pool));
-    //
-    //     LOG_GRAPHICS_INFO("Textured quad descriptor pool created successfully");
-    // }
-
-    // void vulkan_rhi_context_t::destroy_descriptor_pool() noexcept
-    // {
-    //     for (auto& frame_sets: _textured_quad.descriptor_sets)
-    //         frame_sets.clear();
-    //
-    //     if (_descriptor_pool != VK_NULL_HANDLE)
-    //     {
-    //         vkDestroyDescriptorPool(_device->vk_device(), _descriptor_pool, nullptr);
-    //         _descriptor_pool = VK_NULL_HANDLE;
-    //     }
-    // }
-
     void vulkan_rhi_context_t::destroy_descriptor_pool() noexcept
     {
         for (auto& descriptor_set: _textured_quad.camera_descriptor_sets)
@@ -1310,8 +1267,6 @@ namespace carrot::rhi::vulkan {
         const size_t old_size{ frame_sets.size() };
         frame_sets.resize(old_size + count, VK_NULL_HANDLE);
 
-        // const std::vector<VkDescriptorSetLayout> layouts(count, _textured_quad_pipeline->vk_descriptor_set_layout());
-
         const std::vector<VkDescriptorSetLayout> layouts(
             count, _textured_quad_pipeline->vk_texture_descriptor_set_layout());
 
@@ -1349,41 +1304,6 @@ namespace carrot::rhi::vulkan {
         const uint32_t missing{ batch_count - static_cast<uint32_t>(frame_sets.size()) };
         allocate_textured_quad_descriptor_sets(frame_index, missing);
     }
-
-    // void vulkan_rhi_context_t::write_textured_quad_descriptor_set(VkDescriptorSet descriptor_set,
-    //                                                               const rhi_texture_t& texture,
-    //                                                               const rhi_sampler_t& sampler) const
-    // {
-    //     const vulkan_texture_t* vk_texture{ dynamic_cast<const vulkan_texture_t*>(&texture) };
-    //     if (vk_texture == nullptr)
-    //     {
-    //         LOG_GRAPHICS_FATAL("write_textured_quad_descriptor_set received non-Vulkan texture");
-    //         return;
-    //     }
-    //
-    //     const vulkan_sampler_t* vk_sampler_wrapper{ dynamic_cast<const vulkan_sampler_t*>(&sampler) };
-    //     if (vk_sampler_wrapper == nullptr)
-    //     {
-    //         LOG_GRAPHICS_FATAL("write_textured_quad_descriptor_set received non-Vulkan sampler");
-    //         return;
-    //     }
-    //
-    //     VkDescriptorImageInfo image_info{ };
-    //     image_info.sampler = vk_sampler_wrapper->vk_sampler();
-    //     image_info.imageView = vk_texture->view();
-    //     image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    //
-    //     VkWriteDescriptorSet write{ };
-    //     write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    //     write.dstSet = descriptor_set;
-    //     write.dstBinding = 0;
-    //     write.dstArrayElement = 0;
-    //     write.descriptorCount = 1;
-    //     write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    //     write.pImageInfo = &image_info;
-    //
-    //     vkUpdateDescriptorSets(_device->vk_device(), 1, &write, 0, nullptr);
-    // }
 
     void vulkan_rhi_context_t::write_textured_quad_descriptor_set(VkDescriptorSet descriptor_set,
                                                                   const rhi_texture_t& texture,

@@ -22,8 +22,6 @@ namespace carrot::rhi::vulkan {
 
         [[nodiscard]] VkPipeline vk_pipeline() const noexcept { return _pipeline; }
         [[nodiscard]] VkPipelineLayout vk_layout() const noexcept { return _layout; }
-        // [[nodiscard]] VkDescriptorSetLayout vk_descriptor_set_layout() const noexcept { return _descriptor_set_layout; }
-
         [[nodiscard]] VkDescriptorSetLayout vk_camera_descriptor_set_layout() const noexcept;
         [[nodiscard]] VkDescriptorSetLayout vk_texture_descriptor_set_layout() const noexcept;
 
@@ -31,7 +29,6 @@ namespace carrot::rhi::vulkan {
         [[nodiscard]] VkShaderModule create_shader_module(const std::vector<uint32_t>& code) const;
 
         const vulkan_device_t* _device{ nullptr };
-        // VkDescriptorSetLayout _descriptor_set_layout{ VK_NULL_HANDLE };
         VkDescriptorSetLayout _camera_descriptor_set_layout{ VK_NULL_HANDLE };
         VkDescriptorSetLayout _texture_descriptor_set_layout{ VK_NULL_HANDLE };
         VkPipelineLayout _layout{ VK_NULL_HANDLE };

@@ -23,8 +23,8 @@ The engine already includes meaningful progress in several major areas:
 * Cross-platform native windowing
 * Multi-backend rendering architecture
 * Vulkan backend functional and actively used as the baseline renderer
-* Metal backend in active parity development
-* DirectX 12 backend implemented and in progress toward feature parity
+* Metal textured quad renderer at practical parity with Vulkan
+* DirectX 12 textured quad renderer at practical parity with Vulkan and Metal
 * Custom audio engine architecture
 * Virtual file system and asset pipeline foundations
 * Texture and audio asset loading
@@ -103,13 +103,15 @@ This is one of the reasons Carrot leans heavily into **JSON-based authored metad
 
 * Cross-platform rendering abstraction (RHI)
 * Textured quad rendering
-* Backend parity work between Vulkan / Metal / DirectX 12
+* Practical textured quad parity between Vulkan / Metal / DirectX 12
 * Shared HLSL shader source pipeline across Vulkan / Metal / DirectX 12
+* 2D camera / projection support with both:
+  * responsive world-view framing
+  * fixed-aspect letterboxed gameplay framing
 * Future direction includes:
 
     * sprite rendering
     * animation
-    * camera / projection
     * debug text / overlays
     * UI layers
 

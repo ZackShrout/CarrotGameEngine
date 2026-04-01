@@ -25,8 +25,17 @@
 "DescriptorTable(Sampler(s0, numDescriptors=1))"
 
 // Backend-specific clip-space normalization.
-// Carrot shared shaders apply this when writing SV_Position so that
-// Vulkan / Metal / DX12 can share the same higher-level 2D conventions.
+//
+// Carrot's higher-level 2D convention is world-space with a top-left origin
+// and +Y pointing down. Once positions started flowing through a shared
+// orthographic camera projection instead of being authored directly in clip
+// space, the required Y fixup became "which backend disagrees with the clip
+// convention produced by that projection?" rather than "which backend was
+// upside down in the old direct clip-space test path?"
+//
+// In the current renderer setup, Vulkan is the backend that needs the sign
+// correction while Metal and DirectX 12 naturally match the shared 2D camera
+// projection path.
 #ifndef CARROT_CLIP_SPACE_Y_SIGN
     #define CARROT_CLIP_SPACE_Y_SIGN 1.0
 #endif

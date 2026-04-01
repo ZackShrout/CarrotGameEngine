@@ -238,6 +238,8 @@ Key current priorities include:
 * resource binding behavior
 * batch-oriented 2D rendering foundations
 * backend parity
+* camera / projection behavior
+* presentation policy support such as responsive framing vs fixed-aspect gameplay framing
 * frame lifecycle clarity
 * debug-friendly rendering flow
 
@@ -293,7 +295,7 @@ The renderer is expected to evolve roughly along this path:
 2. textured quad rendering
 3. batched 2D rendering
 4. sprite rendering and animation-aware drawing
-5. camera / projection support
+5. camera / projection support and presentation policy
 6. debug overlays / text
 7. world-driven rendering flow
 
@@ -403,6 +405,12 @@ The intended rule is:
 
 > backend-specific compilation details are acceptable
 > backend-specific authored shader divergence should be minimized
+
+Examples of acceptable backend-specific compilation details include:
+
+* Vulkan-only resource binding attributes from shared HLSL macros
+* backend-specific clip-space Y normalization
+* backend-specific compilation defines or translation steps required by DXC / Metal conversion
 
 ### 8.6 Architectural Intent
 

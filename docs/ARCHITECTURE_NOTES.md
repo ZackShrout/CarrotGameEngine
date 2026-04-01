@@ -244,6 +244,7 @@ Key current priorities include:
 * sprite-facing placement behavior such as pivot/origin and flip
 * frame lifecycle clarity
 * debug-friendly rendering flow
+* engine-owned debug text overlays for runtime renderer diagnostics
 
 This stage is intentionally about building a solid base, not about racing into every future rendering feature immediately.
 
@@ -265,6 +266,9 @@ Examples of renderer-level concerns:
 * debug rendering
 * future text/UI rendering
 * world-facing rendering flow
+
+At the current stage, Carrot's debug text overlay is intentionally implemented through the same 2D textured-quad renderer rather than a separate UI or debug-only pass.
+That keeps the system small, portable across backends, and useful for renderer bring-up while leaving room for a broader overlay/UI layer later.
 
 ### Engine-Owned Rendering Flow
 Carrot’s long-term rendering model is intended to be **engine-driven**, not **game-code-driven**.
@@ -302,6 +306,8 @@ The renderer is expected to evolve roughly along this path:
 5. camera / projection support and presentation policy
 6. debug overlays / text
 7. world-driven rendering flow
+
+The current debug overlay work belongs to step 6, but still in an intentionally lightweight form: text is rendered through the existing 2D renderer and anchored to the resolved presentation viewport rather than a dedicated UI system.
 
 That progression is intentional.
 

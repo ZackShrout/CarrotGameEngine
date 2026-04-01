@@ -48,7 +48,7 @@ namespace carrot::renderer {
 
         _is_initialized = true;
         LOG_GRAPHICS_INFO("Renderer initialized successfully (backend: {})",
-                          carrot::rhi::graphics_api_to_string(desc.api));
+                          carrot::rhi::graphics_api_to_string(_rhi->get_graphics_api()));
     }
 
     void renderer_t::shutdown()
@@ -112,9 +112,10 @@ namespace carrot::renderer {
         _rhi->record_frame();
 
         _stats.vertex_count = static_cast<uint32_t>(_textured_quad.vertices_cpu.size());
-        _stats.index_count = static_cast<uint32_t>(_textured_quad.indices_cpu.size());
+       _stats.index_count = static_cast<uint32_t>(_textured_quad.indices_cpu.size());
         _stats.textured_quad_batch_count = static_cast<uint32_t>(_textured_quad.batches.size());
         _stats.draw_calls = _stats.textured_quad_batch_count;
+        _last_completed_stats = _stats;
 
         _rhi->end_frame();
     }
@@ -325,6 +326,21 @@ namespace carrot::renderer {
 
         if (required_vertex_bytes == 0 || required_index_bytes == 0)
             return;
+
+        const bool needs_vertex_realloc{
+            _textured_quad.frame_vertex_buffer != nullptr && _textured_quad.vertex_capacity < required_vertex_bytes
+        };
+        const bool needs_index_realloc{
+            _textured_quad.frame_index_buffer != nullptr && _textured_quad.index_capacity < required_index_bytes
+        };
+
+        if ((needs_vertex_realloc || needs_index_realloc) &&
+            _rhi->get_graphics_api() == rhi::graphics_api::vulkan)
+        {
+            // The previous frame may still be using the current geometry buffers.
+            // Wait before replacing them so Vulkan backends do not destroy in-flight buffers.
+            _rhi->wait_idle();
+        }
 
         if (_textured_quad.frame_vertex_buffer == nullptr || _textured_quad.vertex_capacity < required_vertex_bytes)
         {

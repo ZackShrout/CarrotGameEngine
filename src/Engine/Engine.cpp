@@ -55,6 +55,8 @@ namespace carrot {
             _asset_manager.reset(); // destroys loaded textures while RHI/device still alive
         }
 
+        debug::shutdown();
+
         _audio_module->shutdown();
         _audio_module.reset();
 
@@ -183,9 +185,27 @@ namespace carrot {
             // Initialize debug overlay AFTER the first swapchain image exists
             if (!_debug_overlay_initialized)
             {
-                // debug::init(_renderer);
-                _debug_overlay_initialized = true;
+                debug::init(_renderer.get(), _vfs);
+                _debug_overlay_initialized = debug::is_initialized();
             }
+
+            const renderer::renderer_stats_t& stats{ _renderer->get_last_completed_stats() };
+            const renderer::camera_2d_t& active_camera{ _renderer->get_camera_2d() };
+            const renderer::resolved_camera_2d_t resolved_camera{ _renderer->resolve_camera_2d() };
+
+            debug::text(16.f, 16.f, "Carrot Debug Text V1");
+            debug::text(16.f, 44.f, "Backend: %s", rhi::graphics_api_to_string(_renderer->get_graphics_api()).data());
+            debug::text(16.f, 72.f, "Camera: %s", renderer::camera_2d_sizing_mode_to_string(active_camera.sizing_mode));
+            debug::text(16.f, 100.f, "Viewport: %u,%u %ux%u",
+                        resolved_camera.viewport_rect_px.position.x,
+                        resolved_camera.viewport_rect_px.position.y,
+                        resolved_camera.viewport_rect_px.size.x,
+                        resolved_camera.viewport_rect_px.size.y);
+            debug::text(16.f, 128.f, "FPS: %u", _current_fps);
+            debug::text(16.f, 156.f, "Draw Calls: %u", stats.draw_calls);
+            debug::text(16.f, 184.f, "Quads: %u", stats.textured_quad_count);
+            debug::text(16.f, 212.f, "Batches: %u", stats.textured_quad_batch_count);
+            debug::text(16.f, 240.f, "Frame: %llu", static_cast<unsigned long long>(_renderer->get_frame_index()));
 
             _renderer->end_frame();
         }
@@ -217,9 +237,6 @@ namespace carrot {
         _audio_module->update(_delta_time);
         _vraden_animator.update(_delta_time);
         _kelvara_animator.update(_delta_time);
-
-        // debug::text(20.f, 30.f, "FPS: %u", _current_fps);
-        // debug::text(20.f, 65.f, "Frame: %.3f ms", _delta_time * 1000.f);
 
         if ((_renderer->get_frame_index() % 120) == 0)
         {

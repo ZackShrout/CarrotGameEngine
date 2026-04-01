@@ -112,10 +112,10 @@ This is one of the reasons Carrot leans heavily into **JSON-based authored metad
   * explicit draw layering and intra-layer ordering
   * frame/default pivot support with per-draw pivot override
   * sprite flip X / flip Y support
+* Engine-owned debug text / overlay support for runtime renderer diagnostics
 * Future direction includes:
 
     * animation
-    * debug text / overlays
     * UI layers
 
 ### Audio

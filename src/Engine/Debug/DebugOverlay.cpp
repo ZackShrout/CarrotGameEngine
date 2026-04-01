@@ -1,516 +1,256 @@
-// //
-// // Created by zshrout on 12/28/25.
-// // Copyright (c) 2025 BunnySoft. All rights reserved.
-// //
 //
+// Created by zshrout on 12/28/25.
+// Copyright (c) 2025 BunnySoft. All rights reserved.
+//
+
 #include "Core/Pch.h"
 
-// #include "DebugOverlay.h"
-//
-// #include "RHI/Backends/Vulkan/VulkanCommon.h"
-// #include "Utils/ShaderUtils.h"
-//
-// #define STB_TRUETYPE_IMPLEMENTATION
-// #include <stb_truetype.h>
-// #include <cstdarg>
-// #include <fstream>
-//
-// namespace carrot::debug {
-//     namespace {
-//         constexpr int k_atlas_width = 1024;
-//         constexpr int k_atlas_height = 1024;
-//         constexpr int k_first_char = 32;
-//         constexpr int k_char_count = 96;
-//         constexpr float k_font_pixel_height = 32.0f;
-//
-//         // stbtt_fontinfo g_font;
-//         unsigned char* g_ttf_buffer{ nullptr };
-//         unsigned char* g_atlas_pixels{ nullptr };
-//         bool g_initialized{ false };
-//
-//         struct glyph_t
-//         {
-//             float x0, y0, x1, y1; // atlas coords (pixels)
-//             float xoff, yoff; // bearing
-//             float advance;
-//         };
-//
-//         glyph_t g_glyphs[k_char_count];
-//
-//         VkImage g_font_image{ VK_NULL_HANDLE };
-//         VkImageView g_font_view{ VK_NULL_HANDLE };
-//         VkDeviceMemory g_font_memory{ VK_NULL_HANDLE };
-//         VkSampler g_font_sampler{ VK_NULL_HANDLE };
-//
-//         VkDescriptorSetLayout g_desc_layout{ VK_NULL_HANDLE };
-//         VkDescriptorPool g_desc_pool{ VK_NULL_HANDLE };
-//         VkDescriptorSet g_desc_set{ VK_NULL_HANDLE };
-//
-//         VkPipelineLayout g_pipeline_layout{ VK_NULL_HANDLE };
-//         VkPipeline g_pipeline{ VK_NULL_HANDLE };
-//
-//         struct vertex_t
-//         {
-//             float x, y, u, v;
-//         };
-//
-//         std::vector<vertex_t> g_vertices;
-//         std::vector<uint16_t> g_indices;
-//
-//         VkBuffer g_vb{ VK_NULL_HANDLE };
-//         VkDeviceMemory g_vb_mem{ VK_NULL_HANDLE };
-//         VkBuffer g_ib{ VK_NULL_HANDLE };
-//         VkDeviceMemory g_ib_mem{ VK_NULL_HANDLE };
-//
-//         void create_font_texture()
-//         {
-//             rhi::vulkan::vulkan_context_t* ctx{ rhi::vulkan::vulkan_context_t::get() };
-//
-//             // ── Create staging buffer
-//             VkDeviceSize atlas_size{ k_atlas_width * k_atlas_height };
-//
-//             VkBuffer staging_buf{ };
-//             VkDeviceMemory staging_mem{ };
-//
-//             VkBufferCreateInfo buf_info{ };
-//             buf_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-//             buf_info.size = atlas_size;
-//             buf_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-//             vkCreateBuffer(ctx->device(), &buf_info, nullptr, &staging_buf);
-//
-//             VkMemoryRequirements mem_req{ };
-//             vkGetBufferMemoryRequirements(ctx->device(), staging_buf, &mem_req);
-//
-//             VkMemoryAllocateInfo alloc_info{ };
-//             alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-//             alloc_info.allocationSize = mem_req.size;
-//             alloc_info.memoryTypeIndex = ctx->find_memory_type(mem_req.memoryTypeBits,
-//                                                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-//             vkAllocateMemory(ctx->device(), &alloc_info, nullptr, &staging_mem);
-//             vkBindBufferMemory(ctx->device(), staging_buf, staging_mem, 0);
-//
-//             void* mapped;
-//             vkMapMemory(ctx->device(), staging_mem, 0, atlas_size, 0, &mapped);
-//             memcpy(mapped, g_atlas_pixels, atlas_size);
-//             vkUnmapMemory(ctx->device(), staging_mem);
-//
-//             // ── Create device-local image
-//             VkImageCreateInfo img_info{ };
-//             img_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-//             img_info.imageType = VK_IMAGE_TYPE_2D;
-//             img_info.format = VK_FORMAT_R8_UNORM;
-//             img_info.extent = { k_atlas_width, k_atlas_height, 1 };
-//             img_info.mipLevels = 1;
-//             img_info.arrayLayers = 1;
-//             img_info.samples = VK_SAMPLE_COUNT_1_BIT;
-//             img_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-//             img_info.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-//             img_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-//             vkCreateImage(ctx->device(), &img_info, nullptr, &g_font_image);
-//
-//             vkGetImageMemoryRequirements(ctx->device(), g_font_image, &mem_req);
-//             alloc_info.allocationSize = mem_req.size;
-//             alloc_info.memoryTypeIndex = ctx->find_memory_type(mem_req.memoryTypeBits,
-//                                                                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-//             vkAllocateMemory(ctx->device(), &alloc_info, nullptr, &g_font_memory);
-//             vkBindImageMemory(ctx->device(), g_font_image, g_font_memory, 0);
-//
-//             // ── Transition + copy
-//             VkCommandBuffer cmd{ ctx->begin_one_time_commands() };
-//
-//             VkImageMemoryBarrier barrier{ };
-//             barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-//             barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-//             barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-//             barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-//             barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-//             barrier.image = g_font_image;
-//             barrier.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-//             barrier.srcAccessMask = 0;
-//             barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-//             vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-//                                  VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-//
-//             VkBufferImageCopy region{ };
-//             region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-//             region.imageSubresource.layerCount = 1;
-//             region.imageExtent = { k_atlas_width, k_atlas_height, 1 };
-//             vkCmdCopyBufferToImage(cmd, staging_buf, g_font_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-//
-//             barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-//             barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-//             barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-//             barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-//             vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
-//                                  VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-//
-//             ctx->end_one_time_commands(cmd);
-//
-//             // cleanup staging
-//             vkDestroyBuffer(ctx->device(), staging_buf, nullptr);
-//             vkFreeMemory(ctx->device(), staging_mem, nullptr);
-//
-//             // view + sampler
-//             VkImageViewCreateInfo view_info{ };
-//             view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-//             view_info.image = g_font_image;
-//             view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-//             view_info.format = VK_FORMAT_R8_UNORM;
-//             view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-//             view_info.subresourceRange.levelCount = 1;
-//             view_info.subresourceRange.layerCount = 1;
-//             vkCreateImageView(ctx->device(), &view_info, nullptr, &g_font_view);
-//
-//             VkSamplerCreateInfo sampler_info{ };
-//             sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-//             sampler_info.magFilter = VK_FILTER_LINEAR;
-//             sampler_info.minFilter = VK_FILTER_LINEAR;
-//             sampler_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-//             sampler_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-//             sampler_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-//             sampler_info.minLod = 0.0f;
-//             sampler_info.maxLod = 1.0f;
-//             vkCreateSampler(ctx->device(), &sampler_info, nullptr, &g_font_sampler);
-//         }
-//
-//         void create_descriptor_objects()
-//         {
-//             const rhi::vulkan::vulkan_context_t* ctx{ rhi::vulkan::vulkan_context_t::get() };
-//
-//             VkDescriptorSetLayoutBinding binding{ };
-//             binding.binding = 0;
-//             binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-//             binding.descriptorCount = 1;
-//             binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-//
-//             VkDescriptorSetLayoutCreateInfo layout_info{ };
-//             layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-//             layout_info.bindingCount = 1;
-//             layout_info.pBindings = &binding;
-//             vkCreateDescriptorSetLayout(ctx->device(), &layout_info, nullptr, &g_desc_layout);
-//
-//             constexpr VkDescriptorPoolSize pool_size{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1 };
-//             VkDescriptorPoolCreateInfo pool_info{ };
-//             pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-//             pool_info.maxSets = 1;
-//             pool_info.poolSizeCount = 1;
-//             pool_info.pPoolSizes = &pool_size;
-//             vkCreateDescriptorPool(ctx->device(), &pool_info, nullptr, &g_desc_pool);
-//
-//             VkDescriptorSetAllocateInfo alloc_info{ };
-//             alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-//             alloc_info.descriptorPool = g_desc_pool;
-//             alloc_info.descriptorSetCount = 1;
-//             alloc_info.pSetLayouts = &g_desc_layout;
-//             vkAllocateDescriptorSets(ctx->device(), &alloc_info, &g_desc_set);
-//
-//             VkDescriptorImageInfo img_info{ };
-//             img_info.sampler = g_font_sampler;
-//             img_info.imageView = g_font_view;
-//             img_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-//
-//             VkWriteDescriptorSet write{ };
-//             write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-//             write.dstSet = g_desc_set;
-//             write.dstBinding = 0;
-//             write.descriptorCount = 1;
-//             write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-//             write.pImageInfo = &img_info;
-//             vkUpdateDescriptorSets(ctx->device(), 1, &write, 0, nullptr);
-//         }
-//
-//         void create_pipeline()
-//         {
-//             rhi::vulkan::vulkan_context_t* ctx{ rhi::vulkan::vulkan_context_t::get() };
-//
-//             std::vector<uint32_t> vert_spv{ load_spv("shaders/debug_overlay.vert.spv") };
-//             std::vector<uint32_t> frag_spv{ load_spv("shaders/debug_overlay.frag.spv") };
-//
-//             VkShaderModule vert_mod{ VK_NULL_HANDLE };
-//             VkShaderModule frag_mod{ VK_NULL_HANDLE };
-//
-//             VkShaderModuleCreateInfo mod_info{ };
-//             mod_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-//             mod_info.codeSize = vert_spv.size() * sizeof(uint32_t);
-//             mod_info.pCode = vert_spv.data();
-//             vkCreateShaderModule(ctx->device(), &mod_info, nullptr, &vert_mod);
-//
-//             mod_info.codeSize = frag_spv.size() * sizeof(uint32_t);
-//             mod_info.pCode = frag_spv.data();
-//             vkCreateShaderModule(ctx->device(), &mod_info, nullptr, &frag_mod);
-//
-//             VkPipelineShaderStageCreateInfo stages[2]{
-//                 {
-//                     VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0, VK_SHADER_STAGE_VERTEX_BIT,
-//                     vert_mod, "main", nullptr
-//                 },
-//                 {
-//                     VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, nullptr, 0, VK_SHADER_STAGE_FRAGMENT_BIT,
-//                     frag_mod, "main", nullptr
-//                 }
-//             };
-//
-//             VkVertexInputBindingDescription binding{ 0, sizeof(vertex_t), VK_VERTEX_INPUT_RATE_VERTEX };
-//             VkVertexInputAttributeDescription attrs[2]{
-//                 { 0, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(vertex_t, x) },
-//                 { 1, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(vertex_t, u) }
-//             };
-//             VkPipelineVertexInputStateCreateInfo vertex_input{ };
-//             vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-//             vertex_input.vertexBindingDescriptionCount = 1;
-//             vertex_input.pVertexBindingDescriptions = &binding;
-//             vertex_input.vertexAttributeDescriptionCount = 2;
-//             vertex_input.pVertexAttributeDescriptions = attrs;
-//
-//             VkPipelineInputAssemblyStateCreateInfo ia{ };
-//             ia.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-//             ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-//
-//             VkPipelineViewportStateCreateInfo vp{ };
-//             vp.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-//             vp.viewportCount = vp.scissorCount = 1;
-//
-//             VkPipelineRasterizationStateCreateInfo rs{ };
-//             rs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-//             rs.lineWidth = 1.0f;
-//             rs.cullMode = VK_CULL_MODE_NONE;
-//             rs.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-//
-//             VkPipelineMultisampleStateCreateInfo ms{ };
-//             ms.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-//             ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-//
-//             VkPipelineColorBlendAttachmentState blend{ };
-//             blend.blendEnable = VK_TRUE;
-//             blend.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-//             blend.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-//             blend.colorBlendOp = VK_BLEND_OP_ADD;
-//             blend.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-//             blend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-//             blend.colorWriteMask = 0xF;
-//
-//             VkPipelineColorBlendStateCreateInfo cb{ };
-//             cb.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-//             cb.attachmentCount = 1;
-//             cb.pAttachments = &blend;
-//
-//             VkDynamicState dyn[]{ VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-//             VkPipelineDynamicStateCreateInfo dynamic{ };
-//             dynamic.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-//             dynamic.dynamicStateCount = 2;
-//             dynamic.pDynamicStates = dyn;
-//
-//             // PUSH CONSTANT + DESCRIPTOR SET
-//             VkPushConstantRange push_range{ VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(float) * 2 };
-//
-//             VkPipelineLayoutCreateInfo layout_info{ };
-//             layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-//             layout_info.setLayoutCount = 1;
-//             layout_info.pSetLayouts = &g_desc_layout;
-//             layout_info.pushConstantRangeCount = 1;
-//             layout_info.pPushConstantRanges = &push_range;
-//             vkCreatePipelineLayout(ctx->device(), &layout_info, nullptr, &g_pipeline_layout);
-//
-//             VkGraphicsPipelineCreateInfo pipe{ };
-//             pipe.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-//             pipe.stageCount = 2;
-//             pipe.pStages = stages;
-//             pipe.pVertexInputState = &vertex_input;
-//             pipe.pInputAssemblyState = &ia;
-//             pipe.pViewportState = &vp;
-//             pipe.pRasterizationState = &rs;
-//             pipe.pMultisampleState = &ms;
-//             pipe.pColorBlendState = &cb;
-//             pipe.pDynamicState = &dynamic;
-//             pipe.layout = g_pipeline_layout;
-//             pipe.renderPass = ctx->render_pass();
-//             pipe.subpass = 0;
-//
-//             vkCreateGraphicsPipelines(ctx->device(), VK_NULL_HANDLE, 1, &pipe, nullptr, &g_pipeline);
-//
-//             vkDestroyShaderModule(ctx->device(), vert_mod, nullptr);
-//             vkDestroyShaderModule(ctx->device(), frag_mod, nullptr);
-//         }
-//
-//         void rasterize_text(float x, float y, const char* text)
-//         {
-//             const float start_x{ x };
-//
-//             for (; *text; ++text)
-//             {
-//                 if (*text == '\n')
-//                 {
-//                     x = start_x;
-//                     y += k_font_pixel_height * 1.4f;
-//                     continue;
-//                 }
-//                 if (static_cast<unsigned char>(*text) < k_first_char ||
-//                     static_cast<unsigned char>(*text) >= k_first_char + k_char_count)
-//                     continue;
-//
-//                 const int idx{ *text - k_first_char };
-//                 stbtt_aligned_quad q;
-//                 stbtt_GetBakedQuad(reinterpret_cast<stbtt_bakedchar *>(g_glyphs), k_atlas_width, k_atlas_height,
-//                                    idx, &x, &y, &q, 1);
-//
-//                 const uint16_t base{ static_cast<uint16_t>(g_vertices.size()) };
-//
-//                 g_vertices.push_back({ q.x0, q.y0, q.s0, q.t0 });
-//                 g_vertices.push_back({ q.x1, q.y0, q.s1, q.t0 });
-//                 g_vertices.push_back({ q.x1, q.y1, q.s1, q.t1 });
-//                 g_vertices.push_back({ q.x0, q.y1, q.s0, q.t1 });
-//
-//                 g_indices.insert(g_indices.end(), {
-//                                      static_cast<uint16_t>(base + 0), static_cast<uint16_t>(base + 1),
-//                                      static_cast<uint16_t>(base + 2),
-//                                      static_cast<uint16_t>(base + 0), static_cast<uint16_t>(base + 2),
-//                                      static_cast<uint16_t>(base + 3)
-//                                  });
-//             }
-//         }
-//
-//         renderer::renderer_t* _renderer{ nullptr };
-//     } // anonymous namespace
-//
-//     void init(renderer::renderer_t* renderer) noexcept
-//     {
-//         _renderer = renderer;
-//
-//         FILE* f = fopen("assets/Fonts/Roboto-Regular.ttf", "rb");
-//         if (!f)
-//         {
-//             LOG_GRAPHICS_ERROR("Failed to open Roboto-Regular.ttf");
-//             return;
-//         }
-//
-//         fseek(f, 0, SEEK_END);
-//         const size_t sz{ static_cast<size_t>(ftell(f)) };
-//         fseek(f, 0, SEEK_SET);
-//         g_ttf_buffer = new unsigned char[sz];
-//         fread(g_ttf_buffer, 1, sz, f);
-//         fclose(f);
-//
-//         g_atlas_pixels = new unsigned char[k_atlas_width * k_atlas_height];
-//         stbtt_BakeFontBitmap(g_ttf_buffer, 0, k_font_pixel_height,
-//                              g_atlas_pixels, k_atlas_width, k_atlas_height,
-//                              k_first_char, k_char_count, reinterpret_cast<stbtt_bakedchar *>(g_glyphs));
-//
-//         const rhi::vulkan::vulkan_context_t* ctx{ rhi::vulkan::vulkan_context_t::get() };
-//
-//         create_font_texture();
-//         create_descriptor_objects();
-//         create_pipeline();
-//
-//         // After create_pipeline() — CREATE BUFFERS AFTER EVERYTHING ELSE EXISTS
-//         constexpr VkDeviceSize vb_size{ 16 * 1024 * 1024 }; // 16 MiB
-//         constexpr VkDeviceSize ib_size{ 8 * 1024 * 1024 }; // 8 MiB
-//
-//         // Vertex buffer
-//         VkBufferCreateInfo buf_info{ };
-//         buf_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-//         buf_info.size = vb_size;
-//         buf_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-//         buf_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-//         vkCreateBuffer(ctx->device(), &buf_info, nullptr, &g_vb);
-//
-//         VkMemoryRequirements mem_req;
-//         vkGetBufferMemoryRequirements(ctx->device(), g_vb, &mem_req);
-//
-//         VkMemoryAllocateInfo alloc_info{ };
-//         alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-//         alloc_info.allocationSize = mem_req.size;
-//         alloc_info.memoryTypeIndex = ctx->find_memory_type(mem_req.memoryTypeBits,
-//                                                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-//                                                            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-//
-//         vkAllocateMemory(ctx->device(), &alloc_info, nullptr, &g_vb_mem);
-//         vkBindBufferMemory(ctx->device(), g_vb, g_vb_mem, 0);
-//
-//         // Index buffer
-//         buf_info.size = ib_size;
-//         buf_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-//         vkCreateBuffer(ctx->device(), &buf_info, nullptr, &g_ib);
-//
-//         vkGetBufferMemoryRequirements(ctx->device(), g_ib, &mem_req);
-//         alloc_info.allocationSize = mem_req.size;
-//         alloc_info.memoryTypeIndex = ctx->find_memory_type(mem_req.memoryTypeBits,
-//                                                            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-//                                                            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-//
-//         vkAllocateMemory(ctx->device(), &alloc_info, nullptr, &g_ib_mem);
-//         vkBindBufferMemory(ctx->device(), g_ib, g_ib_mem, 0);
-//
-//         g_initialized = true; // ← SET THIS AT THE END
-//         LOG_GRAPHICS_INFO("DEBUG OVERLAY FULLY INITIALIZED — READY TO RENDER");
-//     }
-//
-//     void shutdown() noexcept
-//     {
-//         const rhi::vulkan::vulkan_context_t* ctx{ rhi::vulkan::vulkan_context_t::get() };
-//         vkDeviceWaitIdle(ctx->device());
-//
-//         vkDestroyPipeline(ctx->device(), g_pipeline, nullptr);
-//         vkDestroyPipelineLayout(ctx->device(), g_pipeline_layout, nullptr);
-//         vkDestroyDescriptorSetLayout(ctx->device(), g_desc_layout, nullptr);
-//         vkDestroyDescriptorPool(ctx->device(), g_desc_pool, nullptr);
-//         vkDestroySampler(ctx->device(), g_font_sampler, nullptr);
-//         vkDestroyImageView(ctx->device(), g_font_view, nullptr);
-//         vkDestroyImage(ctx->device(), g_font_image, nullptr);
-//         vkFreeMemory(ctx->device(), g_font_memory, nullptr);
-//         vkDestroyBuffer(ctx->device(), g_vb, nullptr);
-//         vkFreeMemory(ctx->device(), g_vb_mem, nullptr);
-//         vkDestroyBuffer(ctx->device(), g_ib, nullptr);
-//         vkFreeMemory(ctx->device(), g_ib_mem, nullptr);
-//
-//         delete[] g_ttf_buffer;
-//         delete[] g_atlas_pixels;
-//     }
-//
-//     void render(void* cmd_buffer) noexcept
-//     {
-//         if (g_vertices.empty()) return;
-//
-//         const rhi::vulkan::vulkan_context_t* ctx{ rhi::vulkan::vulkan_context_t::get() };
-//         VkCommandBuffer cmd{ static_cast<VkCommandBuffer>(cmd_buffer) };
-//
-//         constexpr float resolution[2]{ 1280.0f, 720.0f };
-//         vkCmdPushConstants(cmd, g_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(resolution), resolution);
-//
-//         // Upload real text geometry
-//         void* data;
-//         vkMapMemory(ctx->device(), g_vb_mem, 0, g_vertices.size() * sizeof(vertex_t), 0, &data);
-//         memcpy(data, g_vertices.data(), g_vertices.size() * sizeof(vertex_t));
-//         vkUnmapMemory(ctx->device(), g_vb_mem);
-//
-//         vkMapMemory(ctx->device(), g_ib_mem, 0, g_indices.size() * sizeof(uint16_t), 0, &data);
-//         memcpy(data, g_indices.data(), g_indices.size() * sizeof(uint16_t));
-//         vkUnmapMemory(ctx->device(), g_ib_mem);
-//
-//         constexpr VkDeviceSize offset{ 0 };
-//         vkCmdBindVertexBuffers(cmd, 0, 1, &g_vb, &offset);
-//         vkCmdBindIndexBuffer(cmd, g_ib, 0, VK_INDEX_TYPE_UINT16);
-//         vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_pipeline);
-//         vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, g_pipeline_layout, 0, 1, &g_desc_set, 0, nullptr);
-//
-//         vkCmdDrawIndexed(cmd, static_cast<uint32_t>(g_indices.size()), 1, 0, 0, 0);
-//
-//         g_vertices.clear();
-//         g_indices.clear();
-//     }
-//
-//     bool is_initialized() noexcept
-//     {
-//         return g_initialized;
-//     }
-//
-//     void text(float x, float y, const char* fmt, ...) noexcept
-//     {
-//         char buffer[1024];
-//         va_list args;
-//         va_start(args, fmt);
-//         vsnprintf(buffer, sizeof(buffer), fmt, args);
-//         va_end(args);
-//
-//         rasterize_text(x, y, buffer);
-//     }
-// } // namespace carrot::debug
+#include "DebugOverlay.h"
+
+#include "IO/VirtualFileSystem.h"
+#include "Renderer/Draw/TexturedQuadTypes.h"
+#include "Renderer/Renderer.h"
+#include "RHI/RHI.h"
+#include "RHI/Texture.h"
+
+#include <array>
+#include <cstdarg>
+#include <cstdio>
+#include <fstream>
+#include <vector>
+
+#define STB_TRUETYPE_IMPLEMENTATION
+#include <stb_truetype.h>
+
+namespace carrot::debug {
+    namespace {
+        constexpr int k_first_char{ 32 };
+        constexpr int k_char_count{ 96 };
+        constexpr int k_atlas_width{ 512 };
+        constexpr int k_atlas_height{ 512 };
+        constexpr float k_font_pixel_height{ 24.0f };
+
+        renderer::renderer_t* g_renderer{ nullptr };
+        std::unique_ptr<rhi::rhi_texture_t> g_font_texture{ nullptr };
+        stbtt_bakedchar g_baked_chars[k_char_count]{ };
+        bool g_initialized{ false };
+
+        struct overlay_transform_t
+        {
+            chlm::float2 origin_world{ 0.f, 0.f };
+            chlm::float2 units_per_pixel{ 1.f, 1.f };
+        };
+
+        [[nodiscard]] std::vector<uint8_t> load_file_bytes(const std::filesystem::path& path) noexcept
+        {
+            std::ifstream file{ path, std::ios::binary | std::ios::ate };
+            if (!file)
+                return {};
+
+            const std::streamsize size{ file.tellg() };
+            if (size <= 0)
+                return {};
+
+            std::vector<uint8_t> bytes(static_cast<size_t>(size));
+            file.seekg(0, std::ios::beg);
+
+            if (!file.read(reinterpret_cast<char*>(bytes.data()), size))
+                return {};
+
+            return bytes;
+        }
+
+        [[nodiscard]] std::vector<uint8_t> bake_font_rgba(const std::vector<uint8_t>& ttf_data) noexcept
+        {
+            if (ttf_data.empty())
+                return {};
+
+            std::vector<uint8_t> grayscale(static_cast<size_t>(k_atlas_width * k_atlas_height), 0u);
+            const int bake_result{ stbtt_BakeFontBitmap(ttf_data.data(),
+                                                        0,
+                                                        k_font_pixel_height,
+                                                        grayscale.data(),
+                                                        k_atlas_width,
+                                                        k_atlas_height,
+                                                        k_first_char,
+                                                        k_char_count,
+                                                        g_baked_chars) };
+
+            if (bake_result <= 0)
+                return {};
+
+            std::vector<uint8_t> rgba(static_cast<size_t>(k_atlas_width * k_atlas_height * 4), 0u);
+            for (size_t i = 0; i < grayscale.size(); ++i)
+            {
+                const uint8_t coverage{ grayscale[i] };
+                const size_t base{ i * 4u };
+                rgba[base + 0u] = 0xFFu;
+                rgba[base + 1u] = 0xFFu;
+                rgba[base + 2u] = 0xFFu;
+                rgba[base + 3u] = coverage;
+            }
+
+            return rgba;
+        }
+
+        [[nodiscard]] overlay_transform_t compute_overlay_transform() noexcept
+        {
+            overlay_transform_t transform{ };
+
+            if (g_renderer == nullptr)
+                return transform;
+
+            const renderer::camera_2d_t& camera{ g_renderer->get_camera_2d() };
+            const renderer::resolved_camera_2d_t resolved_camera{ g_renderer->resolve_camera_2d() };
+
+            const float viewport_width{ static_cast<float>(std::max(1u, resolved_camera.viewport_rect_px.size.x)) };
+            const float viewport_height{ static_cast<float>(std::max(1u, resolved_camera.viewport_rect_px.size.y)) };
+
+            transform.origin_world = camera.position;
+            transform.units_per_pixel = {
+                resolved_camera.visible_world_size.x / viewport_width,
+                resolved_camera.visible_world_size.y / viewport_height
+            };
+
+            return transform;
+        }
+    } // anonymous namespace
+
+    void init(renderer::renderer_t* renderer, const io::virtual_file_system_t& vfs) noexcept
+    {
+        if (g_initialized)
+            return;
+
+        if (renderer == nullptr || renderer->get_rhi() == nullptr)
+        {
+            LOG_GRAPHICS_WARN("Debug overlay init skipped because renderer/RHI was not ready.");
+            return;
+        }
+
+        const std::optional<std::filesystem::path> font_path{ vfs.resolve_native_path("engine://fonts/Roboto-Regular.ttf") };
+        if (!font_path)
+        {
+            LOG_GRAPHICS_WARN("Debug overlay init failed: could not resolve built-in font.");
+            return;
+        }
+
+        const std::vector<uint8_t> ttf_data{ load_file_bytes(*font_path) };
+        if (ttf_data.empty())
+        {
+            LOG_GRAPHICS_WARN("Debug overlay init failed: could not read font bytes from '{}'.",
+                              font_path->string());
+            return;
+        }
+
+        const std::vector<uint8_t> rgba_pixels{ bake_font_rgba(ttf_data) };
+        if (rgba_pixels.empty())
+        {
+            LOG_GRAPHICS_WARN("Debug overlay init failed: stb_truetype could not bake the font atlas.");
+            return;
+        }
+
+        rhi::texture_create_info_t texture_info{ };
+        texture_info.width = static_cast<uint32_t>(k_atlas_width);
+        texture_info.height = static_cast<uint32_t>(k_atlas_height);
+        texture_info.format = rhi::texture_format_t::rgba8_unorm;
+        texture_info.initial_data = rgba_pixels.data();
+        texture_info.initial_data_size = rgba_pixels.size();
+        texture_info.initial_data_stride_bytes = static_cast<uint32_t>(k_atlas_width * 4);
+
+        g_font_texture = renderer->get_rhi()->create_texture_2d(texture_info);
+        if (!g_font_texture)
+        {
+            LOG_GRAPHICS_WARN("Debug overlay init failed: could not create the baked font texture.");
+            return;
+        }
+
+        g_renderer = renderer;
+        g_initialized = true;
+
+        LOG_GRAPHICS_INFO("Debug overlay initialized with baked Roboto font atlas.");
+    }
+
+    void shutdown() noexcept
+    {
+        g_font_texture.reset();
+        g_renderer = nullptr;
+        g_initialized = false;
+        std::fill(std::begin(g_baked_chars), std::end(g_baked_chars), stbtt_bakedchar{ });
+    }
+
+    bool is_initialized() noexcept
+    {
+        return g_initialized && g_renderer != nullptr && g_font_texture != nullptr;
+    }
+
+    void text(const float x, const float y, const char* fmt, ...) noexcept
+    {
+        if (!is_initialized() || fmt == nullptr)
+            return;
+
+        std::array<char, 1024> buffer{ };
+
+        va_list args;
+        va_start(args, fmt);
+        const int written{ std::vsnprintf(buffer.data(), buffer.size(), fmt, args) };
+        va_end(args);
+
+        if (written <= 0)
+            return;
+
+        float pen_x{ x };
+        float pen_y{ y };
+        const float line_height{ k_font_pixel_height + 6.0f };
+        const overlay_transform_t transform{ compute_overlay_transform() };
+
+        const size_t text_length{ std::min(static_cast<size_t>(written), buffer.size() - 1u) };
+        for (size_t i = 0; i < text_length; ++i)
+        {
+            char c{ buffer[i] };
+
+            if (c == '\0')
+                break;
+
+            if (c == '\n')
+            {
+                pen_x = x;
+                pen_y += line_height;
+                continue;
+            }
+
+            const unsigned char codepoint{ static_cast<unsigned char>(c) };
+            if (codepoint < static_cast<unsigned char>(k_first_char) ||
+                codepoint >= static_cast<unsigned char>(k_first_char + k_char_count))
+            {
+                c = '?';
+            }
+
+            stbtt_aligned_quad quad{ };
+            stbtt_GetBakedQuad(g_baked_chars,
+                               k_atlas_width,
+                               k_atlas_height,
+                               c - k_first_char,
+                               &pen_x,
+                               &pen_y,
+                               &quad,
+                               0);
+
+            renderer::textured_quad_draw_info_t glyph{ };
+            glyph.texture = g_font_texture.get();
+            glyph.x = transform.origin_world.x + (quad.x0 * transform.units_per_pixel.x);
+            glyph.y = transform.origin_world.y + (quad.y0 * transform.units_per_pixel.y);
+            glyph.width = (quad.x1 - quad.x0) * transform.units_per_pixel.x;
+            glyph.height = (quad.y1 - quad.y0) * transform.units_per_pixel.y;
+            glyph.u0 = quad.s0;
+            glyph.v0 = quad.t0;
+            glyph.u1 = quad.s1;
+            glyph.v1 = quad.t1;
+            glyph.layer = renderer::render_layer_t::debug;
+            glyph.color = 0xFFFFFFFFu;
+            glyph.sampler_preset = renderer::quad_sampler_preset_t::smooth_clamp;
+
+            if (glyph.width > 0.f && glyph.height > 0.f)
+                g_renderer->draw_textured_quad(glyph);
+        }
+    }
+} // namespace carrot::debug

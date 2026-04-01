@@ -39,6 +39,7 @@ namespace carrot::rhi::metal {
         [[nodiscard]] rhi_device_t* get_device() const noexcept override;
         [[nodiscard]] rhi_swapchain_t* get_swapchain() const noexcept override;
         [[nodiscard]] rhi_command_queue_t* get_command_queue() const noexcept override;
+        [[nodiscard]] graphics_api get_graphics_api() const noexcept override { return graphics_api::metal; }
 
         [[nodiscard]] std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) override;

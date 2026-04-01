@@ -90,8 +90,18 @@ namespace carrot::renderer {
 
         // Basic stats & introspection
         [[nodiscard]] const renderer_stats_t& get_stats() const noexcept { return _stats; }
+        [[nodiscard]] const renderer_stats_t& get_last_completed_stats() const noexcept { return _last_completed_stats; }
         [[nodiscard]] uint64_t get_frame_index() const noexcept { return _frame_index; }
         [[nodiscard]] rhi::rhi_context_t* get_rhi() const noexcept { return _rhi.get(); }
+        [[nodiscard]] rhi::graphics_api get_graphics_api() const noexcept
+        {
+            return _rhi ? _rhi->get_graphics_api() : _config.api;
+        }
+        [[nodiscard]] const camera_2d_t& get_camera_2d() const noexcept { return _active_camera; }
+        [[nodiscard]] resolved_camera_2d_t resolve_camera_2d() const noexcept
+        {
+            return _active_camera.resolve(current_render_target_size());
+        }
 
     private:
         [[nodiscard]] chlm::uint2 current_render_target_size() const noexcept;
@@ -111,6 +121,7 @@ namespace carrot::renderer {
         // ── Frame progression / stats ─────────────────────────────────────────────
         uint64_t            _frame_index{ 0 };
         renderer_stats_t    _stats;
+        renderer_stats_t    _last_completed_stats;
 
         // ── Renderer path state: textured quads ───────────────────────────────────
         textured_quad_state_t _textured_quad;

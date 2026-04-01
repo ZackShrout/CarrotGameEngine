@@ -38,7 +38,7 @@ namespace carrot::rhi {
 
     enum class graphics_api { vulkan, direct_x12, metal, default_api, count };
 
-    [[nodiscard]] static std::string_view graphics_api_to_string(const graphics_api api) noexcept
+    [[nodiscard]] inline std::string_view graphics_api_to_string(const graphics_api api) noexcept
     {
         switch (api)
         {
@@ -75,6 +75,7 @@ namespace carrot::rhi {
         [[nodiscard]] virtual rhi_device_t* get_device() const noexcept = 0;
         [[nodiscard]] virtual rhi_swapchain_t* get_swapchain() const noexcept = 0;
         [[nodiscard]] virtual rhi_command_queue_t* get_command_queue() const noexcept = 0;
+        [[nodiscard]] virtual graphics_api get_graphics_api() const noexcept = 0;
 
         [[nodiscard]] virtual std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) = 0;
         [[nodiscard]] virtual std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) = 0;

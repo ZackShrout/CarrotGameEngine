@@ -616,6 +616,7 @@ namespace carrot::rhi::vulkan {
                                  nullptr, 0, nullptr, 1, &to_shader_read);
 
             end_single_time_commands(cmd);
+            VK_CHECK_FATAL(vkDeviceWaitIdle(device));
         }
 
         // -------------------------------------------------------------------------
@@ -733,6 +734,7 @@ namespace carrot::rhi::vulkan {
             vkUnmapMemory(device, staging_memory);
 
             copy_buffer(staging_buffer, dst_buffer, size);
+            VK_CHECK_FATAL(vkDeviceWaitIdle(device));
 
             vkDestroyBuffer(device, staging_buffer, nullptr);
             vkFreeMemory(device, staging_memory, nullptr);

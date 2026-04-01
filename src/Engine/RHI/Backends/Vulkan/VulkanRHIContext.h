@@ -57,6 +57,7 @@ namespace carrot::rhi::vulkan {
         [[nodiscard]] rhi_device_t* get_device() const noexcept override { return _device.get(); }
         [[nodiscard]] rhi_swapchain_t* get_swapchain() const noexcept override { return _swapchain.get(); }
         [[nodiscard]] rhi_command_queue_t* get_command_queue() const noexcept override { return _graphics_queue.get(); }
+        [[nodiscard]] graphics_api get_graphics_api() const noexcept override { return graphics_api::vulkan; }
 
         [[nodiscard]] std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) override;

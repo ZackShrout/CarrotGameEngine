@@ -16,6 +16,18 @@ namespace carrot::renderer {
         fixed_width
     };
 
+    [[nodiscard]] inline const char* camera_2d_sizing_mode_to_string(const camera_2d_sizing_mode_t mode) noexcept
+    {
+        switch (mode)
+        {
+            case camera_2d_sizing_mode_t::responsive_world_view: return "responsive_world_view";
+            case camera_2d_sizing_mode_t::fixed_aspect_letterbox: return "fixed_aspect_letterbox";
+            case camera_2d_sizing_mode_t::fixed_height: return "fixed_height";
+            case camera_2d_sizing_mode_t::fixed_width: return "fixed_width";
+            default: return "unknown";
+        }
+    }
+
     struct resolved_camera_2d_t
     {
         chlm::float2 visible_world_size{ 1280.f, 720.f };

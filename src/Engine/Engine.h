@@ -67,6 +67,9 @@ namespace carrot {
         void register_builtin_sprite_assets();
         bool register_sprite_asset_manifest(std::string_view manifest_uri);
 
+        void register_builtin_tilemap_assets();
+        bool register_tilemap_asset_manifest(std::string_view manifest_uri);
+
         void build_test_sprite();
 
         bool                                                _initialized{ false };

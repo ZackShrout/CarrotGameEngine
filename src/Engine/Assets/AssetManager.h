@@ -7,6 +7,7 @@
 
 #include "Audio/AudioAssetSystem.h"
 #include "Sprite/SpriteAssetSystem.h"
+#include "Tilemap/TilemapAssetSystem.h"
 #include "Texture/TextureAssetSystem.h"
 
 namespace carrot::io {
@@ -43,6 +44,9 @@ namespace carrot::assets {
         [[nodiscard]] const sprite_asset_system_t& sprites() const noexcept { return _sprites; }
         [[nodiscard]] sprite_asset_system_t& sprites() noexcept { return _sprites; }
 
+        [[nodiscard]] const tilemap_asset_system_t& tilemaps() const noexcept { return _tilemaps; }
+        [[nodiscard]] tilemap_asset_system_t& tilemaps() noexcept { return _tilemaps; }
+
         void clear();
 
     private:
@@ -50,5 +54,6 @@ namespace carrot::assets {
         audio_asset_system_t _audio;
         texture_asset_system_t _textures;
         sprite_asset_system_t _sprites;
+        tilemap_asset_system_t _tilemaps;
     };
 } // namespace carrot::assets

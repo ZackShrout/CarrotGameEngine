@@ -13,6 +13,7 @@
 #include "Assets/Sprite/SpriteAnimator.h"
 #include "Assets/Sprite/SpriteAsset.h"
 #include "Assets/Sprite/SpriteAssetManifestImporter.h"
+#include "Assets/Tilemap/TilemapAssetManifestImporter.h"
 #include "Assets/Texture/TextureAssetManifestImporter.h"
 #include "Audio/Audio.h"
 #include "Core/Application.h"
@@ -108,7 +109,36 @@ namespace carrot {
         register_builtin_audio_assets();
         register_builtin_texture_assets();
         register_builtin_sprite_assets();
+        register_builtin_tilemap_assets();
         build_test_sprite();
+
+        if (const assets::loaded_tilemap_asset_t* tilemap{ _asset_manager->tilemaps().get("tilemap.test.overworld") })
+        {
+            const assets::tilemap_asset_t& map{ tilemap->tilemap() };
+
+            uint32_t object_count{ 0 };
+            for (const assets::tilemap_layer_t& layer : map.layers())
+            {
+                if (layer.kind == assets::tilemap_layer_kind_t::object)
+                    object_count += static_cast<uint32_t>(layer.objects.size());
+            }
+
+            LOG_ASSET_INFO(
+                "Loaded tilemap '{}': {}x{} tiles, tile size {}x{}, layers={}, tilesets={}, objects={}",
+                tilemap->record()->logical_id,
+                map.width(),
+                map.height(),
+                map.tile_width(),
+                map.tile_height(),
+                map.layers().size(),
+                map.tilesets().size(),
+                object_count
+            );
+        }
+        else
+        {
+            LOG_ASSET_WARN("Test tilemap lookup failed for 'tilemap.test.overworld'");
+        }
 
         LOG_CORE_INFO("Carrot Engine Initialized (Pure RHI Mode)");
         _initialized = true;
@@ -637,6 +667,33 @@ namespace carrot {
         }
 
         return assets::sprite_asset_manifest_importer_t::import(doc, _asset_manager->sprites().registry(), _vfs);
+    }
+
+    void engine_t::register_builtin_tilemap_assets()
+    {
+        register_tilemap_asset_manifest("game://tilemaps/test_overworld.tilemap.json");
+    }
+
+    bool engine_t::register_tilemap_asset_manifest(std::string_view manifest_uri)
+    {
+        const std::optional<std::filesystem::path> native_path{
+            _asset_manager->vfs().resolve_native_path(manifest_uri)
+        };
+
+        if (!native_path)
+        {
+            LOG_ASSET_ERROR("Failed to resolve tilemap asset manifest '{}'", manifest_uri);
+            return false;
+        }
+
+        utils::json::json_document_t doc;
+        if (!doc.parse_from_file(native_path->string().c_str()))
+        {
+            LOG_ASSET_ERROR("Failed to parse tilemap asset manifest '{}'", manifest_uri);
+            return false;
+        }
+
+        return assets::tilemap_asset_manifest_importer_t::import(doc, _asset_manager->tilemaps().registry(), _vfs);
     }
 
     void engine_t::build_test_sprite()

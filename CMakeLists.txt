@@ -76,9 +76,12 @@ set(CARROT_ENGINE_SOURCES
         # ========================================
         # Renderer (High-level)
         # ========================================
+        src/Engine/Renderer/Camera/Camera2D.h
         src/Engine/Renderer/Draw/QuadSamplerPreset.h
+        src/Engine/Renderer/Draw/RenderLayer.h
         src/Engine/Renderer/Draw/SpriteDrawInfo.h
         src/Engine/Renderer/Draw/TexturedQuadBatch.h
+        src/Engine/Renderer/Draw/TexturedQuadCameraUniform.h
         src/Engine/Renderer/Draw/TexturedQuadTypes.h
         src/Engine/Renderer/Primitives/QuadMesh.h
         src/Engine/Renderer/Primitives/QuadVertex.h
@@ -229,6 +232,20 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/Sprite/SpriteAssetSystem.cpp
         src/Engine/Assets/Sprite/SpriteAssetSystem.h
         src/Engine/Assets/Sprite/SpriteFrame.h
+        src/Engine/Assets/Tilemap/LoadedTilemapAsset.h
+        src/Engine/Assets/Tilemap/NativeTilemapAssetImporter.cpp
+        src/Engine/Assets/Tilemap/NativeTilemapAssetImporter.h
+        src/Engine/Assets/Tilemap/TiledTilemapAssetImporter.cpp
+        src/Engine/Assets/Tilemap/TiledTilemapAssetImporter.h
+        src/Engine/Assets/Tilemap/TilemapAsset.h
+        src/Engine/Assets/Tilemap/TilemapAssetLoader.cpp
+        src/Engine/Assets/Tilemap/TilemapAssetLoader.h
+        src/Engine/Assets/Tilemap/TilemapAssetManifestImporter.cpp
+        src/Engine/Assets/Tilemap/TilemapAssetManifestImporter.h
+        src/Engine/Assets/Tilemap/TilemapAssetRegistry.cpp
+        src/Engine/Assets/Tilemap/TilemapAssetRegistry.h
+        src/Engine/Assets/Tilemap/TilemapAssetSystem.cpp
+        src/Engine/Assets/Tilemap/TilemapAssetSystem.h
         src/Engine/Assets/Texture/TextureAsset.h
         src/Engine/Assets/Texture/TextureAssetLoader.cpp
         src/Engine/Assets/Texture/TextureAssetLoader.h
@@ -275,7 +292,6 @@ set(CARROT_ENGINE_SOURCES
         # Shaders
         # ========================================
         shaders/ShaderCommon.h
-        src/Engine/Renderer/Draw/TexturedQuadCameraUniform.h
 )
 
 # ------------------------------------------------------------------------

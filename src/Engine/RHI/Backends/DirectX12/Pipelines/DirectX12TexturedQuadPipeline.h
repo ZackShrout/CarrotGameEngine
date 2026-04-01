@@ -6,6 +6,7 @@
 #pragma once
 
 #include "Renderer/Draw/TexturedQuadBatch.h"
+#include "RHI/RHI.h"
 #include "RHI/Sampler.h"
 #include "RHI/Backends/DirectX12/DirectX12Common.h"
 

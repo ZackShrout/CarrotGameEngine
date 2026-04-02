@@ -2,7 +2,7 @@
 
 **BunnySoft**
 **Working architecture notes**
-**Last Updated: March 2026**
+**Last Updated: April 2026**
 
 ---
 
@@ -86,16 +86,23 @@ A system should arrive when it solves a real structural problem in the engine.
 
 Carrot should periodically audit which current assumptions are acceptable sandbox-local shortcuts and which are becoming real engine-boundary risks.
 
-**Fix soon**
+**Addressed recently**
 
-* game code receiving full `engine_t&` instead of a narrower game-facing runtime context
-* direct sandbox access to renderer internals for camera control
-* raw string conventions for authored interaction types and properties without stronger gameplay-facing helpers
+* game code now receives a narrower `game_context_t` instead of full `engine_t&`
+* camera control now goes through `game_view_t` instead of direct sandbox access to `renderer_t`
+* raw interaction/property string handling now sits behind game-side typed helpers
+* common player movement and proximity interaction mechanics now exist as engine-level default controllers with game-side override points
 
-**Fix later**
+**Still acceptable for now**
 
 * hardcoded sandbox scene bootstrap ids such as the initial map, player object name, and authored marker names
 * tuning constants such as movement speed and interaction radius living directly in sandbox code
+* authored animation clip naming remaining a game-configured concern rather than engine policy
+
+**Watch next**
+
+* whether future games want a broader shared controller base or input binding surface
+* whether scene bootstrap should remain game-local helper code or eventually grow into a more formal scene-loading layer
 
 ---
 
@@ -115,6 +122,12 @@ At a high level, the engine currently trends toward the following structure:
 8. **Game Layer**
 
 These layers are not meant to be dogmatic, but they provide a useful structural model.
+
+The recent addition of default controllers reinforces this layering:
+
+* engine layers can provide reusable movement and interaction mechanics
+* game layers should still select controlled objects and interpret gameplay meaning
+* authored content conventions should be wrapped by helpers or overrides rather than leaking through the engine unchecked
 
 ---
 

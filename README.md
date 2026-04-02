@@ -129,6 +129,10 @@ This is one of the reasons Carrot leans heavily into **JSON-based authored metad
   * world-owned hybrid objects for authored `Chest`, `Door`, and `Sign` tile objects
   * sandbox-owned player movement and camera follow built on top of world-object transforms
   * first gameplay-facing interaction loop for authored `Sign`, `Door`, and `Chest` world objects
+* Default controller support including:
+  * `player_controller_t` for reusable movement, facing, camera-follow, and configurable animation naming
+  * `interaction_controller_t` for reusable proximity interaction queries and interaction attempt flow
+  * game-side override points so gameplay meaning remains outside engine internals
 * Engine-owned debug text / overlay support for runtime renderer diagnostics
 * Future direction includes:
 
@@ -166,6 +170,8 @@ This is one of the reasons Carrot leans heavily into **JSON-based authored metad
 ### ECS / World Systems
 
 Carrot is intended to grow into a custom **ECS / world-driven architecture**, but that system is being introduced intentionally and at the right time rather than forced in before the engine actually needs it.
+
+Carrot is also beginning to establish a reusable **gameplay-facing controller layer**. The engine can provide default controller mechanics, while the game layer remains responsible for choosing controlled objects, authored conventions, and gameplay outcomes.
 
 ---
 

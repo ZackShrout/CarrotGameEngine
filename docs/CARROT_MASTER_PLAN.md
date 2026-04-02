@@ -2,7 +2,7 @@
 
 **BunnySoft**
 **Version 2.0**
-**Last Updated: March 2026**
+**Last Updated: April 2026**
 
 ---
 
@@ -235,6 +235,7 @@ Near-term renderer priorities include:
 * engine-owned diagnostics overlays built on top of the existing 2D renderer
 * world-aware scene rendering where tilemap backdrops, actors, and Tiled-authored scene objects can all be consumed through the world/object layer
 * sandbox-driven movement, camera follow, and authored-object interaction built on top of the world/object layer rather than engine bootstrap code
+* reusable default controller support where the engine provides common movement and proximity-interaction mechanics while the game layer keeps semantic control
 
 Over time, the renderer should evolve from “test scene rendering” into a world-aware rendering system that can support actual gameplay-driven rendering flows.
 
@@ -258,6 +259,12 @@ The audio system is intended to be a serious first-class subsystem, not just a t
 ### 5.7 Future World / Object Layer
 
 Carrot is intended to grow into a world-driven architecture over time.
+
+That direction now also includes a gameplay-facing controller layer:
+
+* default engine controllers should provide common reusable mechanics
+* games should configure or override those controllers rather than reinventing them each time
+* the engine should not hardcode one game’s meanings, authored ids, or content rules
 
 That includes future systems such as:
 

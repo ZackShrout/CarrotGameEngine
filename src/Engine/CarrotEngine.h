@@ -12,4 +12,6 @@
 #include "Core/EnginePaths.h"
 #include "Core/GameView.h"
 #include "Renderer/Renderer.h"
+#include "World/Controllers/InteractionController.h"
+#include "World/Controllers/PlayerController.h"
 #include "Window/Window.h"

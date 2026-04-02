@@ -8,123 +8,32 @@
 #include "Game.h"
 #include "SceneHelpers.h"
 #include "SandboxSceneBootstrap.h"
-#include "WorldInteractionHelpers.h"
 
 namespace sandbox {
     namespace {
         carrot::audio::voice_handle_t handle;
         constexpr std::string_view background_music_asset_id{ "music.oak_battle_theme" };
-        constexpr float sign_interaction_radius{ 3.0f };
-
-        [[nodiscard]] float distance_sq(const chlm::float2 a, const chlm::float2 b) noexcept
-        {
-            const float dx{ a.x - b.x };
-            const float dy{ a.y - b.y };
-            return (dx * dx) + (dy * dy);
-        }
-
-        [[nodiscard]] const carrot::world::world_object_t* find_nearest_supported_interactable(
-            carrot::world::world_t& world,
-            const chlm::float2& origin,
-            const float max_distance)
-        {
-            const carrot::world::world_object_t* nearest{ nullptr };
-            float nearest_distance_sq{ max_distance * max_distance };
-
-            for (const std::string_view type : { std::string_view{ "Sign" }, std::string_view{ "Door" }, std::string_view{ "Chest" } })
-            {
-                const carrot::world::world_object_t* candidate{
-                    world.find_nearest_object_by_type(type, origin, max_distance)
-                };
-
-                if (!candidate || !candidate->transform)
-                    continue;
-
-                if (!candidate->get_bool_property("interactable").value_or(false))
-                    continue;
-
-                const float candidate_distance_sq{ distance_sq(candidate->transform->position, origin) };
-                if (!nearest || candidate_distance_sq < nearest_distance_sq)
-                {
-                    nearest = candidate;
-                    nearest_distance_sq = candidate_distance_sq;
-                }
-            }
-
-            return nearest;
-        }
-
-        [[nodiscard]] std::string_view idle_animation_for(const facing_direction_t direction) noexcept
-        {
-            switch (direction)
-            {
-                case facing_direction_t::up: return "idle_up";
-                case facing_direction_t::left: return "idle_left";
-                case facing_direction_t::right: return "idle_right";
-                case facing_direction_t::down:
-                default: return "idle_down";
-            }
-        }
-
-        [[nodiscard]] std::string_view walk_animation_for(const facing_direction_t direction) noexcept
-        {
-            switch (direction)
-            {
-                case facing_direction_t::up: return "walk_up";
-                case facing_direction_t::left: return "walk_left";
-                case facing_direction_t::right: return "walk_right";
-                case facing_direction_t::down:
-                default: return "walk_down";
-            }
-        }
-
-        [[nodiscard]] facing_direction_t facing_from_movement(const chlm::float2 movement,
-                                                              const facing_direction_t current) noexcept
-        {
-            if (movement.x == 0.f && movement.y == 0.f)
-                return current;
-
-            if (std::fabs(movement.x) >= std::fabs(movement.y))
-                return movement.x < 0.f ? facing_direction_t::left : facing_direction_t::right;
-
-            return movement.y < 0.f ? facing_direction_t::up : facing_direction_t::down;
-        }
-
-        void log_interaction_target(const carrot::world::world_object_t& object)
-        {
-            if (const std::optional<sign_interaction_data_t> sign{ as_sign(object) })
-            {
-                LOG_CORE_INFO("Interact Sign '{}' -> message_id='{}'",
-                              object.name,
-                              sign->message_id);
-                return;
-            }
-
-            if (const std::optional<door_interaction_data_t> door{ as_door(object) })
-            {
-                LOG_CORE_INFO("Interact Door '{}' -> target_map='{}', target_marker='{}'",
-                              object.name,
-                              door->target_map,
-                              door->target_marker);
-                return;
-            }
-
-            if (const std::optional<chest_interaction_data_t> chest{ as_chest(object) })
-            {
-                LOG_CORE_INFO("Interact Chest '{}' -> loot_table='{}'",
-                              object.name,
-                              chest->loot_table);
-                return;
-            }
-
-            LOG_CORE_INFO("Interact '{}' of type '{}'", object.name, object.type);
-        }
     }
 
     void sandbox_t::start(carrot::core::game_context_t& game)
     {
         _game = &game;
         bootstrap_scene(game);
+        _player_controller.set_animation_set({
+            .idle_down = "idle_down",
+            .idle_up = "idle_up",
+            .idle_left = "idle_left",
+            .idle_right = "idle_right",
+            .walk_down = "walk_down",
+            .walk_up = "walk_up",
+            .walk_left = "walk_left",
+            .walk_right = "walk_right"
+        });
+        _player_controller.set_controlled_object(find_player(game.world));
+        _player_controller.set_move_speed(4.0f);
+        _player_controller.set_camera_follow_enabled(true);
+        _interaction_controller.set_actor(_player_controller.controlled_object());
+        _interaction_controller.set_interaction_radius(3.0f);
         handle = carrot::audio::play(background_music_asset_id);
     }
 
@@ -133,63 +42,7 @@ namespace sandbox {
         if (!_game)
             return;
 
-        carrot::world::world_t& world{ _game->world };
-        carrot::world::world_object_t* player{ find_player(world) };
-        if (!player || !player->transform)
-            return;
-
-        chlm::float2 movement{ 0.f, 0.f };
-        if (_move_up)
-            movement.y -= 1.f;
-        if (_move_down)
-            movement.y += 1.f;
-        if (_move_left)
-            movement.x -= 1.f;
-        if (_move_right)
-            movement.x += 1.f;
-
-        if (movement.x != 0.f || movement.y != 0.f)
-        {
-            const float length_sq{ (movement.x * movement.x) + (movement.y * movement.y) };
-            if (length_sq > 0.f)
-            {
-                const float length{ std::sqrt(length_sq) };
-                movement.x /= length;
-                movement.y /= length;
-            }
-
-            player->transform->position.x += movement.x * _player_move_speed * delta_time;
-            player->transform->position.y += movement.y * _player_move_speed * delta_time;
-        }
-
-        _facing_direction = facing_from_movement(movement, _facing_direction);
-
-        if (player->sprite_animator && player->sprite)
-        {
-            auto& animator{ player->sprite_animator->animator };
-            const carrot::assets::loaded_sprite_asset_t* sprite{ player->sprite->sprite };
-
-            const std::string_view desired_walk_animation{ walk_animation_for(_facing_direction) };
-            const std::string_view desired_idle_animation{ idle_animation_for(_facing_direction) };
-            std::string_view desired_animation{ desired_idle_animation };
-
-            if (movement.x != 0.f || movement.y != 0.f)
-            {
-                if (sprite && sprite->find_animation(desired_walk_animation))
-                    desired_animation = desired_walk_animation;
-            }
-
-            if ((!sprite || !sprite->find_animation(desired_animation)) && desired_animation != "idle_down")
-                desired_animation = "idle_down";
-
-            if (_current_player_animation != desired_animation)
-            {
-                animator.play(desired_animation);
-                _current_player_animation = std::string{ desired_animation };
-            }
-        }
-
-        _game->view.set_center_world_position(world, player->transform->position);
+        _player_controller.update(*_game, delta_time);
     }
 
     void sandbox_t::on_key(const carrot::events::key_event_t& e)
@@ -202,17 +55,12 @@ namespace sandbox {
             {
                 LOG_CORE_INFO("Key pressed: {} ({}) (mods: {})", carrot::input::key_code_to_string(e._key),
                               static_cast<uint32_t>(e._key), carrot::input::modifiers_to_string(e._mods));
-                carrot::world::world_t& world{ _game->world };
-                const carrot::world::world_object_t* player{ find_player(world) };
-                if (!player || !player->transform)
+                if (!_interaction_controller.actor() || !_interaction_controller.actor()->transform)
                 {
-                    LOG_CORE_WARN("Interaction failed: player world object 'Vraden' is missing a transform");
+                    LOG_CORE_WARN("Interaction failed: controlled player world object is missing a transform");
                 }
-                else if (const carrot::world::world_object_t* interactable{
-                    find_nearest_supported_interactable(world, player->transform->position, sign_interaction_radius)
-                })
+                else if (_interaction_controller.try_interact(*_game))
                 {
-                    log_interaction_target(*interactable);
                 }
                 else
                 {
@@ -242,13 +90,13 @@ namespace sandbox {
             const bool value{ is_pressed };
 
             if (e._key == carrot::input::key_code::w)
-                _move_up = value;
+                _player_controller.set_move_up(value);
             else if (e._key == carrot::input::key_code::s)
-                _move_down = value;
+                _player_controller.set_move_down(value);
             else if (e._key == carrot::input::key_code::a)
-                _move_left = value;
+                _player_controller.set_move_left(value);
             else if (e._key == carrot::input::key_code::d)
-                _move_right = value;
+                _player_controller.set_move_right(value);
         }
 
         if (e._action == carrot::events::key_action::press && e._key == carrot::input::key_code::escape)

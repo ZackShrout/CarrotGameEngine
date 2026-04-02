@@ -97,6 +97,10 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/World/Components/TileObjectComponent.h
         src/Engine/World/Components/TilemapComponent.h
         src/Engine/World/Components/TransformComponent.h
+        src/Engine/World/Controllers/InteractionController.cpp
+        src/Engine/World/Controllers/InteractionController.h
+        src/Engine/World/Controllers/PlayerController.cpp
+        src/Engine/World/Controllers/PlayerController.h
         src/Engine/World/Import/TilemapWorldBridge.cpp
         src/Engine/World/Import/TilemapWorldBridge.h
         src/Engine/World/World.cpp
@@ -587,7 +591,7 @@ if(APPLE)
     set(CARROT_PLATFORM_COCOA ON CACHE INTERNAL "")
     add_compile_definitions(CARROT_PLATFORM_COCOA=1)
 
-    target_compile_definitions(CarrotEngine PUBLIC __APPLE__, VK_USE_PLATFORM_METAL_EXT)
+    target_compile_definitions(CarrotEngine PUBLIC VK_USE_PLATFORM_METAL_EXT)
 
     target_link_libraries(CarrotEngine PRIVATE
             "-framework Metal"
@@ -673,6 +677,8 @@ set(CARROT_SANDBOX_SOURCES
         src/Game/Game.h
         src/Game/SceneHelpers.cpp
         src/Game/SceneHelpers.h
+        src/Game/SandboxInteractionController.cpp
+        src/Game/SandboxInteractionController.h
         src/Game/SandboxSceneBootstrap.cpp
         src/Game/SandboxSceneBootstrap.h
         src/Game/WorldInteractionHelpers.cpp

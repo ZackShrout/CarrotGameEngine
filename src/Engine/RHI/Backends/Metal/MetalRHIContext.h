@@ -50,7 +50,8 @@ namespace carrot::rhi::metal {
         void set_textured_quad_viewport(const render_viewport_t& viewport) override;
 
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
-        void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) override {}
+        void bind_textured_quad_resources([[maybe_unused]] const rhi_texture_t& texture,
+                                          [[maybe_unused]] const rhi_sampler_t& sampler) override {}
 
         void wait_idle() override;
 

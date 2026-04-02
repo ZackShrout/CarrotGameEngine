@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 4.1)
 project(CarrotGameEngine LANGUAGES CXX C VERSION 0.0.1)
+enable_testing()
 
 # ------------------------------------------------------------------------
 # Default build type for single-config generators (Ninja, Makefiles)
@@ -63,6 +64,8 @@ set(CARROT_ENGINE_SOURCES
         # ========================================
         src/Engine/Events/Events.h
         src/Engine/Input/KeyCodes.h
+        src/Engine/Input/ActionMap.cpp
+        src/Engine/Input/ActionMap.h
         src/Engine/Input/PlatformKeyMapping.cpp
         src/Engine/Input/PlatformKeyMapping.h
 
@@ -103,6 +106,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/World/Controllers/PlayerController.h
         src/Engine/World/Import/TilemapWorldBridge.cpp
         src/Engine/World/Import/TilemapWorldBridge.h
+        src/Engine/World/SceneLoader.cpp
+        src/Engine/World/SceneLoader.h
         src/Engine/World/World.cpp
         src/Engine/World/World.h
         src/Engine/World/WorldObject.h
@@ -230,6 +235,13 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/Image/ImageAssetImporter.h
         src/Engine/Assets/Image/ImageLoadError.cpp
         src/Engine/Assets/Image/ImageLoadError.h
+        src/Engine/Assets/Scene/SceneAsset.h
+        src/Engine/Assets/Scene/SceneAssetManifestImporter.cpp
+        src/Engine/Assets/Scene/SceneAssetManifestImporter.h
+        src/Engine/Assets/Scene/SceneAssetRegistry.cpp
+        src/Engine/Assets/Scene/SceneAssetRegistry.h
+        src/Engine/Assets/Scene/SceneAssetSystem.cpp
+        src/Engine/Assets/Scene/SceneAssetSystem.h
         src/Engine/Assets/Shaders/ShaderFileProvider.h
         src/Engine/Assets/Shaders/VFSShaderFileProvider.h
         src/Engine/Assets/Sprite/AsepriteSpriteAssetImporter.cpp
@@ -690,6 +702,19 @@ source_group(TREE ${CMAKE_SOURCE_DIR} FILES ${CARROT_SANDBOX_SOURCES})
 add_executable(CarrotSandbox ${CARROT_SANDBOX_SOURCES})  # Rename if you prefer "Game" or "Sandbox"
 target_include_directories(CarrotSandbox PRIVATE src/Game)
 target_link_libraries(CarrotSandbox PRIVATE CarrotEngine)
+
+set(CARROT_TEST_SOURCES
+        tests/TestMain.cpp
+        tests/ActionMapTests.cpp
+        tests/SceneLoadingTests.cpp
+)
+
+add_executable(CarrotEngineTests ${CARROT_TEST_SOURCES})
+target_include_directories(CarrotEngineTests PRIVATE src/Game tests)
+target_link_libraries(CarrotEngineTests PRIVATE CarrotEngine)
+target_compile_definitions(CarrotEngineTests PRIVATE CARROT_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
+
+add_test(NAME CarrotEngineTests COMMAND CarrotEngineTests)
 
 #if(WIN32)
 #    # Use Windows GUI subsystem → no console window

@@ -6,6 +6,7 @@
 #pragma once
 
 #include "Audio/AudioAssetSystem.h"
+#include "Scene/SceneAssetSystem.h"
 #include "Sprite/SpriteAssetSystem.h"
 #include "Texture/TextureAssetSystem.h"
 #include "Tilemap/TilemapAssetSystem.h"
@@ -30,7 +31,7 @@ namespace carrot::assets {
     {
     public:
         explicit asset_manager_t(io::virtual_file_system_t& vfs, rhi::rhi_context_t& rhi) noexcept
-            : _vfs{ vfs }, _audio{ vfs }, _textures{ vfs, rhi }, _sprites{ _textures }, _tilemaps{ vfs, rhi } {}
+            : _vfs{ vfs }, _audio{ vfs }, _textures{ vfs, rhi }, _sprites{ _textures }, _tilemaps{ vfs, rhi }, _scenes{} {}
 
         [[nodiscard]] const io::virtual_file_system_t& vfs() const noexcept { return _vfs; }
         [[nodiscard]] io::virtual_file_system_t& vfs() noexcept { return _vfs; }
@@ -47,6 +48,9 @@ namespace carrot::assets {
         [[nodiscard]] const tilemap_asset_system_t& tilemaps() const noexcept { return _tilemaps; }
         [[nodiscard]] tilemap_asset_system_t& tilemaps() noexcept { return _tilemaps; }
 
+        [[nodiscard]] const scene_asset_system_t& scenes() const noexcept { return _scenes; }
+        [[nodiscard]] scene_asset_system_t& scenes() noexcept { return _scenes; }
+
         void clear();
 
     private:
@@ -55,5 +59,6 @@ namespace carrot::assets {
         texture_asset_system_t _textures;
         sprite_asset_system_t _sprites;
         tilemap_asset_system_t _tilemaps;
+        scene_asset_system_t _scenes;
     };
 } // namespace carrot::assets

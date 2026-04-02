@@ -29,6 +29,7 @@ namespace carrot::world {
                                                                         float max_distance) const noexcept;
         [[nodiscard]] const std::vector<world_object_t>& objects() const noexcept { return _objects; }
         [[nodiscard]] std::vector<world_object_t>& objects() noexcept { return _objects; }
+        void clear() noexcept;
         void update(float delta_time) noexcept;
         void set_presentation_origin_px(const chlm::float2 origin) noexcept { _presentation.origin_px = origin; }
         [[nodiscard]] const chlm::float2& presentation_origin_px() const noexcept { return _presentation.origin_px; }

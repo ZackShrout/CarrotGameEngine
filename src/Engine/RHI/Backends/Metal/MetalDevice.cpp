@@ -36,12 +36,13 @@ namespace carrot::rhi::metal {
         return new metal_command_queue_t{ native_queue };
     }
 
-    rhi_swapchain_t* metal_device_t::create_swapchain(uint32_t width, uint32_t height)
+    rhi_swapchain_t* metal_device_t::create_swapchain([[maybe_unused]] uint32_t width,
+                                                      [[maybe_unused]] uint32_t height)
     {
         return nullptr; // temporary
     }
 
-    rhi_buffer_t* metal_device_t::create_buffer(const buffer_desc_t& desc)
+    rhi_buffer_t* metal_device_t::create_buffer([[maybe_unused]] const buffer_desc_t& desc)
     {
         return nullptr; // temporary
     }
@@ -56,5 +57,5 @@ namespace carrot::rhi::metal {
         return nullptr; // temporary
     }
 
-    void metal_device_t::destroy_buffer(rhi_buffer_t* buffer) {}
+    void metal_device_t::destroy_buffer([[maybe_unused]] rhi_buffer_t* buffer) {}
 } // namespace carrot::rhi::metal

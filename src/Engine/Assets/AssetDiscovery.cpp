@@ -50,6 +50,10 @@ namespace carrot::assets {
                 {
                     manifests.tilemaps.emplace_back(virtual_path);
                 }
+                else if (ends_with(relative_generic, ".scene.json"))
+                {
+                    manifests.scenes.emplace_back(virtual_path);
+                }
             }
         }
 
@@ -71,6 +75,7 @@ namespace carrot::assets {
         sort_manifest_group(manifests.textures);
         sort_manifest_group(manifests.sprites);
         sort_manifest_group(manifests.tilemaps);
+        sort_manifest_group(manifests.scenes);
 
         return manifests;
     }

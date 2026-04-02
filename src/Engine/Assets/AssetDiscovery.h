@@ -19,10 +19,11 @@ namespace carrot::assets {
         std::vector<std::string> textures;
         std::vector<std::string> sprites;
         std::vector<std::string> tilemaps;
+        std::vector<std::string> scenes;
 
         [[nodiscard]] size_t total_count() const noexcept
         {
-            return audio.size() + textures.size() + sprites.size() + tilemaps.size();
+            return audio.size() + textures.size() + sprites.size() + tilemaps.size() + scenes.size();
         }
     };
 

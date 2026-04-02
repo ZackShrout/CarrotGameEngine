@@ -291,6 +291,15 @@ That means spatial state such as transforms should remain explicit through compo
 
 The goal is to preserve both clarity and performance without forcing the engine into an architectural model that does not fit its intended design.
 
+Current practical progress already includes:
+
+* tilemap-backed world import through authored Tiled data
+* default movement and proximity-interaction controllers with game-side semantic handling
+* authored `*.scene.json` scene assets for initial world bootstrap
+* scene transitions driven by authored door properties and spawn markers
+* engine-level input action mapping above raw key codes
+* a small automated test target covering scene discovery, import, and load behavior
+
 ---
 
 ## 6. Rendering & RHI Direction
@@ -569,8 +578,10 @@ These are the most immediate engine priorities.
 * Continue expanding Tiled-backed tilemap support from the current foundation into stronger gameplay/world rendering behavior
 * Continue formalizing Tiled object-layer conventions for markers, props, and hybrid objects
 * Continue moving rendering from ad hoc test scenes into world-aware scene/object rendering paths
+* Continue refining the new scene asset and transition path into a broader reusable game-flow foundation
 * Continue improving **debug rendering / debug text / overlay direction**, beginning from the current engine-owned text overlay path
 * Continue strengthening the asset system and authored asset workflows
+* Continue expanding the new input action layer toward config-backed and player-rebindable controls
 
 ### 11.2 Mid-Term Priorities
 

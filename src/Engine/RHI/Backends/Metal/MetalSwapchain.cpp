@@ -58,7 +58,7 @@ namespace carrot::rhi::metal {
         return _current_image_index;
     }
 
-    void metal_swapchain_t::present(rhi_semaphore_t* wait_semaphore)
+    void metal_swapchain_t::present([[maybe_unused]] rhi_semaphore_t* wait_semaphore)
     {
         // Present happens on the command buffer, not here
         // This function exists for API symmetry

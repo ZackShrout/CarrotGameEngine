@@ -8,5 +8,9 @@
 #include <CarrotEngine.h>
 
 namespace sandbox {
-    void bootstrap_scene(const carrot::core::game_context_t& game);
+    inline constexpr std::string_view k_bootstrap_scene_id{ "scene.test.overworld" };
+
+    bool bootstrap_scene(carrot::core::game_context_t& game,
+                         std::string_view scene_id,
+                         std::string_view spawn_marker_override = {});
 } // namespace sandbox

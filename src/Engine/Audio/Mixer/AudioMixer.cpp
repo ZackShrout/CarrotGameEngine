@@ -66,7 +66,6 @@ namespace carrot::audio {
 
         if (!src.soloed && any_bus_soloed()) return;
 
-        const uint32_t total{ frame_count * _channels };
         const float gain{ src.gain };
 
         float pan_l{ 1.f };

@@ -7,19 +7,93 @@
 
 #include "Game.h"
 
+#include "Assets/Scene/SceneAsset.h"
 #include "SandboxSceneBootstrap.h"
 #include "SceneHelpers.h"
 
 namespace sandbox {
     namespace {
         carrot::audio::voice_handle_t handle;
-        constexpr std::string_view background_music_asset_id{ "music.oak_battle_theme" };
+
+        constexpr std::string_view k_action_move_up{ "move_up" };
+        constexpr std::string_view k_action_move_down{ "move_down" };
+        constexpr std::string_view k_action_move_left{ "move_left" };
+        constexpr std::string_view k_action_move_right{ "move_right" };
+        constexpr std::string_view k_action_interact{ "interact" };
+        constexpr std::string_view k_action_quit{ "quit" };
+        constexpr std::string_view k_action_toggle_fullscreen{ "toggle_fullscreen" };
+    }
+
+    void sandbox_t::configure_default_input_actions()
+    {
+        _actions.clear();
+
+        _actions.bind(std::string{ k_action_move_up }, carrot::input::key_code::w);
+        _actions.bind(std::string{ k_action_move_up }, carrot::input::key_code::up);
+        _actions.bind(std::string{ k_action_move_down }, carrot::input::key_code::s);
+        _actions.bind(std::string{ k_action_move_down }, carrot::input::key_code::down);
+        _actions.bind(std::string{ k_action_move_left }, carrot::input::key_code::a);
+        _actions.bind(std::string{ k_action_move_left }, carrot::input::key_code::left);
+        _actions.bind(std::string{ k_action_move_right }, carrot::input::key_code::d);
+        _actions.bind(std::string{ k_action_move_right }, carrot::input::key_code::right);
+
+        _actions.bind(std::string{ k_action_interact }, carrot::input::key_code::e);
+        _actions.bind(std::string{ k_action_quit }, carrot::input::key_code::escape);
+        _actions.bind(std::string{ k_action_toggle_fullscreen }, carrot::input::key_code::f11);
+        _actions.bind(std::string{ k_action_toggle_fullscreen },
+                      carrot::input::key_code::enter,
+                      static_cast<uint8_t>(carrot::input::modifier::alt));
+    }
+
+    void sandbox_t::refresh_scene_bindings() noexcept
+    {
+        if (!_game)
+            return;
+
+        _player_controller.set_controlled_object(find_player(_game->world));
+        _interaction_controller.set_actor(_player_controller.controlled_object());
+
+        if (_player_controller.controlled_object() && _player_controller.controlled_object()->transform)
+        {
+            _game->view.set_center_world_position(_game->world, _player_controller.controlled_object()->transform->position);
+        }
+    }
+
+    void sandbox_t::refresh_scene_music()
+    {
+        if (!_game || _current_scene_id.empty())
+            return;
+
+        const carrot::assets::scene_asset_record_t* scene{ _game->assets.scenes().registry().find(_current_scene_id) };
+        if (!scene)
+            return;
+
+        if (handle.is_valid())
+            carrot::audio::stop(handle);
+
+        handle = carrot::audio::voice_handle_t::invalid();
+        if (!scene->scene.initial_music_id.empty())
+            handle = carrot::audio::play(scene->scene.initial_music_id);
+    }
+
+    bool sandbox_t::load_scene(const std::string_view scene_id, const std::string_view spawn_marker)
+    {
+        if (!_game)
+            return false;
+
+        if (!bootstrap_scene(*_game, scene_id, spawn_marker))
+            return false;
+
+        _current_scene_id = std::string{ scene_id };
+        refresh_scene_bindings();
+        refresh_scene_music();
+        return true;
     }
 
     void sandbox_t::start(carrot::core::game_context_t& game)
     {
         _game = &game;
-        bootstrap_scene(game);
+        configure_default_input_actions();
         _player_controller.set_animation_set({
             .idle_down = "idle_down",
             .idle_up = "idle_up",
@@ -30,12 +104,10 @@ namespace sandbox {
             .walk_left = "walk_left",
             .walk_right = "walk_right"
         });
-        _player_controller.set_controlled_object(find_player(game.world));
         _player_controller.set_move_speed(4.0f);
         _player_controller.set_camera_follow_enabled(true);
-        _interaction_controller.set_actor(_player_controller.controlled_object());
         _interaction_controller.set_interaction_radius(3.0f);
-        handle = carrot::audio::play(background_music_asset_id);
+        load_scene(k_bootstrap_scene_id);
     }
 
     void sandbox_t::on_tick(const float delta_time)
@@ -43,16 +115,20 @@ namespace sandbox {
         if (!_game)
             return;
 
+        if (const std::optional<scene_transition_request_t> request{ _interaction_controller.consume_pending_transition() })
+            load_scene(request->scene_id, request->marker_name);
+
         _player_controller.update(*_game, delta_time);
     }
 
     void sandbox_t::on_key(const carrot::events::key_event_t& e)
     {
         ce_application_t::on_key(e);
+        _actions.handle_key_event(e);
 
         if (e._action == carrot::events::key_action::press)
         {
-            if (e._key == carrot::input::key_code::e && _game)
+            if (_actions.matches(k_action_interact, e) && _game)
             {
                 LOG_CORE_INFO("Key pressed: {} ({}) (mods: {})", carrot::input::key_code_to_string(e._key),
                               static_cast<uint32_t>(e._key), carrot::input::modifiers_to_string(e._mods));
@@ -70,42 +146,32 @@ namespace sandbox {
             }
         }
         else if (e._action == carrot::events::key_action::repeat &&
-                 (e._key == carrot::input::key_code::e ||
+                 (_actions.matches(k_action_interact, e) ||
                   e._key == carrot::input::key_code::escape ||
                   e._key == carrot::input::key_code::enter ||
                   e._key == carrot::input::key_code::f11))
             LOG_CORE_INFO("Key held: {} ({})", carrot::input::key_code_to_string(e._key),
                       static_cast<uint32_t>(e._key));
         else if (e._action == carrot::events::key_action::release &&
-                 (e._key == carrot::input::key_code::e ||
+                 (_actions.matches(k_action_interact, e) ||
                   e._key == carrot::input::key_code::escape ||
                   e._key == carrot::input::key_code::enter ||
                   e._key == carrot::input::key_code::f11))
             LOG_CORE_INFO("Key released: {} ({})", carrot::input::key_code_to_string(e._key),
                       static_cast<uint32_t>(e._key));
 
-        const bool is_pressed{ e._action == carrot::events::key_action::press };
-        const bool is_released{ e._action == carrot::events::key_action::release };
-        if (is_pressed || is_released)
+        if (e._action == carrot::events::key_action::press || e._action == carrot::events::key_action::release)
         {
-            const bool value{ is_pressed };
-
-            if (e._key == carrot::input::key_code::w)
-                _player_controller.set_move_up(value);
-            else if (e._key == carrot::input::key_code::s)
-                _player_controller.set_move_down(value);
-            else if (e._key == carrot::input::key_code::a)
-                _player_controller.set_move_left(value);
-            else if (e._key == carrot::input::key_code::d)
-                _player_controller.set_move_right(value);
+            _player_controller.set_move_up(_actions.is_pressed(k_action_move_up));
+            _player_controller.set_move_down(_actions.is_pressed(k_action_move_down));
+            _player_controller.set_move_left(_actions.is_pressed(k_action_move_left));
+            _player_controller.set_move_right(_actions.is_pressed(k_action_move_right));
         }
 
-        if (e._action == carrot::events::key_action::press && e._key == carrot::input::key_code::escape)
+        if (e._action == carrot::events::key_action::press && _actions.matches(k_action_quit, e))
             quit_application();
 
-        if (e._action == carrot::events::key_action::press && (
-                (e._key == carrot::input::key_code::enter && carrot::input::has_modifier(
-                     e._mods, carrot::input::modifier::alt)) || e._key == carrot::input::key_code::f11))
+        if (e._action == carrot::events::key_action::press && _actions.matches(k_action_toggle_fullscreen, e))
         {
             set_fullscreen(!is_fullscreen());
         }

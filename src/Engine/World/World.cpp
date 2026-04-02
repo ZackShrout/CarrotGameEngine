@@ -161,6 +161,13 @@ namespace carrot::world {
         return nearest;
     }
 
+    void world_t::clear() noexcept
+    {
+        _next_id = 1;
+        _objects.clear();
+        _presentation = world_presentation_t{ };
+    }
+
     void world_t::update(const float delta_time) noexcept
     {
         for (world_object_t& object : _objects)

@@ -366,8 +366,7 @@ namespace carrot::audio {
                     if (voice.spatial == spatial_mode::planar)
                     {
                         const float effective_distance{ chlm::max(distance, voice.ref_distance) };
-                        spatial_pan = dx / effective_distance;
-                        chlm::clamp(spatial_pan, -1.f, 1.f);
+                        spatial_pan = chlm::clamp(dx / effective_distance, -1.f, 1.f);
                     }
                 }
 
@@ -503,9 +502,19 @@ namespace carrot::audio {
         }
 
         // Pull exactly the needed engine frames into a temp buffer
-        float engine_chunk[engine_frames_needed * 2]; // stereo
+        if (engine_frames_needed > k_master_buffer_frames)
+        {
+            const uint32_t total_samples{ device_frames * device_channels };
+            for (uint32_t i{ 0 }; i < total_samples; ++i)
+                output[i] = 0.0f;
 
-        const uint32_t engine_frames_read{ _master_ring.read(engine_chunk, engine_frames_needed) };
+            LOG_AUDIO_ERROR("Resampler requested {} engine frames, exceeding scratch capacity {}",
+                            engine_frames_needed,
+                            k_master_buffer_frames);
+            return;
+        }
+
+        const uint32_t engine_frames_read{ _master_ring.read(_resample_scratch.data(), engine_frames_needed) };
 
         // NOTE: This is paranoia, but if we ever fail to read enough, zero the output and bail.
         if (engine_frames_read < engine_frames_needed)
@@ -520,7 +529,7 @@ namespace carrot::audio {
 
         // Resample from engine_chunk -> device output
         resample_request_t req{ };
-        req.data = engine_chunk;
+        req.data = _resample_scratch.data();
         req.total_frames = engine_frames_read;
         req.channels = 2;
         req.src_pos = 0.0; // IMPORTANT: per-callback local position

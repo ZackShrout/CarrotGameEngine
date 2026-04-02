@@ -68,7 +68,8 @@ namespace carrot::rhi::vulkan {
         void set_textured_quad_viewport(const render_viewport_t& viewport) override;
 
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
-        void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) override {}
+        void bind_textured_quad_resources([[maybe_unused]] const rhi_texture_t& texture,
+                                          [[maybe_unused]] const rhi_sampler_t& sampler) override {}
 
         void wait_idle() override;
 
@@ -121,7 +122,6 @@ namespace carrot::rhi::vulkan {
         std::unordered_map<sampler_desc_t, std::unique_ptr<rhi_sampler_t>, sampler_desc_hash_t> _sampler_cache;
 
         // ── Frame progression / swapchain bookkeeping ──
-        uint32_t _frame_counter{ 0 };
         uint32_t _current_frame{ 0 };
         uint32_t _current_image_index{ 0 };
         uint32_t _pending_resize_width{ 0 };

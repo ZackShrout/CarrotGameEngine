@@ -139,7 +139,7 @@ namespace carrot::rhi::vulkan {
         return image_index;
     }
 
-    void vulkan_swapchain_t::present(rhi_semaphore_t* wait_semaphore) {}
+    void vulkan_swapchain_t::present([[maybe_unused]] rhi_semaphore_t* wait_semaphore) {}
 
     void vulkan_swapchain_t::create_or_recreate(VkSwapchainKHR old_swapchain, uint32_t width, uint32_t height)
     {

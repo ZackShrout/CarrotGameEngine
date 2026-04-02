@@ -9,16 +9,6 @@
 
 namespace carrot::utils::file {
     namespace {
-        std::unordered_map<std::string, std::string, std::hash<std::string>, std::equal_to<>> path_cache;
-        std::mutex path_cache_mutex;
-
-        std::string_view cache_path(std::string&& resolved)
-        {
-            std::lock_guard lock{ path_cache_mutex };
-            auto [it, inserted]{ path_cache.try_emplace(std::move(resolved)) };
-
-            return it->first;
-        }
     } // anonymous namespace
 
     [[nodiscard]] std::optional<std::vector<std::uint8_t>> load_binary_file(const std::filesystem::path& path) noexcept

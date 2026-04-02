@@ -16,6 +16,8 @@
 #include "AudioCommandQueue.h"
 #include "AudioEventQueue.h"
 
+#include <array>
+
 namespace carrot::audio {
     /**
      * @brief Listener state used for spatial audio calculations.
@@ -219,9 +221,7 @@ namespace carrot::audio {
         // Engine-rate master FIFO (stereo, 48k)
         static constexpr uint32_t k_master_buffer_frames = 2048;
         audio_ring_buffer_t<k_master_buffer_frames, 2> _master_ring;
-
-        // Resampler state from engine -> device
-        double _master_src_pos{ 0.0 };
+        std::array<float, k_master_buffer_frames * 2> _resample_scratch{ };
 
         //—— TEMPORARY FX TEST STATE —————————————————————————————————————————————————————————————
         bool _enable_underwater_music{ false };

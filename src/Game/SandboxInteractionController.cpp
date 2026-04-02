@@ -10,7 +10,14 @@
 #include "WorldInteractionHelpers.h"
 
 namespace sandbox {
-    void sandbox_interaction_controller_t::on_interact([[maybe_unused]] carrot::core::game_context_t& game,
+    std::optional<scene_transition_request_t> sandbox_interaction_controller_t::consume_pending_transition() noexcept
+    {
+        std::optional<scene_transition_request_t> request{ std::move(_pending_transition) };
+        _pending_transition.reset();
+        return request;
+    }
+
+    void sandbox_interaction_controller_t::on_interact(carrot::core::game_context_t& game,
                                                        const carrot::world::world_object_t& object)
     {
         if (const std::optional<sign_interaction_data_t> sign{ as_sign(object) })
@@ -21,10 +28,20 @@ namespace sandbox {
 
         if (const std::optional<door_interaction_data_t> door{ as_door(object) })
         {
-            LOG_CORE_INFO("Interact Door '{}' -> target_map='{}', target_marker='{}'",
+            const std::optional<scene_transition_request_t> request{
+                make_scene_transition_request(game.assets, object)
+            };
+            if (!request)
+            {
+                LOG_CORE_WARN("Interact Door '{}' could not resolve a destination scene", object.name);
+                return;
+            }
+
+            _pending_transition = *request;
+            LOG_CORE_INFO("Interact Door '{}' -> target_scene='{}', target_marker='{}'",
                           object.name,
-                          door->target_map,
-                          door->target_marker);
+                          request->scene_id,
+                          request->marker_name);
             return;
         }
 

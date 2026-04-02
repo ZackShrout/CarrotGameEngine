@@ -135,7 +135,7 @@ namespace carrot::assets {
                 return false;
             }
 
-            read_float2(frame_json, "pivot", frame.pivot);
+            [[maybe_unused]] const bool has_frame_pivot{ read_float2(frame_json, "pivot", frame.pivot) };
 
             record.sprite.add_frame(std::move(frame));
             frame_name_to_index.emplace(frame_name, frame_index++);

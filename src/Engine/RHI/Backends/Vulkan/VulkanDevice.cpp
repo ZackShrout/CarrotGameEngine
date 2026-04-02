@@ -38,7 +38,7 @@ namespace carrot::rhi::vulkan {
         return new vulkan_swapchain_t{ this, _surface, width, height };
     }
 
-    rhi_buffer_t* vulkan_device_t::create_buffer(const buffer_desc_t& desc)
+    rhi_buffer_t* vulkan_device_t::create_buffer([[maybe_unused]] const buffer_desc_t& desc)
     {
         return nullptr; // temporary
     }
@@ -53,5 +53,5 @@ namespace carrot::rhi::vulkan {
         return nullptr; // temporary
     }
 
-    void vulkan_device_t::destroy_buffer(rhi_buffer_t* buffer) {}
+    void vulkan_device_t::destroy_buffer([[maybe_unused]] rhi_buffer_t* buffer) {}
 } // namespace carrot::rhi::vulkan

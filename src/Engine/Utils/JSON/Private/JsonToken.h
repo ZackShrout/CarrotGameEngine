@@ -5,8 +5,6 @@
 
 #pragma once
 
-#pragma once
-
 #include <cstdint>
 
 namespace carrot::utils::json
@@ -44,7 +42,7 @@ namespace carrot::utils::json
         uint32_t text_length;
     };
 
-    static const char* token_name(const token_type t)
+    [[maybe_unused]] static const char* token_name(const token_type t)
     {
         switch (t)
         {

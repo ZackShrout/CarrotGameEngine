@@ -70,6 +70,7 @@ namespace carrot {
         bool register_texture_asset_manifest(std::string_view manifest_uri);
         bool register_sprite_asset_manifest(std::string_view manifest_uri);
         bool register_tilemap_asset_manifest(std::string_view manifest_uri);
+        bool register_scene_asset_manifest(std::string_view manifest_uri);
 
         bool                                                _initialized{ false };
         bool                                                _running{ false };

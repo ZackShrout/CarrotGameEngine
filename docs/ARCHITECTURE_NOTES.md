@@ -95,14 +95,15 @@ Carrot should periodically audit which current assumptions are acceptable sandbo
 
 **Still acceptable for now**
 
-* hardcoded sandbox scene bootstrap ids such as the initial map, player object name, and authored marker names
 * tuning constants such as movement speed and interaction radius living directly in sandbox code
 * authored animation clip naming remaining a game-configured concern rather than engine policy
+* temporary scene presentation defaults that will likely converge into a cleaner camera-owned zoom/framing model later
 
 **Watch next**
 
-* whether future games want a broader shared controller base or input binding surface
-* whether scene bootstrap should remain game-local helper code or eventually grow into a more formal scene-loading layer
+* user-facing input rebinding and config-backed action maps on top of the new engine action layer
+* camera redesign so scene bootstrap defaults become camera defaults rather than a parallel presentation-scale concept
+* whether future games want a broader shared controller base beyond the current default movement and interaction helpers
 
 ---
 
@@ -123,7 +124,7 @@ At a high level, the engine currently trends toward the following structure:
 
 These layers are not meant to be dogmatic, but they provide a useful structural model.
 
-The recent addition of default controllers reinforces this layering:
+The recent addition of default controllers, scene loading, scene transitions, and the input action layer reinforces this layering:
 
 * engine layers can provide reusable movement and interaction mechanics
 * game layers should still select controlled objects and interpret gameplay meaning
@@ -276,8 +277,11 @@ Key current priorities include:
 * tilemap backdrop rendering as a world-owned tilemap component path
 * world-owned sprite animation through `sprite_animator_component_t`
 * first tilemap object-layer to world-object bridge for marker objects and visible tile objects
+* first authored `*.scene.json` scene assets that select tilemaps, spawn markers, player setup, and initial music
+* controlled scene transitions that apply at a safe point in the frame rather than mutating world state inside interaction handlers
 * sandbox-owned player movement and camera follow that operate on world-object transforms rather than engine bootstrap code
 * first gameplay-facing world interaction path where sandbox code interprets authored `Sign`, `Door`, and `Chest` objects through world queries and typed properties
+* gameplay input routed through semantic action names instead of raw key checks in sandbox logic
 * frame lifecycle clarity
 * debug-friendly rendering flow
 * engine-owned debug text overlays for runtime renderer diagnostics
@@ -502,7 +506,9 @@ Examples:
 
 * `*.texture.json`
 * `*.audio.json`
-* future `*.sprite.json`, `*.tilemap.json`, etc.
+* `*.sprite.json`
+* `*.tilemap.json`
+* `*.scene.json`
 
 These are not the runtime assets themselves.
 

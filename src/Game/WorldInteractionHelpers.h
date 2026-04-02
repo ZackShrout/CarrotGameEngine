@@ -23,8 +23,15 @@ namespace sandbox {
 
     struct door_interaction_data_t
     {
+        std::string_view target_scene;
         std::string_view target_map;
         std::string_view target_marker;
+    };
+
+    struct scene_transition_request_t
+    {
+        std::string scene_id;
+        std::string marker_name;
     };
 
     struct chest_interaction_data_t
@@ -36,4 +43,7 @@ namespace sandbox {
     [[nodiscard]] std::optional<sign_interaction_data_t> as_sign(const carrot::world::world_object_t& object) noexcept;
     [[nodiscard]] std::optional<door_interaction_data_t> as_door(const carrot::world::world_object_t& object) noexcept;
     [[nodiscard]] std::optional<chest_interaction_data_t> as_chest(const carrot::world::world_object_t& object) noexcept;
+    [[nodiscard]] std::optional<scene_transition_request_t> make_scene_transition_request(
+        const carrot::assets::asset_manager_t& assets,
+        const carrot::world::world_object_t& object);
 } // namespace sandbox

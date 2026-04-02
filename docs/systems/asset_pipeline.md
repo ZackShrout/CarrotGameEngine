@@ -2,7 +2,7 @@
 
 **BunnySoft**
 **System Design Document**
-**Last Updated: March 2026**
+**Last Updated: April 2026**
 
 ---
 
@@ -116,8 +116,9 @@ Examples:
 
 * `*.texture.json`
 * `*.audio.json`
-* future `*.sprite.json`
-* future `*.tilemap.json`
+* `*.sprite.json`
+* `*.tilemap.json`
+* `*.scene.json`
 * future asset-adjacent metadata files
 
 These files are:
@@ -378,16 +379,59 @@ These define things like:
 
 At runtime, these become image data and/or GPU texture-facing runtime structures.
 
-### 11.3 Future Asset Types
+### 11.3 Sprite Assets
+
+Sprite assets use authored metadata such as:
+
+* `*.sprite.json`
+
+These define sprite-facing runtime content such as:
+
+* sprite asset id
+* texture dependency
+* frame layout
+* animation-facing metadata
+* `pixels_per_unit`
+
+At runtime, these become loaded sprite definitions used by world objects, animation systems, and renderer-facing draw code.
+
+### 11.4 Tilemap Assets
+
+Tilemap assets use authored metadata such as:
+
+* `*.tilemap.json`
+
+These define things like:
+
+* tilemap asset id
+* source Tiled export path
+* importer/runtime interpretation settings
+
+At runtime, these become tilemap runtime structures that can drive both tile rendering and tile/object-layer world import.
+
+### 11.5 Scene Assets
+
+Scene assets use authored metadata such as:
+
+* `*.scene.json`
+
+These define higher-level bootstrap intent such as:
+
+* scene asset id
+* primary tilemap asset id
+* default player sprite and spawn marker
+* initial music
+* scene-level bootstrap defaults
+
+At runtime, these give Carrot a reusable scene-loading path instead of requiring sandbox-local world assembly code for every playable map.
+
+### 11.6 Future Asset Types
 
 The same asset model is intended to scale to future asset types such as:
 
-* sprites
 * sprite animations
-* tile maps
 * fonts
 * materials
-* scenes/world data
 * other engine-owned content types
 
 The important thing is not the specific asset type.
@@ -436,6 +480,9 @@ This includes support for serious Tiled workflows such as:
 * multi-map world composition
 * streaming-style overworld structures
 * larger zone/world layouts
+
+The current scene layer now sits above tilemaps rather than replacing them.
+Tiled remains the environment authoring tool, while `*.scene.json` provides the engine-facing bootstrap and transition context around those authored maps.
 
 ### 12.3 Why This Matters
 

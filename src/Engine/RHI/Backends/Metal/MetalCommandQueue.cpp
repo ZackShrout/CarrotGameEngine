@@ -17,8 +17,10 @@ namespace carrot::rhi::metal {
         if (_queue) _queue->release();
     }
 
-    void metal_command_queue_t::submit(rhi_command_list_t* cmd_list, rhi_fence_t* fence_to_signal,
-        rhi_semaphore_t* wait_semaphore, rhi_semaphore_t* signal_semaphore)
+    void metal_command_queue_t::submit([[maybe_unused]] rhi_command_list_t* cmd_list,
+                                       [[maybe_unused]] rhi_fence_t* fence_to_signal,
+                                       [[maybe_unused]] rhi_semaphore_t* wait_semaphore,
+                                       [[maybe_unused]] rhi_semaphore_t* signal_semaphore)
     {
         // TODO: real implementation when we  have command lists. For now, just log.
         LOG_GRAPHICS_TRACE("Metal submit called (stub)");

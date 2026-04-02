@@ -1,0 +1,13 @@
+{
+  "id": "scene.test.overworld",
+  "tilemap": "tilemap.test.overworld",
+  "player_sprite": "sprite.vraden",
+  "map_object_name": "OverworldMap",
+  "initial_music": "music.oak_battle_theme",
+  "player_spawn_marker": "PlayerSpawn",
+  "player_name": "Vraden",
+  "player_type": "Character",
+  "render_pixels_per_unit": 64,
+  "presentation_origin_px": { "x": 0, "y": 0 },
+  "tilemap_world_position": { "x": 0, "y": 0 }
+}

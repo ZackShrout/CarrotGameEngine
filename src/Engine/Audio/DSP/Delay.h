@@ -76,8 +76,6 @@ namespace carrot::audio {
 
             float* const audio{ ctx.interleaved };
 
-            const uint32_t max_frames{ _max_delay_samples };
-
             uint32_t write_index{ _write_index };
             const uint32_t delay_samples{ _delay_samples };
             const uint32_t max_delay_samples{ _max_delay_samples };

@@ -14,5 +14,6 @@ namespace carrot::assets {
         _textures.clear_all();
         _sprites.clear_all();
         _tilemaps.clear_all();
+        _scenes.clear_all();
     }
 } // namespace carrot::assets

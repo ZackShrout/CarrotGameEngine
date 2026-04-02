@@ -257,6 +257,7 @@ For example, Tiled object layers may currently author:
 * hybrid objects that combine visual placement with semantic identity through:
   * object `type`
   * typed custom properties like `interactable`, `loot_table`, `target_map`, or `message_id`
+  * current examples such as `Chest`, `Door`, and `Sign`
 
 ---
 

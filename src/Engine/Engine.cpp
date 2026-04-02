@@ -169,6 +169,10 @@ namespace carrot {
 
             const auto props_chests{ tilemap->find_objects_by_type_in_layer("props", "Chest") };
             LOG_ASSET_INFO("Tilemap hybrid query: found {} Chest object(s) on layer 'props'", props_chests.size());
+            const auto props_doors{ tilemap->find_objects_by_type_in_layer("props", "Door") };
+            LOG_ASSET_INFO("Tilemap hybrid query: found {} Door object(s) on layer 'props'", props_doors.size());
+            const auto props_signs{ tilemap->find_objects_by_type_in_layer("props", "Sign") };
+            LOG_ASSET_INFO("Tilemap hybrid query: found {} Sign object(s) on layer 'props'", props_signs.size());
 
             if (const assets::tilemap_object_t* starter_chest{ tilemap->find_first_object_by_type("Chest") })
             {
@@ -188,6 +192,48 @@ namespace carrot {
             else
             {
                 LOG_ASSET_WARN("Tilemap hybrid object lookup failed for 'StarterChest'");
+            }
+
+            if (const assets::tilemap_object_t* north_door{ tilemap->find_first_object_by_type("Door") })
+            {
+                const std::optional<bool> interactable{ north_door->get_bool_property("interactable") };
+                const std::optional<std::string_view> target_map{ north_door->get_string_property("target_map") };
+                const std::optional<std::string_view> target_marker{ north_door->get_string_property("target_marker") };
+
+                LOG_ASSET_INFO(
+                    "Tilemap hybrid object '{}': type='{}', interactable={}, target_map='{}', target_marker='{}', pos=({}, {})",
+                    north_door->name,
+                    north_door->type,
+                    interactable.value_or(false),
+                    target_map.value_or("<missing>"),
+                    target_marker.value_or("<missing>"),
+                    north_door->x,
+                    north_door->y
+                );
+            }
+            else
+            {
+                LOG_ASSET_WARN("Tilemap hybrid object lookup failed for first Door");
+            }
+
+            if (const assets::tilemap_object_t* welcome_sign{ tilemap->find_first_object_by_type("Sign") })
+            {
+                const std::optional<bool> interactable{ welcome_sign->get_bool_property("interactable") };
+                const std::optional<std::string_view> message_id{ welcome_sign->get_string_property("message_id") };
+
+                LOG_ASSET_INFO(
+                    "Tilemap hybrid object '{}': type='{}', interactable={}, message_id='{}', pos=({}, {})",
+                    welcome_sign->name,
+                    welcome_sign->type,
+                    interactable.value_or(false),
+                    message_id.value_or("<missing>"),
+                    welcome_sign->x,
+                    welcome_sign->y
+                );
+            }
+            else
+            {
+                LOG_ASSET_WARN("Tilemap hybrid object lookup failed for first Sign");
             }
         }
         else

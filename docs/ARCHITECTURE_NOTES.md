@@ -627,6 +627,7 @@ Current practical direction already includes:
 * `markers`-style object layers for invisible authored scene meaning
 * `props`-style object layers for visible placed objects
 * hybrid object conventions driven by Tiled object `type` plus typed custom properties
+* early hybrid object queries for authored `Chest`, `Door`, and `Sign` objects
 
 Important long-term direction includes support for:
 

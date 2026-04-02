@@ -129,6 +129,57 @@
                  "width":32,
                  "x":132.287671232877,
                  "y":109.493150684932
+                }, 
+                {
+                 "gid":1036,
+                 "height":32,
+                 "id":15,
+                 "name":"NorthDoor",
+                 "properties":[
+                        {
+                         "name":"interactable",
+                         "type":"bool",
+                         "value":true
+                        }, 
+                        {
+                         "name":"target_map",
+                         "type":"string",
+                         "value":"tilemap.test.overworld"
+                        }, 
+                        {
+                         "name":"target_marker",
+                         "type":"string",
+                         "value":"PlayerSpawn"
+                        }],
+                 "rotation":0,
+                 "type":"Door",
+                 "visible":true,
+                 "width":32,
+                 "x":56.2602739726027,
+                 "y":33.1232876712329
+                }, 
+                {
+                 "gid":1047,
+                 "height":32,
+                 "id":16,
+                 "name":"WelcomeSign",
+                 "properties":[
+                        {
+                         "name":"interactable",
+                         "type":"bool",
+                         "value":true
+                        }, 
+                        {
+                         "name":"message_id",
+                         "type":"string",
+                         "value":"sign.welcome"
+                        }],
+                 "rotation":0,
+                 "type":"Sign",
+                 "visible":true,
+                 "width":32,
+                 "x":64.4794520547945,
+                 "y":251.616438356164
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -137,7 +188,7 @@
          "y":0
         }],
  "nextlayerid":4,
- "nextobjectid":15,
+ "nextobjectid":17,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.11.0",

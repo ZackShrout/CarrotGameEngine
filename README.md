@@ -118,7 +118,7 @@ This is one of the reasons Carrot leans heavily into **JSON-based authored metad
   * first orthogonal tile-layer rendering through the renderer
   * visible Tiled tile-object rendering for authored `props` layers
   * runtime object-layer queries for named markers and semantic object types
-  * early hybrid object support using Tiled object `type` plus typed custom properties
+  * early hybrid object support using Tiled object `type` plus typed custom properties for authored chests, doors, and signs
 * Engine-owned debug text / overlay support for runtime renderer diagnostics
 * Future direction includes:
 

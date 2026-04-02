@@ -8,6 +8,7 @@
 #include "Assets/AssetID.h"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -64,6 +65,58 @@ namespace carrot::assets {
         bool visible{ true };
         uint32_t gid{ 0 };
         std::vector<tilemap_property_t> properties;
+
+        [[nodiscard]] const tilemap_property_t* find_property(const std::string_view property_name) const noexcept
+        {
+            for (const tilemap_property_t& property : properties)
+            {
+                if (property.name == property_name)
+                    return &property;
+            }
+
+            return nullptr;
+        }
+
+        [[nodiscard]] bool has_property(const std::string_view property_name) const noexcept
+        {
+            return find_property(property_name) != nullptr;
+        }
+
+        [[nodiscard]] std::optional<std::string_view> get_string_property(const std::string_view property_name) const noexcept
+        {
+            const tilemap_property_t* property{ find_property(property_name) };
+            if (!property)
+                return std::nullopt;
+
+            if (const std::string* value{ std::get_if<std::string>(&property->value) })
+                return *value;
+
+            return std::nullopt;
+        }
+
+        [[nodiscard]] std::optional<bool> get_bool_property(const std::string_view property_name) const noexcept
+        {
+            const tilemap_property_t* property{ find_property(property_name) };
+            if (!property)
+                return std::nullopt;
+
+            if (const bool* value{ std::get_if<bool>(&property->value) })
+                return *value;
+
+            return std::nullopt;
+        }
+
+        [[nodiscard]] std::optional<double> get_number_property(const std::string_view property_name) const noexcept
+        {
+            const tilemap_property_t* property{ find_property(property_name) };
+            if (!property)
+                return std::nullopt;
+
+            if (const double* value{ std::get_if<double>(&property->value) })
+                return *value;
+
+            return std::nullopt;
+        }
     };
 
     struct tilemap_layer_t

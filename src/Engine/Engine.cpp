@@ -135,6 +135,60 @@ namespace carrot {
                 map.tilesets().size(),
                 object_count
             );
+
+            if (const assets::tilemap_layer_t* marker_layer{ tilemap->find_object_layer("markers") })
+            {
+                LOG_ASSET_INFO(
+                    "Tilemap object layer '{}': {} object(s)",
+                    marker_layer->name,
+                    marker_layer->objects.size()
+                );
+            }
+            else
+            {
+                LOG_ASSET_WARN("Tilemap object layer lookup failed for 'markers'");
+            }
+
+            if (const assets::tilemap_object_t* player_spawn{ tilemap->find_object_by_name("PlayerSpawn") })
+            {
+                _test_player_spawn = player_spawn;
+                LOG_ASSET_INFO(
+                    "Tilemap object 'PlayerSpawn': pos=({}, {}), size={}x{}, visible={}, gid={}",
+                    player_spawn->x,
+                    player_spawn->y,
+                    player_spawn->width,
+                    player_spawn->height,
+                    player_spawn->visible,
+                    player_spawn->gid
+                );
+            }
+            else
+            {
+                LOG_ASSET_WARN("Tilemap object lookup failed for 'PlayerSpawn'");
+            }
+
+            const auto props_chests{ tilemap->find_objects_by_type_in_layer("props", "Chest") };
+            LOG_ASSET_INFO("Tilemap hybrid query: found {} Chest object(s) on layer 'props'", props_chests.size());
+
+            if (const assets::tilemap_object_t* starter_chest{ tilemap->find_first_object_by_type("Chest") })
+            {
+                const std::optional<bool> interactable{ starter_chest->get_bool_property("interactable") };
+                const std::optional<std::string_view> loot_table{ starter_chest->get_string_property("loot_table") };
+
+                LOG_ASSET_INFO(
+                    "Tilemap hybrid object '{}': type='{}', interactable={}, loot_table='{}', pos=({}, {})",
+                    starter_chest->name,
+                    starter_chest->type,
+                    interactable.value_or(false),
+                    loot_table.value_or("<missing>"),
+                    starter_chest->x,
+                    starter_chest->y
+                );
+            }
+            else
+            {
+                LOG_ASSET_WARN("Tilemap hybrid object lookup failed for 'StarterChest'");
+            }
         }
         else
         {
@@ -317,7 +371,7 @@ namespace carrot {
         {
             _renderer->draw_tilemap({
                 .tilemap = _test_tilemap_overworld,
-                .origin = { 320.f, 96.f },
+                .origin = _test_tilemap_origin,
                 .layer = renderer::render_layer_t::world_back,
                 .order_in_layer = -100,
                 .sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp,
@@ -478,13 +532,18 @@ namespace carrot {
 
         if (const assets::sprite_frame_t* current{ _vraden_animator.current_frame() })
         {
+            const float spawn_x{ _test_player_spawn ? _test_tilemap_origin.x + _test_player_spawn->x : 96.f };
+            const float spawn_y{ _test_player_spawn ? _test_tilemap_origin.y + _test_player_spawn->y : 324.f };
+
             renderer::sprite_draw_info_t sprite_draw{ };
             sprite_draw.sprite = _test_sprite_vraden;
             sprite_draw.frame = current;
-            sprite_draw.x = 96.f;
-            sprite_draw.y = 324.f;
-            sprite_draw.width = 180;
-            sprite_draw.height = 140.f;
+            sprite_draw.x = spawn_x;
+            sprite_draw.y = spawn_y;
+            sprite_draw.width = 45.f;
+            sprite_draw.height = 35.f;
+            sprite_draw.use_custom_pivot = true;
+            sprite_draw.pivot = { 0.5f, 1.f };
             sprite_draw.layer = renderer::render_layer_t::actors;
             sprite_draw.order_in_layer = 0;
             sprite_draw.color = 0xFFFFFFFFu;

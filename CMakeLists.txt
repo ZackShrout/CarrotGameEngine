@@ -232,6 +232,7 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/Sprite/SpriteAssetSystem.cpp
         src/Engine/Assets/Sprite/SpriteAssetSystem.h
         src/Engine/Assets/Sprite/SpriteFrame.h
+        src/Engine/Assets/Tilemap/LoadedTilemapAsset.cpp
         src/Engine/Assets/Tilemap/LoadedTilemapAsset.h
         src/Engine/Assets/Tilemap/NativeTilemapAssetImporter.cpp
         src/Engine/Assets/Tilemap/NativeTilemapAssetImporter.h

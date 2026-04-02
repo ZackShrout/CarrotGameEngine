@@ -27,28 +27,108 @@
          "name":"markers",
          "objects":[
                 {
-                 "gid":951,
-                 "height":32,
-                 "id":4,
-                 "name":"PlayerSpawn",
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":32,
-                 "x":144.446101741302,
-                 "y":86.1310252813794
-                }, 
-                {
-                 "gid":1025,
-                 "height":32,
-                 "id":5,
+                 "height":10.958904109589,
+                 "id":8,
                  "name":"ExitNorth",
                  "rotation":0,
                  "type":"",
                  "visible":true,
+                 "width":83.9041095890411,
+                 "x":83.5616438356164,
+                 "y":0.342465753424657
+                }, 
+                {
+                 "height":0,
+                 "id":9,
+                 "name":"PlayerSpawn",
+                 "point":true,
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":0,
+                 "x":113.356164383562,
+                 "y":148.630136986301
+                }, 
+                {
+                 "height":43.8356164383562,
+                 "id":10,
+                 "name":"Trigger",
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":78.4246575342466,
+                 "x":101.369863013699,
+                 "y":201.369863013699
+                }],
+         "opacity":1,
+         "type":"objectgroup",
+         "visible":true,
+         "x":0,
+         "y":0
+        }, 
+        {
+         "draworder":"topdown",
+         "id":3,
+         "name":"props",
+         "objects":[
+                {
+                 "gid":1025,
+                 "height":32,
+                 "id":11,
+                 "name":"Prop3",
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
                  "width":32,
-                 "x":96.209640450207,
-                 "y":30.7104101809723
+                 "x":24.7534246575342,
+                 "y":79.3561643835616
+                }, 
+                {
+                 "gid":1025,
+                 "height":32,
+                 "id":12,
+                 "name":"Prop2",
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":32,
+                 "x":211.397260273973,
+                 "y":153.671232876712
+                }, 
+                {
+                 "gid":1025,
+                 "height":32,
+                 "id":13,
+                 "name":"Prop1",
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":32,
+                 "x":179.547945205479,
+                 "y":53.6712328767123
+                }, 
+                {
+                 "gid":1047,
+                 "height":32,
+                 "id":14,
+                 "name":"StarterChest",
+                 "properties":[
+                        {
+                         "name":"interactable",
+                         "type":"bool",
+                         "value":true
+                        }, 
+                        {
+                         "name":"loot_table",
+                         "type":"string",
+                         "value":"starter_chest"
+                        }],
+                 "rotation":0,
+                 "type":"Chest",
+                 "visible":true,
+                 "width":32,
+                 "x":132.287671232877,
+                 "y":109.493150684932
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -56,8 +136,8 @@
          "x":0,
          "y":0
         }],
- "nextlayerid":3,
- "nextobjectid":6,
+ "nextlayerid":4,
+ "nextobjectid":15,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.11.0",

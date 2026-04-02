@@ -92,6 +92,8 @@ namespace carrot {
         const assets::loaded_sprite_asset_t*                _test_sprite_vraden;
         const assets::loaded_sprite_asset_t*                _test_sprite_kelvara;
         const assets::loaded_tilemap_asset_t*               _test_tilemap_overworld{ nullptr };
+        const assets::tilemap_object_t*                     _test_player_spawn{ nullptr };
+        chlm::float2                                        _test_tilemap_origin{ 320.f, 96.f };
         assets::sprite_animator_t                           _vraden_animator;
         assets::sprite_animator_t                           _kelvara_animator;
     };

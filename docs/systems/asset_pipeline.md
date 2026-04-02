@@ -423,6 +423,9 @@ Planned uses include:
 
 * tile layers
 * object layers
+* visible placed props via tile objects
+* gameplay markers and authored scene anchors
+* hybrid objects using semantic type + custom properties
 * animated tiles
 * tilesets
 * map metadata

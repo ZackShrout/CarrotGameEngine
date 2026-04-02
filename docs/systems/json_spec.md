@@ -250,6 +250,14 @@ This prevents the engine from accidentally letting third-party tool formats dict
 
 Carrot should integrate with strong tools well, while still maintaining its own clear internal data model.
 
+For example, Tiled object layers may currently author:
+
+* invisible markers such as `PlayerSpawn` or `ExitNorth`
+* visible placed tile objects on layers such as `props`
+* hybrid objects that combine visual placement with semantic identity through:
+  * object `type`
+  * typed custom properties like `interactable`, `loot_table`, `target_map`, or `message_id`
+
 ---
 
 ## 9. JSON Philosophy in Carrot

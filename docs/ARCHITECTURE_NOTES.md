@@ -612,12 +612,21 @@ Planned use cases include:
 
 * tile layers
 * object layers
+* visible placed props via tile objects
+* gameplay markers such as spawn points, exits, and trigger regions
+* hybrid objects that are both visible and meaningful, such as chests, doors, and signs
 * map metadata
 * animated tiles
 * tilesets
 * larger world composition workflows
 
 This includes support for serious Tiled usage, not just trivial single-map import.
+
+Current practical direction already includes:
+
+* `markers`-style object layers for invisible authored scene meaning
+* `props`-style object layers for visible placed objects
+* hybrid object conventions driven by Tiled object `type` plus typed custom properties
 
 Important long-term direction includes support for:
 

@@ -9,7 +9,9 @@
 
 #include "RHI/Texture.h"
 
+#include <span>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 namespace carrot::assets {
@@ -27,6 +29,13 @@ namespace carrot::assets {
             return _tileset_textures;
         }
         [[nodiscard]] bool valid() const noexcept { return _record != nullptr; }
+        [[nodiscard]] const tilemap_layer_t* find_object_layer(std::string_view name) const noexcept;
+        [[nodiscard]] const tilemap_object_t* find_object_by_name(std::string_view name) const noexcept;
+        [[nodiscard]] const tilemap_object_t* find_first_object_by_type(std::string_view type) const noexcept;
+        [[nodiscard]] std::vector<const tilemap_object_t*> find_objects_by_type(std::string_view type) const;
+        [[nodiscard]] std::vector<const tilemap_object_t*> find_objects_by_type_in_layer(std::string_view layer_name,
+                                                                                          std::string_view type) const;
+        [[nodiscard]] std::span<const tilemap_object_t> objects_in_layer(std::string_view name) const noexcept;
 
         void add_tileset_texture(std::unique_ptr<rhi::rhi_texture_t> texture)
         {

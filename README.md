@@ -116,6 +116,9 @@ This is one of the reasons Carrot leans heavily into **JSON-based authored metad
   * Tiled-backed tilemap asset import
   * Carrot runtime tilemap structures preserving tile layers, object layers, and tilesets
   * first orthogonal tile-layer rendering through the renderer
+  * visible Tiled tile-object rendering for authored `props` layers
+  * runtime object-layer queries for named markers and semantic object types
+  * early hybrid object support using Tiled object `type` plus typed custom properties
 * Engine-owned debug text / overlay support for runtime renderer diagnostics
 * Future direction includes:
 

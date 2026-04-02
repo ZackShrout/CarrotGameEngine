@@ -209,83 +209,127 @@ namespace carrot::renderer {
         const assets::tilemap_asset_t& tilemap{ info.tilemap->tilemap() };
         const auto& tilesets{ tilemap.tilesets() };
         const auto& textures{ info.tilemap->tileset_textures() };
+        const auto resolve_tileset_index = [&tilesets](const uint32_t gid) -> size_t {
+            for (size_t i{ 0 }; i < tilesets.size(); ++i)
+            {
+                const uint32_t first_gid{ tilesets[i].first_gid };
+                const uint32_t next_first_gid{
+                    (i + 1u) < tilesets.size() ? tilesets[i + 1u].first_gid : std::numeric_limits<uint32_t>::max()
+                };
+
+                if (gid >= first_gid && gid < next_first_gid)
+                    return i;
+            }
+
+            return static_cast<size_t>(-1);
+        };
+        const auto populate_tile_uvs = [&tilesets](const size_t tileset_index,
+                                                   const uint32_t gid,
+                                                   textured_quad_draw_info_t& quad) -> bool {
+            if (tileset_index == static_cast<size_t>(-1))
+                return false;
+
+            const assets::tilemap_tileset_t& tileset{ tilesets[tileset_index] };
+            if (tileset.columns == 0 || tileset.tile_width == 0 || tileset.tile_height == 0 ||
+                tileset.image_width == 0 || tileset.image_height == 0)
+            {
+                return false;
+            }
+
+            const uint32_t local_tile_index{ gid - tileset.first_gid };
+            const uint32_t tile_u_index{ local_tile_index % tileset.columns };
+            const uint32_t tile_v_index{ local_tile_index / tileset.columns };
+
+            quad.u0 = static_cast<float>(tile_u_index * tileset.tile_width) /
+                      static_cast<float>(tileset.image_width);
+            quad.v0 = static_cast<float>(tile_v_index * tileset.tile_height) /
+                      static_cast<float>(tileset.image_height);
+            quad.u1 = static_cast<float>((tile_u_index + 1u) * tileset.tile_width) /
+                      static_cast<float>(tileset.image_width);
+            quad.v1 = static_cast<float>((tile_v_index + 1u) * tileset.tile_height) /
+                      static_cast<float>(tileset.image_height);
+
+            return true;
+        };
 
         for (const assets::tilemap_layer_t& layer : tilemap.layers())
         {
-            if (!layer.visible || layer.kind != assets::tilemap_layer_kind_t::tile)
+            if (!layer.visible)
                 continue;
 
-            for (uint32_t row{ 0 }; row < layer.height; ++row)
+            if (layer.kind == assets::tilemap_layer_kind_t::tile)
             {
-                for (uint32_t col{ 0 }; col < layer.width; ++col)
+                for (uint32_t row{ 0 }; row < layer.height; ++row)
                 {
-                    const uint32_t cell_index{ row * layer.width + col };
-                    if (cell_index >= layer.gids.size())
-                        continue;
-
-                    const uint32_t gid{ layer.gids[cell_index] };
-                    if (gid == 0)
-                        continue;
-
-                    size_t tileset_index{ static_cast<size_t>(-1) };
-                    for (size_t i{ 0 }; i < tilesets.size(); ++i)
+                    for (uint32_t col{ 0 }; col < layer.width; ++col)
                     {
-                        const uint32_t first_gid{ tilesets[i].first_gid };
-                        const uint32_t next_first_gid{
-                            (i + 1u) < tilesets.size() ? tilesets[i + 1u].first_gid : std::numeric_limits<uint32_t>::max()
-                        };
+                        const uint32_t cell_index{ row * layer.width + col };
+                        if (cell_index >= layer.gids.size())
+                            continue;
 
-                        if (gid >= first_gid && gid < next_first_gid)
+                        const uint32_t gid{ layer.gids[cell_index] };
+                        if (gid == 0)
+                            continue;
+
+                        const size_t tileset_index{ resolve_tileset_index(gid) };
+                        if (tileset_index == static_cast<size_t>(-1) ||
+                            tileset_index >= textures.size() ||
+                            !textures[tileset_index])
                         {
-                            tileset_index = i;
-                            break;
+                            continue;
                         }
+
+                        textured_quad_draw_info_t tile_quad{ };
+                        tile_quad.texture = textures[tileset_index].get();
+                        tile_quad.x = info.origin.x + (static_cast<float>(col) * static_cast<float>(tilemap.tile_width()));
+                        tile_quad.y = info.origin.y + (static_cast<float>(row) * static_cast<float>(tilemap.tile_height()));
+                        tile_quad.width = static_cast<float>(tilemap.tile_width());
+                        tile_quad.height = static_cast<float>(tilemap.tile_height());
+                        tile_quad.layer = info.layer;
+                        tile_quad.order_in_layer = info.order_in_layer;
+                        tile_quad.color = info.color;
+                        tile_quad.sampler_preset = info.sampler_preset;
+
+                        if (!populate_tile_uvs(tileset_index, gid, tile_quad))
+                            continue;
+
+                        draw_textured_quad(tile_quad);
                     }
-
-                    if (tileset_index == static_cast<size_t>(-1) ||
-                        tileset_index >= textures.size() ||
-                        !textures[tileset_index])
-                    {
-                        continue;
-                    }
-
-                    const assets::tilemap_tileset_t& tileset{ tilesets[tileset_index] };
-                    if (tileset.columns == 0 || tileset.tile_width == 0 || tileset.tile_height == 0 ||
-                        tileset.image_width == 0 || tileset.image_height == 0)
-                    {
-                        continue;
-                    }
-
-                    const uint32_t local_tile_index{ gid - tileset.first_gid };
-                    const uint32_t tile_u_index{ local_tile_index % tileset.columns };
-                    const uint32_t tile_v_index{ local_tile_index / tileset.columns };
-
-                    const float u0{ static_cast<float>(tile_u_index * tileset.tile_width) /
-                                    static_cast<float>(tileset.image_width) };
-                    const float v0{ static_cast<float>(tile_v_index * tileset.tile_height) /
-                                    static_cast<float>(tileset.image_height) };
-                    const float u1{ static_cast<float>((tile_u_index + 1u) * tileset.tile_width) /
-                                    static_cast<float>(tileset.image_width) };
-                    const float v1{ static_cast<float>((tile_v_index + 1u) * tileset.tile_height) /
-                                    static_cast<float>(tileset.image_height) };
-
-                    textured_quad_draw_info_t tile_quad{ };
-                    tile_quad.texture = textures[tileset_index].get();
-                    tile_quad.x = info.origin.x + (static_cast<float>(col) * static_cast<float>(tilemap.tile_width()));
-                    tile_quad.y = info.origin.y + (static_cast<float>(row) * static_cast<float>(tilemap.tile_height()));
-                    tile_quad.width = static_cast<float>(tilemap.tile_width());
-                    tile_quad.height = static_cast<float>(tilemap.tile_height());
-                    tile_quad.u0 = u0;
-                    tile_quad.v0 = v0;
-                    tile_quad.u1 = u1;
-                    tile_quad.v1 = v1;
-                    tile_quad.layer = info.layer;
-                    tile_quad.order_in_layer = info.order_in_layer;
-                    tile_quad.color = info.color;
-                    tile_quad.sampler_preset = info.sampler_preset;
-
-                    draw_textured_quad(tile_quad);
                 }
+            }
+
+            if (layer.kind != assets::tilemap_layer_kind_t::object)
+                continue;
+
+            int32_t object_order{ info.order_in_layer };
+            for (const assets::tilemap_object_t& object : layer.objects)
+            {
+                if (!object.visible || object.gid == 0)
+                    continue;
+
+                const size_t tileset_index{ resolve_tileset_index(object.gid) };
+                if (tileset_index == static_cast<size_t>(-1) ||
+                    tileset_index >= textures.size() ||
+                    !textures[tileset_index])
+                {
+                    continue;
+                }
+
+                textured_quad_draw_info_t object_quad{ };
+                object_quad.texture = textures[tileset_index].get();
+                object_quad.x = info.origin.x + object.x;
+                object_quad.y = info.origin.y + object.y - object.height;
+                object_quad.width = object.width;
+                object_quad.height = object.height;
+                object_quad.layer = info.layer;
+                object_quad.order_in_layer = object_order++;
+                object_quad.color = info.color;
+                object_quad.sampler_preset = info.sampler_preset;
+
+                if (!populate_tile_uvs(tileset_index, object.gid, object_quad))
+                    continue;
+
+                draw_textured_quad(object_quad);
             }
         }
     }

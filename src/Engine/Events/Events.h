@@ -7,8 +7,8 @@
 
 #include "Input/KeyCodes.h"
 
-#include <cstdint>
 #include <chlm/CarrotHLM.h>
+#include <cstdint>
 
 namespace carrot::events {
     // ───────────────────────────────────────────────

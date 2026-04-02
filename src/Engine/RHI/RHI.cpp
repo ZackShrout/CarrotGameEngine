@@ -6,8 +6,8 @@
 #include "Core/Pch.h"
 
 #include "RHI/RHI.h"
+
 #include "Backends/Vulkan/VulkanRHIContext.h"
-#include "Core/CoreDefines.h"
 
 #if defined(CARROT_PLATFORM_COCOA)
 #include "Backends/Metal/MetalRHIContext.h"

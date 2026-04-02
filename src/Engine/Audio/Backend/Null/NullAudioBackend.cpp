@@ -7,11 +7,6 @@
 
 #include "NullAudioBackend.h"
 
-#include "../../../Core/CoreDefines.h"
-
-#include <chrono>
-#include <vector>
-
 namespace carrot::audio {
     bool null_audio_backend_t::init(
         audio_callback_t* callback,

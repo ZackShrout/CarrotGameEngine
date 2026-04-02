@@ -9,10 +9,6 @@
 
 #include "IO/VirtualFileSystem.h"
 
-#include <algorithm>
-#include <array>
-#include <filesystem>
-
 namespace carrot::assets {
     namespace {
         [[nodiscard]] bool ends_with(const std::string_view value, const std::string_view suffix) noexcept

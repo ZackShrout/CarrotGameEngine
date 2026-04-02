@@ -8,8 +8,6 @@
 #include "ShaderWatcher.h"
 
 #include <ShaderToolsConfig.h>
-#include <chrono>
-#include <filesystem>
 
 namespace carrot::hot_reload {
     namespace fs = std::filesystem;

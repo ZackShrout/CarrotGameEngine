@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include "RHI/Sampler.h"
 #include "MetalCommon.h"
+#include "RHI/Sampler.h"
 
 namespace carrot::rhi::metal {
     class metal_sampler_t final : public rhi_sampler_t

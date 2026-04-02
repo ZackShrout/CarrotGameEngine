@@ -7,8 +7,6 @@
 
 #include "JsonLexer.h"
 
-#include <cctype>
-
 namespace carrot::utils::json {
     token_t lexer_t::next_token()
     {

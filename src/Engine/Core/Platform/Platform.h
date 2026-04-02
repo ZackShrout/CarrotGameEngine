@@ -8,6 +8,7 @@
 #include <cstdint>
 
 #ifdef CARROT_PLATFORM_WAYLAND
+
 struct wl_display;
 struct wl_surface;
 #endif // #ifdef CARROT_PLATFORM_WAYLAND

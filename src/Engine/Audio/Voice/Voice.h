@@ -5,16 +5,15 @@
 
 #pragma once
 
+#include "Audio/Core/AudioCore.h"
 #include "Audio/DSP/Envelope.h"
+#include "Audio/DSP/Resampler.h"
 #include "Audio/Mixer/AudioBus.h"
 #include "Audio/Sample/AudioSample.h"
-#include "Audio/Core/AudioCore.h"
+#include "Audio/Streaming/AudioStream.h"
+#include "VoiceHandle.h"
 
 #include <chlm/Core.h>
-
-#include "VoiceHandle.h"
-#include "Audio/DSP/Resampler.h"
-#include "Audio/Streaming/AudioStream.h"
 
 namespace carrot::audio {
     /**

@@ -6,11 +6,10 @@
 #pragma once
 
 #include "JsonValueView.h"
+#include "Utils/Assert.h"
 
-#include "../../../Core/CoreDefines.h"
-
-#include <string_view>
 #include <span>
+#include <string_view>
 
 namespace carrot::utils::json {
     struct json_object_entry_t;

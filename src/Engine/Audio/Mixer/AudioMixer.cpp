@@ -7,8 +7,6 @@
 
 #include "AudioMixer.h"
 
-#include <cstring>
-
 #include "Audio/DSP/Pan.h"
 
 namespace carrot::audio {

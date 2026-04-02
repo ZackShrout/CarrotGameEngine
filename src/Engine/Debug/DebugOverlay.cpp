@@ -8,17 +8,12 @@
 #include "DebugOverlay.h"
 
 #include "IO/VirtualFileSystem.h"
-#include "Renderer/Draw/TexturedQuadTypes.h"
-#include "Renderer/Renderer.h"
 #include "RHI/RHI.h"
 #include "RHI/Texture.h"
+#include "Renderer/Draw/TexturedQuadTypes.h"
+#include "Renderer/Renderer.h"
 
-#include <array>
 #include <cstdarg>
-#include <cstdio>
-#include <fstream>
-#include <vector>
-
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb_truetype.h>
 

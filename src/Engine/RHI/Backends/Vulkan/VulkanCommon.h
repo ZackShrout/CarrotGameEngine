@@ -7,8 +7,8 @@
 
 #include "Core/CoreDefines.h"
 
-#include <vulkan/vulkan.h>
 #include <chlm/CarrotHLM.h>
+#include <vulkan/vulkan.h>
 
 namespace carrot::rhi::vulkan {
     inline const char* result_to_string(const VkResult result)

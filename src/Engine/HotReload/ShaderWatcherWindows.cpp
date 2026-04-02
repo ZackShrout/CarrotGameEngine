@@ -5,17 +5,9 @@
 
 #include "Core/Pch.h"
 
-//
-// Created by zshrout on 1/24/26.
-// Copyright (c) 2026 BunnySoft. All rights reserved.
-//
-
 #include "ShaderWatcher.h"
 
 #include "Core/Logger.h"
-
-#include <filesystem>
-#include <cstring>
 
 namespace carrot::hot_reload {
     namespace {

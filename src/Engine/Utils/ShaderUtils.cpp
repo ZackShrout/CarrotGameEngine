@@ -7,8 +7,6 @@
 
 #include "ShaderUtils.h"
 
-#include <fstream>
-
 std::vector<uint32_t> load_spv(const std::string& path)
 {
     std::ifstream file(path, std::ios::ate | std::ios::binary);

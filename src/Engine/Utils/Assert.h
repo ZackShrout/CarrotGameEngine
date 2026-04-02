@@ -5,9 +5,8 @@
 
 #pragma once
 
-#include "DebugBreak.h"
 #include "Core/Logger.h"
-
+#include "DebugBreak.h"
 
 namespace carrot {
 #ifdef _DEBUG

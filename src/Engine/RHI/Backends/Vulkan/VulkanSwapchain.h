@@ -5,9 +5,9 @@
 
 #pragma once
 
+#include "RHI/Swapchain.h"
 #include "VulkanCommon.h"
 #include "VulkanCore.h"
-#include "RHI/Swapchain.h"
 
 namespace carrot::rhi::vulkan {
     class vulkan_device_t;

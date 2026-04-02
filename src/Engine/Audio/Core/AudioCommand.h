@@ -5,13 +5,13 @@
 
 #pragma once
 
-#include <cstdint>
-#include <type_traits>
-
 #include "Audio/Mixer/AudioBus.h"
 #include "Audio/Sample/AudioSample.h"
 #include "Audio/Voice/Voice.h"
 #include "Audio/Voice/VoiceHandle.h"
+
+#include <cstdint>
+#include <type_traits>
 
 namespace carrot::audio {
     /**

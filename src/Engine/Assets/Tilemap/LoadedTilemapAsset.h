@@ -5,12 +5,11 @@
 
 #pragma once
 
+#include "RHI/Texture.h"
 #include "TilemapAsset.h"
 
-#include "RHI/Texture.h"
-
-#include <span>
 #include <memory>
+#include <span>
 #include <string_view>
 #include <vector>
 

@@ -7,11 +7,9 @@
 
 #include "VulkanPipeline.h"
 
-#include "VulkanUtils.h"
 #include "Assets/Shaders/ShaderFileProvider.h"
 #include "Utils/File/FileUtils.h"
-
-#include <fstream>
+#include "VulkanUtils.h"
 
 namespace carrot::rhi::vulkan {
     // PUBLIC

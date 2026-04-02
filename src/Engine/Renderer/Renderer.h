@@ -5,11 +5,12 @@
 
 #pragma once
 
-#include "EngineConfig.h"
 #include "Assets/Shaders/VFSShaderFileProvider.h"
+#include "Camera/Camera2D.h"
 #include "Core/Module.h"
 #include "Draw/TexturedQuadBatch.h"
 #include "Draw/TexturedQuadTypes.h"
+#include "EngineConfig.h"
 #include "Primitives/QuadVertex.h"
 #include "RHI/RHI.h"
 
@@ -17,8 +18,6 @@
 #include <memory>
 #include <string_view>
 #include <vector>
-
-#include "Camera/Camera2D.h"
 
 namespace carrot::io {
     class virtual_file_system_t;

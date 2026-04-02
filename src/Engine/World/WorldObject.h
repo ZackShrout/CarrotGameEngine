@@ -5,12 +5,12 @@
 
 #pragma once
 
+#include "Assets/Tilemap/TilemapAsset.h"
 #include "Components/SpriteAnimatorComponent.h"
 #include "Components/SpriteComponent.h"
 #include "Components/TileObjectComponent.h"
 #include "Components/TilemapComponent.h"
 #include "Components/TransformComponent.h"
-#include "Assets/Tilemap/TilemapAsset.h"
 
 #include <optional>
 #include <string>

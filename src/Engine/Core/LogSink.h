@@ -7,13 +7,13 @@
 
 #include "Logger.h"
 
-#include <string>
-#include <memory>
-#include <thread>
+#include <atomic>
 #include <condition_variable>
+#include <memory>
 #include <mutex>
 #include <queue>
-#include <atomic>
+#include <string>
+#include <thread>
 
 namespace carrot::core {
     class log_sink_t

@@ -3,11 +3,13 @@
 #ifndef XDG_SHELL_CLIENT_PROTOCOL_H
 #define XDG_SHELL_CLIENT_PROTOCOL_H
 
-#include <stdint.h>
-#include <stddef.h>
 #include "wayland-client.h"
 
+#include <stddef.h>
+#include <stdint.h>
+
 #ifdef  __cplusplus
+
 extern "C" {
 #endif
 

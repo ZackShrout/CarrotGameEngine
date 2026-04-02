@@ -9,15 +9,15 @@
 
 #include "MetalBuffer.h"
 #include "MetalCommandQueue.h"
-#include "MetalDevice.h"
 #include "MetalDescriptorEncoding.h"
+#include "MetalDevice.h"
 #include "MetalLayerBridge.h"
 #include "MetalSampler.h"
 #include "MetalSwapchain.h"
-#include "Pipelines/MetalTexturedQuadPipeline.h"
 #include "MetalTexture.h"
-#include "Renderer/Draw/TexturedQuadCameraUniform.h"
+#include "Pipelines/MetalTexturedQuadPipeline.h"
 #include "RHI/SamplerPresets.h"
+#include "Renderer/Draw/TexturedQuadCameraUniform.h"
 #include "Window/Window.h"
 
 namespace carrot::rhi::metal {

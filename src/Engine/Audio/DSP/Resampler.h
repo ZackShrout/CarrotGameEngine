@@ -5,11 +5,11 @@
 
 #pragma once
 
-#include <cstdint>
-#include <cmath>
-
 #include "Core/Logger.h"
+
 #include <chlm/CarrotHLM.h>
+#include <cmath>
+#include <cstdint>
 
 namespace carrot::audio {
     /**

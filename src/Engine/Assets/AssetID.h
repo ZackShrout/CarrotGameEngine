@@ -6,8 +6,8 @@
 #pragma once
 
 #include <cstdint>
-#include <string_view>
 #include <string>
+#include <string_view>
 
 namespace carrot::assets {
     using asset_id_t = uint64_t;

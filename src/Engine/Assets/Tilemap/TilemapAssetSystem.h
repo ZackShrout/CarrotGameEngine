@@ -6,9 +6,8 @@
 #pragma once
 
 #include "LoadedTilemapAsset.h"
-#include "TilemapAssetRegistry.h"
-
 #include "RHI/RHI.h"
+#include "TilemapAssetRegistry.h"
 
 #include <string_view>
 #include <unordered_map>

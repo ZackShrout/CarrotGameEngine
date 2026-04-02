@@ -5,9 +5,9 @@
 
 #pragma once
 
-#include "Audio/Sample/WavCore.h"
-#include "Audio/DSP/Resampler.h"
 #include "Audio/Core/AudioCore.h"
+#include "Audio/DSP/Resampler.h"
+#include "Audio/Sample/WavCore.h"
 
 #include <atomic>
 #include <thread>

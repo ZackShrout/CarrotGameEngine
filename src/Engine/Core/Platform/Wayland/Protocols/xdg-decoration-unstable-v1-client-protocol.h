@@ -3,11 +3,13 @@
 #ifndef XDG_DECORATION_UNSTABLE_V1_CLIENT_PROTOCOL_H
 #define XDG_DECORATION_UNSTABLE_V1_CLIENT_PROTOCOL_H
 
-#include <stdint.h>
-#include <stddef.h>
 #include "wayland-client.h"
 
+#include <stddef.h>
+#include <stdint.h>
+
 #ifdef  __cplusplus
+
 extern "C" {
 #endif
 

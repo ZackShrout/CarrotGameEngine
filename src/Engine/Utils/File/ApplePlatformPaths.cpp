@@ -8,7 +8,6 @@
 #include "PlatformPaths.h"
 
 #include <mach-o/dyld.h>
-#include <vector>
 
 namespace carrot::utils::file {
     [[nodiscard]] std::filesystem::path executable_path() noexcept

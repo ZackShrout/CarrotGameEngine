@@ -6,11 +6,10 @@
 #pragma once
 
 #include "../../Core/CoreDefines.h"
+#include "FxChain.h"
 
 #include <cstdint>
 #include <string_view>
-
-#include "FxChain.h"
 
 namespace carrot::audio {
     /**

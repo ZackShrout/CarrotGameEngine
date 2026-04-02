@@ -5,13 +5,12 @@
 
 #pragma once
 
-#include "WavStreamDecoder.h"
-#include "Audio/Core/AudioRingBuffer.h"
 #include "Audio/Core/AudioCore.h"
+#include "Audio/Core/AudioRingBuffer.h"
+#include "Audio/Voice/VoiceHandle.h"
+#include "WavStreamDecoder.h"
 
 #include <atomic>
-
-#include "Audio/Voice/VoiceHandle.h"
 
 namespace carrot::audio {
     /**

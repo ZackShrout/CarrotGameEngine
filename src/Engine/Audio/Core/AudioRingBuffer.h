@@ -7,8 +7,10 @@
 
 #include "Utils/Assert.h"
 
-#include <cstdint>
 #include <atomic>
+#include <chlm/CarrotHLM.h>
+#include <cstdint>
+#include <cstring>
 
 namespace carrot::audio {
     struct audio_ring_buffer_debug_t

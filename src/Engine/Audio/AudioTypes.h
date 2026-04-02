@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include <cstdint>
 #include <chlm/CarrotHLM.h>
+#include <cstdint>
 
 namespace carrot::audio {
     /**

@@ -8,8 +8,8 @@
 #include "VulkanTexturedQuadPipeline.h"
 
 #include "Assets/Shaders/ShaderFileProvider.h"
-#include "Renderer/Primitives/QuadVertex.h"
 #include "RHI/Backends/Vulkan/VulkanUtils.h"
+#include "Renderer/Primitives/QuadVertex.h"
 
 namespace carrot::rhi::vulkan {
     namespace {

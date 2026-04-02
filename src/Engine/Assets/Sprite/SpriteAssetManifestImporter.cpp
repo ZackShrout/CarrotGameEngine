@@ -8,10 +8,9 @@
 #include "SpriteAssetManifestImporter.h"
 
 #include "AsepriteSpriteAssetImporter.h"
-#include "NativeSpriteAssetImporter.h"
-
 #include "Assets/AssetID.h"
 #include "IO/VirtualFileSystem.h"
+#include "NativeSpriteAssetImporter.h"
 #include "Utils/JSON/Public/JsonDocument.h"
 
 namespace carrot::assets {

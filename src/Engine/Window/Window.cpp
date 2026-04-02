@@ -9,9 +9,9 @@
 
 #ifdef CARROT_PLATFORM_WIN32
 #include "Core/Platform/Win32/Win32Window.h"
-#elifdef CARROT_PLATFORM_WAYLAND
+#elif defined(CARROT_PLATFORM_WAYLAND)
 #include "Core/Platform/Wayland/WaylandWindow.h"
-#elifdef CARROT_PLATFORM_COCOA
+#elif defined(CARROT_PLATFORM_COCOA)
 #include "Core/Platform/Cocoa/CocoaWindow.h"
 #endif
 
@@ -22,9 +22,9 @@ namespace carrot::window {
     {
 #ifdef CARROT_PLATFORM_WIN32
         g_primary_window = std::make_unique<core::platform::win32_window_t>(width, height, title.data());
-#elifdef CARROT_PLATFORM_WAYLAND
+#elif defined(CARROT_PLATFORM_WAYLAND)
         g_primary_window = std::make_unique<core::platform::wayland_window_t>(width, height, title.data());
-#elifdef CARROT_PLATFORM_COCOA
+#elif defined(CARROT_PLATFORM_COCOA)
         g_primary_window = std::make_unique<core::platform::cocoa_window_t>(width, height, title.data());
 #else
         LOG_CORE_FATAL("Could not create primary window - invalid platform.");

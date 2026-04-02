@@ -5,17 +5,16 @@
 
 #pragma once
 
-#include "AudioBus.h"
 #include "Audio/Core/AudioCore.h"
-
-#include <array>
-
 #include "Audio/DSP/Baxandall.h"
 #include "Audio/DSP/BiquadFilter.h"
 #include "Audio/DSP/Limiter.h"
 #include "Audio/DSP/Saturator.h"
 #include "Audio/DSP/SchroederReverb.h"
 #include "Audio/DSP/VcaBusComp.h"
+#include "AudioBus.h"
+
+#include <array>
 
 namespace carrot::audio {
     /**

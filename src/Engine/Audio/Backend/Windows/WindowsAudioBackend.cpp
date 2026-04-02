@@ -12,6 +12,7 @@
 #include <avrt.h>
 
 #define WASAPI_CALL(x)                                                      \
+
     do {                                                                    \
         HRESULT _hr = (x);                                                  \
         if (FAILED(_hr)) {                                                  \

@@ -5,11 +5,10 @@
 
 #pragma once
 
-#include "JsonValueView.h"
-#include "JsonObjectView.h"
-#include "JsonArrayView.h"
-#include "../../../Core/CoreDefines.h"
 #include "Core/Memory/Arena.h"
+#include "JsonArrayView.h"
+#include "JsonObjectView.h"
+#include "JsonValueView.h"
 
 namespace carrot::utils::json {
     struct json_value_t;

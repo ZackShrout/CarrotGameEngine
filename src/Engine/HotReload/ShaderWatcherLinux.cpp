@@ -9,8 +9,6 @@
 
 #include <sys/inotify.h>
 #include <unistd.h>
-#include <filesystem>
-#include <cstring>
 
 namespace carrot::hot_reload {
     namespace {

@@ -10,6 +10,7 @@
 #include "Input/PlatformKeyMapping.h"
 
 #include <dwmapi.h>
+
 #pragma comment(lib, "dwmapi.lib")
 
 namespace carrot::core::platform {

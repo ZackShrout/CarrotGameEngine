@@ -5,10 +5,9 @@
 
 #pragma once
 
-#include "Platform.h"
 #include "Events/Events.h"
+#include "Platform.h"
 #include "Utils/MulticastDelegate.h"
-
 
 namespace carrot::core::platform {
     class window_t

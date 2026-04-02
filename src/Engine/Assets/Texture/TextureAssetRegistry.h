@@ -5,9 +5,9 @@
 
 #pragma once
 
-#include "TextureAsset.h"
 #include "Assets/AssetID.h"
 #include "Assets/AssetRegistry.h"
+#include "TextureAsset.h"
 
 #include <string_view>
 #include <unordered_map>

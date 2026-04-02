@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include <string>
 #include <functional>
+#include <string>
 
 namespace carrot::hot_reload {
     using shader_reload_callback_t = std::function<void(const std::string& spv_path)>;

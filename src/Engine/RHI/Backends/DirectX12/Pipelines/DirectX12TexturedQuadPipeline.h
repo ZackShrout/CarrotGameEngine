@@ -5,10 +5,10 @@
 
 #pragma once
 
-#include "Renderer/Draw/TexturedQuadBatch.h"
+#include "RHI/Backends/DirectX12/DirectX12Common.h"
 #include "RHI/RHI.h"
 #include "RHI/Sampler.h"
-#include "RHI/Backends/DirectX12/DirectX12Common.h"
+#include "Renderer/Draw/TexturedQuadBatch.h"
 
 #include <span>
 

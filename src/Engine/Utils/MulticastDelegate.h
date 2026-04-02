@@ -5,11 +5,11 @@
 
 #pragma once
 
-#include "Utils/Assert.h"
 #include "Core/CoreDefines.h"
+#include "Utils/Assert.h"
 
-#include <vector>
 #include <functional>
+#include <vector>
 
 namespace carrot::utils {
     template<typename T>

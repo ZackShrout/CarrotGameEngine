@@ -9,8 +9,6 @@
 
 #include "Assets/AssetID.h"
 
-#include <cctype>
-
 namespace carrot::assets {
     namespace {
         [[nodiscard]] std::string normalize_identifier(const std::string_view input)

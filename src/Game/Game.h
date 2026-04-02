@@ -5,9 +5,9 @@
 
 #pragma once
 
-#include <CarrotEngine.h>
-
 #include "SandboxInteractionController.h"
+
+#include <CarrotEngine.h>
 
 namespace sandbox {
     class sandbox_t : public carrot::core::ce_application_t

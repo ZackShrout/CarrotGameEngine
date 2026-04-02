@@ -7,8 +7,9 @@
 
 #include "DspUnit.h"
 
-#include <cstring>
 #include <algorithm>
+#include <chlm/CarrotHLM.h>
+#include <cstring>
 
 namespace carrot::audio {
     class dsp_schroeder_reverb_t final : public dsp_unit_t

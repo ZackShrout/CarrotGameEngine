@@ -5,13 +5,13 @@
 
 #pragma once
 
+#include <cstdint>
 #include <format>
 #include <memory>
 #include <mutex>
 #include <source_location>
 #include <string>
 #include <vector>
-#include <cstdint>
 
 namespace carrot::core {
     struct log_message;

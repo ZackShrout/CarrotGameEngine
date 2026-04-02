@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include "SpriteAssetRegistry.h"
 #include "LoadedSpriteAsset.h"
+#include "SpriteAssetRegistry.h"
 
 #include <string_view>
 #include <unordered_map>

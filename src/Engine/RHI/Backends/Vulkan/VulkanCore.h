@@ -8,6 +8,7 @@
 #include "VulkanCommon.h"
 
 #include <array>
+#include <vector>
 
 namespace carrot::rhi::vulkan {
     constexpr uint32_t k_max_frames_in_flight{ 3 };

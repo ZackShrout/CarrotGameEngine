@@ -7,13 +7,13 @@
 
 #include "WaylandWindow.h"
 
-#include "Protocols/xdg-shell-client-protocol.h"
-#include "Protocols/xdg-decoration-unstable-v1-client-protocol.h"
 #include "Events/Events.h"
 #include "Input/PlatformKeyMapping.h"
+#include "Protocols/xdg-decoration-unstable-v1-client-protocol.h"
+#include "Protocols/xdg-shell-client-protocol.h"
 
-#include <wayland-client-protocol.h>
 #include <sys/mman.h>
+#include <wayland-client-protocol.h>
 
 namespace carrot::core::platform {
     namespace {

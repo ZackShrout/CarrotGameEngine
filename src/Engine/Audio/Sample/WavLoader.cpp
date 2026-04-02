@@ -7,14 +7,11 @@
 
 #include "WavLoader.h"
 
-#include "WavCore.h"
 #include "Audio/Core/AudioCore.h"
 #include "Audio/DSP/Resampler.h"
+#include "WavCore.h"
 
-#include <cmath>
-#include <cstdio>
 #include <cstdlib>
-#include <cstring>
 
 namespace carrot::audio {
     audio_sample_t* load_wav_file(const std::string_view path)

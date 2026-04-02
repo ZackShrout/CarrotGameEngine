@@ -7,8 +7,6 @@
 
 #include "FileUtils.h"
 
-#include <fstream>
-
 namespace carrot::utils::file {
     namespace {
         std::unordered_map<std::string, std::string, std::hash<std::string>, std::equal_to<>> path_cache;

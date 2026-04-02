@@ -5,7 +5,14 @@
 
 #pragma once
 
+#include "Core/Logger.h"
 #include "Utils/File/FileUtils.h"
+
+#include <cstdint>
+#include <cstring>
+#include <filesystem>
+#include <optional>
+#include <vector>
 
 namespace carrot::rhi::vulkan {
     [[nodiscard]] inline std::optional<std::vector<uint32_t>> load_spv_file(const std::filesystem::path& path) noexcept

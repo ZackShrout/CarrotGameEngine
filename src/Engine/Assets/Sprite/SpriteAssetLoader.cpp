@@ -6,6 +6,7 @@
 #include "Core/Pch.h"
 
 #include "SpriteAssetLoader.h"
+
 #include "Assets/Texture/TextureAssetSystem.h"
 
 namespace carrot::assets {

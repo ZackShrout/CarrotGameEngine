@@ -7,13 +7,13 @@
 
 #include "Assets/AssetID.h"
 #include "Audio/AudioTypes.h"
-#include "Audio/Sample/AudioSample.h"
 #include "Audio/Mixer/AudioBus.h"
+#include "Audio/Sample/AudioSample.h"
 
 #include <cstdint>
 #include <filesystem>
-#include <string>
 #include <memory>
+#include <string>
 
 namespace carrot::assets {
     /**

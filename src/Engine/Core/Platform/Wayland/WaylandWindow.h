@@ -5,9 +5,9 @@
 
 #pragma once
 
-#include "chlm/CarrotHLM.h"
 #include "Core/Platform/Window.h"
 #include "Input/KeyCodes.h"
+#include "chlm/CarrotHLM.h"
 
 #include <wayland-client.h>
 #include <xkbcommon/xkbcommon.h>

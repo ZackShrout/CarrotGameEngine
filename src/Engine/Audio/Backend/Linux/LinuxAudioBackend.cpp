@@ -7,9 +7,9 @@
 
 #include "LinuxAudioBackend.h"
 
-#include <pulse/simple.h>
-#include <pulse/error.h>
 #include <alsa/asoundlib.h>
+#include <pulse/error.h>
+#include <pulse/simple.h>
 
 namespace carrot::audio {
     namespace {

@@ -7,6 +7,7 @@
 
 #include "Core/CoreDefines.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <utility>
 

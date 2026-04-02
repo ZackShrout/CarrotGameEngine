@@ -8,11 +8,11 @@
 #include "DirectX12TexturedQuadPipeline.h"
 
 #include "Assets/Shaders/ShaderFileProvider.h"
-#include "Renderer/Primitives/QuadVertex.h"
-#include "RHI/SamplerPresets.h"
 #include "RHI/Backends/DirectX12/DirectX12Buffer.h"
 #include "RHI/Backends/DirectX12/DirectX12Core.h"
 #include "RHI/Backends/DirectX12/DirectX12Texture.h"
+#include "RHI/SamplerPresets.h"
+#include "Renderer/Primitives/QuadVertex.h"
 #include "Utils/File/FileUtils.h"
 
 namespace carrot::rhi::dx12 {

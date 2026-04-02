@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include "VulkanCommon.h"
 #include "RHI/CommandQueue.h"
+#include "VulkanCommon.h"
 
 namespace carrot::rhi::vulkan {
 

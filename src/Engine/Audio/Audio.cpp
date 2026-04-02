@@ -6,9 +6,10 @@
 #include "Core/Pch.h"
 
 #include "Audio.h"
-#include "AudioModule.h"
+
 #include "Assets/AssetManager.h"
 #include "Assets/AssetService.h"
+#include "AudioModule.h"
 
 namespace carrot::audio {
     namespace {

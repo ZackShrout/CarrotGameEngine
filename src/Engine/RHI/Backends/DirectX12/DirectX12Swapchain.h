@@ -5,11 +5,11 @@
 
 #pragma once
 
-#include <array>
-
 #include "DirectX12Common.h"
 #include "DirectX12Core.h"
 #include "RHI/Swapchain.h"
+
+#include <array>
 
 namespace carrot::rhi::dx12 {
     class dx12_swapchain_t final : public rhi_swapchain_t

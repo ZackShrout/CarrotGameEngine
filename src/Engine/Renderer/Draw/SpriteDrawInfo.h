@@ -8,8 +8,8 @@
 #include "QuadSamplerPreset.h"
 #include "RenderLayer.h"
 
-#include <cstdint>
 #include <chlm/CarrotHLM.h>
+#include <cstdint>
 
 namespace carrot::assets {
     struct sprite_frame_t;

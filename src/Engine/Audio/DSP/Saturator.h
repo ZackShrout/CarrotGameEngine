@@ -7,9 +7,9 @@
 
 #include "DspUnit.h"
 
+#include <algorithm>
 #include <chlm/CarrotHLM.h>
 #include <cmath>
-#include <algorithm>
 
 namespace carrot::audio {
     /**

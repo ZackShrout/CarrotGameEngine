@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include "AudioAssetRegistry.h"
 #include "AudioAsset.h"
+#include "AudioAssetRegistry.h"
 
 #include <string_view>
 #include <unordered_map>

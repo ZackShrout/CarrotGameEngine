@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "Assets/AssetID.h"
 #include "Assets/Sprite/SpriteAnimation.h"
 #include "Assets/Sprite/SpriteFrame.h"
 
@@ -15,8 +16,6 @@
 #include <string_view>
 #include <unordered_map>
 #include <vector>
-
-#include "Assets/AssetID.h"
 
 namespace carrot::assets {
     class sprite_asset_t

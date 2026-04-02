@@ -5,9 +5,9 @@
 
 #pragma once
 
+#include "Core/Memory/Arena.h"
 #include "JsonAST.h"
 #include "JsonLexer.h"
-#include "Core/Memory/Arena.h"
 
 namespace carrot::utils::json {
     class parser_t

@@ -7,8 +7,6 @@
 
 #include "SpriteAsset.h"
 
-#include <utility>
-
 namespace carrot::assets {
     const sprite_frame_t* sprite_asset_t::find_frame(const std::string_view name) const noexcept
     {

@@ -7,6 +7,7 @@
 
 #include "DspUnit.h"
 
+#include <chlm/CarrotHLM.h>
 #include <cmath>
 #include <cstdint>
 

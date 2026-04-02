@@ -5,16 +5,16 @@
 
 #pragma once
 
-#include "AudioClock.h"
 #include "Audio/Backend/AudioBackend.h"
-#include "AudioCommandQueue.h"
-#include "AudioEventQueue.h"
-#include "Audio/Voice/Voice.h"
 #include "Audio/Core/AudioCore.h"
 #include "Audio/DSP/BiquadFilter.h"
 #include "Audio/DSP/Delay.h"
 #include "Audio/DSP/SchroederReverb.h"
 #include "Audio/Mixer/AudioMixer.h"
+#include "Audio/Voice/Voice.h"
+#include "AudioClock.h"
+#include "AudioCommandQueue.h"
+#include "AudioEventQueue.h"
 
 namespace carrot::audio {
     /**

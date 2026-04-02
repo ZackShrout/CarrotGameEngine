@@ -5,9 +5,9 @@
 
 #pragma once
 
-#include "AudioAsset.h"
 #include "Assets/AssetID.h"
 #include "Assets/AssetRegistry.h"
+#include "AudioAsset.h"
 
 #include <string_view>
 #include <unordered_map>

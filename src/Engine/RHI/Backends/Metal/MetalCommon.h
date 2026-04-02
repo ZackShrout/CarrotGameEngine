@@ -7,19 +7,11 @@
 
 #include "Core/CoreDefines.h"
 
+#include <AppKit/AppKit.hpp>
 #include <Foundation/Foundation.hpp>
 #include <Metal/Metal.hpp>
 #include <MetalKit/MetalKit.hpp>
 #include <QuartzCore/CAMetalLayer.h>
-#include <AppKit/AppKit.hpp>
-
-// ──────────────────────────────────────────────────────────────────────────────
-// MTL_CHECK          - non-fatal, logs error but continues (no error ptr)
-// MTL_CHECK_FATAL    - fatal in debug (logs + CE_ASSERT), continues in release
-// MTL_CHECKED        - non-fatal with error ptr details
-// MTL_CHECKED_FATAL  - fatal in debug with error ptr details
-// ──────────────────────────────────────────────────────────────────────────────
-
 #ifdef _DEBUG
 
 #define MTL_CHECK(call) ({ \

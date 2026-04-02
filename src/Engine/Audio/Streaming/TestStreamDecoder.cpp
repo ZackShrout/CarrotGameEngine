@@ -9,10 +9,6 @@
 
 #include "Audio/Core/AudioCore.h"
 
-#include <cmath>
-#include <chrono>
-#include <thread>
-
 namespace carrot::audio {
     test_stream_decoder_t::~test_stream_decoder_t()
     {

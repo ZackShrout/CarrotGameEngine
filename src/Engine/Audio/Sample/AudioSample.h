@@ -5,10 +5,10 @@
 
 #pragma once
 
+#include "../../Core/CoreDefines.h"
+
 #include <cstdint>
 #include <cstdlib>
-
-#include "../../Core/CoreDefines.h"
 
 namespace carrot::audio {
     /**

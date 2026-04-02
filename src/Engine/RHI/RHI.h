@@ -6,14 +6,14 @@
 #pragma once
 
 #include "Buffer.h"
+#include "Renderer/Draw/TexturedQuadBatch.h"
 #include "Sampler.h"
 #include "Texture.h"
-#include "Renderer/Draw/TexturedQuadBatch.h"
 
+#include <chlm/CarrotHLM.h>
 #include <memory>
 #include <span>
 #include <string_view>
-#include <chlm/CarrotHLM.h>
 
 namespace carrot::assets {
     class shader_file_provider_t;

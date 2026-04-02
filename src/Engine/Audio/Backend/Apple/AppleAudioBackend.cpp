@@ -7,11 +7,7 @@
 
 #include "AppleAudioBackend.h"
 
-#include "../../../Core/CoreDefines.h"
-
 #include <AudioToolbox/AudioToolbox.h>
-#include <chlm/CarrotHLM.h>
-
 namespace carrot::audio {
     // PUBLIC
 

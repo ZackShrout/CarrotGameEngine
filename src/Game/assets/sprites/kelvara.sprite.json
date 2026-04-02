@@ -3,5 +3,5 @@
   "texture": "texture.kelvara_sprite",
   "source": "game://sprites/kelvara.aseprite.json",
   "pivot": { "x": 0.5, "y": 0.5 },
-  "pixels_per_unit": 32
+  "pixels_per_unit": 16
 }

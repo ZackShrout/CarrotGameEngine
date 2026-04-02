@@ -259,6 +259,8 @@ For example, Tiled object layers may currently author:
   * typed custom properties like `interactable`, `loot_table`, `target_map`, or `message_id`
   * current examples such as `Chest`, `Door`, and `Sign`
 
+At runtime, Carrot now bridges these authored object-layer concepts into world-owned scene objects rather than treating them only as ad hoc tilemap lookup data.
+
 ---
 
 ## 9. JSON Philosophy in Carrot

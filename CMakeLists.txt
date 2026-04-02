@@ -90,7 +90,12 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Renderer/RendererService.cpp
         src/Engine/Renderer/RendererService.h
         src/Engine/World/Components/SpriteComponent.h
+        src/Engine/World/Components/SpriteAnimatorComponent.h
+        src/Engine/World/Components/TileObjectComponent.h
+        src/Engine/World/Components/TilemapComponent.h
         src/Engine/World/Components/TransformComponent.h
+        src/Engine/World/Import/TilemapWorldBridge.cpp
+        src/Engine/World/Import/TilemapWorldBridge.h
         src/Engine/World/World.cpp
         src/Engine/World/World.h
         src/Engine/World/WorldObject.h

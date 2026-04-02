@@ -245,6 +245,9 @@ Key current priorities include:
 * first tilemap rendering support built on top of Tiled-backed runtime tilemap data
 * early world-object rendering support with explicit world-space transforms
 * world-unit conventions where `1 world unit = 1 meter` and authored pixel size is converted through `pixels_per_unit`
+* tilemap backdrop rendering as a world-owned tilemap component path
+* world-owned sprite animation through `sprite_animator_component_t`
+* first tilemap object-layer to world-object bridge for marker objects and visible tile objects
 * frame lifecycle clarity
 * debug-friendly rendering flow
 * engine-owned debug text overlays for runtime renderer diagnostics

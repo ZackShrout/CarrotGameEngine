@@ -109,14 +109,25 @@ namespace carrot::assets {
             return false;
         }
 
+        std::optional<chlm::float2> pivot_override;
+        chlm::float2 pivot{ 0.5f, 0.5f };
+        if (read_float2(root, "pivot", pivot))
+            pivot_override = pivot;
+
+        std::optional<float> pixels_per_unit_override;
+        if (root.has("pixels_per_unit"))
+            pixels_per_unit_override = static_cast<float>(root.get_number_or("pixels_per_unit", 1.0));
+
         if (ends_with(source, ".aseprite.json"))
         {
-            return aseprite_sprite_asset_importer_t::import(imported_doc_opt, registry, id, texture);
+            return aseprite_sprite_asset_importer_t::import(imported_doc_opt, registry, id, texture,
+                                                            pivot_override, pixels_per_unit_override);
         }
 
         if (ends_with(source, ".csprite.json"))
         {
-            return native_sprite_asset_importer_t::import(imported_doc_opt, registry, id, texture);
+            return native_sprite_asset_importer_t::import(imported_doc_opt, registry, id, texture,
+                                                          pivot_override, pixels_per_unit_override);
         }
 
         LOG_ASSET_ERROR("Unsupported sprite source format '{}'", source);

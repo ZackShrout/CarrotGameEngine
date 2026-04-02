@@ -12,6 +12,10 @@ namespace carrot::world {
     {
         static constexpr float world_unit_in_meters{ 1.0f };
         static constexpr float default_pixels_per_unit{ 16.0f };
+        static constexpr float default_scene_render_scale{ 4.0f };
+        static constexpr float default_render_pixels_per_unit{
+            default_pixels_per_unit * default_scene_render_scale
+        };
 
         [[nodiscard]] static constexpr float pixels_to_world(const float pixels,
                                                              const float pixels_per_unit = default_pixels_per_unit) noexcept

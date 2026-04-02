@@ -233,6 +233,7 @@ Near-term renderer priorities include:
 * sprite placement controls such as pivot/origin and flip
 * debug rendering and text
 * engine-owned diagnostics overlays built on top of the existing 2D renderer
+* world-aware scene rendering where tilemap backdrops, actors, and Tiled-authored scene objects can all be consumed through the world/object layer
 
 Over time, the renderer should evolve from “test scene rendering” into a world-aware rendering system that can support actual gameplay-driven rendering flows.
 

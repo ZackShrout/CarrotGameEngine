@@ -8,11 +8,15 @@
 #include "SpriteAssetRegistry.h"
 #include "Utils/JSON/Public/JsonDocument.h"
 
+#include <optional>
+
 namespace carrot::assets {
     class native_sprite_asset_importer_t
     {
     public:
         [[nodiscard]] static bool import(const utils::json::json_document_t& doc, sprite_asset_registry_t& registry,
-                                         std::string_view logical_id, std::string_view texture_id);
+                                         std::string_view logical_id, std::string_view texture_id,
+                                         std::optional<chlm::float2> pivot_override = std::nullopt,
+                                         std::optional<float> pixels_per_unit_override = std::nullopt);
     };
 } // namespace carrot::assets

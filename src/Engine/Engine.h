@@ -7,7 +7,6 @@
 
 #include "Assets/AssetManager.h"
 #include "Assets/Sprite/LoadedSpriteAsset.h"
-#include "Assets/Sprite/SpriteAnimator.h"
 #include "Assets/Tilemap/LoadedTilemapAsset.h"
 #include "Audio/AudioModule.h"
 #include "Core/CoreDefines.h"
@@ -87,8 +86,7 @@ namespace carrot {
         const assets::loaded_sprite_asset_t*                _test_sprite_vraden{ nullptr };
         const assets::loaded_tilemap_asset_t*               _test_tilemap_overworld{ nullptr };
         const assets::tilemap_object_t*                     _test_player_spawn{ nullptr };
-        chlm::float2                                        _test_tilemap_origin{ 320.f, 96.f };
+        chlm::float2                                        _test_tilemap_origin{ 0.f, 0.f };
         world::world_t                                      _test_world;
-        assets::sprite_animator_t                           _vraden_animator;
     };
 } // namespace carrot

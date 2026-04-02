@@ -36,4 +36,13 @@ namespace carrot::world {
 
         return nullptr;
     }
+
+    void world_t::update(const float delta_time) noexcept
+    {
+        for (world_object_t& object : _objects)
+        {
+            if (object.sprite_animator)
+                object.sprite_animator->animator.update(delta_time);
+        }
+    }
 } // namespace carrot::world

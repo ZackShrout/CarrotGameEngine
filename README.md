@@ -116,7 +116,7 @@ This is one of the reasons Carrot leans heavily into **JSON-based authored metad
   * Tiled-backed tilemap asset import
   * Carrot runtime tilemap structures preserving tile layers, object layers, and tilesets
   * first orthogonal tile-layer rendering through the renderer
-  * visible Tiled tile-object rendering for authored `props` layers
+  * tilemap tile-layer backdrop rendering through the world scene path
   * runtime object-layer queries for named markers and semantic object types
   * early hybrid object support using Tiled object `type` plus typed custom properties for authored chests, doors, and signs
 * Asset Discovery V1 for recursive auto-registration of supported `engine://` and `game://` asset definition manifests
@@ -124,6 +124,9 @@ This is one of the reasons Carrot leans heavily into **JSON-based authored metad
   * `1 world unit = 1 meter`
   * default `pixels_per_unit = 16`
   * transform + sprite world-object rendering proof
+  * sprite animator component path for world-owned actors
+  * tilemap object-layer bridge importing marker objects and visible tile objects into the world layer
+  * world-owned hybrid objects for authored `Chest`, `Door`, and `Sign` tile objects
 * Engine-owned debug text / overlay support for runtime renderer diagnostics
 * Future direction includes:
 

@@ -85,7 +85,9 @@ namespace carrot::assets {
 
     bool aseprite_sprite_asset_importer_t::import(const utils::json::json_document_t& doc,
                                                   sprite_asset_registry_t& registry, const std::string_view logical_id,
-                                                  const std::string_view texture_id)
+                                                  const std::string_view texture_id,
+                                                  const std::optional<chlm::float2> pivot_override,
+                                                  const std::optional<float> pixels_per_unit_override)
     {
         if (!is_valid_logical_asset_id(logical_id))
         {
@@ -110,8 +112,8 @@ namespace carrot::assets {
         }
 
         record.sprite.set_texture_id(std::string{ texture_id });
-        record.sprite.set_default_pivot({ 0.5f, 0.5f });
-        record.sprite.set_pixels_per_unit(32.f);
+        record.sprite.set_default_pivot(pivot_override.value_or(chlm::float2{ 0.5f, 0.5f }));
+        record.sprite.set_pixels_per_unit(pixels_per_unit_override.value_or(32.f));
 
         const utils::json::json_object_view_t root{ doc.root().as_object() };
 

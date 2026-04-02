@@ -202,6 +202,11 @@ namespace carrot::renderer {
 
     void renderer_t::draw_tilemap(const tilemap_draw_info_t& info)
     {
+        submit_tilemap(info);
+    }
+
+    void renderer_t::submit_tilemap(const tilemap_draw_info_t& info)
+    {
         if (!info.tilemap || !info.tilemap->valid())
         {
             LOG_GRAPHICS_WARN("renderer_t::draw_tilemap called with invalid tilemap.");
@@ -211,6 +216,22 @@ namespace carrot::renderer {
         const assets::tilemap_asset_t& tilemap{ info.tilemap->tilemap() };
         const auto& tilesets{ tilemap.tilesets() };
         const auto& textures{ info.tilemap->tileset_textures() };
+        const float source_pixels_per_unit{
+            info.source_pixels_per_unit > 0.f ? info.source_pixels_per_unit : world::world_units_t::default_pixels_per_unit
+        };
+        const float render_pixels_per_unit{
+            info.render_pixels_per_unit > 0.f ? info.render_pixels_per_unit : source_pixels_per_unit
+        };
+        const chlm::float2 raw_tile_pixel_size{
+            static_cast<float>(tilemap.tile_width()),
+            static_cast<float>(tilemap.tile_height())
+        };
+        const chlm::float2 world_tile_size{
+            world::world_units_t::pixel_size_to_world(raw_tile_pixel_size, source_pixels_per_unit)
+        };
+        const chlm::float2 render_tile_size{
+            world::world_units_t::world_size_to_pixels(world_tile_size, render_pixels_per_unit)
+        };
         const auto resolve_tileset_index = [&tilesets](const uint32_t gid) -> size_t {
             for (size_t i{ 0 }; i < tilesets.size(); ++i)
             {
@@ -283,10 +304,10 @@ namespace carrot::renderer {
 
                         textured_quad_draw_info_t tile_quad{ };
                         tile_quad.texture = textures[tileset_index].get();
-                        tile_quad.x = info.origin.x + (static_cast<float>(col) * static_cast<float>(tilemap.tile_width()));
-                        tile_quad.y = info.origin.y + (static_cast<float>(row) * static_cast<float>(tilemap.tile_height()));
-                        tile_quad.width = static_cast<float>(tilemap.tile_width());
-                        tile_quad.height = static_cast<float>(tilemap.tile_height());
+                        tile_quad.x = info.origin.x + (static_cast<float>(col) * render_tile_size.x * info.scale.x);
+                        tile_quad.y = info.origin.y + (static_cast<float>(row) * render_tile_size.y * info.scale.y);
+                        tile_quad.width = render_tile_size.x * info.scale.x;
+                        tile_quad.height = render_tile_size.y * info.scale.y;
                         tile_quad.layer = info.layer;
                         tile_quad.order_in_layer = info.order_in_layer;
                         tile_quad.color = info.color;
@@ -300,7 +321,7 @@ namespace carrot::renderer {
                 }
             }
 
-            if (layer.kind != assets::tilemap_layer_kind_t::object)
+            if (layer.kind != assets::tilemap_layer_kind_t::object || !info.include_object_layers)
                 continue;
 
             int32_t object_order{ info.order_in_layer };
@@ -319,10 +340,27 @@ namespace carrot::renderer {
 
                 textured_quad_draw_info_t object_quad{ };
                 object_quad.texture = textures[tileset_index].get();
-                object_quad.x = info.origin.x + object.x;
-                object_quad.y = info.origin.y + object.y - object.height;
-                object_quad.width = object.width;
-                object_quad.height = object.height;
+                const chlm::float2 raw_object_pixel_size{ object.width, object.height };
+                const chlm::float2 object_world_size{
+                    world::world_units_t::pixel_size_to_world(raw_object_pixel_size, source_pixels_per_unit)
+                };
+                const chlm::float2 object_render_size{
+                    world::world_units_t::world_size_to_pixels(object_world_size, render_pixels_per_unit)
+                };
+                const float object_x_offset{
+                    world::world_units_t::world_to_pixels(
+                        world::world_units_t::pixels_to_world(object.x, source_pixels_per_unit),
+                        render_pixels_per_unit)
+                };
+                const float object_y_offset{
+                    world::world_units_t::world_to_pixels(
+                        world::world_units_t::pixels_to_world(object.y, source_pixels_per_unit),
+                        render_pixels_per_unit)
+                };
+                object_quad.x = info.origin.x + (object_x_offset * info.scale.x);
+                object_quad.y = info.origin.y + ((object_y_offset - object_render_size.y) * info.scale.y);
+                object_quad.width = object_render_size.x * info.scale.x;
+                object_quad.height = object_render_size.y * info.scale.y;
                 object_quad.layer = info.layer;
                 object_quad.order_in_layer = object_order++;
                 object_quad.color = info.color;
@@ -336,58 +374,175 @@ namespace carrot::renderer {
         }
     }
 
+    void renderer_t::submit_tile_object(const assets::loaded_tilemap_asset_t& tilemap,
+                                        const uint32_t gid,
+                                        const chlm::float2& position_px,
+                                        const chlm::float2& size_px,
+                                        const render_layer_t layer,
+                                        const int32_t order_in_layer,
+                                        const quad_sampler_preset_t sampler_preset,
+                                        const uint32_t color)
+    {
+        if (!tilemap.valid() || gid == 0)
+            return;
+
+        const assets::tilemap_asset_t& tilemap_asset{ tilemap.tilemap() };
+        const auto& tilesets{ tilemap_asset.tilesets() };
+        const auto& textures{ tilemap.tileset_textures() };
+        const auto resolve_tileset_index = [&tilesets](const uint32_t object_gid) -> size_t {
+            for (size_t i{ 0 }; i < tilesets.size(); ++i)
+            {
+                const uint32_t first_gid{ tilesets[i].first_gid };
+                const uint32_t next_first_gid{
+                    (i + 1u) < tilesets.size() ? tilesets[i + 1u].first_gid : std::numeric_limits<uint32_t>::max()
+                };
+
+                if (object_gid >= first_gid && object_gid < next_first_gid)
+                    return i;
+            }
+
+            return static_cast<size_t>(-1);
+        };
+
+        const size_t tileset_index{ resolve_tileset_index(gid) };
+        if (tileset_index == static_cast<size_t>(-1) ||
+            tileset_index >= textures.size() ||
+            !textures[tileset_index])
+        {
+            return;
+        }
+
+        const assets::tilemap_tileset_t& tileset{ tilesets[tileset_index] };
+        if (tileset.columns == 0 || tileset.tile_width == 0 || tileset.tile_height == 0 ||
+            tileset.image_width == 0 || tileset.image_height == 0)
+        {
+            return;
+        }
+
+        const uint32_t local_tile_index{ gid - tileset.first_gid };
+        const uint32_t tile_u_index{ local_tile_index % tileset.columns };
+        const uint32_t tile_v_index{ local_tile_index / tileset.columns };
+
+        textured_quad_draw_info_t quad{ };
+        quad.texture = textures[tileset_index].get();
+        quad.x = position_px.x;
+        quad.y = position_px.y;
+        quad.width = size_px.x;
+        quad.height = size_px.y;
+        quad.layer = layer;
+        quad.order_in_layer = order_in_layer;
+        quad.color = color;
+        quad.sampler_preset = sampler_preset;
+        quad.u0 = static_cast<float>(tile_u_index * tileset.tile_width) / static_cast<float>(tileset.image_width);
+        quad.v0 = static_cast<float>(tile_v_index * tileset.tile_height) / static_cast<float>(tileset.image_height);
+        quad.u1 = static_cast<float>((tile_u_index + 1u) * tileset.tile_width) / static_cast<float>(tileset.image_width);
+        quad.v1 = static_cast<float>((tile_v_index + 1u) * tileset.tile_height) / static_cast<float>(tileset.image_height);
+        draw_textured_quad(quad);
+    }
+
     void renderer_t::draw_world(const world::world_t& world)
     {
+        const chlm::float2 render_origin_px{ world.render_origin_px() };
+        const float render_pixels_per_unit{ world.render_pixels_per_unit() };
+
         for (const world::world_object_t& object : world.objects())
         {
-            if (!object.transform || !object.sprite)
+            if (!object.transform || (!object.sprite && !object.tilemap && !object.tile_object))
                 continue;
 
             const world::transform_component_t& transform{ *object.transform };
-            const world::sprite_component_t& sprite{ *object.sprite };
-
-            if (!sprite.sprite || !sprite.frame)
-                continue;
-
-            const chlm::float2 pixel_size{
-                static_cast<float>(sprite.frame->pixel_rect.size.x),
-                static_cast<float>(sprite.frame->pixel_rect.size.y)
-            };
-            const float sprite_pixels_per_unit{
-                sprite.sprite->sprite().pixels_per_unit() > 0.f
-                    ? sprite.sprite->sprite().pixels_per_unit()
-                    : world::world_units_t::default_pixels_per_unit
-            };
-            const chlm::float2 native_world_size{
-                world::world_units_t::pixel_size_to_world(pixel_size, sprite_pixels_per_unit)
-            };
-            const chlm::float2 final_world_size{
-                sprite.use_size_override ? sprite.size_override_world : native_world_size
-            };
             const chlm::float2 render_position_px{
-                world::world_units_t::world_size_to_pixels(transform.position, world::world_units_t::default_pixels_per_unit)
-            };
-            const chlm::float2 render_size_px{
-                world::world_units_t::world_size_to_pixels(final_world_size, world::world_units_t::default_pixels_per_unit)
+                render_origin_px + world::world_units_t::world_size_to_pixels(transform.position, render_pixels_per_unit)
             };
 
-            sprite_draw_info_t draw_info{ };
-            draw_info.sprite = sprite.sprite;
-            draw_info.frame = sprite.frame;
-            draw_info.x = render_position_px.x;
-            draw_info.y = render_position_px.y;
-            draw_info.width = render_size_px.x * transform.scale.x;
-            draw_info.height = render_size_px.y * transform.scale.y;
-            draw_info.use_custom_pivot = sprite.use_custom_pivot;
-            draw_info.pivot = sprite.pivot;
-            draw_info.flip_x = sprite.flip_x;
-            draw_info.flip_y = sprite.flip_y;
-            draw_info.layer = sprite.layer;
-            draw_info.order_in_layer = sprite.order_in_layer;
-            draw_info.color = sprite.color;
-            draw_info.sampler_preset = sprite.sampler_preset;
+            if (object.tilemap)
+            {
+                const world::tilemap_component_t& tilemap{ *object.tilemap };
+                submit_tilemap({
+                    .tilemap = tilemap.tilemap,
+                    .origin = render_position_px,
+                    .scale = transform.scale,
+                    .source_pixels_per_unit = world::world_units_t::default_pixels_per_unit,
+                    .render_pixels_per_unit = render_pixels_per_unit,
+                    .include_object_layers = tilemap.include_object_layers,
+                    .layer = tilemap.layer,
+                    .order_in_layer = tilemap.order_in_layer,
+                    .sampler_preset = tilemap.sampler_preset,
+                    .color = tilemap.color
+                });
+            }
 
-            draw_sprite(draw_info);
+            if (object.tile_object)
+            {
+                const world::tile_object_component_t& tile_object{ *object.tile_object };
+                if (!tile_object.tilemap || tile_object.gid == 0)
+                    continue;
+
+                const chlm::float2 world_size{
+                    world::world_units_t::pixel_size_to_world(tile_object.size_source_px,
+                                                              world::world_units_t::default_pixels_per_unit)
+                };
+                const chlm::float2 render_size_px{
+                    world::world_units_t::world_size_to_pixels(world_size, render_pixels_per_unit)
+                };
+
+                submit_tile_object(*tile_object.tilemap,
+                                   tile_object.gid,
+                                   render_position_px,
+                                   { render_size_px.x * transform.scale.x, render_size_px.y * transform.scale.y },
+                                   tile_object.layer,
+                                   tile_object.order_in_layer,
+                                   tile_object.sampler_preset,
+                                   tile_object.color);
+            }
+
+            if (object.sprite)
+            {
+                const world::sprite_component_t& sprite{ *object.sprite };
+                const assets::sprite_frame_t* frame{
+                    object.sprite_animator ? object.sprite_animator->animator.current_frame() : sprite.frame
+                };
+
+                if (!sprite.sprite || !frame)
+                    continue;
+
+                const chlm::float2 pixel_size{
+                    static_cast<float>(frame->pixel_rect.size.x),
+                    static_cast<float>(frame->pixel_rect.size.y)
+                };
+                const float sprite_pixels_per_unit{
+                    sprite.sprite->sprite().pixels_per_unit() > 0.f
+                        ? sprite.sprite->sprite().pixels_per_unit()
+                        : world::world_units_t::default_pixels_per_unit
+                };
+                const chlm::float2 native_world_size{
+                    world::world_units_t::pixel_size_to_world(pixel_size, sprite_pixels_per_unit)
+                };
+                const chlm::float2 final_world_size{
+                    sprite.use_size_override ? sprite.size_override_world : native_world_size
+                };
+                const chlm::float2 render_size_px{
+                    world::world_units_t::world_size_to_pixels(final_world_size, render_pixels_per_unit)
+                };
+
+                sprite_draw_info_t draw_info{ };
+                draw_info.sprite = sprite.sprite;
+                draw_info.frame = frame;
+                draw_info.x = render_position_px.x;
+                draw_info.y = render_position_px.y;
+                draw_info.width = render_size_px.x * transform.scale.x;
+                draw_info.height = render_size_px.y * transform.scale.y;
+                draw_info.use_custom_pivot = sprite.use_custom_pivot;
+                draw_info.pivot = sprite.pivot;
+                draw_info.flip_x = sprite.flip_x;
+                draw_info.flip_y = sprite.flip_y;
+                draw_info.layer = sprite.layer;
+                draw_info.order_in_layer = sprite.order_in_layer;
+                draw_info.color = sprite.color;
+                draw_info.sampler_preset = sprite.sampler_preset;
+
+                draw_sprite(draw_info);
+            }
         }
     }
 

@@ -43,6 +43,10 @@ namespace carrot::renderer {
     {
         const assets::loaded_tilemap_asset_t* tilemap{ nullptr };
         chlm::float2 origin{ 0.f, 0.f };
+        chlm::float2 scale{ 1.f, 1.f };
+        float source_pixels_per_unit{ 0.f };
+        float render_pixels_per_unit{ 0.f };
+        bool include_object_layers{ true };
         render_layer_t layer{ render_layer_t::world_back };
         int32_t order_in_layer{ 0 };
         quad_sampler_preset_t sampler_preset{ quad_sampler_preset_t::pixel_clamp };
@@ -129,6 +133,15 @@ namespace carrot::renderer {
         void release_frame_resources();
         void ensure_textured_quad_frame_buffers();
         void upload_textured_quad_frame_data() const;
+        void submit_tilemap(const tilemap_draw_info_t& info);
+        void submit_tile_object(const assets::loaded_tilemap_asset_t& tilemap,
+                                uint32_t gid,
+                                const chlm::float2& position_px,
+                                const chlm::float2& size_px,
+                                render_layer_t layer,
+                                int32_t order_in_layer,
+                                quad_sampler_preset_t sampler_preset,
+                                uint32_t color);
 
         // ── External context / configuration ──────────────────────────────────────
         io::virtual_file_system_t&  _vfs;

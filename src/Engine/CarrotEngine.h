@@ -8,6 +8,8 @@
 #include "Engine.h"
 #include "Audio/Audio.h"
 #include "Core/Application.h"
+#include "Core/GameContext.h"
 #include "Core/EnginePaths.h"
+#include "Core/GameView.h"
 #include "Renderer/Renderer.h"
 #include "Window/Window.h"

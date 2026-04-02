@@ -12,10 +12,7 @@
 
 namespace carrot::core {
     class ce_application_t;
-}
-
-namespace carrot {
-    class engine_t;
+    struct game_context_t;
 }
 
 namespace carrot::core {
@@ -24,7 +21,7 @@ namespace carrot::core {
     public:
         DISABLE_COPY_AND_MOVE(ce_application_t)
 
-        virtual void start([[maybe_unused]] engine_t& engine) {}
+        virtual void start([[maybe_unused]] game_context_t& game) {}
 
         // ───────────────────────────────────────────────
         // Window events

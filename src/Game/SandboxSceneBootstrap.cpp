@@ -5,6 +5,7 @@
 
 #include "Core/Pch.h"
 
+#include "SceneHelpers.h"
 #include "SandboxSceneBootstrap.h"
 
 #include "World/Import/TilemapWorldBridge.h"
@@ -17,10 +18,10 @@ namespace sandbox {
         }
     }
 
-    void bootstrap_scene(carrot::engine_t& engine)
+    void bootstrap_scene(const carrot::core::game_context_t& game)
     {
-        auto& world{ engine.world() };
-        auto& assets{ engine.asset_manager() };
+        carrot::world::world_t& world{ game.world };
+        carrot::assets::asset_manager_t& assets{ game.assets };
 
         world.set_presentation_origin_px({ 0.f, 0.f });
         world.set_presentation_pixels_per_unit(carrot::world::world_units_t::default_render_pixels_per_unit);
@@ -107,7 +108,7 @@ namespace sandbox {
                        bridge_result.markers_created,
                        bridge_result.tile_objects_created);
 
-        if (const carrot::world::world_object_t* player_spawn{ world.find_object_by_name("PlayerSpawn") })
+        if (const carrot::world::world_object_t* player_spawn{ find_player_spawn(world) })
         {
             LOG_ASSET_INFO(
                 "World marker 'PlayerSpawn': pos=({}, {}), source_layer='{}', source_object_id={}",
@@ -117,7 +118,7 @@ namespace sandbox {
                 player_spawn->source ? player_spawn->source->object_id : 0u
             );
 
-            if (carrot::world::world_object_t* vraden{ world.find_object_by_name("Vraden") })
+            if (carrot::world::world_object_t* vraden{ find_player(world) })
             {
                 vraden->transform = carrot::world::transform_component_t{
                     .position = {

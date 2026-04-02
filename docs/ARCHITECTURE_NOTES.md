@@ -82,6 +82,21 @@ Carrot should not introduce major architectural layers simply because they are c
 
 A system should arrive when it solves a real structural problem in the engine.
 
+### 2.5 Current Hard-Coding Audit
+
+Carrot should periodically audit which current assumptions are acceptable sandbox-local shortcuts and which are becoming real engine-boundary risks.
+
+**Fix soon**
+
+* game code receiving full `engine_t&` instead of a narrower game-facing runtime context
+* direct sandbox access to renderer internals for camera control
+* raw string conventions for authored interaction types and properties without stronger gameplay-facing helpers
+
+**Fix later**
+
+* hardcoded sandbox scene bootstrap ids such as the initial map, player object name, and authored marker names
+* tuning constants such as movement speed and interaction radius living directly in sandbox code
+
 ---
 
 ## 3. Layered Engine Structure

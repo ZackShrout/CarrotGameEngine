@@ -16,6 +16,8 @@
 #include "Audio/Audio.h"
 #include "Core/Application.h"
 #include "Core/EnginePaths.h"
+#include "Core/GameContext.h"
+#include "Core/GameView.h"
 #include "Debug/DebugOverlay.h"
 #include "HotReload/ShaderWatcher.h"
 #include "Renderer/RendererService.h"
@@ -164,7 +166,13 @@ namespace carrot {
         main_window._on_mouse_scrolled += BIND_MEMBER(_application, on_mouse_scrolled);
 
         LOG_CORE_INFO("Starting application...");
-        _application->start(*this);
+        core::game_view_t game_view{ *_renderer };
+        core::game_context_t game{
+            .world = _world,
+            .assets = *_asset_manager,
+            .view = game_view
+        };
+        _application->start(game);
 
         while (!_should_quit && !main_window.should_close())
         {

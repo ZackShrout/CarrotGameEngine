@@ -8,5 +8,5 @@
 #include <CarrotEngine.h>
 
 namespace sandbox {
-    void bootstrap_scene(carrot::engine_t& engine);
+    void bootstrap_scene(const carrot::core::game_context_t& game);
 } // namespace sandbox

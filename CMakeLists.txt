@@ -45,6 +45,9 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Core/Application.h
         src/Engine/Core/CoreDefines.h
         src/Engine/Core/EnginePaths.h
+        src/Engine/Core/GameContext.h
+        src/Engine/Core/GameView.cpp
+        src/Engine/Core/GameView.h
         src/Engine/Core/LogSink.cpp
         src/Engine/Core/LogSink.h
         src/Engine/Core/Logger.cpp
@@ -668,8 +671,12 @@ set(CARROT_SANDBOX_SOURCES
         src/Game/main.cpp
         src/Game/Game.cpp
         src/Game/Game.h
+        src/Game/SceneHelpers.cpp
+        src/Game/SceneHelpers.h
         src/Game/SandboxSceneBootstrap.cpp
         src/Game/SandboxSceneBootstrap.h
+        src/Game/WorldInteractionHelpers.cpp
+        src/Game/WorldInteractionHelpers.h
 )
 
 source_group(TREE ${CMAKE_SOURCE_DIR} FILES ${CARROT_SANDBOX_SOURCES})

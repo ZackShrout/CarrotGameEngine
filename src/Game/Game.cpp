@@ -6,7 +6,9 @@
 #include "Core/Pch.h"
 
 #include "Game.h"
+#include "SceneHelpers.h"
 #include "SandboxSceneBootstrap.h"
+#include "WorldInteractionHelpers.h"
 
 namespace sandbox {
     namespace {
@@ -82,7 +84,7 @@ namespace sandbox {
             if (movement.x == 0.f && movement.y == 0.f)
                 return current;
 
-            if (std::fabs(movement.x) > std::fabs(movement.y))
+            if (std::fabs(movement.x) >= std::fabs(movement.y))
                 return movement.x < 0.f ? facing_direction_t::left : facing_direction_t::right;
 
             return movement.y < 0.f ? facing_direction_t::up : facing_direction_t::down;
@@ -90,28 +92,28 @@ namespace sandbox {
 
         void log_interaction_target(const carrot::world::world_object_t& object)
         {
-            if (object.type == "Sign")
+            if (const std::optional<sign_interaction_data_t> sign{ as_sign(object) })
             {
                 LOG_CORE_INFO("Interact Sign '{}' -> message_id='{}'",
                               object.name,
-                              object.get_string_property("message_id").value_or("<missing>"));
+                              sign->message_id);
                 return;
             }
 
-            if (object.type == "Door")
+            if (const std::optional<door_interaction_data_t> door{ as_door(object) })
             {
                 LOG_CORE_INFO("Interact Door '{}' -> target_map='{}', target_marker='{}'",
                               object.name,
-                              object.get_string_property("target_map").value_or("<missing>"),
-                              object.get_string_property("target_marker").value_or("<missing>"));
+                              door->target_map,
+                              door->target_marker);
                 return;
             }
 
-            if (object.type == "Chest")
+            if (const std::optional<chest_interaction_data_t> chest{ as_chest(object) })
             {
                 LOG_CORE_INFO("Interact Chest '{}' -> loot_table='{}'",
                               object.name,
-                              object.get_string_property("loot_table").value_or("<missing>"));
+                              chest->loot_table);
                 return;
             }
 
@@ -119,20 +121,20 @@ namespace sandbox {
         }
     }
 
-    void sandbox_t::start(carrot::engine_t& engine)
+    void sandbox_t::start(carrot::core::game_context_t& game)
     {
-        _engine = &engine;
-        bootstrap_scene(engine);
+        _game = &game;
+        bootstrap_scene(game);
         handle = carrot::audio::play(background_music_asset_id);
     }
 
     void sandbox_t::on_tick(const float delta_time)
     {
-        if (!_engine)
+        if (!_game)
             return;
 
-        carrot::world::world_t& world{ _engine->world() };
-        carrot::world::world_object_t* player{ world.find_object_by_name("Vraden") };
+        carrot::world::world_t& world{ _game->world };
+        carrot::world::world_object_t* player{ find_player(world) };
         if (!player || !player->transform)
             return;
 
@@ -187,17 +189,7 @@ namespace sandbox {
             }
         }
 
-        carrot::renderer::renderer_t& renderer{ _engine->renderer() };
-        carrot::renderer::camera_2d_t camera{ renderer.get_camera_2d() };
-        const chlm::float2 player_render_position{
-            world.presentation().world_position_to_pixels(player->transform->position)
-        };
-        const chlm::float2 visible_world_size{ renderer.resolve_camera_2d().visible_world_size };
-        camera.position = {
-            player_render_position.x - (visible_world_size.x * 0.5f),
-            player_render_position.y - (visible_world_size.y * 0.5f)
-        };
-        renderer.set_camera_2d(camera);
+        _game->view.set_center_world_position(world, player->transform->position);
     }
 
     void sandbox_t::on_key(const carrot::events::key_event_t& e)
@@ -206,12 +198,12 @@ namespace sandbox {
 
         if (e._action == carrot::events::key_action::press)
         {
-            if (e._key == carrot::input::key_code::e && _engine)
+            if (e._key == carrot::input::key_code::e && _game)
             {
                 LOG_CORE_INFO("Key pressed: {} ({}) (mods: {})", carrot::input::key_code_to_string(e._key),
                               static_cast<uint32_t>(e._key), carrot::input::modifiers_to_string(e._mods));
-                carrot::world::world_t& world{ _engine->world() };
-                const carrot::world::world_object_t* player{ world.find_object_by_name("Vraden") };
+                carrot::world::world_t& world{ _game->world };
+                const carrot::world::world_object_t* player{ find_player(world) };
                 if (!player || !player->transform)
                 {
                     LOG_CORE_WARN("Interaction failed: player world object 'Vraden' is missing a transform");

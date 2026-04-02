@@ -668,6 +668,8 @@ set(CARROT_SANDBOX_SOURCES
         src/Game/main.cpp
         src/Game/Game.cpp
         src/Game/Game.h
+        src/Game/SandboxSceneBootstrap.cpp
+        src/Game/SandboxSceneBootstrap.h
 )
 
 source_group(TREE ${CMAKE_SOURCE_DIR} FILES ${CARROT_SANDBOX_SOURCES})

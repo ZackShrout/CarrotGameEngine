@@ -10,9 +10,6 @@
 #include "Assets/AssetDiscovery.h"
 #include "Assets/AssetService.h"
 #include "Assets/Audio/AudioAssetManifestImporter.h"
-#include "Assets/Sprite/LoadedSpriteAsset.h"
-#include "Assets/Sprite/SpriteAnimator.h"
-#include "Assets/Sprite/SpriteAsset.h"
 #include "Assets/Sprite/SpriteAssetManifestImporter.h"
 #include "Assets/Tilemap/TilemapAssetManifestImporter.h"
 #include "Assets/Texture/TextureAssetManifestImporter.h"
@@ -22,14 +19,11 @@
 #include "Debug/DebugOverlay.h"
 #include "HotReload/ShaderWatcher.h"
 #include "Renderer/RendererService.h"
-#include "Renderer/Draw/SpriteDrawInfo.h"
 #include "RHI/RHI.h"
 #include "Utils/MulticastDelegate.h"
 #include "Utils/File/FileUtils.h"
 #include "Utils/File/PlatformPaths.h"
 #include "Window/Window.h"
-#include "World/Import/TilemapWorldBridge.h"
-#include "World/WorldUnits.h"
 
 namespace carrot {
     namespace {
@@ -107,264 +101,9 @@ namespace carrot {
 
         _asset_manager = std::make_unique<assets::asset_manager_t>(_vfs, *_renderer->get_rhi());
         assets::asset_service_t::provide(_asset_manager.get());
-        _test_world.set_render_origin_px(_test_tilemap_origin);
-        _test_world.set_render_pixels_per_unit(world::world_units_t::default_render_pixels_per_unit);
 
         // Discover and register supported asset manifests under engine:// and game://
         discover_and_register_assets();
-        build_test_sprite();
-
-        if (const assets::loaded_tilemap_asset_t* tilemap{ _asset_manager->tilemaps().get("tilemap.test.overworld") })
-        {
-            _test_tilemap_overworld = tilemap;
-            world::world_object_t& map_object{ _test_world.create_object() };
-            map_object.name = "TestOverworld";
-            map_object.type = "Tilemap";
-            map_object.transform = world::transform_component_t{
-                .position = { 0.f, 0.f }
-            };
-            map_object.tilemap = world::tilemap_component_t{
-                .tilemap = tilemap,
-                .include_object_layers = false,
-                .layer = renderer::render_layer_t::world_back,
-                .order_in_layer = -100,
-                .sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp,
-                .color = 0xFFFFFFFFu
-            };
-
-            const assets::tilemap_asset_t& map{ tilemap->tilemap() };
-
-            uint32_t object_count{ 0 };
-            for (const assets::tilemap_layer_t& layer : map.layers())
-            {
-                if (layer.kind == assets::tilemap_layer_kind_t::object)
-                    object_count += static_cast<uint32_t>(layer.objects.size());
-            }
-
-            LOG_ASSET_INFO(
-                "Loaded tilemap '{}': {}x{} tiles, tile size {}x{}, layers={}, tilesets={}, objects={}",
-                tilemap->record()->logical_id,
-                map.width(),
-                map.height(),
-                map.tile_width(),
-                map.tile_height(),
-                map.layers().size(),
-                map.tilesets().size(),
-                object_count
-            );
-
-            if (const assets::tilemap_layer_t* marker_layer{ tilemap->find_object_layer("markers") })
-            {
-                LOG_ASSET_INFO(
-                    "Tilemap object layer '{}': {} object(s)",
-                    marker_layer->name,
-                    marker_layer->objects.size()
-                );
-            }
-            else
-            {
-                LOG_ASSET_WARN("Tilemap object layer lookup failed for 'markers'");
-            }
-
-            const world::import::tilemap_world_bridge_result_t bridge_result{
-                world::import::import_tilemap_objects(_test_world, *tilemap)
-            };
-            LOG_ASSET_INFO("Tilemap world bridge: imported {} marker object(s), {} tile object(s)",
-                           bridge_result.markers_created,
-                           bridge_result.tile_objects_created);
-
-            _test_player_spawn = tilemap->find_object_by_name("PlayerSpawn");
-            if (const world::world_object_t* player_spawn{ _test_world.find_object_by_name("PlayerSpawn") })
-            {
-                LOG_ASSET_INFO(
-                    "World marker 'PlayerSpawn': pos=({}, {}), source_layer='{}', source_object_id={}",
-                    player_spawn->transform ? player_spawn->transform->position.x : 0.f,
-                    player_spawn->transform ? player_spawn->transform->position.y : 0.f,
-                    player_spawn->source ? player_spawn->source->layer_name : std::string_view{ "<missing>" },
-                    player_spawn->source ? player_spawn->source->object_id : 0u
-                );
-
-                if (world::world_object_t* vraden{ _test_world.find_object_by_name("Vraden") })
-                {
-                    vraden->transform = world::transform_component_t{
-                        .position = {
-                            player_spawn->transform ? player_spawn->transform->position.x : 0.f,
-                            player_spawn->transform ? player_spawn->transform->position.y : 0.f
-                        },
-                        .scale = { 1.f, 1.f }
-                    };
-                }
-            }
-            else
-            {
-                LOG_ASSET_WARN("Tilemap object lookup failed for 'PlayerSpawn'");
-            }
-
-            uint32_t world_chest_count{ 0 };
-            uint32_t world_door_count{ 0 };
-            uint32_t world_sign_count{ 0 };
-            for (const world::world_object_t& object : _test_world.objects())
-            {
-                if (object.type == "Chest")
-                    ++world_chest_count;
-                else if (object.type == "Door")
-                    ++world_door_count;
-                else if (object.type == "Sign")
-                    ++world_sign_count;
-            }
-            LOG_ASSET_INFO("Tilemap world bridge: found {} Chest world object(s)", world_chest_count);
-            LOG_ASSET_INFO("Tilemap world bridge: found {} Door world object(s)", world_door_count);
-            LOG_ASSET_INFO("Tilemap world bridge: found {} Sign world object(s)", world_sign_count);
-
-            if (const world::world_object_t* starter_chest{ _test_world.find_object_by_name("StarterChest") })
-            {
-                const std::optional<bool> interactable{
-                    [&starter_chest]() -> std::optional<bool> {
-                        for (const assets::tilemap_property_t& property : starter_chest->properties)
-                        {
-                            if (property.name == "interactable")
-                            {
-                                if (const bool* value{ std::get_if<bool>(&property.value) })
-                                    return *value;
-                            }
-                        }
-                        return std::nullopt;
-                    }()
-                };
-                const std::optional<std::string_view> loot_table{
-                    [&starter_chest]() -> std::optional<std::string_view> {
-                        for (const assets::tilemap_property_t& property : starter_chest->properties)
-                        {
-                            if (property.name == "loot_table")
-                            {
-                                if (const std::string* value{ std::get_if<std::string>(&property.value) })
-                                    return *value;
-                            }
-                        }
-                        return std::nullopt;
-                    }()
-                };
-                LOG_ASSET_INFO(
-                    "World hybrid object '{}': type='{}', interactable={}, loot_table='{}', pos=({}, {})",
-                    starter_chest->name,
-                    starter_chest->type,
-                    interactable.value_or(false),
-                    loot_table.value_or("<missing>"),
-                    starter_chest->transform ? starter_chest->transform->position.x : 0.f,
-                    starter_chest->transform ? starter_chest->transform->position.y : 0.f
-                );
-            }
-            else
-            {
-                LOG_ASSET_WARN("World hybrid object lookup failed for 'StarterChest'");
-            }
-
-            if (const world::world_object_t* north_door{ _test_world.find_object_by_name("NorthDoor") })
-            {
-                const std::optional<bool> interactable{
-                    [&north_door]() -> std::optional<bool> {
-                        for (const assets::tilemap_property_t& property : north_door->properties)
-                        {
-                            if (property.name == "interactable")
-                            {
-                                if (const bool* value{ std::get_if<bool>(&property.value) })
-                                    return *value;
-                            }
-                        }
-                        return std::nullopt;
-                    }()
-                };
-                const std::optional<std::string_view> target_map{
-                    [&north_door]() -> std::optional<std::string_view> {
-                        for (const assets::tilemap_property_t& property : north_door->properties)
-                        {
-                            if (property.name == "target_map")
-                            {
-                                if (const std::string* value{ std::get_if<std::string>(&property.value) })
-                                    return *value;
-                            }
-                        }
-                        return std::nullopt;
-                    }()
-                };
-                const std::optional<std::string_view> target_marker{
-                    [&north_door]() -> std::optional<std::string_view> {
-                        for (const assets::tilemap_property_t& property : north_door->properties)
-                        {
-                            if (property.name == "target_marker")
-                            {
-                                if (const std::string* value{ std::get_if<std::string>(&property.value) })
-                                    return *value;
-                            }
-                        }
-                        return std::nullopt;
-                    }()
-                };
-
-                LOG_ASSET_INFO(
-                    "World hybrid object '{}': type='{}', interactable={}, target_map='{}', target_marker='{}', pos=({}, {})",
-                    north_door->name,
-                    north_door->type,
-                    interactable.value_or(false),
-                    target_map.value_or("<missing>"),
-                    target_marker.value_or("<missing>"),
-                    north_door->transform ? north_door->transform->position.x : 0.f,
-                    north_door->transform ? north_door->transform->position.y : 0.f
-                );
-            }
-            else
-            {
-                LOG_ASSET_WARN("World hybrid object lookup failed for 'NorthDoor'");
-            }
-
-            if (const world::world_object_t* welcome_sign{ _test_world.find_object_by_name("WelcomeSign") })
-            {
-                const std::optional<bool> interactable{
-                    [&welcome_sign]() -> std::optional<bool> {
-                        for (const assets::tilemap_property_t& property : welcome_sign->properties)
-                        {
-                            if (property.name == "interactable")
-                            {
-                                if (const bool* value{ std::get_if<bool>(&property.value) })
-                                    return *value;
-                            }
-                        }
-                        return std::nullopt;
-                    }()
-                };
-                const std::optional<std::string_view> message_id{
-                    [&welcome_sign]() -> std::optional<std::string_view> {
-                        for (const assets::tilemap_property_t& property : welcome_sign->properties)
-                        {
-                            if (property.name == "message_id")
-                            {
-                                if (const std::string* value{ std::get_if<std::string>(&property.value) })
-                                    return *value;
-                            }
-                        }
-                        return std::nullopt;
-                    }()
-                };
-
-                LOG_ASSET_INFO(
-                    "World hybrid object '{}': type='{}', interactable={}, message_id='{}', pos=({}, {})",
-                    welcome_sign->name,
-                    welcome_sign->type,
-                    interactable.value_or(false),
-                    message_id.value_or("<missing>"),
-                    welcome_sign->transform ? welcome_sign->transform->position.x : 0.f,
-                    welcome_sign->transform ? welcome_sign->transform->position.y : 0.f
-                );
-            }
-            else
-            {
-                LOG_ASSET_WARN("World hybrid object lookup failed for 'WelcomeSign'");
-            }
-        }
-        else
-        {
-            LOG_ASSET_WARN("Test tilemap lookup failed for 'tilemap.test.overworld'");
-        }
 
         LOG_CORE_INFO("Carrot Engine Initialized (Pure RHI Mode)");
         _initialized = true;
@@ -425,7 +164,7 @@ namespace carrot {
         main_window._on_mouse_scrolled += BIND_MEMBER(_application, on_mouse_scrolled);
 
         LOG_CORE_INFO("Starting application...");
-        _application->start();
+        _application->start(*this);
 
         while (!_should_quit && !main_window.should_close())
         {
@@ -491,37 +230,14 @@ namespace carrot {
         }
 
         _audio_module->update(_delta_time);
-        _test_world.update(_delta_time);
-
-        if ((_renderer->get_frame_index() % 120) == 0)
-        {
-            const renderer::renderer_stats_t& stats{ _renderer->get_stats() };
-
-            if (stats.draw_calls != _last_logged_renderer_stats.draw_calls ||
-                stats.textured_quad_count != _last_logged_renderer_stats.textured_quad_count ||
-                stats.textured_quad_batch_count != _last_logged_renderer_stats.textured_quad_batch_count ||
-                stats.vertex_count != _last_logged_renderer_stats.vertex_count ||
-                stats.index_count != _last_logged_renderer_stats.index_count)
-            {
-                LOG_GRAPHICS_INFO(
-                    "Renderer stats: draws={}, quads={}, batches={}, verts={}, indices={}",
-                    stats.draw_calls,
-                    stats.textured_quad_count,
-                    stats.textured_quad_batch_count,
-                    stats.vertex_count,
-                    stats.index_count
-                );
-
-                _last_logged_renderer_stats = stats;
-            }
-        }
+        _world.update(_delta_time);
 
         _on_tick.broadcast(_delta_time);
     }
 
     void engine_t::render_world()
     {
-        _renderer->draw_world(_test_world);
+        _renderer->draw_world(_world);
     }
 
     core::engine_paths_t engine_t::make_default_engine_paths() noexcept
@@ -715,35 +431,4 @@ namespace carrot {
         return assets::tilemap_asset_manifest_importer_t::import(doc, _asset_manager->tilemaps().registry(), _vfs);
     }
 
-    void engine_t::build_test_sprite()
-    {
-        _test_sprite_vraden = _asset_manager->sprites().get("sprite.vraden");
-
-        if (_test_sprite_vraden)
-        {
-            if (const assets::sprite_frame_t* first_frame{ _test_sprite_vraden->sprite().frame_at(0) })
-            {
-                world::world_object_t& vraden{ _test_world.create_object() };
-                vraden.name = "Vraden";
-                vraden.type = "Character";
-                vraden.transform = world::transform_component_t{
-                    .position = { 0.f, 0.f },
-                    .scale = { 1.f, 1.f }
-                };
-                vraden.sprite = world::sprite_component_t{
-                    .sprite = _test_sprite_vraden,
-                    .frame = first_frame,
-                    .use_custom_pivot = true,
-                    .pivot = { 0.5f, 1.f },
-                    .layer = renderer::render_layer_t::actors,
-                    .order_in_layer = 0,
-                    .color = 0xFFFFFFFFu,
-                    .sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp
-                };
-                vraden.sprite_animator = world::sprite_animator_component_t{ };
-                vraden.sprite_animator->animator.set_sprite(_test_sprite_vraden);
-                vraden.sprite_animator->animator.play("idle_down");
-            }
-        }
-    }
 } // namespace carrot

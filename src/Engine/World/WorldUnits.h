@@ -49,4 +49,27 @@ namespace carrot::world {
             };
         }
     };
+
+    struct world_presentation_t
+    {
+        chlm::float2 origin_px{ 0.f, 0.f };
+        float pixels_per_unit{ world_units_t::default_render_pixels_per_unit };
+
+        void set_pixels_per_unit(const float value) noexcept
+        {
+            pixels_per_unit = value > 0.f
+                ? value
+                : world_units_t::default_render_pixels_per_unit;
+        }
+
+        [[nodiscard]] chlm::float2 world_position_to_pixels(const chlm::float2 world_position) const noexcept
+        {
+            return origin_px + world_units_t::world_size_to_pixels(world_position, pixels_per_unit);
+        }
+
+        [[nodiscard]] chlm::float2 world_size_to_pixels(const chlm::float2 world_size) const noexcept
+        {
+            return world_units_t::world_size_to_pixels(world_size, pixels_per_unit);
+        }
+    };
 } // namespace carrot::world

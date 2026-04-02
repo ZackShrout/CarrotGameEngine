@@ -442,8 +442,7 @@ namespace carrot::renderer {
 
     void renderer_t::draw_world(const world::world_t& world)
     {
-        const chlm::float2 render_origin_px{ world.render_origin_px() };
-        const float render_pixels_per_unit{ world.render_pixels_per_unit() };
+        const world::world_presentation_t& presentation{ world.presentation() };
 
         for (const world::world_object_t& object : world.objects())
         {
@@ -452,7 +451,7 @@ namespace carrot::renderer {
 
             const world::transform_component_t& transform{ *object.transform };
             const chlm::float2 render_position_px{
-                render_origin_px + world::world_units_t::world_size_to_pixels(transform.position, render_pixels_per_unit)
+                presentation.world_position_to_pixels(transform.position)
             };
 
             if (object.tilemap)
@@ -463,7 +462,7 @@ namespace carrot::renderer {
                     .origin = render_position_px,
                     .scale = transform.scale,
                     .source_pixels_per_unit = world::world_units_t::default_pixels_per_unit,
-                    .render_pixels_per_unit = render_pixels_per_unit,
+                    .render_pixels_per_unit = presentation.pixels_per_unit,
                     .include_object_layers = tilemap.include_object_layers,
                     .layer = tilemap.layer,
                     .order_in_layer = tilemap.order_in_layer,
@@ -482,9 +481,7 @@ namespace carrot::renderer {
                     world::world_units_t::pixel_size_to_world(tile_object.size_source_px,
                                                               world::world_units_t::default_pixels_per_unit)
                 };
-                const chlm::float2 render_size_px{
-                    world::world_units_t::world_size_to_pixels(world_size, render_pixels_per_unit)
-                };
+                const chlm::float2 render_size_px{ presentation.world_size_to_pixels(world_size) };
 
                 submit_tile_object(*tile_object.tilemap,
                                    tile_object.gid,
@@ -521,9 +518,7 @@ namespace carrot::renderer {
                 const chlm::float2 final_world_size{
                     sprite.use_size_override ? sprite.size_override_world : native_world_size
                 };
-                const chlm::float2 render_size_px{
-                    world::world_units_t::world_size_to_pixels(final_world_size, render_pixels_per_unit)
-                };
+                const chlm::float2 render_size_px{ presentation.world_size_to_pixels(final_world_size) };
 
                 sprite_draw_info_t draw_info{ };
                 draw_info.sprite = sprite.sprite;

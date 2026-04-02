@@ -14,6 +14,7 @@
 
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace carrot::world {
@@ -35,6 +36,58 @@ namespace carrot::world {
         std::string type;
         std::optional<world_object_source_t> source;
         std::vector<assets::tilemap_property_t> properties;
+
+        [[nodiscard]] const assets::tilemap_property_t* find_property(const std::string_view property_name) const noexcept
+        {
+            for (const assets::tilemap_property_t& property : properties)
+            {
+                if (property.name == property_name)
+                    return &property;
+            }
+
+            return nullptr;
+        }
+
+        [[nodiscard]] bool has_property(const std::string_view property_name) const noexcept
+        {
+            return find_property(property_name) != nullptr;
+        }
+
+        [[nodiscard]] std::optional<std::string_view> get_string_property(const std::string_view property_name) const noexcept
+        {
+            const assets::tilemap_property_t* property{ find_property(property_name) };
+            if (!property)
+                return std::nullopt;
+
+            if (const std::string* value{ std::get_if<std::string>(&property->value) })
+                return *value;
+
+            return std::nullopt;
+        }
+
+        [[nodiscard]] std::optional<bool> get_bool_property(const std::string_view property_name) const noexcept
+        {
+            const assets::tilemap_property_t* property{ find_property(property_name) };
+            if (!property)
+                return std::nullopt;
+
+            if (const bool* value{ std::get_if<bool>(&property->value) })
+                return *value;
+
+            return std::nullopt;
+        }
+
+        [[nodiscard]] std::optional<double> get_number_property(const std::string_view property_name) const noexcept
+        {
+            const assets::tilemap_property_t* property{ find_property(property_name) };
+            if (!property)
+                return std::nullopt;
+
+            if (const double* value{ std::get_if<double>(&property->value) })
+                return *value;
+
+            return std::nullopt;
+        }
 
         std::optional<transform_component_t> transform;
         std::optional<sprite_component_t> sprite;

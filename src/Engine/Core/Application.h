@@ -11,12 +11,20 @@
 #include "Window/Window.h"
 
 namespace carrot::core {
+    class ce_application_t;
+}
+
+namespace carrot {
+    class engine_t;
+}
+
+namespace carrot::core {
     class ce_application_t
     {
     public:
         DISABLE_COPY_AND_MOVE(ce_application_t)
 
-        virtual void start() {}
+        virtual void start([[maybe_unused]] engine_t& engine) {}
 
         // ───────────────────────────────────────────────
         // Window events

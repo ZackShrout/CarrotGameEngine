@@ -6,20 +6,18 @@
 #include "Core/Pch.h"
 
 #include "Game.h"
+#include "SandboxSceneBootstrap.h"
 
 namespace sandbox {
     namespace {
         carrot::audio::voice_handle_t handle;
-
-        // std::string test_asset_name{ "music.victory" };
-        // std::string test_asset_name{ "music.jalen_theme" };
-        // std::string test_asset_name{ "music.hope_for_all_years" };
-        std::string test_asset_name{ "music.oak_battle_theme" };
+        constexpr std::string_view background_music_asset_id{ "music.oak_battle_theme" };
     }
 
-    void sandbox_t::start()
+    void sandbox_t::start(carrot::engine_t& engine)
     {
-        handle = carrot::audio::play(test_asset_name);
+        bootstrap_scene(engine);
+        handle = carrot::audio::play(background_music_asset_id);
     }
 
     void sandbox_t::on_tick(const float delta_time)

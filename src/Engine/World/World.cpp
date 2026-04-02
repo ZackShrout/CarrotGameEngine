@@ -37,6 +37,54 @@ namespace carrot::world {
         return nullptr;
     }
 
+    world_object_t* world_t::find_first_object_by_type(const std::string_view type) noexcept
+    {
+        for (world_object_t& object : _objects)
+        {
+            if (object.type == type)
+                return &object;
+        }
+
+        return nullptr;
+    }
+
+    const world_object_t* world_t::find_first_object_by_type(const std::string_view type) const noexcept
+    {
+        for (const world_object_t& object : _objects)
+        {
+            if (object.type == type)
+                return &object;
+        }
+
+        return nullptr;
+    }
+
+    std::vector<world_object_t*> world_t::find_objects_by_type(const std::string_view type) noexcept
+    {
+        std::vector<world_object_t*> matches;
+
+        for (world_object_t& object : _objects)
+        {
+            if (object.type == type)
+                matches.push_back(&object);
+        }
+
+        return matches;
+    }
+
+    std::vector<const world_object_t*> world_t::find_objects_by_type(const std::string_view type) const
+    {
+        std::vector<const world_object_t*> matches;
+
+        for (const world_object_t& object : _objects)
+        {
+            if (object.type == type)
+                matches.push_back(&object);
+        }
+
+        return matches;
+    }
+
     void world_t::update(const float delta_time) noexcept
     {
         for (world_object_t& object : _objects)

@@ -6,8 +6,6 @@
 #pragma once
 
 #include "Assets/AssetManager.h"
-#include "Assets/Sprite/LoadedSpriteAsset.h"
-#include "Assets/Tilemap/LoadedTilemapAsset.h"
 #include "Audio/AudioModule.h"
 #include "Core/CoreDefines.h"
 #include "IO/VirtualFileSystem.h"
@@ -49,6 +47,14 @@ namespace carrot {
         [[nodiscard]] bool should_quit() const noexcept { return _should_quit; }
         [[nodiscard]] float get_delta_time() const noexcept { return _delta_time; }
         [[nodiscard]] uint32_t get_fps() const noexcept { return _current_fps; }
+        [[nodiscard]] assets::asset_manager_t& asset_manager() noexcept { return *_asset_manager; }
+        [[nodiscard]] const assets::asset_manager_t& asset_manager() const noexcept { return *_asset_manager; }
+        [[nodiscard]] renderer::renderer_t& renderer() noexcept { return *_renderer; }
+        [[nodiscard]] const renderer::renderer_t& renderer() const noexcept { return *_renderer; }
+        [[nodiscard]] world::world_t& world() noexcept { return _world; }
+        [[nodiscard]] const world::world_t& world() const noexcept { return _world; }
+        [[nodiscard]] io::virtual_file_system_t& vfs() noexcept { return _vfs; }
+        [[nodiscard]] const io::virtual_file_system_t& vfs() const noexcept { return _vfs; }
 
     private:
         void tick();
@@ -64,8 +70,6 @@ namespace carrot {
         bool register_texture_asset_manifest(std::string_view manifest_uri);
         bool register_sprite_asset_manifest(std::string_view manifest_uri);
         bool register_tilemap_asset_manifest(std::string_view manifest_uri);
-
-        void build_test_sprite();
 
         bool                                                _initialized{ false };
         bool                                                _running{ false };
@@ -83,10 +87,6 @@ namespace carrot {
         on_tick_t                                           _on_tick;
         renderer::renderer_stats_t                          _last_logged_renderer_stats;
 
-        const assets::loaded_sprite_asset_t*                _test_sprite_vraden{ nullptr };
-        const assets::loaded_tilemap_asset_t*               _test_tilemap_overworld{ nullptr };
-        const assets::tilemap_object_t*                     _test_player_spawn{ nullptr };
-        chlm::float2                                        _test_tilemap_origin{ 0.f, 0.f };
-        world::world_t                                      _test_world;
+        world::world_t                                      _world;
     };
 } // namespace carrot

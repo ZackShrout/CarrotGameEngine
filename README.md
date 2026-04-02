@@ -127,6 +127,8 @@ This is one of the reasons Carrot leans heavily into **JSON-based authored metad
   * sprite animator component path for world-owned actors
   * tilemap object-layer bridge importing marker objects and visible tile objects into the world layer
   * world-owned hybrid objects for authored `Chest`, `Door`, and `Sign` tile objects
+  * sandbox-owned player movement and camera follow built on top of world-object transforms
+  * first gameplay-facing interaction loop for authored `Sign`, `Door`, and `Chest` world objects
 * Engine-owned debug text / overlay support for runtime renderer diagnostics
 * Future direction includes:
 

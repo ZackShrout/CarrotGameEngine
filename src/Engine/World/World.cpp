@@ -85,6 +85,82 @@ namespace carrot::world {
         return matches;
     }
 
+    world_object_t* world_t::find_nearest_object_by_type(const std::string_view type,
+                                                         const chlm::float2& origin,
+                                                         const float max_distance) noexcept
+    {
+        world_object_t* nearest{ nullptr };
+        float nearest_distance_sq{ max_distance > 0.f ? max_distance * max_distance : 0.f };
+        bool found_match{ false };
+
+        for (world_object_t& object : _objects)
+        {
+            if (object.type != type || !object.transform)
+                continue;
+
+            const float dx{ object.transform->position.x - origin.x };
+            const float dy{ object.transform->position.y - origin.y };
+            const float distance_sq{ (dx * dx) + (dy * dy) };
+
+            if (!found_match)
+            {
+                if (max_distance > 0.f && distance_sq > nearest_distance_sq)
+                    continue;
+
+                nearest = &object;
+                nearest_distance_sq = distance_sq;
+                found_match = true;
+                continue;
+            }
+
+            if (distance_sq < nearest_distance_sq)
+            {
+                nearest = &object;
+                nearest_distance_sq = distance_sq;
+            }
+        }
+
+        return nearest;
+    }
+
+    const world_object_t* world_t::find_nearest_object_by_type(const std::string_view type,
+                                                               const chlm::float2& origin,
+                                                               const float max_distance) const noexcept
+    {
+        const world_object_t* nearest{ nullptr };
+        float nearest_distance_sq{ max_distance > 0.f ? max_distance * max_distance : 0.f };
+        bool found_match{ false };
+
+        for (const world_object_t& object : _objects)
+        {
+            if (object.type != type || !object.transform)
+                continue;
+
+            const float dx{ object.transform->position.x - origin.x };
+            const float dy{ object.transform->position.y - origin.y };
+            const float distance_sq{ (dx * dx) + (dy * dy) };
+
+            if (!found_match)
+            {
+                if (max_distance > 0.f && distance_sq > nearest_distance_sq)
+                    continue;
+
+                nearest = &object;
+                nearest_distance_sq = distance_sq;
+                found_match = true;
+                continue;
+            }
+
+            if (distance_sq < nearest_distance_sq)
+            {
+                nearest = &object;
+                nearest_distance_sq = distance_sq;
+            }
+        }
+
+        return nearest;
+    }
+
     void world_t::update(const float delta_time) noexcept
     {
         for (world_object_t& object : _objects)

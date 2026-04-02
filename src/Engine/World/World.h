@@ -21,6 +21,12 @@ namespace carrot::world {
         [[nodiscard]] const world_object_t* find_first_object_by_type(std::string_view type) const noexcept;
         [[nodiscard]] std::vector<world_object_t*> find_objects_by_type(std::string_view type) noexcept;
         [[nodiscard]] std::vector<const world_object_t*> find_objects_by_type(std::string_view type) const;
+        [[nodiscard]] world_object_t* find_nearest_object_by_type(std::string_view type,
+                                                                  const chlm::float2& origin,
+                                                                  float max_distance) noexcept;
+        [[nodiscard]] const world_object_t* find_nearest_object_by_type(std::string_view type,
+                                                                        const chlm::float2& origin,
+                                                                        float max_distance) const noexcept;
         [[nodiscard]] const std::vector<world_object_t>& objects() const noexcept { return _objects; }
         [[nodiscard]] std::vector<world_object_t>& objects() noexcept { return _objects; }
         void update(float delta_time) noexcept;

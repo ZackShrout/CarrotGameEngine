@@ -248,6 +248,8 @@ Key current priorities include:
 * tilemap backdrop rendering as a world-owned tilemap component path
 * world-owned sprite animation through `sprite_animator_component_t`
 * first tilemap object-layer to world-object bridge for marker objects and visible tile objects
+* sandbox-owned player movement and camera follow that operate on world-object transforms rather than engine bootstrap code
+* first gameplay-facing world interaction path where sandbox code interprets authored `Sign`, `Door`, and `Chest` objects through world queries and typed properties
 * frame lifecycle clarity
 * debug-friendly rendering flow
 * engine-owned debug text overlays for runtime renderer diagnostics

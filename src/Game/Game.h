@@ -8,8 +8,25 @@
 #include <CarrotEngine.h>
 
 namespace sandbox {
+    enum class facing_direction_t : uint8_t
+    {
+        down = 0,
+        up,
+        left,
+        right
+    };
+
     class sandbox_t : public carrot::core::ce_application_t
     {
+        carrot::engine_t* _engine{ nullptr };
+        bool _move_up{ false };
+        bool _move_down{ false };
+        bool _move_left{ false };
+        bool _move_right{ false };
+        float _player_move_speed{ 4.0f };
+        facing_direction_t _facing_direction{ facing_direction_t::down };
+        std::string _current_player_animation{ "idle_down" };
+
         void start(carrot::engine_t& engine) override;
 
         void on_tick([[maybe_unused]] float delta_time) override;

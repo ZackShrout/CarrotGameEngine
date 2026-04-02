@@ -32,6 +32,10 @@ namespace carrot::assets {
     class loaded_tilemap_asset_t;
 }
 
+namespace carrot::world {
+    class world_t;
+}
+
 namespace carrot::renderer {
     struct sprite_draw_info_t;
 
@@ -99,6 +103,7 @@ namespace carrot::renderer {
         void draw_textured_quad(const textured_quad_draw_info_t& quad);
         void draw_sprite(const sprite_draw_info_t& info);
         void draw_tilemap(const tilemap_draw_info_t& info);
+        void draw_world(const world::world_t& world);
 
         // Hot-reload & debug support
         void notify_shader_changed(std::string_view path);

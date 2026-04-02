@@ -559,6 +559,7 @@ These are the most immediate engine priorities.
 * Continue expanding sprite-facing renderer behavior such as layered draw ordering, pivot/origin handling, and flip support
 * Continue expanding Tiled-backed tilemap support from the current foundation into stronger gameplay/world rendering behavior
 * Continue formalizing Tiled object-layer conventions for markers, props, and hybrid objects
+* Continue moving rendering from ad hoc test scenes into world-aware scene/object rendering paths
 * Continue improving **debug rendering / debug text / overlay direction**, beginning from the current engine-owned text overlay path
 * Continue strengthening the asset system and authored asset workflows
 

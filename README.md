@@ -119,6 +119,11 @@ This is one of the reasons Carrot leans heavily into **JSON-based authored metad
   * visible Tiled tile-object rendering for authored `props` layers
   * runtime object-layer queries for named markers and semantic object types
   * early hybrid object support using Tiled object `type` plus typed custom properties for authored chests, doors, and signs
+* Asset Discovery V1 for recursive auto-registration of supported `engine://` and `game://` asset definition manifests
+* First `world_object_t` / `world_t` scene path with:
+  * `1 world unit = 1 meter`
+  * default `pixels_per_unit = 16`
+  * transform + sprite world-object rendering proof
 * Engine-owned debug text / overlay support for runtime renderer diagnostics
 * Future direction includes:
 

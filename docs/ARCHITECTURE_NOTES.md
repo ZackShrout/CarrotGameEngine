@@ -243,6 +243,8 @@ Key current priorities include:
 * explicit 2D draw ordering via layers and stable ordering rules
 * sprite-facing placement behavior such as pivot/origin and flip
 * first tilemap rendering support built on top of Tiled-backed runtime tilemap data
+* early world-object rendering support with explicit world-space transforms
+* world-unit conventions where `1 world unit = 1 meter` and authored pixel size is converted through `pixels_per_unit`
 * frame lifecycle clarity
 * debug-friendly rendering flow
 * engine-owned debug text overlays for runtime renderer diagnostics

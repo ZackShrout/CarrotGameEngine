@@ -89,6 +89,12 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Renderer/Renderer.h
         src/Engine/Renderer/RendererService.cpp
         src/Engine/Renderer/RendererService.h
+        src/Engine/World/Components/SpriteComponent.h
+        src/Engine/World/Components/TransformComponent.h
+        src/Engine/World/World.cpp
+        src/Engine/World/World.h
+        src/Engine/World/WorldObject.h
+        src/Engine/World/WorldUnits.h
 
         # ========================================
         # RHI - Abstract Interface
@@ -189,6 +195,8 @@ set(CARROT_ENGINE_SOURCES
         # Asset System
         # ========================================
         src/Engine/Assets/AssetDatabase.h
+        src/Engine/Assets/AssetDiscovery.cpp
+        src/Engine/Assets/AssetDiscovery.h
         src/Engine/Assets/AssetHandle.h
         src/Engine/Assets/AssetID.h
         src/Engine/Assets/AssetManager.cpp

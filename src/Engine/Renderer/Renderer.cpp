@@ -12,6 +12,8 @@
 #include "Assets/Texture/TextureAsset.h"
 #include "Draw/SpriteDrawInfo.h"
 #include "IO/VirtualFileSystem.h"
+#include "World/World.h"
+#include "World/WorldUnits.h"
 #include "Window/Window.h"
 #include "RHI/Buffer.h"
 #include "RHI/Swapchain.h"
@@ -331,6 +333,61 @@ namespace carrot::renderer {
 
                 draw_textured_quad(object_quad);
             }
+        }
+    }
+
+    void renderer_t::draw_world(const world::world_t& world)
+    {
+        for (const world::world_object_t& object : world.objects())
+        {
+            if (!object.transform || !object.sprite)
+                continue;
+
+            const world::transform_component_t& transform{ *object.transform };
+            const world::sprite_component_t& sprite{ *object.sprite };
+
+            if (!sprite.sprite || !sprite.frame)
+                continue;
+
+            const chlm::float2 pixel_size{
+                static_cast<float>(sprite.frame->pixel_rect.size.x),
+                static_cast<float>(sprite.frame->pixel_rect.size.y)
+            };
+            const float sprite_pixels_per_unit{
+                sprite.sprite->sprite().pixels_per_unit() > 0.f
+                    ? sprite.sprite->sprite().pixels_per_unit()
+                    : world::world_units_t::default_pixels_per_unit
+            };
+            const chlm::float2 native_world_size{
+                world::world_units_t::pixel_size_to_world(pixel_size, sprite_pixels_per_unit)
+            };
+            const chlm::float2 final_world_size{
+                sprite.use_size_override ? sprite.size_override_world : native_world_size
+            };
+            const chlm::float2 render_position_px{
+                world::world_units_t::world_size_to_pixels(transform.position, world::world_units_t::default_pixels_per_unit)
+            };
+            const chlm::float2 render_size_px{
+                world::world_units_t::world_size_to_pixels(final_world_size, world::world_units_t::default_pixels_per_unit)
+            };
+
+            sprite_draw_info_t draw_info{ };
+            draw_info.sprite = sprite.sprite;
+            draw_info.frame = sprite.frame;
+            draw_info.x = render_position_px.x;
+            draw_info.y = render_position_px.y;
+            draw_info.width = render_size_px.x * transform.scale.x;
+            draw_info.height = render_size_px.y * transform.scale.y;
+            draw_info.use_custom_pivot = sprite.use_custom_pivot;
+            draw_info.pivot = sprite.pivot;
+            draw_info.flip_x = sprite.flip_x;
+            draw_info.flip_y = sprite.flip_y;
+            draw_info.layer = sprite.layer;
+            draw_info.order_in_layer = sprite.order_in_layer;
+            draw_info.color = sprite.color;
+            draw_info.sampler_preset = sprite.sampler_preset;
+
+            draw_sprite(draw_info);
         }
     }
 

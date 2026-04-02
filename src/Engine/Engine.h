@@ -14,6 +14,7 @@
 #include "IO/VirtualFileSystem.h"
 #include "Renderer/Renderer.h"
 #include "Utils/MulticastDelegate.h"
+#include "World/World.h"
 
 namespace carrot {
     namespace rhi {
@@ -59,16 +60,10 @@ namespace carrot {
         [[nodiscard]] static std::optional<std::filesystem::path> find_repo_root(std::filesystem::path start) noexcept;
         void configure_paths(const core::engine_paths_t& paths);
 
-        void register_builtin_audio_assets();
+        bool discover_and_register_assets();
         bool register_audio_asset_manifest(std::string_view manifest_uri);
-
-        void register_builtin_texture_assets();
         bool register_texture_asset_manifest(std::string_view manifest_uri);
-
-        void register_builtin_sprite_assets();
         bool register_sprite_asset_manifest(std::string_view manifest_uri);
-
-        void register_builtin_tilemap_assets();
         bool register_tilemap_asset_manifest(std::string_view manifest_uri);
 
         void build_test_sprite();
@@ -89,12 +84,11 @@ namespace carrot {
         on_tick_t                                           _on_tick;
         renderer::renderer_stats_t                          _last_logged_renderer_stats;
 
-        const assets::loaded_sprite_asset_t*                _test_sprite_vraden;
-        const assets::loaded_sprite_asset_t*                _test_sprite_kelvara;
+        const assets::loaded_sprite_asset_t*                _test_sprite_vraden{ nullptr };
         const assets::loaded_tilemap_asset_t*               _test_tilemap_overworld{ nullptr };
         const assets::tilemap_object_t*                     _test_player_spawn{ nullptr };
         chlm::float2                                        _test_tilemap_origin{ 320.f, 96.f };
+        world::world_t                                      _test_world;
         assets::sprite_animator_t                           _vraden_animator;
-        assets::sprite_animator_t                           _kelvara_animator;
     };
 } // namespace carrot

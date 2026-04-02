@@ -7,6 +7,7 @@
 
 #include "Engine.h"
 
+#include "Assets/AssetDiscovery.h"
 #include "Assets/AssetService.h"
 #include "Assets/Audio/AudioAssetManifestImporter.h"
 #include "Assets/Sprite/LoadedSpriteAsset.h"
@@ -27,6 +28,7 @@
 #include "Utils/File/FileUtils.h"
 #include "Utils/File/PlatformPaths.h"
 #include "Window/Window.h"
+#include "World/WorldUnits.h"
 
 namespace carrot {
     namespace {
@@ -105,11 +107,8 @@ namespace carrot {
         _asset_manager = std::make_unique<assets::asset_manager_t>(_vfs, *_renderer->get_rhi());
         assets::asset_service_t::provide(_asset_manager.get());
 
-        // Load built-in assets
-        register_builtin_audio_assets();
-        register_builtin_texture_assets();
-        register_builtin_sprite_assets();
-        register_builtin_tilemap_assets();
+        // Discover and register supported asset manifests under engine:// and game://
+        discover_and_register_assets();
         build_test_sprite();
 
         if (const assets::loaded_tilemap_asset_t* tilemap{ _asset_manager->tilemaps().get("tilemap.test.overworld") })
@@ -161,6 +160,17 @@ namespace carrot {
                     player_spawn->visible,
                     player_spawn->gid
                 );
+
+                if (world::world_object_t* vraden{ _test_world.find_object_by_name("Vraden") })
+                {
+                    vraden->transform = world::transform_component_t{
+                        .position = {
+                            world::world_units_t::pixels_to_world(_test_tilemap_origin.x + player_spawn->x),
+                            world::world_units_t::pixels_to_world(_test_tilemap_origin.y + player_spawn->y)
+                        },
+                        .scale = { 4.f, 4.f }
+                    };
+                }
             }
             else
             {
@@ -367,7 +377,6 @@ namespace carrot {
 
         _audio_module->update(_delta_time);
         _vraden_animator.update(_delta_time);
-        _kelvara_animator.update(_delta_time);
 
         if ((_renderer->get_frame_index() % 120) == 0)
         {
@@ -397,22 +406,6 @@ namespace carrot {
 
     void engine_t::render_world()
     {
-        const assets::loaded_texture_asset_t* botan{
-            assets::asset_service_t::manager().textures().get("engine.botan_test")
-        };
-        const assets::loaded_texture_asset_t* vraden{
-            assets::asset_service_t::manager().textures().get("engine.vraden_test")
-        };
-        const assets::loaded_texture_asset_t* orange{
-            assets::asset_service_t::manager().textures().get("engine.16x16orange")
-        };
-        const assets::loaded_texture_asset_t* logo{
-            assets::asset_service_t::manager().textures().get("engine.carrot_engine_logo_512")
-        };
-
-        if (!botan || !vraden || !orange || !logo)
-            return;
-
         if (_test_tilemap_overworld && _test_tilemap_overworld->valid())
         {
             _renderer->draw_tilemap({
@@ -425,205 +418,7 @@ namespace carrot {
             });
         }
 
-        static float x_offset{ 0.0f };
-        static bool moving_right{ true };
-
-        float next_offset{ moving_right ? x_offset + 0.01f : x_offset - 0.01f };
-
-        if (next_offset > 1.0f)
-        {
-            moving_right = false;
-            next_offset = 1.0f;
-        }
-        else if (next_offset < -1.0f)
-        {
-            moving_right = true;
-            next_offset = -1.0f;
-        }
-
-        x_offset = next_offset;
-
-        // ─────────────────────────────────────────────────────────────────────────────
-        // Corner parity checks
-        // ─────────────────────────────────────────────────────────────────────────────
-
-        renderer::textured_quad_draw_info_t top_left_botan{ };
-        top_left_botan.texture = botan->texture.get();
-        top_left_botan.x = 64.f;
-        top_left_botan.y = 36.f;
-        top_left_botan.width = 180.f;
-        top_left_botan.height = 140.f;
-        top_left_botan.layer = renderer::render_layer_t::background;
-        top_left_botan.color = 0xFFFF0000u;
-        top_left_botan.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
-        _renderer->draw_textured_quad(top_left_botan);
-
-        renderer::textured_quad_draw_info_t top_right_vraden{ };
-        top_right_vraden.texture = vraden->texture.get();
-        top_right_vraden.x = 1024.f;
-        top_right_vraden.y = 36.f;
-        top_right_vraden.width = 180.f;
-        top_right_vraden.height = 140.f;
-        top_right_vraden.layer = renderer::render_layer_t::background;
-        top_right_vraden.color = 0xFFFF00FFu;
-        top_right_vraden.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
-        _renderer->draw_textured_quad(top_right_vraden);
-
-        renderer::textured_quad_draw_info_t bottom_left_vraden{ };
-        bottom_left_vraden.texture = vraden->texture.get();
-        bottom_left_vraden.x = 64.f;
-        bottom_left_vraden.y = 576.f;
-        bottom_left_vraden.width = 180.f;
-        bottom_left_vraden.height = 140.f;
-        bottom_left_vraden.layer = renderer::render_layer_t::background;
-        bottom_left_vraden.color = 0xFF00FF00u;
-        bottom_left_vraden.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
-        _renderer->draw_textured_quad(bottom_left_vraden);
-
-        renderer::textured_quad_draw_info_t bottom_right_botan{ };
-        bottom_right_botan.texture = botan->texture.get();
-        bottom_right_botan.x = 1024.f;
-        bottom_right_botan.y = 576.f;
-        bottom_right_botan.width = 180.f;
-        bottom_right_botan.height = 140.f;
-        bottom_right_botan.layer = renderer::render_layer_t::background;
-        bottom_right_botan.color = 0xFF0000FFu;
-        bottom_right_botan.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
-        _renderer->draw_textured_quad(bottom_right_botan);
-
-        // ─────────────────────────────────────────────────────────────────────────────
-        // Center motion + smooth sampling
-        // ─────────────────────────────────────────────────────────────────────────────
-
-        renderer::textured_quad_draw_info_t center_logo{ };
-        center_logo.texture = logo->texture.get();
-        center_logo.x = 512.f + (x_offset * 256.f);
-        center_logo.y = 288.f;
-        center_logo.width = 256.f;
-        center_logo.height = 256;
-        center_logo.layer = renderer::render_layer_t::actors;
-        center_logo.order_in_layer = -20;
-        center_logo.color = 0xFFFFFFFFu;
-        center_logo.sampler_preset = renderer::quad_sampler_preset_t::smooth_clamp;
-        _renderer->draw_textured_quad(center_logo);
-
-        // ─────────────────────────────────────────────────────────────────────────────
-        // UV test: use only the upper-left quarter of the logo texture
-        // ─────────────────────────────────────────────────────────────────────────────
-
-        renderer::textured_quad_draw_info_t uv_test_logo{ };
-        uv_test_logo.texture = logo->texture.get();
-        uv_test_logo.x = 288.f;
-        uv_test_logo.y = 324.f;
-        uv_test_logo.width = 128.f;
-        uv_test_logo.height = 128.f;
-        uv_test_logo.layer = renderer::render_layer_t::world_back;
-        uv_test_logo.order_in_layer = -10;
-        uv_test_logo.color = 0xFFFFFFFFu;
-        uv_test_logo.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
-        uv_test_logo.u0 = 0.f;
-        uv_test_logo.v0 = 0.f;
-        uv_test_logo.u1 = 0.5f;
-        uv_test_logo.v1 = 0.5f;
-        _renderer->draw_textured_quad(uv_test_logo);
-
-        // ─────────────────────────────────────────────────────────────────────────────
-        // Alpha overlap test
-        // Back quad first, then front quad with partial alpha
-        // ─────────────────────────────────────────────────────────────────────────────
-
-        renderer::textured_quad_draw_info_t alpha_back{ };
-        alpha_back.texture = orange->texture.get();
-        alpha_back.x = 864.f;
-        alpha_back.y = 342.f;
-        alpha_back.width = 128.f;
-        alpha_back.height = 128.f;
-        alpha_back.layer = renderer::render_layer_t::world_back;
-        alpha_back.order_in_layer = 10;
-        alpha_back.color = 0xFF00FFFFu;
-        alpha_back.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
-        _renderer->draw_textured_quad(alpha_back);
-
-        renderer::textured_quad_draw_info_t alpha_front{ };
-        alpha_front.texture = orange->texture.get();
-        alpha_front.x = 915.2f;
-        alpha_front.y = 370.8f;
-        alpha_front.width = 128.f;
-        alpha_front.height = 128.f;
-        alpha_front.layer = renderer::render_layer_t::world_front;
-        alpha_front.order_in_layer = 10;
-        alpha_front.color = 0x88FF0000u;
-        alpha_front.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
-        _renderer->draw_textured_quad(alpha_front);
-
-        // ─────────────────────────────────────────────────────────────────────────────
-        // Edge clipping test: partially off-screen at top edge
-        // ─────────────────────────────────────────────────────────────────────────────
-
-        renderer::textured_quad_draw_info_t top_edge_clip{ };
-        top_edge_clip.texture = orange->texture.get();
-        top_edge_clip.x = 576.f;
-        top_edge_clip.y = -62.f;
-        top_edge_clip.width = 128.f;
-        top_edge_clip.height = 128.f;
-        top_edge_clip.layer = renderer::render_layer_t::world_front;
-        top_edge_clip.order_in_layer = 100;
-        top_edge_clip.color = 0xFFFFFFFFu;
-        top_edge_clip.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
-        _renderer->draw_textured_quad(top_edge_clip);
-
-        // ─────────────────────────────────────────────────────────────────────────────
-        // Sprite Test
-        // ─────────────────────────────────────────────────────────────────────────────
-
-        if (const assets::sprite_frame_t* current{ _vraden_animator.current_frame() })
-        {
-            const float spawn_x{ _test_player_spawn ? _test_tilemap_origin.x + _test_player_spawn->x : 96.f };
-            const float spawn_y{ _test_player_spawn ? _test_tilemap_origin.y + _test_player_spawn->y : 324.f };
-
-            renderer::sprite_draw_info_t sprite_draw{ };
-            sprite_draw.sprite = _test_sprite_vraden;
-            sprite_draw.frame = current;
-            sprite_draw.x = spawn_x;
-            sprite_draw.y = spawn_y;
-            sprite_draw.width = 45.f;
-            sprite_draw.height = 35.f;
-            sprite_draw.use_custom_pivot = true;
-            sprite_draw.pivot = { 0.5f, 1.f };
-            sprite_draw.layer = renderer::render_layer_t::actors;
-            sprite_draw.order_in_layer = 0;
-            sprite_draw.color = 0xFFFFFFFFu;
-            sprite_draw.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
-
-            _renderer->draw_sprite(sprite_draw);
-        }
-        else
-        {
-            LOG_CORE_WARN("Vraden animator returned no current frame.");
-        }
-
-        if (const assets::sprite_frame_t* current{ _kelvara_animator.current_frame() })
-        {
-            renderer::sprite_draw_info_t sprite_draw{ };
-            sprite_draw.sprite = _test_sprite_kelvara;
-            sprite_draw.frame = current;
-            sprite_draw.x = 1024.f;
-            sprite_draw.y = 324.f;
-            sprite_draw.width = 180.f;
-            sprite_draw.height = 140.f;
-            sprite_draw.use_custom_pivot = true;
-            sprite_draw.pivot = { 0.5f, 1.f };
-            sprite_draw.layer = renderer::render_layer_t::actors;
-            sprite_draw.order_in_layer = 10;
-            sprite_draw.color = 0xFFFFFFFFu;
-            sprite_draw.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
-
-            _renderer->draw_sprite(sprite_draw);
-        }
-        else
-        {
-            LOG_CORE_WARN("Kelvara animator returned no current frame.");
-        }
+        _renderer->draw_world(_test_world);
     }
 
     core::engine_paths_t engine_t::make_default_engine_paths() noexcept
@@ -703,12 +498,36 @@ namespace carrot {
             _vfs.mount("save", *paths.save_root, false);
     }
 
-    void engine_t::register_builtin_audio_assets()
+    bool engine_t::discover_and_register_assets()
     {
-        register_audio_asset_manifest("engine://audio/victory.audio.json");
-        register_audio_asset_manifest("engine://audio/jalen_theme.audio.json");
-        register_audio_asset_manifest("engine://audio/hope_for_all_years.audio.json");
-        register_audio_asset_manifest("engine://audio/oak_battle_theme.audio.json");
+        const assets::discovered_asset_manifests_t manifests{
+            assets::asset_discovery_t::discover_supported_manifests(_asset_manager->vfs())
+        };
+
+        LOG_ASSET_INFO(
+            "Discovered {} asset manifest(s): audio={}, textures={}, sprites={}, tilemaps={}",
+            manifests.total_count(),
+            manifests.audio.size(),
+            manifests.textures.size(),
+            manifests.sprites.size(),
+            manifests.tilemaps.size()
+        );
+
+        bool all_registered{ true };
+
+        for (const std::string& manifest : manifests.audio)
+            all_registered = register_audio_asset_manifest(manifest) && all_registered;
+
+        for (const std::string& manifest : manifests.textures)
+            all_registered = register_texture_asset_manifest(manifest) && all_registered;
+
+        for (const std::string& manifest : manifests.sprites)
+            all_registered = register_sprite_asset_manifest(manifest) && all_registered;
+
+        for (const std::string& manifest : manifests.tilemaps)
+            all_registered = register_tilemap_asset_manifest(manifest) && all_registered;
+
+        return all_registered;
     }
 
     bool engine_t::register_audio_asset_manifest(std::string_view manifest_uri)
@@ -725,16 +544,6 @@ namespace carrot {
         }
 
         return assets::audio_asset_manifest_importer_t::import(doc, _asset_manager->audio().registry(), _vfs);
-    }
-
-    void engine_t::register_builtin_texture_assets()
-    {
-        register_texture_asset_manifest("engine://textures/botan_test.texture.json");
-        register_texture_asset_manifest("engine://textures/vraden_test.texture.json");
-        register_texture_asset_manifest("engine://textures/16x16orange.texture.json");
-        register_texture_asset_manifest("engine://textures/carrot_engine_logo_512.texture.json");
-        register_texture_asset_manifest("game://textures/vraden.texture.json");
-        register_texture_asset_manifest("game://textures/kelvara.texture.json");
     }
 
     bool engine_t::register_texture_asset_manifest(std::string_view manifest_uri)
@@ -759,12 +568,6 @@ namespace carrot {
         return assets::texture_asset_manifest_importer_t::import(doc, _asset_manager->textures().registry(), _vfs);
     }
 
-    void engine_t::register_builtin_sprite_assets()
-    {
-        register_sprite_asset_manifest("game://sprites/vraden.sprite.json");
-        register_sprite_asset_manifest("game://sprites/kelvara.sprite.json");
-    }
-
     bool engine_t::register_sprite_asset_manifest(std::string_view manifest_uri)
     {
         const std::optional<std::filesystem::path> native_path{
@@ -785,11 +588,6 @@ namespace carrot {
         }
 
         return assets::sprite_asset_manifest_importer_t::import(doc, _asset_manager->sprites().registry(), _vfs);
-    }
-
-    void engine_t::register_builtin_tilemap_assets()
-    {
-        register_tilemap_asset_manifest("game://tilemaps/test_overworld.tilemap.json");
     }
 
     bool engine_t::register_tilemap_asset_manifest(std::string_view manifest_uri)
@@ -820,16 +618,32 @@ namespace carrot {
 
         if (_test_sprite_vraden)
         {
+            if (const assets::sprite_frame_t* first_frame{ _test_sprite_vraden->sprite().frame_at(0) })
+            {
+                world::world_object_t& vraden{ _test_world.create_object() };
+                vraden.name = "Vraden";
+                vraden.type = "Character";
+                vraden.transform = world::transform_component_t{
+                    .position = {
+                        world::world_units_t::pixels_to_world(96.f),
+                        world::world_units_t::pixels_to_world(324.f)
+                    },
+                    .scale = { 4.f, 4.f }
+                };
+                vraden.sprite = world::sprite_component_t{
+                    .sprite = _test_sprite_vraden,
+                    .frame = first_frame,
+                    .use_custom_pivot = true,
+                    .pivot = { 0.5f, 1.f },
+                    .layer = renderer::render_layer_t::actors,
+                    .order_in_layer = 0,
+                    .color = 0xFFFFFFFFu,
+                    .sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp
+                };
+            }
+
             _vraden_animator.set_sprite(_test_sprite_vraden);
             _vraden_animator.play("idle_down");
-        }
-
-        _test_sprite_kelvara = _asset_manager->sprites().get("sprite.kelvara");
-
-        if (_test_sprite_kelvara)
-        {
-            _kelvara_animator.set_sprite(_test_sprite_kelvara);
-            _kelvara_animator.play("excited_left");
         }
     }
 } // namespace carrot

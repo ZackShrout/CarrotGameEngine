@@ -22,9 +22,24 @@ namespace sandbox {
         constexpr std::string_view k_action_interact{ "interact" };
         constexpr std::string_view k_action_quit{ "quit" };
         constexpr std::string_view k_action_toggle_fullscreen{ "toggle_fullscreen" };
+        constexpr std::string_view k_input_bindings_config_path{ "game://config/input_actions.json" };
+
+        [[nodiscard]] float apply_dead_zone_axis(const float current,
+                                                 const float target,
+                                                 const float half_dead_zone) noexcept
+        {
+            if (half_dead_zone <= 0.f)
+                return target;
+
+            const float delta{ target - current };
+            if (std::fabs(delta) <= half_dead_zone)
+                return current;
+
+            return target - (std::signbit(delta) ? -half_dead_zone : half_dead_zone);
+        }
     }
 
-    void sandbox_t::configure_default_input_actions()
+    void sandbox_t::configure_fallback_input_actions()
     {
         _actions.clear();
 
@@ -45,6 +60,24 @@ namespace sandbox {
                       static_cast<uint8_t>(carrot::input::modifier::alt));
     }
 
+    void sandbox_t::configure_default_input_actions()
+    {
+        if (!_game)
+        {
+            configure_fallback_input_actions();
+            return;
+        }
+
+        if (_actions.load_bindings_from_file(_game->assets.vfs(), k_input_bindings_config_path))
+        {
+            LOG_CORE_INFO("Loaded input bindings from '{}'", k_input_bindings_config_path);
+            return;
+        }
+
+        LOG_CORE_WARN("Falling back to built-in sandbox input bindings");
+        configure_fallback_input_actions();
+    }
+
     void sandbox_t::refresh_scene_bindings() noexcept
     {
         if (!_game)
@@ -52,10 +85,79 @@ namespace sandbox {
 
         _player_controller.set_controlled_object(find_player(_game->world));
         _interaction_controller.set_actor(_player_controller.controlled_object());
+        apply_scene_camera_defaults();
+        center_camera_on_initial_target();
+    }
+
+    void sandbox_t::apply_scene_camera_defaults() noexcept
+    {
+        if (!_game || _current_scene_id.empty())
+            return;
+
+        const carrot::assets::scene_asset_record_t* scene{ _game->assets.scenes().registry().find(_current_scene_id) };
+        if (!scene)
+            return;
+
+        _game->view.set_zoom(scene->scene.camera.zoom);
+        _camera_follow_mode = scene->scene.camera.follow_mode;
+        _camera_initial_target_policy = scene->scene.camera.initial_target_policy;
+        _camera_dead_zone_size_world = {
+            std::max(0.f, scene->scene.camera.dead_zone_size_world.x),
+            std::max(0.f, scene->scene.camera.dead_zone_size_world.y)
+        };
+        _camera_follow_smoothing = std::max(0.f, scene->scene.camera.follow_smoothing);
+    }
+
+    void sandbox_t::center_camera_on_initial_target() noexcept
+    {
+        if (!_game)
+            return;
+
+        if (_camera_initial_target_policy == carrot::assets::scene_camera_initial_target_policy_t::spawn_marker)
+        {
+            const carrot::world::world_object_t* marker{ find_marker(_game->world, _current_spawn_marker) };
+            if (marker && marker->transform)
+            {
+                _game->view.set_center_world_position(_game->world, marker->transform->position);
+                return;
+            }
+        }
 
         if (_player_controller.controlled_object() && _player_controller.controlled_object()->transform)
         {
             _game->view.set_center_world_position(_game->world, _player_controller.controlled_object()->transform->position);
+        }
+    }
+
+    void sandbox_t::update_camera_follow(const float delta_time) noexcept
+    {
+        if (!_game || _camera_follow_mode != carrot::assets::scene_camera_follow_mode_t::player)
+            return;
+
+        if (_player_controller.controlled_object() && _player_controller.controlled_object()->transform)
+        {
+            const chlm::float2 current_center{ _game->view.center_world_position(_game->world) };
+            const chlm::float2 target_position{ _player_controller.controlled_object()->transform->position };
+            const chlm::float2 half_dead_zone{
+                _camera_dead_zone_size_world.x * 0.5f,
+                _camera_dead_zone_size_world.y * 0.5f
+            };
+
+            chlm::float2 desired_center{
+                apply_dead_zone_axis(current_center.x, target_position.x, half_dead_zone.x),
+                apply_dead_zone_axis(current_center.y, target_position.y, half_dead_zone.y)
+            };
+
+            if (_camera_follow_smoothing > 0.f && delta_time > 0.f)
+            {
+                const float alpha{ 1.f - std::exp(-_camera_follow_smoothing * delta_time) };
+                desired_center = {
+                    current_center.x + ((desired_center.x - current_center.x) * alpha),
+                    current_center.y + ((desired_center.y - current_center.y) * alpha)
+                };
+            }
+
+            _game->view.set_center_world_position(_game->world, desired_center);
         }
     }
 
@@ -85,6 +187,13 @@ namespace sandbox {
             return false;
 
         _current_scene_id = std::string{ scene_id };
+        _current_spawn_marker = std::string{ spawn_marker };
+        if (_current_spawn_marker.empty())
+        {
+            if (const carrot::assets::scene_asset_record_t* scene{ _game->assets.scenes().registry().find(_current_scene_id) })
+                _current_spawn_marker = scene->scene.player_spawn_marker;
+        }
+
         refresh_scene_bindings();
         refresh_scene_music();
         return true;
@@ -105,7 +214,6 @@ namespace sandbox {
             .walk_right = "walk_right"
         });
         _player_controller.set_move_speed(4.0f);
-        _player_controller.set_camera_follow_enabled(true);
         _interaction_controller.set_interaction_radius(3.0f);
         load_scene(k_bootstrap_scene_id);
     }
@@ -119,6 +227,7 @@ namespace sandbox {
             load_scene(request->scene_id, request->marker_name);
 
         _player_controller.update(*_game, delta_time);
+        update_camera_follow(delta_time);
     }
 
     void sandbox_t::on_key(const carrot::events::key_event_t& e)

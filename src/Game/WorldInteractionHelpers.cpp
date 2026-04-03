@@ -8,6 +8,36 @@
 #include "WorldInteractionHelpers.h"
 
 namespace sandbox {
+    namespace {
+        [[nodiscard]] std::string describe_world_object(const carrot::world::world_object_t& object)
+        {
+            std::string description;
+
+            if (!object.name.empty())
+                description = std::format("'{}'", object.name);
+            else if (object.source && !object.source->object_name.empty())
+                description = std::format("'{}'", object.source->object_name);
+            else
+                description = "'<unnamed>'";
+
+            if (object.source)
+            {
+                description += std::format(" [tilemap='{}', layer='{}', object_id={}]",
+                                           object.source->tilemap_logical_id,
+                                           object.source->layer_name,
+                                           object.source->object_id);
+            }
+
+            return description;
+        }
+
+        void append_issue(scene_validation_report_t& report, std::string issue)
+        {
+            LOG_CORE_WARN("{}", issue);
+            report.issues.emplace_back(std::move(issue));
+        }
+    } // namespace
+
     interaction_kind_t interaction_kind_for(const carrot::world::world_object_t& object) noexcept
     {
         if (object.type == "Sign")
@@ -44,8 +74,19 @@ namespace sandbox {
         const std::optional<std::string_view> target_scene{ object.get_string_property("target_scene") };
         const std::optional<std::string_view> target_map{ object.get_string_property("target_map") };
         const std::optional<std::string_view> target_marker{ object.get_string_property("target_marker") };
-        if ((!target_scene && !target_map) || !target_marker)
+        if (!target_scene && !target_map)
+        {
+            LOG_CORE_WARN("Door '{}' is missing both 'target_scene' and legacy 'target_map' properties",
+                          describe_world_object(object));
             return std::nullopt;
+        }
+
+        if (!target_marker || target_marker->empty())
+        {
+            LOG_CORE_WARN("Door '{}' is missing required 'target_marker' property",
+                          describe_world_object(object));
+            return std::nullopt;
+        }
 
         return door_interaction_data_t{
             .target_scene = target_scene.value_or(std::string_view{}),
@@ -80,6 +121,15 @@ namespace sandbox {
 
         if (!door->target_scene.empty())
         {
+            const carrot::assets::scene_asset_record_t* scene{ assets.scenes().registry().find(door->target_scene) };
+            if (!scene)
+            {
+                LOG_CORE_WARN("Door '{}' references unknown target_scene '{}'",
+                              describe_world_object(object),
+                              door->target_scene);
+                return std::nullopt;
+            }
+
             scene_id = std::string{ door->target_scene };
         }
         else if (!door->target_map.empty())
@@ -88,12 +138,18 @@ namespace sandbox {
                 assets.scenes().registry().find_first_by_tilemap(door->target_map)
             };
             if (!scene)
+            {
+                LOG_CORE_WARN("Door '{}' references legacy target_map '{}' that does not resolve to a scene",
+                              describe_world_object(object),
+                              door->target_map);
                 return std::nullopt;
+            }
 
             scene_id = scene->logical_id;
         }
         else
         {
+            LOG_CORE_WARN("Door '{}' could not resolve a transition target", describe_world_object(object));
             return std::nullopt;
         }
 
@@ -101,5 +157,66 @@ namespace sandbox {
             .scene_id = std::move(scene_id),
             .marker_name = std::string{ door->target_marker }
         };
+    }
+
+    bool validate_scene_transition_target(const carrot::assets::asset_manager_t& assets,
+                                          const carrot::world::world_object_t& object) noexcept
+    {
+        if (interaction_kind_for(object) != interaction_kind_t::door)
+            return true;
+
+        return make_scene_transition_request(assets, object).has_value();
+    }
+
+    bool validate_scene_transition_targets(const carrot::assets::asset_manager_t& assets,
+                                           const carrot::world::world_t& world) noexcept
+    {
+        return build_scene_validation_report(assets, world).valid();
+    }
+
+    scene_validation_report_t build_scene_validation_report(const carrot::assets::asset_manager_t& assets,
+                                                            const carrot::world::world_t& world) noexcept
+    {
+        scene_validation_report_t report;
+
+        for (const carrot::world::world_object_t* object : world.find_objects_by_type("Door"))
+        {
+            if (!object)
+                continue;
+
+            const std::optional<door_interaction_data_t> door{ as_door(*object) };
+            if (!door)
+            {
+                append_issue(report, std::format("Door {} has invalid or incomplete transition properties",
+                                                 describe_world_object(*object)));
+                continue;
+            }
+
+            if (!door->target_scene.empty())
+            {
+                if (!assets.scenes().registry().find(door->target_scene))
+                {
+                    append_issue(report, std::format("Door {} references unknown target_scene '{}'",
+                                                     describe_world_object(*object),
+                                                     door->target_scene));
+                }
+            }
+            else if (!door->target_map.empty())
+            {
+                if (!assets.scenes().registry().find_first_by_tilemap(door->target_map))
+                {
+                    append_issue(report, std::format("Door {} references legacy target_map '{}' that does not resolve to a scene",
+                                                     describe_world_object(*object),
+                                                     door->target_map));
+                }
+            }
+            else
+            {
+                append_issue(report, std::format("Door {} could not resolve a transition target",
+                                                 describe_world_object(*object)));
+            }
+        }
+
+        return report;
     }
 } // namespace sandbox

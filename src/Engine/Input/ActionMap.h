@@ -7,10 +7,15 @@
 
 #include "Events/Events.h"
 
+#include <cstddef>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
+
+namespace carrot::io {
+    class virtual_file_system_t;
+}
 
 namespace carrot::input {
     struct action_binding_t
@@ -25,6 +30,8 @@ namespace carrot::input {
     public:
         void bind(std::string action, key_code key, uint8_t required_mods = 0);
         void clear() noexcept;
+        [[nodiscard]] bool load_bindings_from_memory(const char* data, size_t size);
+        [[nodiscard]] bool load_bindings_from_file(const io::virtual_file_system_t& vfs, std::string_view virtual_path);
 
         void handle_key_event(const events::key_event_t& e) noexcept;
 

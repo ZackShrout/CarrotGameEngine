@@ -1,0 +1,16 @@
+{
+  "bindings": [
+    { "action": "move_up", "key": "W" },
+    { "action": "move_up", "key": "Up" },
+    { "action": "move_down", "key": "S" },
+    { "action": "move_down", "key": "Down" },
+    { "action": "move_left", "key": "A" },
+    { "action": "move_left", "key": "Left" },
+    { "action": "move_right", "key": "D" },
+    { "action": "move_right", "key": "Right" },
+    { "action": "interact", "key": "E" },
+    { "action": "quit", "key": "Escape" },
+    { "action": "toggle_fullscreen", "key": "F11" },
+    { "action": "toggle_fullscreen", "key": "Enter", "mods": ["Alt"] }
+  ]
+}

@@ -6,7 +6,10 @@
 #pragma once
 
 #include "Assets/AssetRegistry.h"
+#include "Assets/Audio/AudioAssetRegistry.h"
 #include "SceneAsset.h"
+#include "Assets/Sprite/SpriteAssetRegistry.h"
+#include "Assets/Tilemap/TilemapAssetRegistry.h"
 
 #include <string_view>
 #include <unordered_map>
@@ -20,6 +23,10 @@ namespace carrot::assets {
         [[nodiscard]] const scene_asset_record_t* find(asset_id_t id) const noexcept;
         [[nodiscard]] const scene_asset_record_t* find(std::string_view logical_id) const noexcept;
         [[nodiscard]] const scene_asset_record_t* find_first_by_tilemap(std::string_view tilemap_id) const noexcept;
+        [[nodiscard]] bool validate_references(const scene_asset_record_t& record,
+                                               const tilemap_asset_registry_t& tilemaps,
+                                               const sprite_asset_registry_t& sprites,
+                                               const audio_asset_registry_t& audio) const noexcept;
         [[nodiscard]] bool contains(asset_id_t id) const noexcept { return _records.contains(id); }
 
         void clear() noexcept { _records.clear(); }

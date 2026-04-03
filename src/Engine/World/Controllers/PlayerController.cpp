@@ -77,7 +77,7 @@ namespace carrot::world {
         _current_animation = _animation_set.idle_down;
     }
 
-    void player_controller_t::update(core::game_context_t& game, const float delta_time)
+    void player_controller_t::update([[maybe_unused]] core::game_context_t& game, const float delta_time)
     {
         if (!_controlled_object || !_controlled_object->transform)
             return;
@@ -109,9 +109,6 @@ namespace carrot::world {
 
         _facing_direction = facing_from_movement(movement, _facing_direction);
         apply_animation(*_controlled_object, _facing_direction, moving);
-
-        if (_camera_follow_enabled)
-            game.view.set_center_world_position(game.world, _controlled_object->transform->position);
     }
 
     void player_controller_t::apply_animation(world_object_t& object,

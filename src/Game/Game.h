@@ -12,7 +12,11 @@
 namespace sandbox {
     class sandbox_t : public carrot::core::ce_application_t
     {
+        void configure_fallback_input_actions();
         void configure_default_input_actions();
+        void apply_scene_camera_defaults() noexcept;
+        void center_camera_on_initial_target() noexcept;
+        void update_camera_follow(float delta_time) noexcept;
         void refresh_scene_bindings() noexcept;
         void refresh_scene_music();
         bool load_scene(std::string_view scene_id, std::string_view spawn_marker = {});
@@ -22,6 +26,15 @@ namespace sandbox {
         carrot::world::player_controller_t _player_controller;
         sandbox_interaction_controller_t _interaction_controller;
         std::string _current_scene_id;
+        std::string _current_spawn_marker;
+        carrot::assets::scene_camera_follow_mode_t _camera_follow_mode{
+            carrot::assets::scene_camera_follow_mode_t::player
+        };
+        carrot::assets::scene_camera_initial_target_policy_t _camera_initial_target_policy{
+            carrot::assets::scene_camera_initial_target_policy_t::player
+        };
+        chlm::float2 _camera_dead_zone_size_world{ 0.f, 0.f };
+        float _camera_follow_smoothing{ 0.f };
 
         void start(carrot::core::game_context_t& game) override;
 

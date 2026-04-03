@@ -16,6 +16,7 @@ This format is intentionally small in the first pass. It exists to describe:
 * which player sprite should be spawned
 * where the player should start
 * optional initial music
+* scene-level camera defaults
 * scene-level bootstrap defaults
 
 It does **not** attempt to be a full editor scene graph or a universal save/load format.
@@ -110,18 +111,56 @@ Default:
 "Character"
 ```
 
-### `render_pixels_per_unit`
+### `camera`
 
-Temporary scene presentation setting controlling how large world space appears on screen.
+Optional camera defaults applied when the scene loads.
 
-This is currently acting like a scene bootstrap zoom/default presentation scale.
-It should not be treated as replacing asset/world `pixels_per_unit` semantics.
-
-Default:
+Defaults:
 
 ```json
-64
+"camera": {
+  "zoom": 4,
+  "follow_mode": "player",
+  "initial_target": "player",
+  "dead_zone_world_size": { "x": 2.0, "y": 1.5 },
+  "follow_smoothing": 10.0
+}
 ```
+
+Current supported fields:
+
+* `zoom`
+* `follow_mode`
+* `initial_target`
+* `dead_zone_world_size`
+* `follow_smoothing`
+
+Example:
+
+```json
+"camera": {
+  "zoom": 4,
+  "follow_mode": "player",
+  "initial_target": "player",
+  "dead_zone_world_size": { "x": 2.0, "y": 1.5 },
+  "follow_smoothing": 10.0
+}
+```
+
+Supported `follow_mode` values:
+
+* `"player"`
+* `"none"`
+
+Supported `initial_target` values:
+
+* `"player"`
+* `"spawn_marker"`
+
+`dead_zone_world_size` is authored in world units. A value of `{ "x": 0, "y": 0 }` disables the dead zone.
+
+`follow_smoothing` controls how quickly the camera moves toward its desired follow position.
+A value of `0` disables smoothing and snaps immediately when the follow target leaves the dead zone.
 
 ### `presentation_origin_px`
 
@@ -157,7 +196,13 @@ Example:
   "player_spawn_marker": "PlayerSpawn",
   "player_name": "Vraden",
   "player_type": "Character",
-  "render_pixels_per_unit": 64,
+  "camera": {
+    "zoom": 4,
+    "follow_mode": "player",
+    "initial_target": "player",
+    "dead_zone_world_size": { "x": 2.0, "y": 1.5 },
+    "follow_smoothing": 10.0
+  },
   "presentation_origin_px": { "x": 0, "y": 0 },
   "tilemap_world_position": { "x": 0, "y": 0 }
 }
@@ -171,8 +216,8 @@ The current schema is deliberately narrow.
 
 Near-term evolution may include:
 
-* camera bootstrap defaults
 * scene-local actor declarations
 * stronger validation rules
 
-For now, the goal is simply to move scene bootstrapping out of ad hoc game code and into authored data.
+Camera zoom now owns how large the world appears on screen.
+Scene assets should not redefine world/unit sizing through temporary render-scale fields.

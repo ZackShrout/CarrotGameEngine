@@ -22,6 +22,8 @@ namespace carrot::core {
         explicit game_view_t(renderer::renderer_t& renderer) noexcept
             : _renderer{ renderer } {}
 
+        void set_zoom(float zoom) noexcept;
+        [[nodiscard]] chlm::float2 center_world_position(const world::world_t& world) const noexcept;
         void set_center_world_position(const world::world_t& world, const chlm::float2& world_position) noexcept;
 
     private:

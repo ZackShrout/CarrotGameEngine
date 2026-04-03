@@ -67,6 +67,11 @@ namespace carrot::world {
             return origin_px + world_units_t::world_size_to_pixels(world_position, pixels_per_unit);
         }
 
+        [[nodiscard]] chlm::float2 pixel_position_to_world(const chlm::float2 pixel_position) const noexcept
+        {
+            return world_units_t::pixel_size_to_world(pixel_position - origin_px, pixels_per_unit);
+        }
+
         [[nodiscard]] chlm::float2 world_size_to_pixels(const chlm::float2 world_size) const noexcept
         {
             return world_units_t::world_size_to_pixels(world_size, pixels_per_unit);

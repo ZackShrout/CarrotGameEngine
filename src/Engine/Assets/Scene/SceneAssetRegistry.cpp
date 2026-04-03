@@ -41,4 +41,41 @@ namespace carrot::assets {
 
         return nullptr;
     }
+
+    bool scene_asset_registry_t::validate_references(const scene_asset_record_t& record,
+                                                     const tilemap_asset_registry_t& tilemaps,
+                                                     const sprite_asset_registry_t& sprites,
+                                                     const audio_asset_registry_t& audio) const noexcept
+    {
+        bool valid{ true };
+
+        if (!tilemaps.find(record.scene.tilemap_id))
+        {
+            LOG_ASSET_ERROR("Scene asset '{}'{} references missing tilemap asset '{}'",
+                            record.logical_id,
+                            record.source_uri.empty() ? "" : std::format(" ({})", record.source_uri),
+                            record.scene.tilemap_id);
+            valid = false;
+        }
+
+        if (!sprites.find(record.scene.player_sprite_id))
+        {
+            LOG_ASSET_ERROR("Scene asset '{}'{} references missing player sprite asset '{}'",
+                            record.logical_id,
+                            record.source_uri.empty() ? "" : std::format(" ({})", record.source_uri),
+                            record.scene.player_sprite_id);
+            valid = false;
+        }
+
+        if (!record.scene.initial_music_id.empty() && !audio.find(record.scene.initial_music_id))
+        {
+            LOG_ASSET_ERROR("Scene asset '{}'{} references missing initial music asset '{}'",
+                            record.logical_id,
+                            record.source_uri.empty() ? "" : std::format(" ({})", record.source_uri),
+                            record.scene.initial_music_id);
+            valid = false;
+        }
+
+        return valid;
+    }
 } // namespace carrot::assets

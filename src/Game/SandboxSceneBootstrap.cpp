@@ -6,6 +6,7 @@
 #include "Core/Pch.h"
 
 #include "SandboxSceneBootstrap.h"
+#include "WorldInteractionHelpers.h"
 
 namespace sandbox {
     bool bootstrap_scene(carrot::core::game_context_t& game,
@@ -19,6 +20,15 @@ namespace sandbox {
         const size_t door_count{ game.world.find_objects_by_type("Door").size() };
         const size_t sign_count{ game.world.find_objects_by_type("Sign").size() };
         LOG_ASSET_INFO("Sandbox scene hybrids: Chest={}, Door={}, Sign={}", chest_count, door_count, sign_count);
+
+        const scene_validation_report_t report{ build_scene_validation_report(game.assets, game.world) };
+        if (!report.valid())
+        {
+            LOG_ASSET_ERROR("Scene '{}' validation failed with {} issue(s)", scene_id, report.issues.size());
+            return false;
+        }
+
+        LOG_ASSET_INFO("Scene '{}' validation passed", scene_id);
         return true;
     }
 } // namespace sandbox

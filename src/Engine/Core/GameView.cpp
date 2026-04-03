@@ -11,6 +11,24 @@
 #include "World/World.h"
 
 namespace carrot::core {
+    void game_view_t::set_zoom(const float zoom) noexcept
+    {
+        renderer::camera_2d_t camera{ _renderer.get_camera_2d() };
+        camera.zoom = zoom > 0.f ? zoom : camera.zoom;
+        _renderer.set_camera_2d(camera);
+    }
+
+    chlm::float2 game_view_t::center_world_position(const world::world_t& world) const noexcept
+    {
+        const renderer::camera_2d_t camera{ _renderer.get_camera_2d() };
+        const chlm::float2 visible_world_size{ _renderer.resolve_camera_2d().visible_world_size };
+        const chlm::float2 center_render_position{
+            camera.position.x + (visible_world_size.x * 0.5f),
+            camera.position.y + (visible_world_size.y * 0.5f)
+        };
+        return world.presentation().pixel_position_to_world(center_render_position);
+    }
+
     void game_view_t::set_center_world_position(const world::world_t& world,
                                                 const chlm::float2& world_position) noexcept
     {

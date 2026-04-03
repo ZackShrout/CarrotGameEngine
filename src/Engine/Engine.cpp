@@ -463,7 +463,22 @@ namespace carrot {
             return false;
         }
 
-        return assets::scene_asset_manifest_importer_t::import(doc, _asset_manager->scenes().registry(), _vfs);
+        if (!assets::scene_asset_manifest_importer_t::import(doc, _asset_manager->scenes().registry(), _vfs, manifest_uri))
+            return false;
+
+        const utils::json::json_object_view_t root{ doc.root().as_object() };
+        const std::string_view scene_id{ root.get_string("id") };
+        const assets::scene_asset_record_t* record{ _asset_manager->scenes().registry().find(scene_id) };
+        if (!record)
+        {
+            LOG_ASSET_ERROR("Scene asset '{}' was imported but could not be found in the registry", scene_id);
+            return false;
+        }
+
+        return _asset_manager->scenes().registry().validate_references(record[0],
+                                                                       _asset_manager->tilemaps().registry(),
+                                                                       _asset_manager->sprites().registry(),
+                                                                       _asset_manager->audio().registry());
     }
 
 } // namespace carrot

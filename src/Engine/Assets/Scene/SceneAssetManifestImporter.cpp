@@ -14,6 +14,52 @@
 
 namespace carrot::assets {
     namespace {
+        [[nodiscard]] bool validate_non_empty_field(const std::string_view scene_id,
+                                                    const std::string_view field_name,
+                                                    const std::string_view value)
+        {
+            if (!value.empty())
+                return true;
+
+            LOG_ASSET_ERROR("Scene asset '{}' has an empty '{}' field", scene_id, field_name);
+            return false;
+        }
+
+        [[nodiscard]] scene_camera_follow_mode_t parse_camera_follow_mode(const std::string_view scene_id,
+                                                                          const std::string_view value,
+                                                                          const scene_camera_follow_mode_t fallback)
+        {
+            if (value.empty() || value == "player")
+                return scene_camera_follow_mode_t::player;
+
+            if (value == "none")
+                return scene_camera_follow_mode_t::none;
+
+            LOG_ASSET_WARN("Scene asset '{}' uses unknown camera.follow_mode '{}'; falling back to '{}'",
+                           scene_id,
+                           value,
+                           fallback == scene_camera_follow_mode_t::player ? "player" : "none");
+            return fallback;
+        }
+
+        [[nodiscard]] scene_camera_initial_target_policy_t parse_camera_initial_target_policy(
+            const std::string_view scene_id,
+            const std::string_view value,
+            const scene_camera_initial_target_policy_t fallback)
+        {
+            if (value.empty() || value == "player")
+                return scene_camera_initial_target_policy_t::player;
+
+            if (value == "spawn_marker")
+                return scene_camera_initial_target_policy_t::spawn_marker;
+
+            LOG_ASSET_WARN("Scene asset '{}' uses unknown camera.initial_target '{}'; falling back to '{}'",
+                           scene_id,
+                           value,
+                           fallback == scene_camera_initial_target_policy_t::spawn_marker ? "spawn_marker" : "player");
+            return fallback;
+        }
+
         [[nodiscard]] bool read_float2(const utils::json::json_object_view_t& obj,
                                        const char* key,
                                        chlm::float2& out_value)
@@ -32,7 +78,8 @@ namespace carrot::assets {
 
     bool scene_asset_manifest_importer_t::import(const utils::json::json_document_t& doc,
                                                  scene_asset_registry_t& registry,
-                                                 [[maybe_unused]] const io::virtual_file_system_t& vfs)
+                                                 [[maybe_unused]] const io::virtual_file_system_t& vfs,
+                                                 const std::string_view manifest_uri)
     {
         const utils::json::json_object_view_t root{ doc.root().as_object() };
 
@@ -83,6 +130,7 @@ namespace carrot::assets {
         scene_asset_record_t record{ };
         record.id = make_asset_id(id);
         record.logical_id = std::string{ id };
+        record.source_uri = std::string{ manifest_uri };
 
         if (registry.contains(record.id))
         {
@@ -94,16 +142,32 @@ namespace carrot::assets {
         record.scene.player_sprite_id = std::string{ player_sprite };
 
         if (root.has("map_object_name"))
+        {
             record.scene.map_object_name = std::string{ root.get_string("map_object_name") };
+            if (!validate_non_empty_field(id, "map_object_name", record.scene.map_object_name))
+                return false;
+        }
 
         if (root.has("player_spawn_marker"))
+        {
             record.scene.player_spawn_marker = std::string{ root.get_string("player_spawn_marker") };
+            if (!validate_non_empty_field(id, "player_spawn_marker", record.scene.player_spawn_marker))
+                return false;
+        }
 
         if (root.has("player_name"))
+        {
             record.scene.player_name = std::string{ root.get_string("player_name") };
+            if (!validate_non_empty_field(id, "player_name", record.scene.player_name))
+                return false;
+        }
 
         if (root.has("player_type"))
+        {
             record.scene.player_type = std::string{ root.get_string("player_type") };
+            if (!validate_non_empty_field(id, "player_type", record.scene.player_type))
+                return false;
+        }
 
         if (root.has("initial_music"))
         {
@@ -120,10 +184,54 @@ namespace carrot::assets {
             }
         }
 
-        if (root.has("render_pixels_per_unit"))
-            record.scene.render_pixels_per_unit = static_cast<float>(root.get_number_or("render_pixels_per_unit", 64.0));
-        else if (root.has("pixels_per_unit"))
-            record.scene.render_pixels_per_unit = static_cast<float>(root.get_number_or("pixels_per_unit", 64.0));
+        if (root.has("camera"))
+        {
+            const utils::json::json_object_view_t camera{ root.get_object("camera") };
+            const float zoom{ static_cast<float>(camera.get_number_or("zoom", record.scene.camera.zoom)) };
+            record.scene.camera.zoom = zoom > 0.f ? zoom : record.scene.camera.zoom;
+
+            if (camera.has("follow_mode"))
+            {
+                record.scene.camera.follow_mode = parse_camera_follow_mode(
+                    id,
+                    camera.get_string_or("follow_mode", "player"),
+                    record.scene.camera.follow_mode);
+            }
+            else if (camera.has("follow_player"))
+            {
+                const bool follow_player{ camera.get_bool_or("follow_player", true) };
+                record.scene.camera.follow_mode = follow_player
+                    ? scene_camera_follow_mode_t::player
+                    : scene_camera_follow_mode_t::none;
+            }
+
+            if (camera.has("initial_target"))
+            {
+                record.scene.camera.initial_target_policy = parse_camera_initial_target_policy(
+                    id,
+                    camera.get_string_or("initial_target", "player"),
+                    record.scene.camera.initial_target_policy);
+            }
+
+            [[maybe_unused]] const bool has_dead_zone_size{
+                read_float2(camera, "dead_zone_world_size", record.scene.camera.dead_zone_size_world)
+            };
+
+            const float follow_smoothing{
+                static_cast<float>(camera.get_number_or("follow_smoothing", record.scene.camera.follow_smoothing))
+            };
+            record.scene.camera.follow_smoothing = follow_smoothing >= 0.f
+                ? follow_smoothing
+                : record.scene.camera.follow_smoothing;
+        }
+
+        if (root.has("render_pixels_per_unit") || root.has("pixels_per_unit"))
+        {
+            LOG_ASSET_WARN(
+                "Scene asset '{}' uses deprecated render-scale fields. Use camera.zoom instead; scene world sizing now stays engine-owned.",
+                id
+            );
+        }
 
         [[maybe_unused]] const bool has_presentation_origin{
             read_float2(root, "presentation_origin_px", record.scene.presentation_origin_px)

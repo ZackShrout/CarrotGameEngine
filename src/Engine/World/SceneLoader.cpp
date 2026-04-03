@@ -14,6 +14,7 @@
 #include "Core/GameContext.h"
 #include "World/Import/TilemapWorldBridge.h"
 #include "World/World.h"
+#include "World/WorldUnits.h"
 
 namespace carrot::world {
     namespace {
@@ -90,7 +91,7 @@ namespace carrot::world {
 
         world.clear();
         world.set_presentation_origin_px(scene.presentation_origin_px);
-        world.set_presentation_pixels_per_unit(scene.render_pixels_per_unit);
+        world.set_presentation_pixels_per_unit(world_units_t::default_pixels_per_unit);
 
         create_player(world, scene, *player_sprite);
 
@@ -131,9 +132,10 @@ namespace carrot::world {
 
         if (!spawn_marker || !spawn_marker->transform)
         {
-            LOG_ASSET_WARN("Scene '{}' could not find spawn marker '{}'; player remains at origin",
-                           scene_id,
-                           effective_spawn_marker);
+            LOG_ASSET_ERROR("Scene '{}' could not find required spawn marker '{}'",
+                            scene_id,
+                            effective_spawn_marker);
+            return false;
         }
         else
         {

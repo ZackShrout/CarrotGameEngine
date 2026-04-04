@@ -55,8 +55,8 @@ namespace sandbox {
         const carrot::world::world_object_t& object);
     [[nodiscard]] bool validate_scene_transition_target(const carrot::assets::asset_manager_t& assets,
                                                         const carrot::world::world_object_t& object) noexcept;
-    [[nodiscard]] bool validate_scene_transition_targets(const carrot::assets::asset_manager_t& assets,
+    [[nodiscard]] bool validate_scene_transition_targets(carrot::assets::asset_manager_t& assets,
                                                          const carrot::world::world_t& world) noexcept;
-    [[nodiscard]] scene_validation_report_t build_scene_validation_report(const carrot::assets::asset_manager_t& assets,
+    [[nodiscard]] scene_validation_report_t build_scene_validation_report(carrot::assets::asset_manager_t& assets,
                                                                           const carrot::world::world_t& world) noexcept;
 } // namespace sandbox

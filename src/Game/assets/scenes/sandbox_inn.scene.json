@@ -1,0 +1,19 @@
+{
+  "id": "scene.sandbox.inn",
+  "tilemap": "tilemap.sandbox.inn",
+  "player_sprite": "sprite.vraden",
+  "map_object_name": "InnMap",
+  "initial_music": "music.jalen_theme",
+  "player_spawn_marker": "EntryFromTown",
+  "player_name": "Vraden",
+  "player_type": "Character",
+  "camera": {
+    "zoom": 2,
+    "follow_mode": "player",
+    "initial_target": "player",
+    "dead_zone_world_size": { "x": 2.0, "y": 1.5 },
+    "follow_smoothing": 10.0
+  },
+  "presentation_origin_px": { "x": 0, "y": 0 },
+  "tilemap_world_position": { "x": 0, "y": 0 }
+}

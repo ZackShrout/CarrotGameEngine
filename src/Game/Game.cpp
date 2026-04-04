@@ -10,6 +10,7 @@
 #include "Assets/Scene/SceneAsset.h"
 #include "SandboxSceneBootstrap.h"
 #include "SceneHelpers.h"
+#include "TransitionRuntimeState.h"
 
 namespace sandbox {
     namespace {
@@ -36,6 +37,18 @@ namespace sandbox {
                 return current;
 
             return target - (std::signbit(delta) ? -half_dead_zone : half_dead_zone);
+        }
+
+        [[nodiscard]] carrot::world::world_object_t* find_object_by_id(carrot::world::world_t& world,
+                                                                       const carrot::world::world_object_id_t object_id) noexcept
+        {
+            for (carrot::world::world_object_t& object : world.objects())
+            {
+                if (object.id == object_id)
+                    return &object;
+            }
+
+            return nullptr;
         }
     }
 
@@ -178,10 +191,47 @@ namespace sandbox {
             handle = carrot::audio::play(scene->scene.initial_music_id);
     }
 
+    void sandbox_t::capture_transition_runtime_state() noexcept
+    {
+        capture_player_runtime_state(_runtime_state, _player_controller);
+    }
+
+    void sandbox_t::apply_scene_runtime_state() noexcept
+    {
+        if (!_game || _current_scene_id.empty())
+            return;
+
+        apply_runtime_state_to_scene(_current_scene_id, _game->world, _runtime_state);
+        apply_runtime_state_to_player(_runtime_state, _player_controller);
+    }
+
+    void sandbox_t::consume_pending_runtime_events() noexcept
+    {
+        if (!_game || _current_scene_id.empty())
+            return;
+
+        if (const std::optional<opened_chest_request_t> opened_chest{ _interaction_controller.consume_pending_opened_chest() })
+        {
+            carrot::world::world_object_t* chest{ find_object_by_id(_game->world, opened_chest->object_id) };
+            if (!chest)
+            {
+                LOG_CORE_WARN("Opened chest request referenced missing world object id {}", opened_chest->object_id);
+                return;
+            }
+
+            mark_chest_open(_runtime_state, _current_scene_id, *chest);
+            apply_runtime_state_to_scene(_current_scene_id, _game->world, _runtime_state);
+            LOG_CORE_INFO("Marked chest '{}' as opened in scene '{}'", chest->name, _current_scene_id);
+        }
+    }
+
     bool sandbox_t::load_scene(const std::string_view scene_id, const std::string_view spawn_marker)
     {
         if (!_game)
             return false;
+
+        if (!_current_scene_id.empty())
+            capture_transition_runtime_state();
 
         if (!bootstrap_scene(*_game, scene_id, spawn_marker))
             return false;
@@ -195,6 +245,7 @@ namespace sandbox {
         }
 
         refresh_scene_bindings();
+        apply_scene_runtime_state();
         refresh_scene_music();
         return true;
     }
@@ -222,6 +273,8 @@ namespace sandbox {
     {
         if (!_game)
             return;
+
+        consume_pending_runtime_events();
 
         if (const std::optional<scene_transition_request_t> request{ _interaction_controller.consume_pending_transition() })
             load_scene(request->scene_id, request->marker_name);

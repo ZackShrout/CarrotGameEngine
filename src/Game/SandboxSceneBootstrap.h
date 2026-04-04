@@ -8,7 +8,7 @@
 #include <CarrotEngine.h>
 
 namespace sandbox {
-    inline constexpr std::string_view k_bootstrap_scene_id{ "scene.test.overworld" };
+    inline constexpr std::string_view k_bootstrap_scene_id{ "scene.sandbox.town" };
 
     bool bootstrap_scene(carrot::core::game_context_t& game,
                          std::string_view scene_id,

@@ -583,6 +583,14 @@ These are the most immediate engine priorities.
 * Continue strengthening the asset system and authored asset workflows
 * Continue expanding the new input action layer toward config-backed and player-rebindable controls
 
+Recent completed foundation work in Milestone 02:
+
+* scene-authored camera defaults with follow/dead-zone/smoothing support
+* config-backed default input bindings
+* stronger scene and transition validation/diagnostics
+* a three-scene authored sandbox pressure test
+* sandbox-owned transition-time gameplay state handoff
+
 ### 11.2 Mid-Term Priorities
 
 These priorities build on the near-term rendering and asset foundation.

@@ -6,6 +6,7 @@
 #pragma once
 
 #include "SandboxInteractionController.h"
+#include "TransitionRuntimeState.h"
 
 #include <CarrotEngine.h>
 
@@ -19,12 +20,16 @@ namespace sandbox {
         void update_camera_follow(float delta_time) noexcept;
         void refresh_scene_bindings() noexcept;
         void refresh_scene_music();
+        void capture_transition_runtime_state() noexcept;
+        void apply_scene_runtime_state() noexcept;
+        void consume_pending_runtime_events() noexcept;
         bool load_scene(std::string_view scene_id, std::string_view spawn_marker = {});
 
         carrot::core::game_context_t* _game{ nullptr };
         carrot::input::input_action_map_t _actions;
         carrot::world::player_controller_t _player_controller;
         sandbox_interaction_controller_t _interaction_controller;
+        gameplay_runtime_state_t _runtime_state;
         std::string _current_scene_id;
         std::string _current_spawn_marker;
         carrot::assets::scene_camera_follow_mode_t _camera_follow_mode{

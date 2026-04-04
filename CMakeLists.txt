@@ -693,6 +693,8 @@ set(CARROT_SANDBOX_SOURCES
         src/Game/SandboxInteractionController.h
         src/Game/SandboxSceneBootstrap.cpp
         src/Game/SandboxSceneBootstrap.h
+        src/Game/TransitionRuntimeState.cpp
+        src/Game/TransitionRuntimeState.h
         src/Game/WorldInteractionHelpers.cpp
         src/Game/WorldInteractionHelpers.h
 )
@@ -707,6 +709,7 @@ set(CARROT_TEST_SOURCES
         tests/TestMain.cpp
         tests/ActionMapTests.cpp
         tests/SceneLoadingTests.cpp
+        src/Game/TransitionRuntimeState.cpp
         src/Game/WorldInteractionHelpers.cpp
 )
 

@@ -53,6 +53,7 @@ namespace carrot::world {
         [[nodiscard]] const player_controller_animation_set_t& animation_set() const noexcept { return _animation_set; }
 
         [[nodiscard]] facing_direction_t facing_direction() const noexcept { return _facing_direction; }
+        void set_facing_direction(facing_direction_t direction);
 
         void update(core::game_context_t& game, float delta_time);
 

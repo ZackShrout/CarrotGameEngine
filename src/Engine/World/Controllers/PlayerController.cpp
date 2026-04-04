@@ -70,6 +70,14 @@ namespace carrot::world {
         _current_animation = _animation_set.idle_down;
     }
 
+    void player_controller_t::set_facing_direction(const facing_direction_t direction)
+    {
+        _facing_direction = direction;
+
+        if (_controlled_object)
+            apply_animation(*_controlled_object, _facing_direction, false);
+    }
+
     void player_controller_t::set_controlled_object(world_object_t* object) noexcept
     {
         _controlled_object = object;

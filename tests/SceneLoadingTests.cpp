@@ -7,6 +7,7 @@
 #include "Assets/Sprite/SpriteAssetManifestImporter.h"
 #include "Assets/Texture/TextureAssetManifestImporter.h"
 #include "Assets/Tilemap/TilemapAssetManifestImporter.h"
+#include "TransitionRuntimeState.h"
 #include "WorldInteractionHelpers.h"
 #include "IO/VirtualFileSystem.h"
 #include "RHI/CommandQueue.h"
@@ -249,6 +250,23 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(world.find_object_by_name("NorthDoor") != nullptr);
         }
 
+        void test_tiled_tilemap_import_accepts_unsupported_features_non_fatally()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+
+            const auto manifests{ assets::asset_discovery_t::discover_supported_manifests(vfs) };
+            const auto it{ std::find(manifests.tilemaps.begin(), manifests.tilemaps.end(), "game://tilemaps/test_town.tilemap.json") };
+            CARROT_TEST_REQUIRE(it != manifests.tilemaps.end());
+
+            utils::json::json_document_t doc{ parse_json(vfs, *it) };
+            CARROT_TEST_REQUIRE(assets::tilemap_asset_manifest_importer_t::import(doc, assets.tilemaps().registry(), vfs));
+            CARROT_TEST_REQUIRE(assets.tilemaps().registry().find("tilemap.sandbox.town") != nullptr);
+        }
+
         void test_scene_loader_loads_scene_successfully()
         {
             io::virtual_file_system_t vfs;
@@ -287,6 +305,37 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(scene->scene.camera.follow_smoothing == 10.0f);
         }
 
+        void test_scene_loader_loads_sandbox_town_successfully()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town"));
+
+            const world::world_object_t* player{ world.find_object_by_name("Vraden") };
+            const world::world_object_t* spawn{ world.find_object_by_name("PlayerSpawn") };
+            CARROT_TEST_REQUIRE(player != nullptr);
+            CARROT_TEST_REQUIRE(spawn != nullptr);
+            CARROT_TEST_REQUIRE(player->transform.has_value());
+            CARROT_TEST_REQUIRE(spawn->transform.has_value());
+            CARROT_TEST_REQUIRE(player->transform->position.x == spawn->transform->position.x);
+            CARROT_TEST_REQUIRE(player->transform->position.y == spawn->transform->position.y);
+            CARROT_TEST_REQUIRE(world.find_object_by_name("DoorToInn") != nullptr);
+            CARROT_TEST_REQUIRE(world.find_object_by_name("DoorToItemShop") != nullptr);
+            CARROT_TEST_REQUIRE(world.find_object_by_name("InnExteriorSpawn") != nullptr);
+            CARROT_TEST_REQUIRE(world.find_object_by_name("ItemShopExteriorSpawn") != nullptr);
+
+            const assets::scene_asset_record_t* scene{ assets.scenes().registry().find("scene.sandbox.town") };
+            CARROT_TEST_REQUIRE(scene != nullptr);
+            CARROT_TEST_REQUIRE(scene->scene.initial_music_id == "music.oak_battle_theme");
+            CARROT_TEST_REQUIRE(scene->scene.camera.zoom == 2.f);
+        }
+
         void test_scene_loader_fails_for_missing_scene()
         {
             io::virtual_file_system_t vfs;
@@ -313,6 +362,28 @@ namespace carrot::tests {
 
             const world::world_object_t* player{ world.find_object_by_name("Vraden") };
             const world::world_object_t* marker{ world.find_object_by_name("ExitNorth") };
+            CARROT_TEST_REQUIRE(player != nullptr);
+            CARROT_TEST_REQUIRE(marker != nullptr);
+            CARROT_TEST_REQUIRE(player->transform.has_value());
+            CARROT_TEST_REQUIRE(marker->transform.has_value());
+            CARROT_TEST_REQUIRE(player->transform->position.x == marker->transform->position.x);
+            CARROT_TEST_REQUIRE(player->transform->position.y == marker->transform->position.y);
+        }
+
+        void test_scene_loader_supports_sandbox_town_spawn_overrides()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, static_cast<rhi::rhi_context_t&>(rhi) };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town", "InnExteriorSpawn"));
+
+            const world::world_object_t* player{ world.find_object_by_name("Vraden") };
+            const world::world_object_t* marker{ world.find_object_by_name("InnExteriorSpawn") };
             CARROT_TEST_REQUIRE(player != nullptr);
             CARROT_TEST_REQUIRE(marker != nullptr);
             CARROT_TEST_REQUIRE(player->transform.has_value());
@@ -558,15 +629,157 @@ namespace carrot::tests {
 
             CARROT_TEST_REQUIRE(!sandbox::validate_scene_transition_targets(assets, world));
         }
+
+        void test_validate_scene_transition_targets_rejects_missing_destination_marker()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, static_cast<rhi::rhi_context_t&>(rhi) };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town"));
+
+            world::world_object_t& invalid_door{ world.create_object() };
+            invalid_door.name = "BadDestinationMarkerDoor";
+            invalid_door.type = "Door";
+            invalid_door.properties = {
+                assets::tilemap_property_t{ .name = "target_scene", .value = std::string{ "scene.sandbox.inn" } },
+                assets::tilemap_property_t{ .name = "target_marker", .value = std::string{ "MissingMarker" } }
+            };
+
+            CARROT_TEST_REQUIRE(!sandbox::validate_scene_transition_targets(assets, world));
+        }
+
+        void test_sandbox_scene_transition_requests_connect_all_three_scenes()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, static_cast<rhi::rhi_context_t&>(rhi) };
+            register_required_assets(assets, vfs);
+
+            world::world_t town_world;
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(town_world, assets, "scene.sandbox.town"));
+            const world::world_object_t* town_to_inn{ town_world.find_object_by_name("DoorToInn") };
+            const world::world_object_t* town_to_item_shop{ town_world.find_object_by_name("DoorToItemShop") };
+            CARROT_TEST_REQUIRE(town_to_inn != nullptr);
+            CARROT_TEST_REQUIRE(town_to_item_shop != nullptr);
+
+            const std::optional<sandbox::scene_transition_request_t> inn_request{
+                sandbox::make_scene_transition_request(assets, *town_to_inn)
+            };
+            const std::optional<sandbox::scene_transition_request_t> item_shop_request{
+                sandbox::make_scene_transition_request(assets, *town_to_item_shop)
+            };
+            CARROT_TEST_REQUIRE(inn_request.has_value());
+            CARROT_TEST_REQUIRE(item_shop_request.has_value());
+            CARROT_TEST_REQUIRE(inn_request->scene_id == "scene.sandbox.inn");
+            CARROT_TEST_REQUIRE(inn_request->marker_name == "EntryFromTown");
+            CARROT_TEST_REQUIRE(item_shop_request->scene_id == "scene.sandbox.item_shop");
+            CARROT_TEST_REQUIRE(item_shop_request->marker_name == "EntryFromTown");
+
+            world::world_t inn_world;
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(inn_world, assets, inn_request->scene_id, inn_request->marker_name));
+            const world::world_object_t* inn_exit_door{ inn_world.find_object_by_name("DoorToTownFromInn") };
+            CARROT_TEST_REQUIRE(inn_exit_door != nullptr);
+            const std::optional<sandbox::scene_transition_request_t> inn_exit_request{
+                sandbox::make_scene_transition_request(assets, *inn_exit_door)
+            };
+            CARROT_TEST_REQUIRE(inn_exit_request.has_value());
+            CARROT_TEST_REQUIRE(inn_exit_request->scene_id == "scene.sandbox.town");
+            CARROT_TEST_REQUIRE(inn_exit_request->marker_name == "InnExteriorSpawn");
+
+            world::world_t item_shop_world;
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(item_shop_world, assets, item_shop_request->scene_id, item_shop_request->marker_name));
+            const world::world_object_t* item_shop_exit_door{ item_shop_world.find_object_by_name("DoorToTownFromItemShop") };
+            CARROT_TEST_REQUIRE(item_shop_exit_door != nullptr);
+            const std::optional<sandbox::scene_transition_request_t> item_shop_exit_request{
+                sandbox::make_scene_transition_request(assets, *item_shop_exit_door)
+            };
+            CARROT_TEST_REQUIRE(item_shop_exit_request.has_value());
+            CARROT_TEST_REQUIRE(item_shop_exit_request->scene_id == "scene.sandbox.town");
+            CARROT_TEST_REQUIRE(item_shop_exit_request->marker_name == "ItemShopExteriorSpawn");
+        }
+
+        void test_transition_runtime_state_preserves_opened_chest_across_scene_reload()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, static_cast<rhi::rhi_context_t&>(rhi) };
+            register_required_assets(assets, vfs);
+
+            sandbox::gameplay_runtime_state_t runtime_state;
+            world::world_t world;
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town"));
+
+            const world::world_object_t* first_load_chest{ world.find_object_by_name("StarterChest") };
+            CARROT_TEST_REQUIRE(first_load_chest != nullptr);
+            CARROT_TEST_REQUIRE(first_load_chest->get_bool_property("interactable").value_or(false));
+
+            sandbox::mark_chest_open(runtime_state, "scene.sandbox.town", *first_load_chest);
+            sandbox::apply_runtime_state_to_scene("scene.sandbox.town", world, runtime_state);
+
+            const world::world_object_t* opened_chest{ world.find_object_by_name("StarterChest") };
+            CARROT_TEST_REQUIRE(opened_chest != nullptr);
+            CARROT_TEST_REQUIRE(!opened_chest->get_bool_property("interactable").value_or(true));
+
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town"));
+            sandbox::apply_runtime_state_to_scene("scene.sandbox.town", world, runtime_state);
+
+            const world::world_object_t* reloaded_chest{ world.find_object_by_name("StarterChest") };
+            CARROT_TEST_REQUIRE(reloaded_chest != nullptr);
+            CARROT_TEST_REQUIRE(sandbox::is_chest_open(runtime_state, "scene.sandbox.town", *reloaded_chest));
+            CARROT_TEST_REQUIRE(!reloaded_chest->get_bool_property("interactable").value_or(true));
+        }
+
+        void test_transition_runtime_state_restores_player_facing_after_rebind()
+        {
+            sandbox::gameplay_runtime_state_t runtime_state;
+            carrot::world::player_controller_t controller;
+
+            carrot::world::world_object_t original_player;
+            original_player.transform = carrot::world::transform_component_t{
+                .position = { 0.f, 0.f },
+                .scale = { 1.f, 1.f }
+            };
+            controller.set_controlled_object(&original_player);
+            controller.set_facing_direction(carrot::world::facing_direction_t::left);
+
+            sandbox::capture_player_runtime_state(runtime_state, controller);
+            CARROT_TEST_REQUIRE(runtime_state.player_facing.has_value());
+            CARROT_TEST_REQUIRE(*runtime_state.player_facing == carrot::world::facing_direction_t::left);
+
+            carrot::world::world_object_t transitioned_player;
+            transitioned_player.transform = carrot::world::transform_component_t{
+                .position = { 5.f, 3.f },
+                .scale = { 1.f, 1.f }
+            };
+            controller.set_controlled_object(&transitioned_player);
+            CARROT_TEST_REQUIRE(controller.facing_direction() == carrot::world::facing_direction_t::down);
+
+            sandbox::apply_runtime_state_to_player(runtime_state, controller);
+            CARROT_TEST_REQUIRE(controller.facing_direction() == carrot::world::facing_direction_t::left);
+        }
     } // namespace
 
     void register_scene_loading_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests)
     {
         tests.emplace_back("asset discovery finds scene manifests", test_asset_discovery_finds_scene_manifest);
         tests.emplace_back("tilemap world bridge imports authored objects", test_tilemap_world_bridge_imports_authored_objects);
+        tests.emplace_back("tiled tilemap import accepts unsupported features non-fatally",
+                           test_tiled_tilemap_import_accepts_unsupported_features_non_fatally);
         tests.emplace_back("scene loader positive path", test_scene_loader_loads_scene_successfully);
+        tests.emplace_back("scene loader loads sandbox town successfully", test_scene_loader_loads_sandbox_town_successfully);
         tests.emplace_back("scene loader missing scene failure path", test_scene_loader_fails_for_missing_scene);
         tests.emplace_back("scene loader supports spawn override", test_scene_loader_supports_spawn_override);
+        tests.emplace_back("scene loader supports sandbox town spawn overrides",
+                           test_scene_loader_supports_sandbox_town_spawn_overrides);
         tests.emplace_back("scene loader fails for missing spawn marker", test_scene_loader_fails_for_missing_spawn_marker);
         tests.emplace_back("scene asset importer parses camera modes", test_scene_asset_importer_parses_camera_modes);
         tests.emplace_back("scene asset importer rejects empty spawn marker", test_scene_asset_importer_rejects_empty_spawn_marker);
@@ -577,5 +790,13 @@ namespace carrot::tests {
         tests.emplace_back("door transition rejects unresolved legacy target map", test_door_transition_request_rejects_unresolved_legacy_target_map);
         tests.emplace_back("door transition rejects missing target marker", test_door_transition_request_rejects_missing_target_marker);
         tests.emplace_back("validate scene transition targets rejects invalid door in world", test_validate_scene_transition_targets_rejects_invalid_door_in_world);
+        tests.emplace_back("validate scene transition targets rejects missing destination marker",
+                           test_validate_scene_transition_targets_rejects_missing_destination_marker);
+        tests.emplace_back("sandbox scene transition requests connect all three scenes",
+                           test_sandbox_scene_transition_requests_connect_all_three_scenes);
+        tests.emplace_back("transition runtime state preserves opened chest across scene reload",
+                           test_transition_runtime_state_preserves_opened_chest_across_scene_reload);
+        tests.emplace_back("transition runtime state restores player facing after rebind",
+                           test_transition_runtime_state_restores_player_facing_after_rebind);
     }
 } // namespace carrot::tests

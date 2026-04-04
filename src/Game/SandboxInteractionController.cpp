@@ -17,6 +17,13 @@ namespace sandbox {
         return request;
     }
 
+    std::optional<opened_chest_request_t> sandbox_interaction_controller_t::consume_pending_opened_chest() noexcept
+    {
+        std::optional<opened_chest_request_t> request{ std::move(_pending_opened_chest) };
+        _pending_opened_chest.reset();
+        return request;
+    }
+
     void sandbox_interaction_controller_t::on_interact(carrot::core::game_context_t& game,
                                                        const carrot::world::world_object_t& object)
     {
@@ -47,6 +54,9 @@ namespace sandbox {
 
         if (const std::optional<chest_interaction_data_t> chest{ as_chest(object) })
         {
+            _pending_opened_chest = opened_chest_request_t{
+                .object_id = object.id
+            };
             LOG_CORE_INFO("Interact Chest '{}' -> loot_table='{}'", object.name, chest->loot_table);
             return;
         }

@@ -168,13 +168,13 @@ namespace sandbox {
         return make_scene_transition_request(assets, object).has_value();
     }
 
-    bool validate_scene_transition_targets(const carrot::assets::asset_manager_t& assets,
+    bool validate_scene_transition_targets(carrot::assets::asset_manager_t& assets,
                                            const carrot::world::world_t& world) noexcept
     {
         return build_scene_validation_report(assets, world).valid();
     }
 
-    scene_validation_report_t build_scene_validation_report(const carrot::assets::asset_manager_t& assets,
+    scene_validation_report_t build_scene_validation_report(carrot::assets::asset_manager_t& assets,
                                                             const carrot::world::world_t& world) noexcept
     {
         scene_validation_report_t report;
@@ -194,20 +194,66 @@ namespace sandbox {
 
             if (!door->target_scene.empty())
             {
-                if (!assets.scenes().registry().find(door->target_scene))
+                const carrot::assets::scene_asset_record_t* destination_scene{
+                    assets.scenes().registry().find(door->target_scene)
+                };
+                if (!destination_scene)
                 {
                     append_issue(report, std::format("Door {} references unknown target_scene '{}'",
                                                      describe_world_object(*object),
                                                      door->target_scene));
                 }
+                else
+                {
+                    const carrot::assets::loaded_tilemap_asset_t* destination_tilemap{
+                        assets.tilemaps().get(destination_scene->scene.tilemap_id)
+                    };
+                    if (!destination_tilemap)
+                    {
+                        append_issue(report, std::format("Door {} could not load destination tilemap '{}' for scene '{}'",
+                                                         describe_world_object(*object),
+                                                         destination_scene->scene.tilemap_id,
+                                                         destination_scene->logical_id));
+                    }
+                    else if (!destination_tilemap->find_object_by_name(door->target_marker))
+                    {
+                        append_issue(report, std::format("Door {} targets marker '{}' which does not exist in scene '{}'",
+                                                         describe_world_object(*object),
+                                                         door->target_marker,
+                                                         destination_scene->logical_id));
+                    }
+                }
             }
             else if (!door->target_map.empty())
             {
-                if (!assets.scenes().registry().find_first_by_tilemap(door->target_map))
+                const carrot::assets::scene_asset_record_t* destination_scene{
+                    assets.scenes().registry().find_first_by_tilemap(door->target_map)
+                };
+                if (!destination_scene)
                 {
                     append_issue(report, std::format("Door {} references legacy target_map '{}' that does not resolve to a scene",
                                                      describe_world_object(*object),
                                                      door->target_map));
+                }
+                else
+                {
+                    const carrot::assets::loaded_tilemap_asset_t* destination_tilemap{
+                        assets.tilemaps().get(destination_scene->scene.tilemap_id)
+                    };
+                    if (!destination_tilemap)
+                    {
+                        append_issue(report, std::format("Door {} could not load destination tilemap '{}' for scene '{}'",
+                                                         describe_world_object(*object),
+                                                         destination_scene->scene.tilemap_id,
+                                                         destination_scene->logical_id));
+                    }
+                    else if (!destination_tilemap->find_object_by_name(door->target_marker))
+                    {
+                        append_issue(report, std::format("Door {} targets marker '{}' which does not exist in scene '{}'",
+                                                         describe_world_object(*object),
+                                                         door->target_marker,
+                                                         destination_scene->logical_id));
+                    }
                 }
             }
             else

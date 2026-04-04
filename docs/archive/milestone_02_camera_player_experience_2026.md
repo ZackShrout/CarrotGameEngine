@@ -1,8 +1,30 @@
 # Carrot Game Engine - Milestone 02
 
 **Title:** Camera and Player Experience
-**Status:** Proposed
+**Status:** Completed
 **Focus:** Turn the current playable scene slice into a more intentional gameplay experience by giving camera behavior, input ownership, diagnostics, and scene-state flow a stronger foundation.
+
+**Completed:** April 4, 2026
+
+### Completion Summary
+
+Milestone 02 is complete.
+
+This pass tightened the scene/gameplay loop substantially and also broadened what the current Carrot sandbox can prove.
+
+Completed outcomes:
+
+* scene-authored camera defaults now own zoom, follow mode, initial target, dead zone, and smoothing
+* input bindings can now load from config with safe fallback defaults
+* scene, asset, tilemap, and door diagnostics fail earlier and explain authoring mistakes more clearly
+* the sandbox now uses a three-scene authored flow with real transitions, distinct spawn routing, and scene-local music/camera behavior
+* transition-time gameplay state handoff is now explicit in the sandbox, with player facing and opened chest state surviving scene reload/transition flow
+
+The milestone also established a stronger long-term authored sandbox for future engine work:
+
+* `scene.sandbox.town`
+* `scene.sandbox.inn`
+* `scene.sandbox.item_shop`
 
 ---
 

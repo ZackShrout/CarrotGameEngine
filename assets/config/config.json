@@ -1,7 +1,7 @@
 {
   "version": 1,
   "graphics": {
-    "api": "default",
+    "api": "vulkan",
     "debug_layers": "default"
   },
   "audio": {

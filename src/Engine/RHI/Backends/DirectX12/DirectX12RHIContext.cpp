@@ -61,10 +61,13 @@ namespace carrot::rhi::dx12 {
             camera_buffer_info.usage = buffer_usage_t::uniform;
             camera_buffer_info.cpu_writable = true;
 
-            frame.textured_quad_camera_uniform_buffer = std::make_unique<dx12_buffer_t>(
-                _device->id3d12_device(),
-                camera_buffer_info
-            );
+            for (uint32_t stage_slot{ 0 }; stage_slot < k_max_textured_quad_stage_records_per_frame; ++stage_slot)
+            {
+                frame.textured_quad_camera_uniform_buffers[stage_slot] = std::make_unique<dx12_buffer_t>(
+                    _device->id3d12_device(),
+                    camera_buffer_info
+                );
+            }
         }
 
         _srv_descriptor_stride = _device->id3d12_device()->GetDescriptorHandleIncrementSize(
@@ -91,16 +94,22 @@ namespace carrot::rhi::dx12 {
         {
             dx12_frame_t& frame{ _frames[i] };
 
-            if (frame.textured_quad_srv_heap)
+            for (auto& srv_heap: frame.textured_quad_srv_heaps)
             {
-                frame.textured_quad_srv_heap->Release();
-                frame.textured_quad_srv_heap = nullptr;
+                if (srv_heap)
+                {
+                    srv_heap->Release();
+                    srv_heap = nullptr;
+                }
             }
 
-            if (frame.textured_quad_sampler_heap)
+            for (auto& sampler_heap: frame.textured_quad_sampler_heaps)
             {
-                frame.textured_quad_sampler_heap->Release();
-                frame.textured_quad_sampler_heap = nullptr;
+                if (sampler_heap)
+                {
+                    sampler_heap->Release();
+                    sampler_heap = nullptr;
+                }
             }
 
             frame.command_list.reset();
@@ -129,11 +138,8 @@ namespace carrot::rhi::dx12 {
         frame.command_list->begin_recording();
 
         _swapchain->acquire_next_image(nullptr);
-    }
 
-    void dx12_rhi_context_t::record_frame()
-    {
-        ID3D12GraphicsCommandList* cmd{ _frames[_frame_index].command_list->id3d12_graphics_command_list() };
+        ID3D12GraphicsCommandList* cmd{ frame.command_list->id3d12_graphics_command_list() };
         const dx12_swapchain_t* sc{ _swapchain.get() };
 
         float clear[]{ 0.02f, 0.02f, 0.04f, 1.0f };
@@ -150,42 +156,54 @@ namespace carrot::rhi::dx12 {
         to_rtv.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
 
         cmd->ResourceBarrier(1, &to_rtv);
-
         cmd->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
         cmd->ClearRenderTargetView(rtv, clear, 0, nullptr);
+    }
 
-        D3D12_VIEWPORT viewport{ };
-        viewport.TopLeftX = 0.0f;
-        viewport.TopLeftY = 0.0f;
-        viewport.Width = static_cast<float>(sc->get_width());
-        viewport.Height = static_cast<float>(sc->get_height());
-        viewport.MinDepth = 0.0f;
-        viewport.MaxDepth = 1.0f;
-
-        D3D12_RECT scissor{ };
-        scissor.left = 0;
-        scissor.top = 0;
-        scissor.right = static_cast<LONG>(sc->get_width());
-        scissor.bottom = static_cast<LONG>(sc->get_height());
-
-        cmd->RSSetViewports(1, &viewport);
-        cmd->RSSetScissorRects(1, &scissor);
+    void dx12_rhi_context_t::record_textured_quad_stage(const textured_quad_stage_record_t& stage)
+    {
+        ID3D12GraphicsCommandList* cmd{ _frames[_frame_index].command_list->id3d12_graphics_command_list() };
 
         if (_textured_quad_pipeline &&
             _textured_quad_pipeline->is_valid() &&
-            _textured_quad_vertex_buffer != nullptr &&
-            _textured_quad_index_buffer != nullptr &&
-            !_textured_quad_batches.empty())
+            stage.vertex_buffer != nullptr &&
+            stage.index_buffer != nullptr &&
+            !stage.batches.empty())
         {
-            ensure_textured_quad_descriptor_capacity(static_cast<uint32_t>(_textured_quad_batches.size()));
+            if (stage.stage_slot >= k_max_textured_quad_stage_records_per_frame)
+            {
+                LOG_GRAPHICS_FATAL("DX12 textured quad stage slot {} exceeds max supported stage slots {}", stage.stage_slot,
+                                   k_max_textured_quad_stage_records_per_frame);
+                return;
+            }
+
+            D3D12_VIEWPORT viewport{ };
+            viewport.TopLeftX = static_cast<float>(stage.viewport.rect_px.position.x);
+            viewport.TopLeftY = static_cast<float>(stage.viewport.rect_px.position.y);
+            viewport.Width = static_cast<float>(stage.viewport.rect_px.size.x);
+            viewport.Height = static_cast<float>(stage.viewport.rect_px.size.y);
+            viewport.MinDepth = 0.0f;
+            viewport.MaxDepth = 1.0f;
+
+            D3D12_RECT scissor{ };
+            scissor.left = static_cast<LONG>(stage.viewport.rect_px.position.x);
+            scissor.top = static_cast<LONG>(stage.viewport.rect_px.position.y);
+            scissor.right = static_cast<LONG>(stage.viewport.rect_px.position.x + stage.viewport.rect_px.size.x);
+            scissor.bottom = static_cast<LONG>(stage.viewport.rect_px.position.y + stage.viewport.rect_px.size.y);
+
+            cmd->RSSetViewports(1, &viewport);
+            cmd->RSSetScissorRects(1, &scissor);
+
+            ensure_textured_quad_descriptor_capacity(static_cast<uint32_t>(stage.batches.size()));
 
             const dx12_frame_t& frame{ _frames[_frame_index] };
 
             renderer::textured_quad_camera_uniform_t camera_uniform{ };
-            camera_uniform.view_projection = _textured_quad_view_projection;
+            camera_uniform.view_projection = stage.view_projection;
 
-            if (!frame.textured_quad_camera_uniform_buffer ||
-                !frame.textured_quad_camera_uniform_buffer->write(&camera_uniform, sizeof(camera_uniform), 0))
+            if (!frame.textured_quad_camera_uniform_buffers[stage.stage_slot] ||
+                !frame.textured_quad_camera_uniform_buffers[stage.stage_slot]->write(&camera_uniform,
+                                                                                     sizeof(camera_uniform), 0))
             {
                 LOG_GRAPHICS_FATAL("Failed to upload DX12 textured quad camera uniform");
                 return;
@@ -193,18 +211,19 @@ namespace carrot::rhi::dx12 {
 
             const draw_context_t draw_context{
                 .command_list = cmd,
-                .viewport = _textured_quad_viewport,
-                .vertex_buffer = _textured_quad_vertex_buffer,
-                .index_buffer = _textured_quad_index_buffer,
-                .batches = _textured_quad_batches
+                .viewport = stage.viewport,
+                .vertex_buffer = stage.vertex_buffer,
+                .index_buffer = stage.index_buffer,
+                .batches = stage.batches
             };
 
             const descriptor_context_t descriptor_context{
                 .tables{
-                    .srv_heap = frame.textured_quad_srv_heap,
+                    .srv_heap = frame.textured_quad_srv_heaps[stage.stage_slot],
                     .srv_descriptor_size = _srv_descriptor_stride,
-                    .camera_cbv_handle = frame.textured_quad_srv_heap->GetGPUDescriptorHandleForHeapStart(),
-                    .sampler_heap = frame.textured_quad_sampler_heap,
+                    .camera_cbv_handle = frame.textured_quad_srv_heaps[stage.stage_slot]->GetGPUDescriptorHandleForHeapStart(),
+                    .first_batch_srv_index = 1,
+                    .sampler_heap = frame.textured_quad_sampler_heaps[stage.stage_slot],
                     .sampler_descriptor_size = _sampler_descriptor_stride
                 },
                 .sampler_provider = this
@@ -212,14 +231,24 @@ namespace carrot::rhi::dx12 {
 
             _textured_quad_pipeline->draw(draw_context, descriptor_context);
         }
-
-        std::swap(to_rtv.Transition.StateBefore, to_rtv.Transition.StateAfter);
-        cmd->ResourceBarrier(1, &to_rtv);
     }
 
     void dx12_rhi_context_t::end_frame()
     {
         auto& f{ _frames[_frame_index] };
+        ID3D12GraphicsCommandList* cmd{ f.command_list->id3d12_graphics_command_list() };
+        const dx12_swapchain_t* sc{ _swapchain.get() };
+        ID3D12Resource* backbuffer{ sc->get_backbuffer(sc->get_current_image_index()) };
+
+        D3D12_RESOURCE_BARRIER to_present{ };
+        to_present.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        to_present.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        to_present.Transition.pResource = backbuffer;
+        to_present.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        to_present.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+        to_present.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+        cmd->ResourceBarrier(1, &to_present);
+
         f.command_list->end_recording();
 
         _graphics_queue->submit(f.command_list.get(), f.fence.get(), nullptr, nullptr);
@@ -430,28 +459,6 @@ namespace carrot::rhi::dx12 {
         return std::make_unique<dx12_sampler_t>(desc);
     }
 
-    void dx12_rhi_context_t::set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer,
-                                                        const rhi_buffer_t& index_buffer)
-    {
-        _textured_quad_vertex_buffer = &vertex_buffer;
-        _textured_quad_index_buffer = &index_buffer;
-    }
-
-    void dx12_rhi_context_t::set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches)
-    {
-        _textured_quad_batches.assign(batches.begin(), batches.end());
-    }
-
-    void dx12_rhi_context_t::set_textured_quad_view_projection(const chlm::float4x4& view_projection)
-    {
-        _textured_quad_view_projection = view_projection;
-    }
-
-    void dx12_rhi_context_t::set_textured_quad_viewport(const render_viewport_t& viewport)
-    {
-        _textured_quad_viewport = viewport;
-    }
-
     rhi_sampler_t* dx12_rhi_context_t::get_or_create_sampler(const sampler_desc_t& desc)
     {
         if (const auto it = _sampler_cache.find(desc); it != _sampler_cache.end())
@@ -494,54 +501,66 @@ namespace carrot::rhi::dx12 {
         for (uint32_t frame_index{ 0 }; frame_index < k_max_frames_in_flight; ++frame_index)
         {
             dx12_frame_t& frame{ _frames[frame_index] };
+            bool has_all_srv_heaps{ true };
+            bool has_all_sampler_heaps{ true };
+
+            for (const ID3D12DescriptorHeap* heap: frame.textured_quad_srv_heaps)
+                has_all_srv_heaps = has_all_srv_heaps && (heap != nullptr);
+
+            for (const ID3D12DescriptorHeap* heap: frame.textured_quad_sampler_heaps)
+                has_all_sampler_heaps = has_all_sampler_heaps && (heap != nullptr);
 
             if (frame.textured_quad_descriptor_capacity >= target_capacity &&
-                frame.textured_quad_srv_heap != nullptr &&
-                frame.textured_quad_sampler_heap != nullptr)
+                has_all_srv_heaps &&
+                has_all_sampler_heaps)
             {
                 continue;
             }
 
-            if (frame.textured_quad_srv_heap)
+            frame.fence->wait(frame.fence_value);
+
+            for (uint32_t stage_slot{ 0 }; stage_slot < k_max_textured_quad_stage_records_per_frame; ++stage_slot)
             {
-                frame.textured_quad_srv_heap->Release();
-                frame.textured_quad_srv_heap = nullptr;
+                if (frame.textured_quad_srv_heaps[stage_slot])
+                {
+                    frame.textured_quad_srv_heaps[stage_slot]->Release();
+                    frame.textured_quad_srv_heaps[stage_slot] = nullptr;
+                }
+
+                if (frame.textured_quad_sampler_heaps[stage_slot])
+                {
+                    frame.textured_quad_sampler_heaps[stage_slot]->Release();
+                    frame.textured_quad_sampler_heaps[stage_slot] = nullptr;
+                }
+
+                D3D12_DESCRIPTOR_HEAP_DESC srv_heap_desc{ };
+                srv_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+                srv_heap_desc.NumDescriptors = srv_heap_descriptor_count;
+                srv_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+                srv_heap_desc.NodeMask = 0;
+
+                DX12_CHECK(_device->id3d12_device()->CreateDescriptorHeap(&srv_heap_desc,
+                    IID_PPV_ARGS(&frame.textured_quad_srv_heaps[stage_slot])));
+
+                D3D12_DESCRIPTOR_HEAP_DESC sampler_heap_desc{ };
+                sampler_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
+                sampler_heap_desc.NumDescriptors = target_capacity;
+                sampler_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+                sampler_heap_desc.NodeMask = 0;
+
+                DX12_CHECK(_device->id3d12_device()->CreateDescriptorHeap(&sampler_heap_desc,
+                    IID_PPV_ARGS(&frame.textured_quad_sampler_heaps[stage_slot])));
+
+                D3D12_CONSTANT_BUFFER_VIEW_DESC cbv_desc{ };
+                cbv_desc.BufferLocation =
+                    frame.textured_quad_camera_uniform_buffers[stage_slot]->resource()->GetGPUVirtualAddress();
+                cbv_desc.SizeInBytes = align_constant_buffer_size(sizeof(renderer::textured_quad_camera_uniform_t));
+
+                _device->id3d12_device()->CreateConstantBufferView(
+                    &cbv_desc,
+                    frame.textured_quad_srv_heaps[stage_slot]->GetCPUDescriptorHandleForHeapStart()
+                );
             }
-
-            if (frame.textured_quad_sampler_heap)
-            {
-                frame.textured_quad_sampler_heap->Release();
-                frame.textured_quad_sampler_heap = nullptr;
-            }
-
-            D3D12_DESCRIPTOR_HEAP_DESC srv_heap_desc{ };
-            srv_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-            srv_heap_desc.NumDescriptors = srv_heap_descriptor_count;
-            srv_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-            srv_heap_desc.NodeMask = 0;
-
-            DX12_CHECK(_device->id3d12_device()->CreateDescriptorHeap(&srv_heap_desc,
-                IID_PPV_ARGS(&frame.textured_quad_srv_heap)));
-            DX12_NAME_INDEXED(frame.textured_quad_srv_heap, frame_index, L"DX12 Textured Quad SRV Heap");
-
-            D3D12_DESCRIPTOR_HEAP_DESC sampler_heap_desc{ };
-            sampler_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
-            sampler_heap_desc.NumDescriptors = target_capacity;
-            sampler_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-            sampler_heap_desc.NodeMask = 0;
-
-            DX12_CHECK(_device->id3d12_device()->CreateDescriptorHeap(&sampler_heap_desc,
-                IID_PPV_ARGS(&frame.textured_quad_sampler_heap)));
-            DX12_NAME_INDEXED(frame.textured_quad_sampler_heap, frame_index, L"DX12 Textured Quad Sampler Heap");
-
-            D3D12_CONSTANT_BUFFER_VIEW_DESC cbv_desc{ };
-            cbv_desc.BufferLocation = frame.textured_quad_camera_uniform_buffer->resource()->GetGPUVirtualAddress();
-            cbv_desc.SizeInBytes = align_constant_buffer_size(sizeof(renderer::textured_quad_camera_uniform_t));
-
-            _device->id3d12_device()->CreateConstantBufferView(
-                &cbv_desc,
-                frame.textured_quad_srv_heap->GetCPUDescriptorHandleForHeapStart()
-            );
 
             frame.textured_quad_descriptor_capacity = target_capacity;
         }

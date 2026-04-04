@@ -104,6 +104,56 @@ Carrot should periodically audit which current assumptions are acceptable sandbo
 * user-facing input rebinding and config-backed action maps on top of the new engine action layer
 * camera redesign so scene bootstrap defaults become camera defaults rather than a parallel presentation-scale concept
 * whether future games want a broader shared controller base beyond the current default movement and interaction helpers
+* render-pipeline refactoring so world, debug, UI, and future composite work no longer compete inside a one-pass frame model
+
+### 2.6 Current Post-Milestone-02 Priority Stack
+
+After Milestone 02, the most important next step is no longer scene-flow tightening.
+
+The current proposed engine-growth order is:
+
+1. render pipeline refactor
+2. collision / physics-lite world constraints
+3. 2D layering and depth-sort behavior
+4. gamepad input support
+5. in-game UI foundation and API
+
+This ordering reflects two ideas:
+
+* some missing features are direct architectural ceilings
+* others are important, but depend on those ceilings being lifted first
+
+Notable later work that should stay visible but is not the current top priority:
+
+* richer Tiled feature support such as animated tiles
+* screen-transition presentation effects
+* broader optional gameplay modules
+* lighting and shadows
+* hybrid 2D/3D rendering growth
+* animated 3D model workflows
+
+### 2.7 Current Frame Stage Contract
+
+After the first Milestone 03 render-pipeline refactor pass, Carrot’s frame stages are expected to mean:
+
+* `world`
+  * world-facing rendering
+  * uses the active world camera and resolved world viewport
+* `ui`
+  * in-game UI and presentation layer
+  * uses full render-target pixel space
+* `overlay_debug`
+  * diagnostics and engine debug overlays
+  * uses resolved viewport-local pixel space so it stays inside letterboxed world presentation when applicable
+  * renders after `ui` so debug information remains visible above all game content
+
+This is an execution contract, not just a naming preference.
+
+It helps keep future responsibilities clear:
+
+* world rendering stays separate from game UI
+* game UI stays separate from engine diagnostics
+* stage naming does not imply that every stage is forever a single backend render pass
 
 ---
 
@@ -257,6 +307,28 @@ The long-term goal is practical backend parity where the higher-level engine can
 
 The renderer sits above the RHI and is responsible for actual engine-facing rendering behavior.
 
+### Long-Term Render Path Direction
+
+Carrot is expected to converge on a **single long-term render architecture** rather than maintain separate foundational render paths for “simple 2D” and “2D/3D hybrid” games.
+
+The intended long-term direction is a **deferred-lighting-oriented world render path**, even though early milestones will implement only a subset of that pipeline.
+
+That direction is chosen because Carrot is meant to be:
+
+* specialized
+* lean
+* strong at high-quality 2D and 2D/3D hybrid games
+
+This does **not** mean deferred lighting must be implemented immediately.
+It does mean current render architecture work should avoid locking Carrot into a permanently flat forward-only model.
+
+Important implications:
+
+* frame-stage design should allow the world stage to grow into multiple internal passes later
+* debug, overlay, and UI work should remain clearly outside future world-lighting structure
+* present-day rendering cleanup should preserve a path toward future G-buffer, lighting, and composite work
+* the engine should grow one serious render path in stages rather than split into separate simple-vs-hybrid architectures
+
 ### Near-Term Direction
 
 The current renderer direction is intentionally modest and foundational.
@@ -310,6 +382,8 @@ Examples of renderer-level concerns:
 
 At the current stage, Carrot's debug text overlay is intentionally implemented through the same 2D textured-quad renderer rather than a separate UI or debug-only pass.
 That keeps the system small, portable across backends, and useful for renderer bring-up while leaving room for a broader overlay/UI layer later.
+
+That coupling is now considered a temporary foundation-stage choice, not the intended long-term ownership model.
 
 ### Engine-Owned Rendering Flow
 Carrot’s long-term rendering model is intended to be **engine-driven**, not **game-code-driven**.

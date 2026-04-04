@@ -20,6 +20,8 @@
 #include <vector>
 
 namespace carrot::rhi::vulkan {
+    constexpr uint32_t k_max_textured_quad_stage_records_per_frame{ 8 };
+
     class vulkan_buffer_t;
     class vulkan_textured_quad_pipeline_t;
     class vulkan_pipeline_t;
@@ -33,8 +35,10 @@ namespace carrot::rhi::vulkan {
         chlm::float4x4 view_projection{ chlm::float4x4::identity() };
         render_viewport_t viewport{ };
 
-        std::array<std::unique_ptr<rhi_buffer_t>, k_max_frames_in_flight> camera_uniform_buffers;
-        std::array<VkDescriptorSet, k_max_frames_in_flight> camera_descriptor_sets{ };
+        std::array<std::array<std::unique_ptr<rhi_buffer_t>, k_max_textured_quad_stage_records_per_frame>,
+                   k_max_frames_in_flight> camera_uniform_buffers;
+        std::array<std::array<VkDescriptorSet, k_max_textured_quad_stage_records_per_frame>,
+                   k_max_frames_in_flight> camera_descriptor_sets{ };
 
         std::vector<renderer::textured_quad_batch_t> batches;
         std::array<std::vector<VkDescriptorSet>, k_max_frames_in_flight> descriptor_sets;
@@ -47,7 +51,7 @@ namespace carrot::rhi::vulkan {
         ~vulkan_rhi_context_t() override;
 
         void begin_frame() override;
-        void record_frame() override;
+        void record_textured_quad_stage(const textured_quad_stage_record_t& stage) override;
         void end_frame() override;
 
         void release_asset_references() override;
@@ -62,10 +66,6 @@ namespace carrot::rhi::vulkan {
         [[nodiscard]] std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_sampler_t> create_sampler(const sampler_desc_t& desc) const override;
-        void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer, const rhi_buffer_t& index_buffer) override;
-        void set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches) override;
-        void set_textured_quad_view_projection(const chlm::float4x4& view_projection) override;
-        void set_textured_quad_viewport(const render_viewport_t& viewport) override;
 
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
         void bind_textured_quad_resources([[maybe_unused]] const rhi_texture_t& texture,
@@ -95,8 +95,7 @@ namespace carrot::rhi::vulkan {
         void write_textured_quad_descriptor_set(VkDescriptorSet descriptor_set, const rhi_texture_t& texture, const rhi_sampler_t& sampler) const;
 
         void allocate_textured_quad_camera_descriptor_sets();
-        void write_textured_quad_camera_descriptor_set(uint32_t frame_index) const;
-        void upload_textured_quad_camera_uniform(uint32_t frame_index) const;
+        void write_textured_quad_camera_descriptor_set(uint32_t frame_index, uint32_t stage_slot) const;
 
         // ── Core Vulkan handles ──
         VkInstance          _vk_instance{ VK_NULL_HANDLE };
@@ -117,7 +116,7 @@ namespace carrot::rhi::vulkan {
         std::array<frame_resources_t, k_max_frames_in_flight>   _frames;
         std::vector<VkSemaphore>                                _render_finished_semaphores;
 
-        // ── Renderer submission state ──
+        // ── Textured quad GPU state ──
         textured_quad_state_t                                                                   _textured_quad;
         std::unordered_map<sampler_desc_t, std::unique_ptr<rhi_sampler_t>, sampler_desc_hash_t> _sampler_cache;
 
@@ -126,6 +125,7 @@ namespace carrot::rhi::vulkan {
         uint32_t _current_image_index{ 0 };
         uint32_t _pending_resize_width{ 0 };
         uint32_t _pending_resize_height{ 0 };
+        std::array<uint32_t, k_max_frames_in_flight> _textured_quad_descriptor_set_cursor{ };
 
         // ── Deferred actions and lifecycle flags ──
         bool _pending_pipeline_reload{ false };

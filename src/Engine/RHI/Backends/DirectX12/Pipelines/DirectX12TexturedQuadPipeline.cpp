@@ -282,10 +282,12 @@ namespace carrot::rhi::dx12 {
             write_batch_descriptors(i, batch, descriptor_context);
 
             D3D12_GPU_DESCRIPTOR_HANDLE srv_handle{ srv_heap_start };
-            srv_handle.ptr += static_cast<SIZE_T>(i + 1u) * descriptor_context.tables.srv_descriptor_size;
+            srv_handle.ptr += static_cast<SIZE_T>(descriptor_context.tables.first_batch_srv_index + i) *
+                              descriptor_context.tables.srv_descriptor_size;
 
             D3D12_GPU_DESCRIPTOR_HANDLE sampler_handle{ sampler_heap_start };
-            sampler_handle.ptr += static_cast<SIZE_T>(i) * descriptor_context.tables.sampler_descriptor_size;
+            sampler_handle.ptr += static_cast<SIZE_T>(descriptor_context.tables.first_batch_sampler_index + i) *
+                                  descriptor_context.tables.sampler_descriptor_size;
 
             cmd->SetGraphicsRootDescriptorTable(1, srv_handle);
             cmd->SetGraphicsRootDescriptorTable(2, sampler_handle);
@@ -322,7 +324,8 @@ namespace carrot::rhi::dx12 {
         D3D12_CPU_DESCRIPTOR_HANDLE srv_handle{
             descriptor_context.tables.srv_heap->GetCPUDescriptorHandleForHeapStart()
         };
-        srv_handle.ptr += static_cast<SIZE_T>(batch_index + 1u) * descriptor_context.tables.srv_descriptor_size;
+        srv_handle.ptr += static_cast<SIZE_T>(descriptor_context.tables.first_batch_srv_index + batch_index) *
+                          descriptor_context.tables.srv_descriptor_size;
 
         _device->CreateShaderResourceView(dx_texture->resource(), &srv_desc, srv_handle);
 
@@ -336,7 +339,8 @@ namespace carrot::rhi::dx12 {
         D3D12_CPU_DESCRIPTOR_HANDLE sampler_handle{
             descriptor_context.tables.sampler_heap->GetCPUDescriptorHandleForHeapStart()
         };
-        sampler_handle.ptr += static_cast<SIZE_T>(batch_index) * descriptor_context.tables.sampler_descriptor_size;
+        sampler_handle.ptr += static_cast<SIZE_T>(descriptor_context.tables.first_batch_sampler_index + batch_index) *
+                              descriptor_context.tables.sampler_descriptor_size;
 
         const D3D12_SAMPLER_DESC d3d_sampler_desc{ dx12_sampler_desc(sampler_desc) };
         _device->CreateSampler(&d3d_sampler_desc, sampler_handle);

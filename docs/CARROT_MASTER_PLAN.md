@@ -591,6 +591,23 @@ Recent completed foundation work in Milestone 02:
 * a three-scene authored sandbox pressure test
 * sandbox-owned transition-time gameplay state handoff
 
+Current proposed post-Milestone-02 engine priority order:
+
+1. Render pipeline refactor
+2. Collision / physics-lite world constraints
+3. 2D layering and depth-sort behavior
+4. Gamepad input support
+5. In-game UI foundation and API
+
+Important but intentionally later / dependent work:
+
+* richer Tiled support such as animated tiles and more authored feature coverage
+* screen-transition presentation modules such as fade-to-black built on top of stronger frame architecture
+* broader gameplay modules layered above engine primitives
+* 2D lighting and later shadow support
+* hybrid 2D/3D rendering expansion
+* animated 3D model support
+
 ### 11.2 Mid-Term Priorities
 
 These priorities build on the near-term rendering and asset foundation.

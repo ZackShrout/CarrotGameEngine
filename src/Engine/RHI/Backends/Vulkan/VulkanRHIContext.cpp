@@ -70,7 +70,9 @@ namespace carrot::rhi::vulkan {
             }
         }
 
-        constexpr uint32_t k_initial_textured_quad_descriptor_sets_per_frame{ 16 };
+        // Stage-aware recording means one frame may consume descriptor sets across
+        // multiple stage submissions before the command buffer is submitted.
+        constexpr uint32_t k_initial_textured_quad_descriptor_sets_per_frame{ 256 };
 
         constexpr uint32_t k_max_textured_quad_descriptor_sets{
             k_max_frames_in_flight * k_initial_textured_quad_descriptor_sets_per_frame
@@ -164,6 +166,7 @@ namespace carrot::rhi::vulkan {
         _skip_frame = false;
         _frame_active = false;
         _render_pass_active = false;
+        _textured_quad_descriptor_set_cursor[_current_frame] = 0;
 
         if (_swapchain_dirty)
         {
@@ -244,7 +247,7 @@ namespace carrot::rhi::vulkan {
         _frame_active = true;
     }
 
-    void vulkan_rhi_context_t::record_frame()
+    void vulkan_rhi_context_t::record_textured_quad_stage(const textured_quad_stage_record_t& stage)
     {
         if (_skip_frame || !_frame_active)
             return;
@@ -257,24 +260,42 @@ namespace carrot::rhi::vulkan {
             return;
         }
 
-        if (_textured_quad.vertex_buffer == nullptr || _textured_quad.index_buffer == nullptr)
+        const vulkan_buffer_t* vertex_buffer{ dynamic_cast<const vulkan_buffer_t*>(stage.vertex_buffer) };
+        const vulkan_buffer_t* index_buffer{ dynamic_cast<const vulkan_buffer_t*>(stage.index_buffer) };
+        if (vertex_buffer == nullptr || index_buffer == nullptr)
         {
             LOG_GRAPHICS_FATAL("Textured quad geometry not initialized");
             return;
         }
 
-        if (_textured_quad.batches.empty())
+        if (stage.batches.empty())
             return;
 
-        upload_textured_quad_camera_uniform(_current_frame);
-        write_textured_quad_camera_descriptor_set(_current_frame);
+        if (stage.stage_slot >= k_max_textured_quad_stage_records_per_frame)
+        {
+            LOG_GRAPHICS_FATAL("Vulkan textured quad stage slot {} exceeds max supported stage slots {}", stage.stage_slot,
+                               k_max_textured_quad_stage_records_per_frame);
+            return;
+        }
 
-        const uint32_t batch_count{ static_cast<uint32_t>(_textured_quad.batches.size()) };
-        ensure_textured_quad_descriptor_sets_for_frame(_current_frame, batch_count);
+        renderer::textured_quad_camera_uniform_t camera_uniform{ };
+        camera_uniform.view_projection = stage.view_projection;
+        if (!_textured_quad.camera_uniform_buffers[_current_frame][stage.stage_slot] ||
+            !_textured_quad.camera_uniform_buffers[_current_frame][stage.stage_slot]->write(&camera_uniform,
+                                                                                            sizeof(camera_uniform), 0))
+        {
+            LOG_GRAPHICS_FATAL("Failed to upload Vulkan textured quad camera uniform");
+            return;
+        }
+        write_textured_quad_camera_descriptor_set(_current_frame, stage.stage_slot);
+
+        const uint32_t batch_count{ static_cast<uint32_t>(stage.batches.size()) };
+        const uint32_t descriptor_set_offset{ _textured_quad_descriptor_set_cursor[_current_frame] };
+        ensure_textured_quad_descriptor_sets_for_frame(_current_frame, descriptor_set_offset + batch_count);
 
         const std::vector<VkDescriptorSet_T*>& frame_descriptor_sets{ _textured_quad.descriptor_sets[_current_frame] };
 
-        const chlm::uint_rect viewport_rect{ _textured_quad.viewport.rect_px };
+        const chlm::uint_rect viewport_rect{ stage.viewport.rect_px };
 
         VkViewport viewport{ };
         viewport.x = static_cast<float>(viewport_rect.position.x);
@@ -303,25 +324,25 @@ namespace carrot::rhi::vulkan {
             _textured_quad_pipeline->vk_pipeline()
         );
 
-        const VkBuffer vertex_buffers[]{ _textured_quad.vertex_buffer->vk_buffer() };
+        const VkBuffer vertex_buffers[]{ vertex_buffer->vk_buffer() };
         const VkDeviceSize offsets[]{ 0 };
 
         vkCmdBindVertexBuffers(frame.command_buffer, 0, 1, vertex_buffers, offsets);
-        vkCmdBindIndexBuffer(frame.command_buffer, _textured_quad.index_buffer->vk_buffer(), 0, VK_INDEX_TYPE_UINT32);
+        vkCmdBindIndexBuffer(frame.command_buffer, index_buffer->vk_buffer(), 0, VK_INDEX_TYPE_UINT32);
 
-        VkDescriptorSet camera_descriptor_set{ _textured_quad.camera_descriptor_sets[_current_frame] };
+        VkDescriptorSet camera_descriptor_set{ _textured_quad.camera_descriptor_sets[_current_frame][stage.stage_slot] };
 
         vkCmdBindDescriptorSets(frame.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 _textured_quad_pipeline->vk_layout(), 0, 1, &camera_descriptor_set, 0, nullptr);
 
         for (uint32_t batch_index{ 0 }; batch_index < batch_count; ++batch_index)
         {
-            const renderer::textured_quad_batch_t& batch{ _textured_quad.batches[batch_index] };
+            const renderer::textured_quad_batch_t& batch{ stage.batches[batch_index] };
 
             if (batch.texture == nullptr || batch.index_count == 0)
                 continue;
 
-            VkDescriptorSet descriptor_set{ frame_descriptor_sets[batch_index] };
+            VkDescriptorSet descriptor_set{ frame_descriptor_sets[descriptor_set_offset + batch_index] };
 
             const sampler_desc_t sampler_desc{ sampler_desc_from_preset(batch.sampler_preset) };
             const rhi_sampler_t* sampler{ get_or_create_sampler(sampler_desc) };
@@ -338,6 +359,8 @@ namespace carrot::rhi::vulkan {
 
             vkCmdDrawIndexed(frame.command_buffer, batch.index_count, 1, batch.first_index, 0, 0);
         }
+
+        _textured_quad_descriptor_set_cursor[_current_frame] += batch_count;
     }
 
     void vulkan_rhi_context_t::end_frame()
@@ -407,11 +430,12 @@ namespace carrot::rhi::vulkan {
 
         VK_CHECK_FATAL(vkDeviceWaitIdle(_device->vk_device()));
 
-        for (auto& buffer: _textured_quad.camera_uniform_buffers)
-            buffer.reset();
+        for (auto& frame_buffers: _textured_quad.camera_uniform_buffers)
+            for (auto& buffer: frame_buffers)
+                buffer.reset();
 
-        for (auto& descriptor_set: _textured_quad.camera_descriptor_sets)
-            descriptor_set = VK_NULL_HANDLE;
+        for (auto& frame_descriptor_sets: _textured_quad.camera_descriptor_sets)
+            frame_descriptor_sets.fill(VK_NULL_HANDLE);
 
         for (auto& frame_sets: _textured_quad.descriptor_sets)
             frame_sets.clear();
@@ -781,31 +805,6 @@ namespace carrot::rhi::vulkan {
         return std::make_unique<vulkan_sampler_t>(_device->vk_device(), sampler, desc);
     }
 
-    void vulkan_rhi_context_t::set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer,
-                                                          const rhi_buffer_t& index_buffer)
-    {
-        _textured_quad.vertex_buffer = dynamic_cast<const vulkan_buffer_t*>(&vertex_buffer);
-        _textured_quad.index_buffer = dynamic_cast<const vulkan_buffer_t*>(&index_buffer);
-
-        if (_textured_quad.vertex_buffer == nullptr || _textured_quad.index_buffer == nullptr)
-            LOG_GRAPHICS_FATAL("set_textured_quad_geometry received invalid backend buffers");
-    }
-
-    void vulkan_rhi_context_t::set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches)
-    {
-        _textured_quad.batches.assign(batches.begin(), batches.end());
-    }
-
-    void vulkan_rhi_context_t::set_textured_quad_view_projection(const chlm::float4x4& view_projection)
-    {
-        _textured_quad.view_projection = view_projection;
-    }
-
-    void vulkan_rhi_context_t::set_textured_quad_viewport(const render_viewport_t& viewport)
-    {
-        _textured_quad.viewport = viewport;
-    }
-
     rhi_sampler_t* vulkan_rhi_context_t::get_or_create_sampler(const sampler_desc_t& desc)
     {
         if (const auto it{ _sampler_cache.find(desc) }; it != _sampler_cache.end())
@@ -1036,14 +1035,13 @@ namespace carrot::rhi::vulkan {
 
         create_descriptor_pool();
 
-        for (uint32_t i{ 0 }; i < k_max_frames_in_flight; ++i)
-        {
-            _textured_quad.camera_uniform_buffers[i] = create_buffer({
-                .size_bytes = sizeof(renderer::textured_quad_camera_uniform_t),
-                .usage = buffer_usage_t::uniform,
-                .cpu_writable = true
-            });
-        }
+        for (uint32_t frame_index{ 0 }; frame_index < k_max_frames_in_flight; ++frame_index)
+            for (uint32_t stage_slot{ 0 }; stage_slot < k_max_textured_quad_stage_records_per_frame; ++stage_slot)
+                _textured_quad.camera_uniform_buffers[frame_index][stage_slot] = create_buffer({
+                    .size_bytes = sizeof(renderer::textured_quad_camera_uniform_t),
+                    .usage = buffer_usage_t::uniform,
+                    .cpu_writable = true
+                });
 
         allocate_textured_quad_camera_descriptor_sets();
 
@@ -1207,9 +1205,9 @@ namespace carrot::rhi::vulkan {
     {
         std::array<VkDescriptorPoolSize, 3> pool_sizes{ };
 
-        // Set 0: one camera UBO per frame-in-flight
+        // Set 0: one camera UBO per frame-in-flight stage slot
         pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        pool_sizes[0].descriptorCount = k_max_frames_in_flight;
+        pool_sizes[0].descriptorCount = k_max_frames_in_flight * k_max_textured_quad_stage_records_per_frame;
 
         // Set 1, binding 0: sampled image per textured-quad descriptor set
         pool_sizes[1].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
@@ -1223,7 +1221,8 @@ namespace carrot::rhi::vulkan {
         pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         pool_info.poolSizeCount = static_cast<uint32_t>(pool_sizes.size());
         pool_info.pPoolSizes = pool_sizes.data();
-        pool_info.maxSets = k_max_frames_in_flight + k_max_textured_quad_descriptor_sets;
+        pool_info.maxSets =
+            (k_max_frames_in_flight * k_max_textured_quad_stage_records_per_frame) + k_max_textured_quad_descriptor_sets;
 
         VK_CHECK_FATAL(vkCreateDescriptorPool(_device->vk_device(), &pool_info, nullptr, &_descriptor_pool));
 
@@ -1232,8 +1231,8 @@ namespace carrot::rhi::vulkan {
 
     void vulkan_rhi_context_t::destroy_descriptor_pool() noexcept
     {
-        for (auto& descriptor_set: _textured_quad.camera_descriptor_sets)
-            descriptor_set = VK_NULL_HANDLE;
+        for (auto& frame_descriptor_sets: _textured_quad.camera_descriptor_sets)
+            frame_descriptor_sets.fill(VK_NULL_HANDLE);
 
         for (auto& frame_sets: _textured_quad.descriptor_sets)
             frame_sets.clear();
@@ -1254,11 +1253,12 @@ namespace carrot::rhi::vulkan {
         for (auto& frame_sets: _textured_quad.descriptor_sets)
             frame_sets.clear();
 
-        for (auto& descriptor_set: _textured_quad.camera_descriptor_sets)
-            descriptor_set = VK_NULL_HANDLE;
+        for (auto& frame_descriptor_sets: _textured_quad.camera_descriptor_sets)
+            frame_descriptor_sets.fill(VK_NULL_HANDLE);
 
-        for (auto& buffer: _textured_quad.camera_uniform_buffers)
-            buffer.reset();
+        for (auto& frame_buffers: _textured_quad.camera_uniform_buffers)
+            for (auto& buffer: frame_buffers)
+                buffer.reset();
     }
 
     void vulkan_rhi_context_t::allocate_textured_quad_descriptor_sets(const uint32_t frame_index, const uint32_t count)
@@ -1376,25 +1376,37 @@ namespace carrot::rhi::vulkan {
             return;
         }
 
-        std::array<VkDescriptorSetLayout, k_max_frames_in_flight> layouts{ };
+        constexpr uint32_t k_camera_descriptor_set_count{
+            k_max_frames_in_flight * k_max_textured_quad_stage_records_per_frame
+        };
+
+        std::array<VkDescriptorSetLayout, k_camera_descriptor_set_count> layouts{ };
         layouts.fill(_textured_quad_pipeline->vk_camera_descriptor_set_layout());
+
+        std::array<VkDescriptorSet, k_camera_descriptor_set_count> descriptor_sets{ };
 
         VkDescriptorSetAllocateInfo alloc_info{ };
         alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         alloc_info.descriptorPool = _descriptor_pool;
-        alloc_info.descriptorSetCount = k_max_frames_in_flight;
+        alloc_info.descriptorSetCount = k_camera_descriptor_set_count;
         alloc_info.pSetLayouts = layouts.data();
 
         VK_CHECK_FATAL(vkAllocateDescriptorSets(
             _device->vk_device(),
             &alloc_info,
-            _textured_quad.camera_descriptor_sets.data()));
+            descriptor_sets.data()));
+
+        uint32_t descriptor_index{ 0 };
+        for (uint32_t frame_index{ 0 }; frame_index < k_max_frames_in_flight; ++frame_index)
+            for (uint32_t stage_slot{ 0 }; stage_slot < k_max_textured_quad_stage_records_per_frame; ++stage_slot)
+                _textured_quad.camera_descriptor_sets[frame_index][stage_slot] = descriptor_sets[descriptor_index++];
     }
 
-    void vulkan_rhi_context_t::write_textured_quad_camera_descriptor_set(const uint32_t frame_index) const
+    void vulkan_rhi_context_t::write_textured_quad_camera_descriptor_set(const uint32_t frame_index,
+                                                                         const uint32_t stage_slot) const
     {
         const auto* camera_buffer = dynamic_cast<const vulkan_buffer_t*>(
-            _textured_quad.camera_uniform_buffers[frame_index].get());
+            _textured_quad.camera_uniform_buffers[frame_index][stage_slot].get());
 
         if (camera_buffer == nullptr)
         {
@@ -1409,7 +1421,7 @@ namespace carrot::rhi::vulkan {
 
         VkWriteDescriptorSet write{ };
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write.dstSet = _textured_quad.camera_descriptor_sets[frame_index];
+        write.dstSet = _textured_quad.camera_descriptor_sets[frame_index][stage_slot];
         write.dstBinding = 0;
         write.dstArrayElement = 0;
         write.descriptorCount = 1;
@@ -1419,30 +1431,4 @@ namespace carrot::rhi::vulkan {
         vkUpdateDescriptorSets(_device->vk_device(), 1, &write, 0, nullptr);
     }
 
-    void vulkan_rhi_context_t::upload_textured_quad_camera_uniform(const uint32_t frame_index) const
-    {
-        const auto* camera_buffer = dynamic_cast<const vulkan_buffer_t*>(
-            _textured_quad.camera_uniform_buffers[frame_index].get());
-
-        if (camera_buffer == nullptr)
-        {
-            LOG_GRAPHICS_FATAL("Textured quad camera uniform buffer was not a Vulkan buffer");
-            return;
-        }
-
-        renderer::textured_quad_camera_uniform_t uniform{ };
-        uniform.view_projection = _textured_quad.view_projection;
-
-        void* mapped{ nullptr };
-        VK_CHECK_FATAL(vkMapMemory(
-            _device->vk_device(),
-            camera_buffer->vk_memory(),
-            0,
-            sizeof(uniform),
-            0,
-            &mapped));
-
-        std::memcpy(mapped, &uniform, sizeof(uniform));
-        vkUnmapMemory(_device->vk_device(), camera_buffer->vk_memory());
-    }
 } // namespace carrot::rhi::vulkan

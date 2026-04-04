@@ -87,7 +87,7 @@ namespace carrot::tests {
         {
         public:
             void begin_frame() override {}
-            void record_frame() override {}
+            void record_textured_quad_stage([[maybe_unused]] const rhi::textured_quad_stage_record_t& stage) override {}
             void end_frame() override {}
             void release_asset_references() override {}
             void resize([[maybe_unused]] uint32_t width, [[maybe_unused]] uint32_t height) override {}
@@ -118,13 +118,6 @@ namespace carrot::tests {
             {
                 return std::make_unique<fake_sampler_t>(desc);
             }
-
-            void set_textured_quad_geometry([[maybe_unused]] const rhi::rhi_buffer_t& vertex_buffer,
-                                            [[maybe_unused]] const rhi::rhi_buffer_t& index_buffer) override {}
-
-            void set_textured_quad_batches([[maybe_unused]] std::span<const renderer::textured_quad_batch_t> batches) override {}
-            void set_textured_quad_view_projection([[maybe_unused]] const chlm::float4x4& view_projection) override {}
-            void set_textured_quad_viewport([[maybe_unused]] const rhi::render_viewport_t& viewport) override {}
 
             [[nodiscard]] rhi::rhi_sampler_t* get_or_create_sampler(const rhi::sampler_desc_t& desc) override
             {

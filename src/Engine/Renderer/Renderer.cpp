@@ -19,6 +19,13 @@
 #include "World/WorldUnits.h"
 
 namespace carrot::renderer {
+    namespace {
+        [[nodiscard]] constexpr size_t frame_stage_index(const frame_stage_kind_t stage) noexcept
+        {
+            return static_cast<size_t>(stage);
+        }
+    } // namespace
+
     // PUBLIC
 
     renderer_t::renderer_t(io::virtual_file_system_t& vfs, const engine_graphics_config_t& config)
@@ -77,10 +84,13 @@ namespace carrot::renderer {
     {
         _frame_index++;
 
-        _textured_quad.submissions.clear();
-        _textured_quad.vertices_cpu.clear();
-        _textured_quad.indices_cpu.clear();
-        _textured_quad.batches.clear();
+        for (textured_quad_state_t& stage_state : _stage_textured_quads)
+        {
+            stage_state.submissions.clear();
+            stage_state.vertices_cpu.clear();
+            stage_state.indices_cpu.clear();
+            stage_state.batches.clear();
+        }
 
         _stats = { };
 
@@ -89,35 +99,7 @@ namespace carrot::renderer {
 
     void renderer_t::end_frame()
     {
-        build_textured_quad_batches();
-
-        if (!_textured_quad.batches.empty())
-        {
-            ensure_textured_quad_frame_buffers();
-            upload_textured_quad_frame_data();
-
-            if (_textured_quad.frame_vertex_buffer && _textured_quad.frame_index_buffer)
-            {
-                _rhi->set_textured_quad_geometry(*_textured_quad.frame_vertex_buffer,
-                                                 *_textured_quad.frame_index_buffer);
-
-                _rhi->set_textured_quad_batches(_textured_quad.batches);
-            }
-        }
-
-        const chlm::uint2 render_target_size{ current_render_target_size() };
-        const resolved_camera_2d_t resolved_camera{ _active_camera.resolve(render_target_size) };
-
-        _rhi->set_textured_quad_view_projection(_active_camera.view_projection_matrix(render_target_size));
-        _rhi->set_textured_quad_viewport({
-            .rect_px = resolved_camera.viewport_rect_px
-        });
-        _rhi->record_frame();
-
-        _stats.vertex_count = static_cast<uint32_t>(_textured_quad.vertices_cpu.size());
-       _stats.index_count = static_cast<uint32_t>(_textured_quad.indices_cpu.size());
-        _stats.textured_quad_batch_count = static_cast<uint32_t>(_textured_quad.batches.size());
-        _stats.draw_calls = _stats.textured_quad_batch_count;
+        execute_frame_stages();
         _last_completed_stats = _stats;
 
         _rhi->end_frame();
@@ -125,15 +107,31 @@ namespace carrot::renderer {
 
     void renderer_t::draw_textured_quad(const textured_quad_draw_info_t& quad)
     {
+        submit_textured_quad(frame_stage_kind_t::world, quad);
+    }
+
+    void renderer_t::draw_overlay_textured_quad(const textured_quad_draw_info_t& quad)
+    {
+        submit_textured_quad(frame_stage_kind_t::overlay_debug, quad);
+    }
+
+    void renderer_t::draw_ui_textured_quad(const textured_quad_draw_info_t& quad)
+    {
+        submit_textured_quad(frame_stage_kind_t::ui, quad);
+    }
+
+    void renderer_t::submit_textured_quad(const frame_stage_kind_t stage, const textured_quad_draw_info_t& quad)
+    {
         if (quad.texture == nullptr)
         {
             LOG_GRAPHICS_WARN("draw_textured_quad called with null texture");
             return;
         }
 
-        _textured_quad.submissions.push_back({
+        textured_quad_state_t& stage_state{ _stage_textured_quads[frame_stage_index(stage)] };
+        stage_state.submissions.push_back({
             .quad = quad,
-            .submission_index = static_cast<uint64_t>(_textured_quad.submissions.size())
+            .submission_index = static_cast<uint64_t>(stage_state.submissions.size())
         });
 
         _stats.textured_quad_count++;
@@ -561,16 +559,74 @@ namespace carrot::renderer {
         return { 1u, 1u };
     }
 
-    void renderer_t::build_textured_quad_batches()
+    renderer_t::stage_execution_context_t renderer_t::resolve_stage_execution_context(
+        const frame_stage_plan_t& stage_plan) const noexcept
     {
-        _textured_quad.vertices_cpu.clear();
-        _textured_quad.indices_cpu.clear();
-        _textured_quad.batches.clear();
+        const chlm::uint2 render_target_size{ current_render_target_size() };
+        const resolved_camera_2d_t resolved_world_camera{ _active_camera.resolve(render_target_size) };
 
-        if (_textured_quad.submissions.empty())
+        switch (stage_plan.space)
+        {
+            case frame_stage_space_t::viewport_pixels:
+            {
+                const float viewport_width{
+                    static_cast<float>(std::max(1u, resolved_world_camera.viewport_rect_px.size.x))
+                };
+                const float viewport_height{
+                    static_cast<float>(std::max(1u, resolved_world_camera.viewport_rect_px.size.y))
+                };
+
+                return {
+                    .view_projection = chlm::float4x4::ortho_off_center_lh_top_left(
+                        0.f, viewport_width, 0.f, viewport_height, 0.f, 1.f
+                    ),
+                    .viewport = {
+                        .rect_px = resolved_world_camera.viewport_rect_px
+                    }
+                };
+            }
+
+            case frame_stage_space_t::render_target_pixels:
+            {
+                const float render_width{ static_cast<float>(std::max(1u, render_target_size.x)) };
+                const float render_height{ static_cast<float>(std::max(1u, render_target_size.y)) };
+
+                return {
+                    .view_projection = chlm::float4x4::ortho_off_center_lh_top_left(
+                        0.f, render_width, 0.f, render_height, 0.f, 1.f
+                    ),
+                    .viewport = {
+                        .rect_px = {
+                            .position = { 0u, 0u },
+                            .size = { std::max(1u, render_target_size.x), std::max(1u, render_target_size.y) }
+                        }
+                    }
+                };
+            }
+
+            case frame_stage_space_t::world_camera:
+            default:
+            {
+                return {
+                    .view_projection = _active_camera.view_projection_matrix(render_target_size),
+                    .viewport = {
+                        .rect_px = resolved_world_camera.viewport_rect_px
+                    }
+                };
+            }
+        }
+    }
+
+    void renderer_t::build_textured_quad_batches(textured_quad_state_t& state) const
+    {
+        state.vertices_cpu.clear();
+        state.indices_cpu.clear();
+        state.batches.clear();
+
+        if (state.submissions.empty())
             return;
 
-        std::stable_sort(_textured_quad.submissions.begin(), _textured_quad.submissions.end(),
+        std::stable_sort(state.submissions.begin(), state.submissions.end(),
                          [](const textured_quad_state_t::submission_t& lhs,
                             const textured_quad_state_t::submission_t& rhs) noexcept
                          {
@@ -586,25 +642,25 @@ namespace carrot::renderer {
                              return lhs.submission_index < rhs.submission_index;
                          });
 
-        for (const textured_quad_state_t::submission_t& submission: _textured_quad.submissions)
+        for (const textured_quad_state_t::submission_t& submission: state.submissions)
         {
             const textured_quad_draw_info_t& quad{ submission.quad };
 
-            if (_textured_quad.batches.empty() ||
-                _textured_quad.batches.back().texture != quad.texture ||
-                _textured_quad.batches.back().sampler_preset != quad.sampler_preset)
+            if (state.batches.empty() ||
+                state.batches.back().texture != quad.texture ||
+                state.batches.back().sampler_preset != quad.sampler_preset)
             {
-                _textured_quad.batches.push_back(textured_quad_batch_t{
+                state.batches.push_back(textured_quad_batch_t{
                     .texture = quad.texture,
-                    .first_index = static_cast<uint32_t>(_textured_quad.indices_cpu.size()),
+                    .first_index = static_cast<uint32_t>(state.indices_cpu.size()),
                     .index_count = 0,
                     .sampler_preset = quad.sampler_preset
                 });
             }
 
-            const uint32_t base_vertex{ static_cast<uint32_t>(_textured_quad.vertices_cpu.size()) };
+            const uint32_t base_vertex{ static_cast<uint32_t>(state.vertices_cpu.size()) };
 
-            _textured_quad.vertices_cpu.push_back(quad_vertex_t{
+            state.vertices_cpu.push_back(quad_vertex_t{
                 .x = quad.x,
                 .y = quad.y,
                 .u = quad.u0,
@@ -612,7 +668,7 @@ namespace carrot::renderer {
                 .color = quad.color
             });
 
-            _textured_quad.vertices_cpu.push_back(quad_vertex_t{
+            state.vertices_cpu.push_back(quad_vertex_t{
                 .x = quad.x + quad.width,
                 .y = quad.y,
                 .u = quad.u1,
@@ -620,7 +676,7 @@ namespace carrot::renderer {
                 .color = quad.color
             });
 
-            _textured_quad.vertices_cpu.push_back(quad_vertex_t{
+            state.vertices_cpu.push_back(quad_vertex_t{
                 .x = quad.x + quad.width,
                 .y = quad.y + quad.height,
                 .u = quad.u1,
@@ -628,7 +684,7 @@ namespace carrot::renderer {
                 .color = quad.color
             });
 
-            _textured_quad.vertices_cpu.push_back(quad_vertex_t{
+            state.vertices_cpu.push_back(quad_vertex_t{
                 .x = quad.x,
                 .y = quad.y + quad.height,
                 .u = quad.u0,
@@ -636,46 +692,100 @@ namespace carrot::renderer {
                 .color = quad.color
             });
 
-            _textured_quad.indices_cpu.push_back(base_vertex + 0);
-            _textured_quad.indices_cpu.push_back(base_vertex + 1);
-            _textured_quad.indices_cpu.push_back(base_vertex + 2);
-            _textured_quad.indices_cpu.push_back(base_vertex + 0);
-            _textured_quad.indices_cpu.push_back(base_vertex + 2);
-            _textured_quad.indices_cpu.push_back(base_vertex + 3);
+            state.indices_cpu.push_back(base_vertex + 0);
+            state.indices_cpu.push_back(base_vertex + 1);
+            state.indices_cpu.push_back(base_vertex + 2);
+            state.indices_cpu.push_back(base_vertex + 0);
+            state.indices_cpu.push_back(base_vertex + 2);
+            state.indices_cpu.push_back(base_vertex + 3);
 
-            _textured_quad.batches.back().index_count += 6;
+            state.batches.back().index_count += 6;
         }
+    }
+
+    void renderer_t::execute_frame_stage(const frame_stage_plan_t& stage_plan)
+    {
+        textured_quad_state_t& stage_state{ _stage_textured_quads[frame_stage_index(stage_plan.kind)] };
+        build_textured_quad_batches(stage_state);
+
+        if (stage_state.batches.empty())
+            return;
+
+        ensure_textured_quad_frame_buffers(stage_state);
+        upload_textured_quad_frame_data(stage_state);
+
+        if (!stage_state.frame_vertex_buffer || !stage_state.frame_index_buffer)
+            return;
+
+        const stage_execution_context_t stage_context{ resolve_stage_execution_context(stage_plan) };
+        _rhi->record_textured_quad_stage({
+            .stage_slot = static_cast<uint32_t>(stage_plan.kind),
+            .vertex_buffer = stage_state.frame_vertex_buffer.get(),
+            .index_buffer = stage_state.frame_index_buffer.get(),
+            .batches = stage_state.batches,
+            .view_projection = stage_context.view_projection,
+            .viewport = stage_context.viewport
+        });
+
+        _stats.vertex_count += static_cast<uint32_t>(stage_state.vertices_cpu.size());
+        _stats.index_count += static_cast<uint32_t>(stage_state.indices_cpu.size());
+        _stats.textured_quad_batch_count += static_cast<uint32_t>(stage_state.batches.size());
+        _stats.draw_calls += static_cast<uint32_t>(stage_state.batches.size());
+    }
+
+    void renderer_t::execute_frame_stages()
+    {
+        CE_ASSERT(_frame_stage_plan.size() == static_cast<size_t>(frame_stage_kind_t::count),
+                  "Renderer frame stage plan size must match frame_stage_kind_t count");
+        CE_ASSERT(_frame_stage_plan[0].kind == frame_stage_kind_t::world &&
+                      _frame_stage_plan[0].space == frame_stage_space_t::world_camera,
+                  "Renderer stage 0 must remain the world stage in world-camera space");
+        CE_ASSERT(_frame_stage_plan[1].kind == frame_stage_kind_t::ui &&
+                      _frame_stage_plan[1].space == frame_stage_space_t::render_target_pixels,
+                  "Renderer stage 1 must remain the UI stage in render-target pixel space");
+        CE_ASSERT(_frame_stage_plan[2].kind == frame_stage_kind_t::overlay_debug &&
+                      _frame_stage_plan[2].space == frame_stage_space_t::viewport_pixels,
+                  "Renderer stage 2 must remain the debug overlay stage in viewport pixel space");
+
+        _stats.vertex_count = 0;
+        _stats.index_count = 0;
+        _stats.textured_quad_batch_count = 0;
+        _stats.draw_calls = 0;
+
+        for (const frame_stage_plan_t& stage_plan : _frame_stage_plan)
+            execute_frame_stage(stage_plan);
     }
 
     void renderer_t::release_frame_resources()
     {
-        _textured_quad.submissions.clear();
-        _textured_quad.vertices_cpu.clear();
-        _textured_quad.indices_cpu.clear();
-        _textured_quad.batches.clear();
-
-        _textured_quad.frame_vertex_buffer.reset();
-        _textured_quad.frame_index_buffer.reset();
-
-        _textured_quad.vertex_capacity = 0;
-        _textured_quad.index_capacity = 0;
+        for (textured_quad_state_t& stage_state : _stage_textured_quads)
+        {
+            stage_state.submissions.clear();
+            stage_state.vertices_cpu.clear();
+            stage_state.indices_cpu.clear();
+            stage_state.batches.clear();
+            stage_state.frame_vertex_buffer.reset();
+            stage_state.frame_index_buffer.reset();
+            stage_state.vertex_capacity = 0;
+            stage_state.index_capacity = 0;
+        }
 
         _stats = { };
     }
 
-    void renderer_t::ensure_textured_quad_frame_buffers()
+    void renderer_t::ensure_textured_quad_frame_buffers(textured_quad_state_t& state)
     {
-        const size_t required_vertex_bytes{ _textured_quad.vertices_cpu.size() * sizeof(quad_vertex_t) };
-        const size_t required_index_bytes{ _textured_quad.indices_cpu.size() * sizeof(uint32_t) };
+        const size_t required_vertex_bytes{ state.vertices_cpu.size() * sizeof(quad_vertex_t) };
+        const size_t required_index_bytes{ state.indices_cpu.size() * sizeof(uint32_t) };
 
         if (required_vertex_bytes == 0 || required_index_bytes == 0)
             return;
 
         const bool needs_vertex_realloc{
-            _textured_quad.frame_vertex_buffer != nullptr && _textured_quad.vertex_capacity < required_vertex_bytes
+            state.frame_vertex_buffer != nullptr && state.vertex_capacity < required_vertex_bytes
         };
         const bool needs_index_realloc{
-            _textured_quad.frame_index_buffer != nullptr && _textured_quad.index_capacity < required_index_bytes
+            state.frame_index_buffer != nullptr && state.index_capacity < required_index_bytes
         };
 
         if ((needs_vertex_realloc || needs_index_realloc) &&
@@ -686,7 +796,7 @@ namespace carrot::renderer {
             _rhi->wait_idle();
         }
 
-        if (_textured_quad.frame_vertex_buffer == nullptr || _textured_quad.vertex_capacity < required_vertex_bytes)
+        if (state.frame_vertex_buffer == nullptr || state.vertex_capacity < required_vertex_bytes)
         {
             rhi::buffer_create_info_t info{ };
             info.size_bytes = required_vertex_bytes;
@@ -694,18 +804,18 @@ namespace carrot::renderer {
             info.initial_data = nullptr;
             info.cpu_writable = true;
 
-            _textured_quad.frame_vertex_buffer = _rhi->create_buffer(info);
-            if (!_textured_quad.frame_vertex_buffer)
+            state.frame_vertex_buffer = _rhi->create_buffer(info);
+            if (!state.frame_vertex_buffer)
             {
                 LOG_GRAPHICS_FATAL("Failed to create textured quad frame vertex buffer");
-                _textured_quad.vertex_capacity = 0;
+                state.vertex_capacity = 0;
                 return;
             }
 
-            _textured_quad.vertex_capacity = required_vertex_bytes;
+            state.vertex_capacity = required_vertex_bytes;
         }
 
-        if (_textured_quad.frame_index_buffer == nullptr || _textured_quad.index_capacity < required_index_bytes)
+        if (state.frame_index_buffer == nullptr || state.index_capacity < required_index_bytes)
         {
             rhi::buffer_create_info_t info{ };
             info.size_bytes = required_index_bytes;
@@ -713,39 +823,39 @@ namespace carrot::renderer {
             info.initial_data = nullptr;
             info.cpu_writable = true;
 
-            _textured_quad.frame_index_buffer = _rhi->create_buffer(info);
-            if (!_textured_quad.frame_index_buffer)
+            state.frame_index_buffer = _rhi->create_buffer(info);
+            if (!state.frame_index_buffer)
             {
                 LOG_GRAPHICS_FATAL("Failed to create textured quad frame index buffer");
-                _textured_quad.index_capacity = 0;
+                state.index_capacity = 0;
                 return;
             }
 
-            _textured_quad.index_capacity = required_index_bytes;
+            state.index_capacity = required_index_bytes;
         }
     }
 
-    void renderer_t::upload_textured_quad_frame_data() const
+    void renderer_t::upload_textured_quad_frame_data(const textured_quad_state_t& state) const
     {
-        if (_textured_quad.vertices_cpu.empty() || _textured_quad.indices_cpu.empty())
+        if (state.vertices_cpu.empty() || state.indices_cpu.empty())
             return;
 
-        if (!_textured_quad.frame_vertex_buffer || !_textured_quad.frame_index_buffer)
+        if (!state.frame_vertex_buffer || !state.frame_index_buffer)
         {
             LOG_GRAPHICS_FATAL("Textured quad frame buffers are not available for upload");
             return;
         }
 
-        const size_t vertex_bytes{ _textured_quad.vertices_cpu.size() * sizeof(quad_vertex_t) };
-        const size_t index_bytes{ _textured_quad.indices_cpu.size() * sizeof(uint32_t) };
+        const size_t vertex_bytes{ state.vertices_cpu.size() * sizeof(quad_vertex_t) };
+        const size_t index_bytes{ state.indices_cpu.size() * sizeof(uint32_t) };
 
-        if (!_textured_quad.frame_vertex_buffer->write(_textured_quad.vertices_cpu.data(), vertex_bytes, 0))
+        if (!state.frame_vertex_buffer->write(state.vertices_cpu.data(), vertex_bytes, 0))
         {
             LOG_GRAPHICS_FATAL("Failed to upload textured quad vertex data");
             return;
         }
 
-        if (!_textured_quad.frame_index_buffer->write(_textured_quad.indices_cpu.data(), index_bytes, 0))
+        if (!state.frame_index_buffer->write(state.indices_cpu.data(), index_bytes, 0))
             LOG_GRAPHICS_FATAL("Failed to upload textured quad index data");
     }
 } // namespace carrot::renderer

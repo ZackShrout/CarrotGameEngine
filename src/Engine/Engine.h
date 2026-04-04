@@ -60,6 +60,8 @@ namespace carrot {
         void tick();
 
         void render_world();
+        void render_debug();
+        void render_ui();
 
         [[nodiscard]] core::engine_paths_t make_default_engine_paths() noexcept;
         [[nodiscard]] static std::optional<std::filesystem::path> find_repo_root(std::filesystem::path start) noexcept;

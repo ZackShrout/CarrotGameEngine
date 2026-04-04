@@ -30,12 +30,6 @@ namespace carrot::debug {
         stbtt_bakedchar g_baked_chars[k_char_count]{ };
         bool g_initialized{ false };
 
-        struct overlay_transform_t
-        {
-            chlm::float2 origin_world{ 0.f, 0.f };
-            chlm::float2 units_per_pixel{ 1.f, 1.f };
-        };
-
         [[nodiscard]] std::vector<uint8_t> load_file_bytes(const std::filesystem::path& path) noexcept
         {
             std::ifstream file{ path, std::ios::binary | std::ios::ate };
@@ -86,28 +80,6 @@ namespace carrot::debug {
             }
 
             return rgba;
-        }
-
-        [[nodiscard]] overlay_transform_t compute_overlay_transform() noexcept
-        {
-            overlay_transform_t transform{ };
-
-            if (g_renderer == nullptr)
-                return transform;
-
-            const renderer::camera_2d_t& camera{ g_renderer->get_camera_2d() };
-            const renderer::resolved_camera_2d_t resolved_camera{ g_renderer->resolve_camera_2d() };
-
-            const float viewport_width{ static_cast<float>(std::max(1u, resolved_camera.viewport_rect_px.size.x)) };
-            const float viewport_height{ static_cast<float>(std::max(1u, resolved_camera.viewport_rect_px.size.y)) };
-
-            transform.origin_world = camera.position;
-            transform.units_per_pixel = {
-                resolved_camera.visible_world_size.x / viewport_width,
-                resolved_camera.visible_world_size.y / viewport_height
-            };
-
-            return transform;
         }
     } // anonymous namespace
 
@@ -196,8 +168,6 @@ namespace carrot::debug {
         float pen_x{ x };
         float pen_y{ y };
         const float line_height{ k_font_pixel_height + 6.0f };
-        const overlay_transform_t transform{ compute_overlay_transform() };
-
         const size_t text_length{ std::min(static_cast<size_t>(written), buffer.size() - 1u) };
         for (size_t i = 0; i < text_length; ++i)
         {
@@ -232,10 +202,10 @@ namespace carrot::debug {
 
             renderer::textured_quad_draw_info_t glyph{ };
             glyph.texture = g_font_texture.get();
-            glyph.x = transform.origin_world.x + (quad.x0 * transform.units_per_pixel.x);
-            glyph.y = transform.origin_world.y + (quad.y0 * transform.units_per_pixel.y);
-            glyph.width = (quad.x1 - quad.x0) * transform.units_per_pixel.x;
-            glyph.height = (quad.y1 - quad.y0) * transform.units_per_pixel.y;
+            glyph.x = quad.x0;
+            glyph.y = quad.y0;
+            glyph.width = quad.x1 - quad.x0;
+            glyph.height = quad.y1 - quad.y0;
             glyph.u0 = quad.s0;
             glyph.v0 = quad.t0;
             glyph.u1 = quad.s1;
@@ -245,7 +215,7 @@ namespace carrot::debug {
             glyph.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
 
             if (glyph.width > 0.f && glyph.height > 0.f)
-                g_renderer->draw_textured_quad(glyph);
+                g_renderer->draw_overlay_textured_quad(glyph);
         }
     }
 } // namespace carrot::debug

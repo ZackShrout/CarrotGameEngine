@@ -14,6 +14,7 @@
 #include "Primitives/QuadVertex.h"
 #include "RHI/RHI.h"
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <string_view>
@@ -37,6 +38,21 @@ namespace carrot::world {
 
 namespace carrot::renderer {
     struct sprite_draw_info_t;
+
+    enum class frame_stage_kind_t : std::uint8_t
+    {
+        world = 0,
+        ui,
+        overlay_debug,
+        count
+    };
+
+    enum class frame_stage_space_t : std::uint8_t
+    {
+        world_camera = 0,
+        viewport_pixels,
+        render_target_pixels
+    };
 
     struct tilemap_draw_info_t
     {
@@ -104,6 +120,8 @@ namespace carrot::renderer {
 
         // Very high-level drawing commands (immediate mode for now)
         void draw_textured_quad(const textured_quad_draw_info_t& quad);
+        void draw_overlay_textured_quad(const textured_quad_draw_info_t& quad);
+        void draw_ui_textured_quad(const textured_quad_draw_info_t& quad);
         void draw_sprite(const sprite_draw_info_t& info);
         void draw_tilemap(const tilemap_draw_info_t& info);
         void draw_world(const world::world_t& world);
@@ -127,11 +145,27 @@ namespace carrot::renderer {
         }
 
     private:
+        struct stage_execution_context_t
+        {
+            chlm::float4x4 view_projection{ chlm::float4x4::identity() };
+            rhi::render_viewport_t viewport{ };
+        };
+
+        struct frame_stage_plan_t
+        {
+            frame_stage_kind_t kind{ frame_stage_kind_t::world };
+            frame_stage_space_t space{ frame_stage_space_t::world_camera };
+        };
+
         [[nodiscard]] chlm::uint2 current_render_target_size() const noexcept;
-        void build_textured_quad_batches();
+        [[nodiscard]] stage_execution_context_t resolve_stage_execution_context(const frame_stage_plan_t& stage_plan) const noexcept;
+        void submit_textured_quad(frame_stage_kind_t stage, const textured_quad_draw_info_t& quad);
+        void build_textured_quad_batches(textured_quad_state_t& state) const;
+        void execute_frame_stage(const frame_stage_plan_t& stage_plan);
+        void execute_frame_stages();
         void release_frame_resources();
-        void ensure_textured_quad_frame_buffers();
-        void upload_textured_quad_frame_data() const;
+        void ensure_textured_quad_frame_buffers(textured_quad_state_t& state);
+        void upload_textured_quad_frame_data(const textured_quad_state_t& state) const;
         void submit_tilemap(const tilemap_draw_info_t& info);
         void submit_tile_object(const assets::loaded_tilemap_asset_t& tilemap,
                                 uint32_t gid,
@@ -156,7 +190,12 @@ namespace carrot::renderer {
         renderer_stats_t    _last_completed_stats;
 
         // ── Renderer path state: textured quads ───────────────────────────────────
-        textured_quad_state_t _textured_quad;
+        std::array<textured_quad_state_t, static_cast<size_t>(frame_stage_kind_t::count)> _stage_textured_quads;
+        std::array<frame_stage_plan_t, static_cast<size_t>(frame_stage_kind_t::count)> _frame_stage_plan{
+            frame_stage_plan_t{ .kind = frame_stage_kind_t::world, .space = frame_stage_space_t::world_camera },
+            frame_stage_plan_t{ .kind = frame_stage_kind_t::ui, .space = frame_stage_space_t::render_target_pixels },
+            frame_stage_plan_t{ .kind = frame_stage_kind_t::overlay_debug, .space = frame_stage_space_t::viewport_pixels }
+        };
 
         camera_2d_t _active_camera{ };
     };

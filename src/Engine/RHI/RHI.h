@@ -36,6 +36,16 @@ namespace carrot::rhi {
         };
     };
 
+    struct textured_quad_stage_record_t
+    {
+        uint32_t stage_slot{ 0 };
+        const rhi_buffer_t* vertex_buffer{ nullptr };
+        const rhi_buffer_t* index_buffer{ nullptr };
+        std::span<const renderer::textured_quad_batch_t> batches{ };
+        chlm::float4x4 view_projection{ chlm::float4x4::identity() };
+        render_viewport_t viewport{ };
+    };
+
     enum class graphics_api { vulkan, direct_x12, metal, default_api, count };
 
     [[nodiscard]] inline std::string_view graphics_api_to_string(const graphics_api api) noexcept
@@ -65,7 +75,7 @@ namespace carrot::rhi {
         virtual ~rhi_context_t() = default;
 
         virtual void begin_frame() = 0;
-        virtual void record_frame() = 0;
+        virtual void record_textured_quad_stage(const textured_quad_stage_record_t& stage) = 0;
         virtual void end_frame() = 0;
 
         virtual void release_asset_references() = 0;
@@ -80,10 +90,6 @@ namespace carrot::rhi {
         [[nodiscard]] virtual std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) = 0;
         [[nodiscard]] virtual std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) = 0;
         [[nodiscard]] virtual std::unique_ptr<rhi_sampler_t> create_sampler(const sampler_desc_t& desc) const = 0;
-        virtual void set_textured_quad_geometry(const rhi_buffer_t& vertex_buffer, const rhi_buffer_t& index_buffer) = 0;
-        virtual void set_textured_quad_batches(std::span<const renderer::textured_quad_batch_t> batches) = 0;
-        virtual void set_textured_quad_view_projection(const chlm::float4x4& view_projection) = 0;
-        virtual void set_textured_quad_viewport(const render_viewport_t& viewport) = 0;
 
         [[nodiscard]] virtual rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) = 0;
         virtual void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) = 0;

@@ -241,7 +241,27 @@ Near-term renderer priorities include:
 
 Over time, the renderer should evolve from “test scene rendering” into a world-aware rendering system that can support actual gameplay-driven rendering flows.
 
-### 5.5 Asset System
+### 5.5 Physics / Collision Direction
+
+Carrot's intended physics direction is **gameplay-first collision and movement infrastructure**, not a large simulation-first engine stack.
+
+Near-term priorities are:
+
+* collision queries
+* tilemap collision
+* Tiled-authored object collision
+* trigger volumes
+* kinematic movement constraints
+
+Longer-term work can later expand into:
+
+* specialized movement motors
+* support-based grounded traversal for HD2D topography
+* lightweight rigid bodies where useful
+
+Gravity should be treated as a property of active movement/body mode, not a universal assumption for every actor or game style.
+
+### 5.6 Asset System
 
 Carrot’s asset system is intended to provide a clean separation between:
 
@@ -252,13 +272,13 @@ Carrot’s asset system is intended to provide a clean separation between:
 
 The asset system is a major pillar of the engine and should remain explicit and tool-friendly.
 
-### 5.6 Audio Engine
+### 5.7 Audio Engine
 
 Carrot includes a custom audio engine rather than treating audio as an afterthought.
 
 The audio system is intended to be a serious first-class subsystem, not just a thin playback wrapper.
 
-### 5.7 Future World / Object Layer
+### 5.8 Future World / Object Layer
 
 Carrot is intended to grow into a world-driven architecture over time.
 

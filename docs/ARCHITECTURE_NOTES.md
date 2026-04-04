@@ -132,6 +132,28 @@ Notable later work that should stay visible but is not the current top priority:
 * hybrid 2D/3D rendering growth
 * animated 3D model workflows
 
+### 2.6.1 Current Physics / Collision Direction
+
+After the render-pipeline refactor work, the next major engine-growth area is collision and physics-lite world constraints.
+
+Current direction:
+
+* Carrot should be gameplay-first, not simulation-first
+* collision/query infrastructure should come before full rigid-body simulation
+* gravity should be opt-in by movement mode, not a global engine assumption
+* tilemap collision and Tiled-authored object collision should be first-class engine features
+* movement motors and controller/brain layers should remain separate concepts
+
+The expected near-term sequence is:
+
+1. collision world and queries
+2. map and object collision import
+3. kinematic movement constraints
+4. trigger-volume support
+5. lightweight rigid-body features only later where truly needed
+
+For the fuller system direction, see [physics_direction.md](/Users/zshrout/dev/CarrotGameEngine/docs/systems/physics_direction.md).
+
 ### 2.7 Current Frame Stage Contract
 
 After the first Milestone 03 render-pipeline refactor pass, Carrot’s frame stages are expected to mean:

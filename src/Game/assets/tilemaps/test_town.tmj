@@ -298,6 +298,18 @@
                  "width":32,
                  "x":96,
                  "y":800
+                }, 
+                {
+                 "gid":6778,
+                 "height":32,
+                 "id":13,
+                 "name":"hay",
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":32,
+                 "x":1093.91450361546,
+                 "y":838.87522802699
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -347,7 +359,7 @@
                  "y":572.507
                 }, 
                 {
-                 "height":37.3420635326616,
+                 "height":37.3421,
                  "id":9,
                  "name":"DoorToInn",
                  "properties":[
@@ -369,12 +381,12 @@
                  "rotation":0,
                  "type":"Door",
                  "visible":true,
-                 "width":25.5767558442886,
-                 "x":835.336845874469,
-                 "y":506.931300833802
+                 "width":25.5768,
+                 "x":835.337,
+                 "y":506.931
                 }, 
                 {
-                 "height":36.5862238795469,
+                 "height":36.5862,
                  "id":10,
                  "name":"DoorToItemShop",
                  "properties":[
@@ -396,9 +408,9 @@
                  "rotation":0,
                  "type":"Door",
                  "visible":true,
-                 "width":26.0325054527545,
-                 "x":308.87215929079,
-                 "y":507.282065714487
+                 "width":26.0325,
+                 "x":308.872,
+                 "y":507.282
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -858,7 +870,7 @@
          "y":0
         }],
  "nextlayerid":22,
- "nextobjectid":12,
+ "nextobjectid":14,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.11.0",

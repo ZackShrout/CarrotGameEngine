@@ -1,7 +1,7 @@
 # Carrot Game Engine - Milestone 03
 
 **Title:** Render Pipeline Refactor
-**Status:** In Progress
+**Status:** Complete
 **Focus:** Replace the current single-pass frame flow with a clearer multi-stage render pipeline that can support world rendering, debug rendering, UI, and future lighting/composite work without collapsing into one pass.
 
 ---
@@ -28,6 +28,19 @@ Completed so far:
 
 * Ticket 1 - frame stage and pass boundary refactor
 * Ticket 2 - debug text and overlay rendering separated from the world stage
+* Ticket 3 - full-screen overlay/composite hook
+* Ticket 4 - render-order policy scaffolding with a validated `anchor_bottom_y` proof
+* Ticket 5 - documentation, verification, and milestone closeout
+
+Milestone 03 shipped these concrete outcomes:
+
+* the engine loop now has explicit `render_world()`, `render_ui()`, and `render_debug()` hooks
+* the renderer owns ordered frame stages: `world`, `ui`, `composite`, and `overlay_debug`
+* all three graphics backends record stage-aware textured-quad submissions safely
+* debug overlay/text rendering is no longer coupled to the world path
+* a small engine-level full-screen overlay primitive exists for future fade/flash/tint work
+* render ordering now has renderer-owned sort intent instead of only flat explicit order
+* a narrow opt-in `anchor_bottom_y` proof was validated in the sandbox for actor/tile-object style sorting
 
 ---
 
@@ -82,6 +95,7 @@ Current Ticket 1 stage contract:
 
 * `world` executes in world-camera space
 * `ui` executes in full render-target pixel space
+* `composite` executes in full render-target pixel space
 * `overlay_debug` executes in resolved viewport-local pixel space
 * `overlay_debug` renders after `ui` so diagnostics stay visible over all game presentation
 
@@ -106,6 +120,7 @@ Design constraint:
 * Stage-space ownership is explicit:
   * `world` uses the active world camera
   * `ui` uses render-target pixel space
+  * `composite` uses render-target pixel space
   * `overlay_debug` uses viewport-local pixel space
 
 ---
@@ -163,6 +178,7 @@ Add a minimal render-stage capability to draw a full-screen quad/overlay color a
 
 * The engine can render a configurable full-screen color overlay in a late frame stage.
 * The hook is general-purpose rather than tied only to scene transitions.
+* The overlay hook lives below `overlay_debug` so engine diagnostics remain readable over composite presentation.
 
 ---
 
@@ -183,10 +199,24 @@ Clarify where render ordering decisions belong and prepare the frame structure f
 * future per-object ordering refinement
 * future world-vs-overlay-vs-UI separation
 
+Current preparation in place:
+
+* textured-quad submissions now carry an explicit render-order mode
+* the renderer owns the sort policy for those modes
+* current defaults remain stable while leaving room for future y-sort / anchor-driven ordering work
+* a narrow opt-in `anchor_bottom_y` path has been validated for actor/tile-object style content in the sandbox
+
+Important limitation:
+
+* this is not full 2D layering support yet
+* it does not claim to solve roofs, bridges, fences, or all occlusion authoring cases
+* current validation is intentionally small and focused on proving the renderer path
+
 ### Acceptance Criteria
 
 * The refactored pipeline does not box Carrot into a flat one-layer world model.
 * The architectural direction for future 2D layering is clearer after this pass.
+* At least one small opt-in ordering proof has been validated in real sandbox content without expanding into a full layering feature set.
 
 ---
 
@@ -213,6 +243,7 @@ Suggested outputs:
 
 * The new frame architecture is documented.
 * The intended stage ordering is easy to discover later.
+* The current scope and limitations of the ordering proof are documented clearly enough that later milestones can build on it without confusion.
 
 ---
 
@@ -242,3 +273,23 @@ This render-pipeline refactor is the highest-leverage next step because it unloc
 * better separation between engine rendering primitives and game presentation policy
 
 It is a more engine-expanding milestone than another pure tightening pass.
+
+---
+
+## Completion Summary
+
+Milestone 03 is complete.
+
+It did not implement lighting, a UI toolkit, or full 2D layering.
+It did establish the frame architecture those systems can now grow on top of:
+
+* explicit frame stages with clear ownership
+* backend-safe stage recording
+* dedicated debug and composite layers
+* a renderer-owned ordering model that can evolve beyond flat explicit order
+
+The milestone also validated one small but important reality check:
+
+* bottom-anchor sorting is viable for actor/tile-object style content
+
+That proof was intentionally kept narrow so the engine gained confidence without drifting into a larger layering milestone too early.

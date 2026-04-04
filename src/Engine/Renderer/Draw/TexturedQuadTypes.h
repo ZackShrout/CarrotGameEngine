@@ -43,7 +43,9 @@ namespace carrot::renderer {
         float v1{ 1.f };
 
         render_layer_t layer{ render_layer_t::world_back };
+        render_order_mode_t order_mode{ render_order_mode_t::explicit_order };
         int32_t order_in_layer{ 0 };
+        float sort_reference_y{ 0.f };
 
         uint32_t color{ 0xFFFFFFFF }; // ABGR
 

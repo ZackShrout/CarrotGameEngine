@@ -23,6 +23,8 @@ namespace carrot::core {
             : _renderer{ renderer } {}
 
         void set_zoom(float zoom) noexcept;
+        void set_fullscreen_overlay_color(uint32_t color_abgr) noexcept;
+        void clear_fullscreen_overlay() noexcept;
         [[nodiscard]] chlm::float2 center_world_position(const world::world_t& world) const noexcept;
         void set_center_world_position(const world::world_t& world, const chlm::float2& world_position) noexcept;
 

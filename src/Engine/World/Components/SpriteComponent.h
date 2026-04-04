@@ -32,7 +32,9 @@ namespace carrot::world {
         bool flip_y{ false };
 
         carrot::renderer::render_layer_t layer{ carrot::renderer::render_layer_t::actors };
+        carrot::renderer::render_order_mode_t order_mode{ carrot::renderer::render_order_mode_t::explicit_order };
         int32_t order_in_layer{ 0 };
+        float sort_reference_y{ 0.f };
 
         uint32_t color{ 0xFFFFFFFFu };
         carrot::renderer::quad_sampler_preset_t sampler_preset{

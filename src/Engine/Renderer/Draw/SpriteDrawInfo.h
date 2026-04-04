@@ -32,7 +32,9 @@ namespace carrot::renderer {
         bool flip_y{ false };
 
         render_layer_t layer{ render_layer_t::actors };
+        render_order_mode_t order_mode{ render_order_mode_t::explicit_order };
         int32_t order_in_layer{ 0 };
+        float sort_reference_y{ 0.f };
 
         uint32_t color{ 0xFFFFFFFFu };
         quad_sampler_preset_t sampler_preset{ quad_sampler_preset_t::pixel_clamp };

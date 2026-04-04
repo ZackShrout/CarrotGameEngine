@@ -43,6 +43,7 @@ namespace carrot::renderer {
     {
         world = 0,
         ui,
+        composite,
         overlay_debug,
         count
     };
@@ -63,7 +64,9 @@ namespace carrot::renderer {
         float render_pixels_per_unit{ 0.f };
         bool include_object_layers{ true };
         render_layer_t layer{ render_layer_t::world_back };
+        render_order_mode_t order_mode{ render_order_mode_t::explicit_order };
         int32_t order_in_layer{ 0 };
+        float sort_reference_y{ 0.f };
         quad_sampler_preset_t sampler_preset{ quad_sampler_preset_t::pixel_clamp };
         uint32_t color{ 0xFFFFFFFFu };
     };
@@ -122,6 +125,8 @@ namespace carrot::renderer {
         void draw_textured_quad(const textured_quad_draw_info_t& quad);
         void draw_overlay_textured_quad(const textured_quad_draw_info_t& quad);
         void draw_ui_textured_quad(const textured_quad_draw_info_t& quad);
+        void set_fullscreen_overlay_color(uint32_t color_abgr) noexcept;
+        void clear_fullscreen_overlay() noexcept;
         void draw_sprite(const sprite_draw_info_t& info);
         void draw_tilemap(const tilemap_draw_info_t& info);
         void draw_world(const world::world_t& world);
@@ -159,6 +164,7 @@ namespace carrot::renderer {
 
         [[nodiscard]] chlm::uint2 current_render_target_size() const noexcept;
         [[nodiscard]] stage_execution_context_t resolve_stage_execution_context(const frame_stage_plan_t& stage_plan) const noexcept;
+        void queue_fullscreen_overlay_if_needed();
         void submit_textured_quad(frame_stage_kind_t stage, const textured_quad_draw_info_t& quad);
         void build_textured_quad_batches(textured_quad_state_t& state) const;
         void execute_frame_stage(const frame_stage_plan_t& stage_plan);
@@ -172,7 +178,9 @@ namespace carrot::renderer {
                                 const chlm::float2& position_px,
                                 const chlm::float2& size_px,
                                 render_layer_t layer,
+                                render_order_mode_t order_mode,
                                 int32_t order_in_layer,
+                                float sort_reference_y,
                                 quad_sampler_preset_t sampler_preset,
                                 uint32_t color);
 
@@ -194,9 +202,13 @@ namespace carrot::renderer {
         std::array<frame_stage_plan_t, static_cast<size_t>(frame_stage_kind_t::count)> _frame_stage_plan{
             frame_stage_plan_t{ .kind = frame_stage_kind_t::world, .space = frame_stage_space_t::world_camera },
             frame_stage_plan_t{ .kind = frame_stage_kind_t::ui, .space = frame_stage_space_t::render_target_pixels },
+            frame_stage_plan_t{ .kind = frame_stage_kind_t::composite, .space = frame_stage_space_t::render_target_pixels },
             frame_stage_plan_t{ .kind = frame_stage_kind_t::overlay_debug, .space = frame_stage_space_t::viewport_pixels }
         };
 
         camera_2d_t _active_camera{ };
+        std::unique_ptr<rhi::rhi_texture_t> _solid_white_texture;
+        bool _fullscreen_overlay_enabled{ false };
+        uint32_t _fullscreen_overlay_color{ 0x00000000u };
     };
 } // namespace carrot::renderer

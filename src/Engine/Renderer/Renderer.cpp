@@ -24,6 +24,32 @@ namespace carrot::renderer {
         {
             return static_cast<size_t>(stage);
         }
+
+        [[nodiscard]] bool quad_sorts_before(const textured_quad_draw_info_t& lhs,
+                                             const textured_quad_draw_info_t& rhs) noexcept
+        {
+            const auto lhs_layer{ static_cast<uint16_t>(lhs.layer) };
+            const auto rhs_layer{ static_cast<uint16_t>(rhs.layer) };
+
+            if (lhs_layer != rhs_layer)
+                return lhs_layer < rhs_layer;
+
+            const auto lhs_order_mode{ static_cast<uint8_t>(lhs.order_mode) };
+            const auto rhs_order_mode{ static_cast<uint8_t>(rhs.order_mode) };
+            if (lhs_order_mode != rhs_order_mode)
+                return lhs_order_mode < rhs_order_mode;
+
+            if (lhs.order_mode == render_order_mode_t::anchor_bottom_y)
+            {
+                if (lhs.sort_reference_y != rhs.sort_reference_y)
+                    return lhs.sort_reference_y < rhs.sort_reference_y;
+            }
+
+            if (lhs.order_in_layer != rhs.order_in_layer)
+                return lhs.order_in_layer < rhs.order_in_layer;
+
+            return false;
+        }
     } // namespace
 
     // PUBLIC
@@ -56,6 +82,21 @@ namespace carrot::renderer {
             return;
         }
 
+        constexpr std::array<uint8_t, 4> white_pixel{ 0xFFu, 0xFFu, 0xFFu, 0xFFu };
+        rhi::texture_create_info_t white_texture_info{ };
+        white_texture_info.width = 1;
+        white_texture_info.height = 1;
+        white_texture_info.format = rhi::texture_format_t::rgba8_unorm;
+        white_texture_info.initial_data = white_pixel.data();
+        white_texture_info.initial_data_size = white_pixel.size();
+        white_texture_info.initial_data_stride_bytes = 4;
+        _solid_white_texture = _rhi->create_texture_2d(white_texture_info);
+        if (!_solid_white_texture)
+        {
+            LOG_GRAPHICS_FATAL("Failed to create renderer solid white texture");
+            return;
+        }
+
         _is_initialized = true;
         LOG_GRAPHICS_INFO("Renderer initialized successfully (backend: {})",
                           carrot::rhi::graphics_api_to_string(_rhi->get_graphics_api()));
@@ -73,6 +114,7 @@ namespace carrot::renderer {
 
         release_frame_resources();
 
+        _solid_white_texture.reset();
         _shader_provider.reset();
         _rhi.reset();
 
@@ -93,12 +135,15 @@ namespace carrot::renderer {
         }
 
         _stats = { };
+        _fullscreen_overlay_enabled = false;
+        _fullscreen_overlay_color = 0x00000000u;
 
         _rhi->begin_frame();
     }
 
     void renderer_t::end_frame()
     {
+        queue_fullscreen_overlay_if_needed();
         execute_frame_stages();
         _last_completed_stats = _stats;
 
@@ -118,6 +163,18 @@ namespace carrot::renderer {
     void renderer_t::draw_ui_textured_quad(const textured_quad_draw_info_t& quad)
     {
         submit_textured_quad(frame_stage_kind_t::ui, quad);
+    }
+
+    void renderer_t::set_fullscreen_overlay_color(const uint32_t color_abgr) noexcept
+    {
+        _fullscreen_overlay_enabled = true;
+        _fullscreen_overlay_color = color_abgr;
+    }
+
+    void renderer_t::clear_fullscreen_overlay() noexcept
+    {
+        _fullscreen_overlay_enabled = false;
+        _fullscreen_overlay_color = 0x00000000u;
     }
 
     void renderer_t::submit_textured_quad(const frame_stage_kind_t stage, const textured_quad_draw_info_t& quad)
@@ -187,7 +244,11 @@ namespace carrot::renderer {
         quad.width = info.width;
         quad.height = info.height;
         quad.layer = info.layer;
+        quad.order_mode = info.order_mode;
         quad.order_in_layer = info.order_in_layer;
+        quad.sort_reference_y = info.order_mode == render_order_mode_t::anchor_bottom_y
+                                    ? (quad.y + quad.height)
+                                    : info.sort_reference_y;
         quad.color = info.color;
         quad.sampler_preset = info.sampler_preset;
         quad.u0 = final_u0;
@@ -307,7 +368,11 @@ namespace carrot::renderer {
                         tile_quad.width = render_tile_size.x * info.scale.x;
                         tile_quad.height = render_tile_size.y * info.scale.y;
                         tile_quad.layer = info.layer;
+                        tile_quad.order_mode = info.order_mode;
                         tile_quad.order_in_layer = info.order_in_layer;
+                        tile_quad.sort_reference_y = info.order_mode == render_order_mode_t::anchor_bottom_y
+                                                         ? (tile_quad.y + tile_quad.height)
+                                                         : info.sort_reference_y;
                         tile_quad.color = info.color;
                         tile_quad.sampler_preset = info.sampler_preset;
 
@@ -360,7 +425,11 @@ namespace carrot::renderer {
                 object_quad.width = object_render_size.x * info.scale.x;
                 object_quad.height = object_render_size.y * info.scale.y;
                 object_quad.layer = info.layer;
+                object_quad.order_mode = info.order_mode;
                 object_quad.order_in_layer = object_order++;
+                object_quad.sort_reference_y = info.order_mode == render_order_mode_t::anchor_bottom_y
+                                                   ? (object_quad.y + object_quad.height)
+                                                   : info.sort_reference_y;
                 object_quad.color = info.color;
                 object_quad.sampler_preset = info.sampler_preset;
 
@@ -377,7 +446,9 @@ namespace carrot::renderer {
                                         const chlm::float2& position_px,
                                         const chlm::float2& size_px,
                                         const render_layer_t layer,
+                                        const render_order_mode_t order_mode,
                                         const int32_t order_in_layer,
+                                        const float sort_reference_y,
                                         const quad_sampler_preset_t sampler_preset,
                                         const uint32_t color)
     {
@@ -428,7 +499,11 @@ namespace carrot::renderer {
         quad.width = size_px.x;
         quad.height = size_px.y;
         quad.layer = layer;
+        quad.order_mode = order_mode;
         quad.order_in_layer = order_in_layer;
+        quad.sort_reference_y = order_mode == render_order_mode_t::anchor_bottom_y
+                                    ? (quad.y + quad.height)
+                                    : sort_reference_y;
         quad.color = color;
         quad.sampler_preset = sampler_preset;
         quad.u0 = static_cast<float>(tile_u_index * tileset.tile_width) / static_cast<float>(tileset.image_width);
@@ -463,7 +538,9 @@ namespace carrot::renderer {
                     .render_pixels_per_unit = presentation.pixels_per_unit,
                     .include_object_layers = tilemap.include_object_layers,
                     .layer = tilemap.layer,
+                    .order_mode = tilemap.order_mode,
                     .order_in_layer = tilemap.order_in_layer,
+                    .sort_reference_y = tilemap.sort_reference_y,
                     .sampler_preset = tilemap.sampler_preset,
                     .color = tilemap.color
                 });
@@ -486,7 +563,9 @@ namespace carrot::renderer {
                                    render_position_px,
                                    { render_size_px.x * transform.scale.x, render_size_px.y * transform.scale.y },
                                    tile_object.layer,
+                                   tile_object.order_mode,
                                    tile_object.order_in_layer,
+                                   tile_object.sort_reference_y,
                                    tile_object.sampler_preset,
                                    tile_object.color);
             }
@@ -530,7 +609,9 @@ namespace carrot::renderer {
                 draw_info.flip_x = sprite.flip_x;
                 draw_info.flip_y = sprite.flip_y;
                 draw_info.layer = sprite.layer;
+                draw_info.order_mode = sprite.order_mode;
                 draw_info.order_in_layer = sprite.order_in_layer;
+                draw_info.sort_reference_y = sprite.sort_reference_y;
                 draw_info.color = sprite.color;
                 draw_info.sampler_preset = sprite.sampler_preset;
 
@@ -617,6 +698,30 @@ namespace carrot::renderer {
         }
     }
 
+    void renderer_t::queue_fullscreen_overlay_if_needed()
+    {
+        if (!_fullscreen_overlay_enabled || _solid_white_texture == nullptr)
+            return;
+
+        const chlm::uint2 render_target_size{ current_render_target_size() };
+
+        submit_textured_quad(frame_stage_kind_t::composite, textured_quad_draw_info_t{
+            .texture = _solid_white_texture.get(),
+            .x = 0.f,
+            .y = 0.f,
+            .width = static_cast<float>(std::max(1u, render_target_size.x)),
+            .height = static_cast<float>(std::max(1u, render_target_size.y)),
+            .u0 = 0.f,
+            .v0 = 0.f,
+            .u1 = 1.f,
+            .v1 = 1.f,
+            .layer = render_layer_t::ui,
+            .order_in_layer = 0,
+            .color = _fullscreen_overlay_color,
+            .sampler_preset = quad_sampler_preset_t::pixel_clamp
+        });
+    }
+
     void renderer_t::build_textured_quad_batches(textured_quad_state_t& state) const
     {
         state.vertices_cpu.clear();
@@ -630,14 +735,11 @@ namespace carrot::renderer {
                          [](const textured_quad_state_t::submission_t& lhs,
                             const textured_quad_state_t::submission_t& rhs) noexcept
                          {
-                             const auto lhs_layer{ static_cast<uint16_t>(lhs.quad.layer) };
-                             const auto rhs_layer{ static_cast<uint16_t>(rhs.quad.layer) };
+                             if (quad_sorts_before(lhs.quad, rhs.quad))
+                                 return true;
 
-                             if (lhs_layer != rhs_layer)
-                                 return lhs_layer < rhs_layer;
-
-                             if (lhs.quad.order_in_layer != rhs.quad.order_in_layer)
-                                 return lhs.quad.order_in_layer < rhs.quad.order_in_layer;
+                             if (quad_sorts_before(rhs.quad, lhs.quad))
+                                 return false;
 
                              return lhs.submission_index < rhs.submission_index;
                          });
@@ -743,9 +845,12 @@ namespace carrot::renderer {
         CE_ASSERT(_frame_stage_plan[1].kind == frame_stage_kind_t::ui &&
                       _frame_stage_plan[1].space == frame_stage_space_t::render_target_pixels,
                   "Renderer stage 1 must remain the UI stage in render-target pixel space");
-        CE_ASSERT(_frame_stage_plan[2].kind == frame_stage_kind_t::overlay_debug &&
-                      _frame_stage_plan[2].space == frame_stage_space_t::viewport_pixels,
-                  "Renderer stage 2 must remain the debug overlay stage in viewport pixel space");
+        CE_ASSERT(_frame_stage_plan[2].kind == frame_stage_kind_t::composite &&
+                      _frame_stage_plan[2].space == frame_stage_space_t::render_target_pixels,
+                  "Renderer stage 2 must remain the composite stage in render-target pixel space");
+        CE_ASSERT(_frame_stage_plan[3].kind == frame_stage_kind_t::overlay_debug &&
+                      _frame_stage_plan[3].space == frame_stage_space_t::viewport_pixels,
+                  "Renderer stage 3 must remain the debug overlay stage in viewport pixel space");
 
         _stats.vertex_count = 0;
         _stats.index_count = 0;

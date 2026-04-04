@@ -18,6 +18,16 @@ namespace carrot::core {
         _renderer.set_camera_2d(camera);
     }
 
+    void game_view_t::set_fullscreen_overlay_color(const uint32_t color_abgr) noexcept
+    {
+        _renderer.set_fullscreen_overlay_color(color_abgr);
+    }
+
+    void game_view_t::clear_fullscreen_overlay() noexcept
+    {
+        _renderer.clear_fullscreen_overlay();
+    }
+
     chlm::float2 game_view_t::center_world_position(const world::world_t& world) const noexcept
     {
         const renderer::camera_2d_t camera{ _renderer.get_camera_2d() };

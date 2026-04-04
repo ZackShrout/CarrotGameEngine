@@ -142,10 +142,21 @@ After the first Milestone 03 render-pipeline refactor pass, Carrot’s frame sta
 * `ui`
   * in-game UI and presentation layer
   * uses full render-target pixel space
+* `composite`
+  * late full-screen presentation/composite layer
+  * uses full render-target pixel space
+  * intended for engine-level screen overlays such as fades, flashes, and tinting
 * `overlay_debug`
   * diagnostics and engine debug overlays
   * uses resolved viewport-local pixel space so it stays inside letterboxed world presentation when applicable
-  * renders after `ui` so debug information remains visible above all game content
+  * renders after `ui` and `composite` so debug information remains visible above all game content
+
+Current stage order:
+
+1. `world`
+2. `ui`
+3. `composite`
+4. `overlay_debug`
 
 This is an execution contract, not just a naming preference.
 
@@ -154,6 +165,25 @@ It helps keep future responsibilities clear:
 * world rendering stays separate from game UI
 * game UI stays separate from engine diagnostics
 * stage naming does not imply that every stage is forever a single backend render pass
+
+Render ordering inside a stage should also stay renderer-owned.
+
+Current direction:
+
+* submissions carry layer and ordering intent
+* the renderer is responsible for turning that into a sortable policy
+* this keeps future y-sort / anchor-based world ordering as renderer-level behavior instead of scattering it through gameplay code
+
+Current validated proof:
+
+* Carrot now has a narrow opt-in `anchor_bottom_y` ordering mode
+* it has been validated in sandbox content for actor/tile-object style sorting
+* it should still be treated as a stepping stone rather than full 2D layering support
+
+Important current limitation:
+
+* this does not yet solve all fence, bridge, roof, or partial-occluder cases
+* future layering work still needs a broader authoring/runtime model
 
 ---
 

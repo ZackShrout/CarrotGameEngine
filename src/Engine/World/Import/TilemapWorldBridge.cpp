@@ -59,6 +59,7 @@ namespace carrot::world::import {
                     .gid = object.gid,
                     .size_source_px = { object.width, object.height },
                     .layer = renderer::render_layer_t::actors,
+                    .order_mode = renderer::render_order_mode_t::anchor_bottom_y,
                     .order_in_layer = 0,
                     .sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp,
                     .color = 0xFFFFFFFFu

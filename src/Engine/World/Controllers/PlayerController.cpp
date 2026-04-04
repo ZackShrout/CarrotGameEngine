@@ -26,8 +26,8 @@ namespace carrot::world {
             return movement.y < 0.f ? facing_direction_t::up : facing_direction_t::down;
         }
 
-        [[nodiscard]] std::string_view idle_animation_for(const facing_direction_t direction,
-                                                          const player_controller_animation_set_t& animation_set) noexcept
+        [[nodiscard]] const std::string& idle_animation_for(const facing_direction_t direction,
+                                                            const player_controller_animation_set_t& animation_set) noexcept
         {
             switch (direction)
             {
@@ -39,8 +39,8 @@ namespace carrot::world {
             }
         }
 
-        [[nodiscard]] std::string_view walk_animation_for(const facing_direction_t direction,
-                                                          const player_controller_animation_set_t& animation_set) noexcept
+        [[nodiscard]] const std::string& walk_animation_for(const facing_direction_t direction,
+                                                            const player_controller_animation_set_t& animation_set) noexcept
         {
             switch (direction)
             {
@@ -128,24 +128,30 @@ namespace carrot::world {
 
         auto& animator{ object.sprite_animator->animator };
         const assets::loaded_sprite_asset_t* sprite{ object.sprite->sprite };
-        if (!animator.sprite() && sprite)
-            animator.set_sprite(sprite);
-
-        const std::string_view desired_walk_animation{ walk_animation_for(facing, _animation_set) };
-        const std::string_view desired_idle_animation{ idle_animation_for(facing, _animation_set) };
-        std::string_view desired_animation{ desired_idle_animation };
-        const std::string_view fallback_idle_animation{ _animation_set.idle_down };
-
-        if (moving && sprite && sprite->find_animation(desired_walk_animation))
-            desired_animation = desired_walk_animation;
-
-        if ((!sprite || !sprite->find_animation(desired_animation)) && desired_animation != fallback_idle_animation)
-            desired_animation = fallback_idle_animation;
-
-        if (_current_animation != desired_animation)
+        if (animator.sprite() != sprite && sprite)
         {
-            animator.play(desired_animation);
-            _current_animation = std::string{ desired_animation };
+            animator.set_sprite(sprite);
+            _current_animation.clear();
+        }
+
+        if (!sprite)
+            return;
+
+        const std::string& desired_walk_animation{ walk_animation_for(facing, _animation_set) };
+        const std::string& desired_idle_animation{ idle_animation_for(facing, _animation_set) };
+        const std::string* desired_animation{ &desired_idle_animation };
+        const std::string& fallback_idle_animation{ _animation_set.idle_down };
+
+        if (moving && sprite->find_animation(desired_walk_animation))
+            desired_animation = &desired_walk_animation;
+
+        if (!sprite->find_animation(*desired_animation) && *desired_animation != fallback_idle_animation)
+            desired_animation = &fallback_idle_animation;
+
+        if (_current_animation != *desired_animation)
+        {
+            animator.play(*desired_animation);
+            _current_animation = *desired_animation;
         }
     }
 } // namespace carrot::world

@@ -227,11 +227,13 @@ Near-term renderer priorities include:
 * batching
 * backend parity
 * camera / projection support
+* explicit frame stages for world, UI, composite, and debug responsibilities
 * gameplay-facing presentation policies such as fixed-aspect letterboxing
 * sprite rendering
 * stable layered 2D draw ordering
 * sprite placement controls such as pivot/origin and flip
 * debug rendering and text
+* engine-level full-screen composite overlays for future fades/flashes/tints
 * engine-owned diagnostics overlays built on top of the existing 2D renderer
 * world-aware scene rendering where tilemap backdrops, actors, and Tiled-authored scene objects can all be consumed through the world/object layer
 * sandbox-driven movement, camera follow, and authored-object interaction built on top of the world/object layer rather than engine bootstrap code

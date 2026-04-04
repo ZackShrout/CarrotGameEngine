@@ -45,6 +45,7 @@ namespace carrot::world {
                 .use_custom_pivot = true,
                 .pivot = { 0.5f, 1.f },
                 .layer = renderer::render_layer_t::actors,
+                .order_mode = renderer::render_order_mode_t::anchor_bottom_y,
                 .order_in_layer = 0,
                 .color = 0xFFFFFFFFu,
                 .sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp

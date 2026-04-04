@@ -22,7 +22,9 @@ namespace carrot::world {
         uint32_t gid{ 0 };
         chlm::float2 size_source_px{ 0.f, 0.f };
         renderer::render_layer_t layer{ renderer::render_layer_t::actors };
+        renderer::render_order_mode_t order_mode{ renderer::render_order_mode_t::explicit_order };
         int32_t order_in_layer{ 0 };
+        float sort_reference_y{ 0.f };
         renderer::quad_sampler_preset_t sampler_preset{ renderer::quad_sampler_preset_t::pixel_clamp };
         uint32_t color{ 0xFFFFFFFFu };
     };

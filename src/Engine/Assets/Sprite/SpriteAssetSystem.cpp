@@ -14,7 +14,7 @@ namespace carrot::assets {
     const loaded_sprite_asset_t* sprite_asset_system_t::get(const asset_id_t id)
     {
         if (const auto it{ _loaded.find(id) }; it != _loaded.end())
-            return &it->second;
+            return it->second.get();
 
         const sprite_asset_record_t* record{ _registry.find(id) };
         if (!record)
@@ -34,8 +34,10 @@ namespace carrot::assets {
             return nullptr;
         }
 
-        const auto [it, inserted]{ _loaded.emplace(id, std::move(result.asset)) };
-        return &it->second;
+        auto loaded_asset{ std::make_unique<loaded_sprite_asset_t>(std::move(result.asset)) };
+        const loaded_sprite_asset_t* loaded_asset_ptr{ loaded_asset.get() };
+        _loaded.emplace(id, std::move(loaded_asset));
+        return loaded_asset_ptr;
     }
 
     const loaded_sprite_asset_t* sprite_asset_system_t::get(const std::string_view logical_id)

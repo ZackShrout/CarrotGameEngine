@@ -39,6 +39,6 @@ namespace carrot::assets {
         io::virtual_file_system_t& _vfs;
         rhi::rhi_context_t& _rhi;
         texture_asset_registry_t _registry;
-        std::unordered_map<asset_id_t, loaded_texture_asset_t> _loaded;
+        std::unordered_map<asset_id_t, std::unique_ptr<loaded_texture_asset_t>> _loaded;
     };
 } // namespace carrot::assets

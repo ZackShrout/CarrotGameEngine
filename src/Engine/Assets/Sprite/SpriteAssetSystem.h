@@ -32,6 +32,6 @@ namespace carrot::assets {
     private:
         texture_asset_system_t& _textures;
         sprite_asset_registry_t _registry;
-        std::unordered_map<asset_id_t, loaded_sprite_asset_t> _loaded;
+        std::unordered_map<asset_id_t, std::unique_ptr<loaded_sprite_asset_t>> _loaded;
     };
 } // namespace carrot::assets

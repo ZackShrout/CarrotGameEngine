@@ -7,6 +7,8 @@
 #include "Assets/Sprite/SpriteAssetManifestImporter.h"
 #include "Assets/Texture/TextureAssetManifestImporter.h"
 #include "Assets/Tilemap/TilemapAssetManifestImporter.h"
+#include "Core/GameView.h"
+#include "Renderer/Renderer.h"
 #include "TransitionRuntimeState.h"
 #include "WorldInteractionHelpers.h"
 #include "IO/VirtualFileSystem.h"
@@ -135,6 +137,17 @@ namespace carrot::tests {
         private:
             fake_command_queue_t _queue;
             std::unordered_map<rhi::sampler_desc_t, std::unique_ptr<fake_sampler_t>, rhi::sampler_desc_hash_t> _samplers;
+        };
+
+        class test_player_controller_t final : public world::player_controller_t
+        {
+        public:
+            void force_apply_animation(world::world_object_t& object,
+                                       const world::facing_direction_t facing,
+                                       const bool moving)
+            {
+                apply_animation(object, facing, moving);
+            }
         };
 
         [[nodiscard]] std::filesystem::path game_assets_root()
@@ -759,6 +772,92 @@ namespace carrot::tests {
             sandbox::apply_runtime_state_to_player(runtime_state, controller);
             CARROT_TEST_REQUIRE(controller.facing_direction() == carrot::world::facing_direction_t::left);
         }
+
+        void test_sandbox_town_player_sprite_exposes_walk_animation()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town"));
+
+            world::world_object_t* player{ world.find_object_by_name("Vraden") };
+            CARROT_TEST_REQUIRE(player != nullptr);
+            CARROT_TEST_REQUIRE(player->sprite.has_value());
+            CARROT_TEST_REQUIRE(player->sprite_animator.has_value());
+            CARROT_TEST_REQUIRE(player->sprite->sprite != nullptr);
+
+            const assets::loaded_sprite_asset_t* sprite{ player->sprite->sprite };
+            CARROT_TEST_REQUIRE(sprite == assets.sprites().get("sprite.vraden"));
+            CARROT_TEST_REQUIRE(sprite->find_animation("idle_down") != nullptr);
+            CARROT_TEST_REQUIRE(sprite->find_animation("walk_right") != nullptr);
+        }
+
+        void test_player_controller_can_switch_to_walk_animation_in_sandbox_town()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town"));
+
+            world::world_object_t* player{ world.find_object_by_name("Vraden") };
+            CARROT_TEST_REQUIRE(player != nullptr);
+            CARROT_TEST_REQUIRE(player->sprite.has_value());
+            CARROT_TEST_REQUIRE(player->sprite_animator.has_value());
+            CARROT_TEST_REQUIRE(player->sprite->sprite != nullptr);
+            CARROT_TEST_REQUIRE(player->sprite_animator->animator.sprite() == player->sprite->sprite);
+
+            test_player_controller_t controller;
+            controller.set_animation_set({
+                .idle_down = "idle_down",
+                .idle_up = "idle_up",
+                .idle_left = "idle_left",
+                .idle_right = "idle_right",
+                .walk_down = "walk_down",
+                .walk_up = "walk_up",
+                .walk_left = "walk_left",
+                .walk_right = "walk_right"
+            });
+            controller.set_controlled_object(player);
+            player->sprite_animator->animator.play(controller.animation_set().walk_right);
+            controller.force_apply_animation(*player, world::facing_direction_t::right, true);
+
+            CARROT_TEST_REQUIRE(player->sprite_animator->animator.sprite() == player->sprite->sprite);
+            CARROT_TEST_REQUIRE(player->sprite_animator->animator.current_animation() != nullptr);
+            CARROT_TEST_REQUIRE(player->sprite_animator->animator.current_frame() != nullptr);
+        }
+
+        void test_sandbox_town_player_animator_can_play_walk_animation()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town"));
+
+            world::world_object_t* player{ world.find_object_by_name("Vraden") };
+            CARROT_TEST_REQUIRE(player != nullptr);
+            CARROT_TEST_REQUIRE(player->sprite_animator.has_value());
+            CARROT_TEST_REQUIRE(player->sprite.has_value());
+            CARROT_TEST_REQUIRE(player->sprite_animator->animator.sprite() == player->sprite->sprite);
+
+            player->sprite_animator->animator.play("walk_right");
+            CARROT_TEST_REQUIRE(player->sprite_animator->animator.current_animation() != nullptr);
+            CARROT_TEST_REQUIRE(player->sprite_animator->animator.current_frame() != nullptr);
+        }
     } // namespace
 
     void register_scene_loading_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests)
@@ -791,5 +890,11 @@ namespace carrot::tests {
                            test_transition_runtime_state_preserves_opened_chest_across_scene_reload);
         tests.emplace_back("transition runtime state restores player facing after rebind",
                            test_transition_runtime_state_restores_player_facing_after_rebind);
+        tests.emplace_back("sandbox town player sprite exposes walk animation",
+                           test_sandbox_town_player_sprite_exposes_walk_animation);
+        tests.emplace_back("sandbox town player animator can play walk animation",
+                           test_sandbox_town_player_animator_can_play_walk_animation);
+        tests.emplace_back("player controller can switch to walk animation in sandbox town",
+                           test_player_controller_can_switch_to_walk_animation_in_sandbox_town);
     }
 } // namespace carrot::tests

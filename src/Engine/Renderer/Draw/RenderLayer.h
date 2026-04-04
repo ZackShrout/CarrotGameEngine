@@ -8,6 +8,12 @@
 #include <cstdint>
 
 namespace carrot::renderer {
+    enum class render_order_mode_t : std::uint8_t
+    {
+        explicit_order = 0,
+        anchor_bottom_y
+    };
+
     enum class render_layer_t : std::uint16_t
     {
         background = 0,

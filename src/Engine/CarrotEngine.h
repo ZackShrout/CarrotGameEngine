@@ -10,6 +10,7 @@
 #include "Core/EnginePaths.h"
 #include "Core/GameContext.h"
 #include "Core/GameView.h"
+#include "Debug/DebugOverlay.h"
 #include "Engine.h"
 #include "Input/ActionMap.h"
 #include "Renderer/Renderer.h"
@@ -17,3 +18,4 @@
 #include "World/Controllers/InteractionController.h"
 #include "World/Controllers/PlayerController.h"
 #include "World/SceneLoader.h"
+#include "World/TriggerQuery.h"

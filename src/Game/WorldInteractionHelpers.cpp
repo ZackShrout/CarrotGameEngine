@@ -109,6 +109,17 @@ namespace sandbox {
         };
     }
 
+    std::optional<trigger_interaction_data_t> as_trigger(const carrot::world::world_object_t& object) noexcept
+    {
+        if (object.type != "Trigger" || !object.trigger)
+            return std::nullopt;
+
+        return trigger_interaction_data_t{
+            .trigger_id = object.trigger->trigger_id,
+            .trigger_kind = object.trigger->trigger_kind
+        };
+    }
+
     std::optional<scene_transition_request_t> make_scene_transition_request(
         const carrot::assets::asset_manager_t& assets,
         const carrot::world::world_object_t& object)

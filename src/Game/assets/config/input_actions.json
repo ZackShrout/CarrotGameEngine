@@ -11,6 +11,8 @@
     { "action": "interact", "key": "E" },
     { "action": "quit", "key": "Escape" },
     { "action": "toggle_fullscreen", "key": "F11" },
-    { "action": "toggle_fullscreen", "key": "Enter", "mods": ["Alt"] }
+    { "action": "toggle_fullscreen", "key": "Enter", "mods": ["Alt"] },
+    { "action": "toggle_map_collision_debug", "key": "F2" },
+    { "action": "toggle_object_collision_debug", "key": "F3" }
   ]
 }

@@ -39,6 +39,12 @@ namespace sandbox {
         std::string_view loot_table;
     };
 
+    struct trigger_interaction_data_t
+    {
+        std::string_view trigger_id;
+        std::string_view trigger_kind;
+    };
+
     struct scene_validation_report_t
     {
         std::vector<std::string> issues;
@@ -50,6 +56,7 @@ namespace sandbox {
     [[nodiscard]] std::optional<sign_interaction_data_t> as_sign(const carrot::world::world_object_t& object) noexcept;
     [[nodiscard]] std::optional<door_interaction_data_t> as_door(const carrot::world::world_object_t& object) noexcept;
     [[nodiscard]] std::optional<chest_interaction_data_t> as_chest(const carrot::world::world_object_t& object) noexcept;
+    [[nodiscard]] std::optional<trigger_interaction_data_t> as_trigger(const carrot::world::world_object_t& object) noexcept;
     [[nodiscard]] std::optional<scene_transition_request_t> make_scene_transition_request(
         const carrot::assets::asset_manager_t& assets,
         const carrot::world::world_object_t& object);

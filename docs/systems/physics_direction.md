@@ -2,7 +2,7 @@
 
 **BunnySoft**
 **Working system direction**
-**Last Updated: April 2026**
+**Last Updated: April 4, 2026**
 
 ---
 
@@ -153,6 +153,20 @@ That means the early system should prioritize:
 
 This is the work that expands the range of games Carrot can support immediately.
 
+### 5.1 Current Implemented Slice
+
+Carrot now has a working first-pass implementation of this direction:
+
+* `collision_world_t` provides layers / masks, static colliders, point queries, overlap queries, raycasts, and AABB sweeps
+* `tile_collision_field_t` exists as an engine-owned static collision representation
+* Tiled tileset rectangle collision can populate runtime static world blocking
+* Tiled object-layer trigger rectangles can populate runtime trigger world objects
+* the current player path uses explicit top-down kinematic movement with sweep-and-slide resolution against static collision
+* trigger overlap changes are surfaced to gameplay as explicit enter / exit events
+* the engine now has toggleable debug visualization for map collision and object colliders, including the player
+
+This is intentionally still a narrow, gameplay-first slice rather than a broad simulation layer.
+
 ---
 
 ## 6. What Carrot Should Not Build Too Early
@@ -204,11 +218,22 @@ Recommended early shapes:
 * capsule as an early-next candidate for smoother character movement
 * tile / cell collision as a first-class static world representation
 
+Currently implemented:
+
+* AABB-style collision queries and sweeps
+* rectangle-authored Tiled tile collision imported into AABB static colliders
+* rectangle-authored Tiled trigger regions imported as non-blocking trigger bounds
+
 Delayed shapes:
 
 * arbitrary polygons
 * more complex convex shapes
 * richer compound systems beyond what actual games require
+
+Current explicit limitation:
+
+* arbitrary Tiled polygon collision is not supported yet
+* current debug visualization is intentionally simple and focused on inspection rather than a full tooling UI
 
 The engine should leave room for future compound colliders, but should not require them on day one.
 

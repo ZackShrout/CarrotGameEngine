@@ -108,6 +108,40 @@ namespace carrot::assets {
                 tileset.image_height = static_cast<uint32_t>(obj.get_number_or("image_height", 0.0));
                 tileset.tile_count = static_cast<uint32_t>(obj.get_number_or("tile_count", 0.0));
                 tileset.columns = static_cast<uint32_t>(obj.get_number_or("columns", 0.0));
+                if (obj.has("tiles"))
+                {
+                    const utils::json::json_array_view_t tiles{ obj.get_array("tiles") };
+                    for (const auto& tile_value : tiles)
+                    {
+                        if (!tile_value.is_object())
+                            continue;
+
+                        const utils::json::json_object_view_t tile_json{ tile_value.as_object() };
+                        tilemap_tileset_t::tile_collision_t tile_collision{ };
+                        tile_collision.tile_id = static_cast<uint32_t>(tile_json.get_number_or("tile_id", 0.0));
+
+                        if (tile_json.has("collision_rects"))
+                        {
+                            const utils::json::json_array_view_t rects{ tile_json.get_array("collision_rects") };
+                            for (const auto& rect_value : rects)
+                            {
+                                if (!rect_value.is_object())
+                                    continue;
+
+                                const utils::json::json_object_view_t rect_json{ rect_value.as_object() };
+                                tile_collision.collision_rects.emplace_back(tilemap_tileset_t::collision_rect_t{
+                                    .x = static_cast<float>(rect_json.get_number_or("x", 0.0)),
+                                    .y = static_cast<float>(rect_json.get_number_or("y", 0.0)),
+                                    .width = static_cast<float>(rect_json.get_number_or("width", 0.0)),
+                                    .height = static_cast<float>(rect_json.get_number_or("height", 0.0))
+                                });
+                            }
+                        }
+
+                        if (!tile_collision.collision_rects.empty())
+                            tileset.tile_collisions.emplace_back(std::move(tile_collision));
+                    }
+                }
 
                 record.tilemap.add_tileset(std::move(tileset));
             }

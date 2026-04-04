@@ -6,12 +6,106 @@
 #include "Core/Pch.h"
 
 #include "PlayerController.h"
+#include "World/World.h"
 
 namespace carrot::world {
     namespace {
+        constexpr float k_movement_epsilon{ 1.0e-4f };
+        constexpr float k_penetration_slop{ 1.0e-3f };
+        constexpr float k_slide_skin{ 1.0e-2f };
+
+        [[nodiscard]] collision_component_t default_collision_component() noexcept
+        {
+            return collision_component_t{
+                .half_extents = { 0.3f, 0.2f },
+                .offset = { 0.f, -0.2f }
+            };
+        }
+
         [[nodiscard]] bool is_moving(const chlm::float2 movement) noexcept
         {
             return movement.x != 0.f || movement.y != 0.f;
+        }
+
+        [[nodiscard]] bool has_meaningful_movement(const chlm::float2 movement) noexcept
+        {
+            return std::fabs(movement.x) > k_movement_epsilon || std::fabs(movement.y) > k_movement_epsilon;
+        }
+
+        [[nodiscard]] float movement_length(const chlm::float2 movement) noexcept
+        {
+            return std::sqrt((movement.x * movement.x) + (movement.y * movement.y));
+        }
+
+        [[nodiscard]] chlm::float2 minimum_separation_vector(const collision::collision_aabb_t& moving,
+                                                             const collision::collision_aabb_t& blocking) noexcept
+        {
+            const float push_left{ blocking.min.x - moving.max.x };
+            const float push_right{ blocking.max.x - moving.min.x };
+            const float push_up{ blocking.min.y - moving.max.y };
+            const float push_down{ blocking.max.y - moving.min.y };
+
+            chlm::float2 best_push{ push_left, 0.f };
+            float best_distance{ std::fabs(push_left) };
+
+            const auto consider = [&](const chlm::float2 candidate) {
+                const float candidate_distance{
+                    std::fabs(candidate.x) + std::fabs(candidate.y)
+                };
+                if (candidate_distance < best_distance)
+                {
+                    best_push = candidate;
+                    best_distance = candidate_distance;
+                }
+            };
+
+            consider(chlm::float2{ push_right, 0.f });
+            consider(chlm::float2{ 0.f, push_up });
+            consider(chlm::float2{ 0.f, push_down });
+            return best_push;
+        }
+
+        void depenetrate_position_against_world(const world_t& world,
+                                                const player_controller_t& controller,
+                                                chlm::float2& position) noexcept
+        {
+            for (uint32_t iteration{ 0 }; iteration < 4u; ++iteration)
+            {
+                const collision::collision_aabb_t bounds{ controller.collision_bounds_at(position) };
+                const std::vector<collision::collision_hit_ref_t> overlaps{
+                    world.collision_world().overlap_query(bounds)
+                };
+
+                if (overlaps.empty())
+                    return;
+
+                chlm::float2 best_push{ 0.f, 0.f };
+                float best_distance{ std::numeric_limits<float>::max() };
+
+                for (const collision::collision_hit_ref_t& overlap : overlaps)
+                {
+                    const chlm::float2 candidate_push{ minimum_separation_vector(bounds, overlap.bounds) };
+                    const float candidate_distance{
+                        std::fabs(candidate_push.x) + std::fabs(candidate_push.y)
+                    };
+
+                    if (candidate_distance < best_distance)
+                    {
+                        best_push = candidate_push;
+                        best_distance = candidate_distance;
+                    }
+                }
+
+                if (best_distance == std::numeric_limits<float>::max())
+                    return;
+
+                if (best_push.x != 0.f)
+                    best_push.x += std::signbit(best_push.x) ? -k_penetration_slop : k_penetration_slop;
+                if (best_push.y != 0.f)
+                    best_push.y += std::signbit(best_push.y) ? -k_penetration_slop : k_penetration_slop;
+
+                position += best_push;
+            }
         }
 
         [[nodiscard]] facing_direction_t facing_from_movement(const chlm::float2 movement,
@@ -81,14 +175,21 @@ namespace carrot::world {
     void player_controller_t::set_controlled_object(world_object_t* object) noexcept
     {
         _controlled_object = object;
+        if (_controlled_object && !_controlled_object->collision)
+            _controlled_object->collision = default_collision_component();
         _facing_direction = facing_direction_t::down;
         _current_animation = _animation_set.idle_down;
     }
 
     void player_controller_t::update([[maybe_unused]] core::game_context_t& game, const float delta_time)
     {
+        _last_move_result = update(game.world, delta_time);
+    }
+
+    player_move_result_t player_controller_t::update(world_t& world, const float delta_time)
+    {
         if (!_controlled_object || !_controlled_object->transform)
-            return;
+            return player_move_result_t{ };
 
         chlm::float2 movement{ 0.f, 0.f };
         if (_move_up)
@@ -110,13 +211,101 @@ namespace carrot::world {
                 movement.x /= length;
                 movement.y /= length;
             }
-
-            _controlled_object->transform->position.x += movement.x * _move_speed * delta_time;
-            _controlled_object->transform->position.y += movement.y * _move_speed * delta_time;
         }
 
+        _last_move_result = move(world, movement * _move_speed * delta_time);
         _facing_direction = facing_from_movement(movement, _facing_direction);
         apply_animation(*_controlled_object, _facing_direction, moving);
+        return _last_move_result;
+    }
+
+    player_move_result_t player_controller_t::move(world_t& world, const chlm::float2 delta)
+    {
+        player_move_result_t result{ .requested_delta = delta };
+        if (!_controlled_object || !_controlled_object->transform || !has_meaningful_movement(delta))
+            return result;
+
+        chlm::float2 remaining_delta{ delta };
+        chlm::float2 current_position{ _controlled_object->transform->position };
+        const size_t overlap_count_before_move{
+            world.collision_world().overlap_query(collision_bounds_at(current_position)).size()
+        };
+        if (overlap_count_before_move > 0u)
+        {
+            result.started_overlapping = true;
+            depenetrate_position_against_world(world, *this, current_position);
+        }
+
+        for (uint32_t iteration{ 0 }; iteration < 2u; ++iteration)
+        {
+            if (!has_meaningful_movement(remaining_delta))
+                break;
+
+            const std::optional<collision::sweep_hit_t> hit{
+                world.collision_world().sweep_aabb(collision_bounds_at(current_position), remaining_delta)
+            };
+            if (!hit)
+            {
+                current_position += remaining_delta;
+                result.actual_delta += remaining_delta;
+                remaining_delta = { 0.f, 0.f };
+                break;
+            }
+
+            if (hit->started_overlapping)
+            {
+                result.started_overlapping = true;
+                result.blocked_x = result.blocked_x || std::fabs(remaining_delta.x) > k_movement_epsilon;
+                result.blocked_y = result.blocked_y || std::fabs(remaining_delta.y) > k_movement_epsilon;
+                remaining_delta = { 0.f, 0.f };
+                break;
+            }
+
+            const float remaining_length{ movement_length(remaining_delta) };
+            float safe_fraction{ hit->fraction };
+            if (remaining_length > k_movement_epsilon)
+                safe_fraction = std::max(0.f, hit->fraction - (k_slide_skin / remaining_length));
+
+            const chlm::float2 travelled_delta{ remaining_delta * safe_fraction };
+            current_position += travelled_delta;
+            result.actual_delta += travelled_delta;
+            const chlm::float2 desired_remaining_delta{ remaining_delta * (1.f - safe_fraction) };
+            remaining_delta = desired_remaining_delta;
+
+            if (hit->normal.x != 0.f)
+                result.blocked_x = true;
+
+            if (hit->normal.y != 0.f)
+                result.blocked_y = true;
+
+            const float into_surface{
+                (remaining_delta.x * hit->normal.x) + (remaining_delta.y * hit->normal.y)
+            };
+            if (into_surface < 0.f)
+            {
+                remaining_delta.x -= hit->normal.x * into_surface;
+                remaining_delta.y -= hit->normal.y * into_surface;
+            }
+        }
+
+        _controlled_object->transform->position = current_position;
+        return result;
+    }
+
+    collision::collision_aabb_t player_controller_t::collision_bounds_at(const chlm::float2 position) const noexcept
+    {
+        const collision_component_t collision{
+            _controlled_object && _controlled_object->collision ? *_controlled_object->collision : default_collision_component()
+        };
+        return collision::collision_aabb_t::from_center_extents(position + collision.offset, collision.half_extents);
+    }
+
+    collision::collision_aabb_t player_controller_t::current_collision_bounds() const noexcept
+    {
+        if (!_controlled_object || !_controlled_object->transform)
+            return collision::collision_aabb_t{ };
+
+        return collision_bounds_at(_controlled_object->transform->position);
     }
 
     void player_controller_t::apply_animation(world_object_t& object,

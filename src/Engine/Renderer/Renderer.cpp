@@ -165,6 +165,21 @@ namespace carrot::renderer {
         submit_textured_quad(frame_stage_kind_t::ui, quad);
     }
 
+    void renderer_t::draw_solid_quad(const solid_quad_draw_info_t& quad)
+    {
+        submit_solid_quad(frame_stage_kind_t::world, quad);
+    }
+
+    void renderer_t::draw_overlay_solid_quad(const solid_quad_draw_info_t& quad)
+    {
+        submit_solid_quad(frame_stage_kind_t::overlay_debug, quad);
+    }
+
+    void renderer_t::draw_ui_solid_quad(const solid_quad_draw_info_t& quad)
+    {
+        submit_solid_quad(frame_stage_kind_t::ui, quad);
+    }
+
     void renderer_t::set_fullscreen_overlay_color(const uint32_t color_abgr) noexcept
     {
         _fullscreen_overlay_enabled = true;
@@ -192,6 +207,33 @@ namespace carrot::renderer {
         });
 
         _stats.textured_quad_count++;
+    }
+
+    void renderer_t::submit_solid_quad(const frame_stage_kind_t stage, const solid_quad_draw_info_t& quad)
+    {
+        if (_solid_white_texture == nullptr)
+        {
+            LOG_GRAPHICS_WARN("draw_solid_quad called before renderer solid white texture was ready");
+            return;
+        }
+
+        submit_textured_quad(stage, textured_quad_draw_info_t{
+            .texture = _solid_white_texture.get(),
+            .x = quad.x,
+            .y = quad.y,
+            .width = quad.width,
+            .height = quad.height,
+            .u0 = 0.f,
+            .v0 = 0.f,
+            .u1 = 1.f,
+            .v1 = 1.f,
+            .layer = quad.layer,
+            .order_mode = quad.order_mode,
+            .order_in_layer = quad.order_in_layer,
+            .sort_reference_y = quad.sort_reference_y,
+            .color = quad.color,
+            .sampler_preset = quad.sampler_preset
+        });
     }
 
     void renderer_t::draw_sprite(const sprite_draw_info_t& info)

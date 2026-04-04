@@ -39,6 +39,15 @@ namespace carrot::world {
                 .position = { 0.f, 0.f },
                 .scale = { 1.f, 1.f }
             };
+            player.collision = collision_component_t{
+                .half_extents = { 0.3f, 0.2f },
+                .offset = { 0.f, -0.2f },
+                .debug_display = collision_debug_display_t{
+                    .filled = false,
+                    .outline_thickness = 2.f,
+                    .color = 0xFF00FFFFu
+                }
+            };
             player.sprite = sprite_component_t{
                 .sprite = &player_sprite,
                 .frame = first_frame,
@@ -112,12 +121,14 @@ namespace carrot::world {
         };
 
         const import::tilemap_world_bridge_result_t bridge_result{
-            import::import_tilemap_objects(world, *tilemap)
+            import::import_tilemap_objects(world, *tilemap, scene.tilemap_world_position)
         };
-        LOG_ASSET_INFO("Scene '{}': imported {} marker object(s), {} tile object(s)",
+        LOG_ASSET_INFO("Scene '{}': imported {} marker object(s), {} tile object(s), {} static collider(s), {} trigger(s)",
                        scene_id,
                        bridge_result.markers_created,
-                       bridge_result.tile_objects_created);
+                       bridge_result.tile_objects_created,
+                       bridge_result.static_colliders_created,
+                       bridge_result.triggers_created);
 
         const std::string_view effective_spawn_marker{
             !spawn_marker_override.empty() ? spawn_marker_override : std::string_view{ scene.player_spawn_marker }

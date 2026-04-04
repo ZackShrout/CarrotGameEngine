@@ -9,8 +9,23 @@
 #include "TransitionRuntimeState.h"
 
 #include <CarrotEngine.h>
+#include <unordered_set>
 
 namespace sandbox {
+    enum class trigger_event_phase_t : uint8_t
+    {
+        entered = 0,
+        exited
+    };
+
+    struct trigger_event_t
+    {
+        carrot::world::world_object_id_t object_id{ 0 };
+        trigger_event_phase_t phase{ trigger_event_phase_t::entered };
+        std::string trigger_id;
+        std::string trigger_kind;
+    };
+
     class sandbox_t : public carrot::core::ce_application_t
     {
         void configure_fallback_input_actions();
@@ -23,6 +38,10 @@ namespace sandbox {
         void capture_transition_runtime_state() noexcept;
         void apply_scene_runtime_state() noexcept;
         void consume_pending_runtime_events() noexcept;
+        void handle_trigger_event(const trigger_event_t& event) noexcept;
+        void update_trigger_overlaps() noexcept;
+        void toggle_map_collision_debug() noexcept;
+        void toggle_object_collision_debug() noexcept;
         bool load_scene(std::string_view scene_id, std::string_view spawn_marker = {});
 
         carrot::core::game_context_t* _game{ nullptr };
@@ -30,6 +49,8 @@ namespace sandbox {
         carrot::world::player_controller_t _player_controller;
         sandbox_interaction_controller_t _interaction_controller;
         gameplay_runtime_state_t _runtime_state;
+        std::unordered_set<carrot::world::world_object_id_t> _active_trigger_ids;
+        std::vector<trigger_event_t> _pending_trigger_events;
         std::string _current_scene_id;
         std::string _current_spawn_marker;
         carrot::assets::scene_camera_follow_mode_t _camera_follow_mode{

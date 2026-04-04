@@ -5,12 +5,21 @@
 
 #pragma once
 
+#include "Collision/CollisionWorld.h"
 #include "WorldObject.h"
 #include "WorldUnits.h"
 
 #include <vector>
 
 namespace carrot::world {
+    struct collision_debug_view_t
+    {
+        bool show_map_collision{ false };
+        bool show_object_colliders{ false };
+        uint32_t map_collision_color{ 0xFF00FF00u };
+        float map_outline_thickness{ 2.f };
+    };
+
     class world_t
     {
     public:
@@ -40,10 +49,16 @@ namespace carrot::world {
         [[nodiscard]] float presentation_pixels_per_unit() const noexcept { return _presentation.pixels_per_unit; }
         [[nodiscard]] const world_presentation_t& presentation() const noexcept { return _presentation; }
         [[nodiscard]] world_presentation_t& presentation() noexcept { return _presentation; }
+        [[nodiscard]] const collision::collision_world_t& collision_world() const noexcept { return _collision_world; }
+        [[nodiscard]] collision::collision_world_t& collision_world() noexcept { return _collision_world; }
+        [[nodiscard]] const collision_debug_view_t& collision_debug_view() const noexcept { return _collision_debug_view; }
+        [[nodiscard]] collision_debug_view_t& collision_debug_view() noexcept { return _collision_debug_view; }
 
     private:
         world_object_id_t _next_id{ 1 };
         std::vector<world_object_t> _objects;
         world_presentation_t _presentation{ };
+        collision::collision_world_t _collision_world{ };
+        collision_debug_view_t _collision_debug_view{ };
     };
 } // namespace carrot::world

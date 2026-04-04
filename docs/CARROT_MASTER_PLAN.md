@@ -2,7 +2,7 @@
 
 **BunnySoft**
 **Version 2.0**
-**Last Updated: April 2026**
+**Last Updated: April 4, 2026**
 
 ---
 
@@ -260,6 +260,15 @@ Longer-term work can later expand into:
 * lightweight rigid bodies where useful
 
 Gravity should be treated as a property of active movement/body mode, not a universal assumption for every actor or game style.
+
+Current implemented first pass:
+
+* `collision_world_t` with filterable static collision queries
+* Tiled tileset rectangle collision imported into runtime static blocking
+* top-down kinematic player movement constrained by authored collision
+* trigger rectangles imported from Tiled object layers
+* gameplay-facing trigger enter / exit events
+* toggleable collision debug visualization for map collision and object colliders
 
 ### 5.6 Asset System
 
@@ -605,21 +614,23 @@ These are the most immediate engine priorities.
 * Continue strengthening the asset system and authored asset workflows
 * Continue expanding the new input action layer toward config-backed and player-rebindable controls
 
-Recent completed foundation work in Milestone 02:
+Recent completed foundation work in Milestones 03 and 04:
 
-* scene-authored camera defaults with follow/dead-zone/smoothing support
-* config-backed default input bindings
-* stronger scene and transition validation/diagnostics
-* a three-scene authored sandbox pressure test
-* sandbox-owned transition-time gameplay state handoff
+* explicit frame stages for world, UI, composite, and overlay debug rendering
+* engine-level fullscreen composite overlays
+* stronger world-aware scene rendering and controller integration
+* collision queries and static collision foundations
+* Tiled-authored blocking collision and trigger import
+* first-pass kinematic player movement against authored world collision
+* gameplay-facing trigger events and toggleable collision debug views
 
-Current proposed post-Milestone-02 engine priority order:
+Current proposed post-Milestone-04 engine priority order:
 
-1. Render pipeline refactor
-2. Collision / physics-lite world constraints
-3. 2D layering and depth-sort behavior
-4. Gamepad input support
-5. In-game UI foundation and API
+1. 2D layering and depth-sort behavior
+2. Gamepad input support
+3. In-game UI foundation and API
+4. richer Tiled feature coverage and authored data support
+5. broader gameplay/runtime cleanup where emerging engine patterns should move out of sandbox code
 
 Important but intentionally later / dependent work:
 

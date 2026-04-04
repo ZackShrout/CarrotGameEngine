@@ -11,6 +11,7 @@
 #include "SandboxSceneBootstrap.h"
 #include "SceneHelpers.h"
 #include "TransitionRuntimeState.h"
+#include "World/TriggerQuery.h"
 
 namespace sandbox {
     namespace {
@@ -23,6 +24,8 @@ namespace sandbox {
         constexpr std::string_view k_action_interact{ "interact" };
         constexpr std::string_view k_action_quit{ "quit" };
         constexpr std::string_view k_action_toggle_fullscreen{ "toggle_fullscreen" };
+        constexpr std::string_view k_action_toggle_map_collision_debug{ "toggle_map_collision_debug" };
+        constexpr std::string_view k_action_toggle_object_collision_debug{ "toggle_object_collision_debug" };
         constexpr std::string_view k_input_bindings_config_path{ "game://config/input_actions.json" };
 
         [[nodiscard]] float apply_dead_zone_axis(const float current,
@@ -71,6 +74,8 @@ namespace sandbox {
         _actions.bind(std::string{ k_action_toggle_fullscreen },
                       carrot::input::key_code::enter,
                       static_cast<uint8_t>(carrot::input::modifier::alt));
+        _actions.bind(std::string{ k_action_toggle_map_collision_debug }, carrot::input::key_code::f2);
+        _actions.bind(std::string{ k_action_toggle_object_collision_debug }, carrot::input::key_code::f3);
     }
 
     void sandbox_t::configure_default_input_actions()
@@ -96,6 +101,8 @@ namespace sandbox {
         if (!_game)
             return;
 
+        _active_trigger_ids.clear();
+        _pending_trigger_events.clear();
         _player_controller.set_controlled_object(find_player(_game->world));
         _interaction_controller.set_actor(_player_controller.controlled_object());
         apply_scene_camera_defaults();
@@ -223,6 +230,79 @@ namespace sandbox {
             apply_runtime_state_to_scene(_current_scene_id, _game->world, _runtime_state);
             LOG_CORE_INFO("Marked chest '{}' as opened in scene '{}'", chest->name, _current_scene_id);
         }
+
+        for (const trigger_event_t& event : _pending_trigger_events)
+            handle_trigger_event(event);
+
+        _pending_trigger_events.clear();
+    }
+
+    void sandbox_t::handle_trigger_event(const trigger_event_t& event) noexcept
+    {
+        const char* phase_label{ event.phase == trigger_event_phase_t::entered ? "Entered" : "Exited" };
+        LOG_CORE_INFO("{} Trigger -> trigger_id='{}', trigger_kind='{}', object_id={}",
+                      phase_label,
+                      event.trigger_id,
+                      event.trigger_kind,
+                      event.object_id);
+    }
+
+    void sandbox_t::update_trigger_overlaps() noexcept
+    {
+        if (!_game || !_player_controller.controlled_object())
+            return;
+
+        const carrot::world::trigger_overlap_changes_t changes{
+            carrot::world::update_trigger_overlaps(*_player_controller.controlled_object(),
+                                                   _game->world,
+                                                   _active_trigger_ids)
+        };
+
+        for (const carrot::world::world_object_t* trigger : changes.entered)
+        {
+            if (const std::optional<trigger_interaction_data_t> data{ as_trigger(*trigger) })
+            {
+                _pending_trigger_events.emplace_back(trigger_event_t{
+                    .object_id = trigger->id,
+                    .phase = trigger_event_phase_t::entered,
+                    .trigger_id = std::string{ data->trigger_id },
+                    .trigger_kind = std::string{ data->trigger_kind }
+                });
+            }
+        }
+
+        for (const carrot::world::world_object_t* trigger : changes.exited)
+        {
+            if (const std::optional<trigger_interaction_data_t> data{ as_trigger(*trigger) })
+            {
+                _pending_trigger_events.emplace_back(trigger_event_t{
+                    .object_id = trigger->id,
+                    .phase = trigger_event_phase_t::exited,
+                    .trigger_id = std::string{ data->trigger_id },
+                    .trigger_kind = std::string{ data->trigger_kind }
+                });
+            }
+        }
+    }
+
+    void sandbox_t::toggle_map_collision_debug() noexcept
+    {
+        if (!_game)
+            return;
+
+        auto& debug_view{ _game->world.collision_debug_view() };
+        debug_view.show_map_collision = !debug_view.show_map_collision;
+        LOG_CORE_INFO("Map collision debug: {}", debug_view.show_map_collision ? "ON" : "OFF");
+    }
+
+    void sandbox_t::toggle_object_collision_debug() noexcept
+    {
+        if (!_game)
+            return;
+
+        auto& debug_view{ _game->world.collision_debug_view() };
+        debug_view.show_object_colliders = !debug_view.show_object_colliders;
+        LOG_CORE_INFO("Object collider debug: {}", debug_view.show_object_colliders ? "ON" : "OFF");
     }
 
     bool sandbox_t::load_scene(const std::string_view scene_id, const std::string_view spawn_marker)
@@ -280,6 +360,7 @@ namespace sandbox {
             load_scene(request->scene_id, request->marker_name);
 
         _player_controller.update(*_game, delta_time);
+        update_trigger_overlaps();
         update_camera_follow(delta_time);
     }
 
@@ -337,6 +418,12 @@ namespace sandbox {
         {
             set_fullscreen(!is_fullscreen());
         }
+
+        if (e._action == carrot::events::key_action::press && _actions.matches(k_action_toggle_map_collision_debug, e))
+            toggle_map_collision_debug();
+
+        if (e._action == carrot::events::key_action::press && _actions.matches(k_action_toggle_object_collision_debug, e))
+            toggle_object_collision_debug();
     }
 
     void sandbox_t::on_mouse_moved(const carrot::events::mouse_moved_event_t& e)

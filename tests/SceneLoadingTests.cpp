@@ -15,6 +15,7 @@
 #include "RHI/CommandQueue.h"
 #include "RHI/RHI.h"
 #include "Utils/JSON/Public/JsonDocument.h"
+#include "World/Controllers/PlayerController.h"
 #include "World/Import/TilemapWorldBridge.h"
 #include "World/SceneLoader.h"
 #include "World/World.h"
@@ -254,6 +255,142 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(world.find_object_by_name("PlayerSpawn") != nullptr);
             CARROT_TEST_REQUIRE(world.find_object_by_name("StarterChest") != nullptr);
             CARROT_TEST_REQUIRE(world.find_object_by_name("NorthDoor") != nullptr);
+        }
+
+        void test_tilemap_world_bridge_imports_tileset_collision_as_static_colliders()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            const assets::loaded_tilemap_asset_t* tilemap{ assets.tilemaps().get("tilemap.sandbox.town") };
+            CARROT_TEST_REQUIRE(tilemap != nullptr);
+
+            bool found_tileset_collision_metadata{ false };
+            for (const assets::tilemap_tileset_t& tileset : tilemap->tilemap().tilesets())
+            {
+                if (!tileset.tile_collisions.empty())
+                {
+                    found_tileset_collision_metadata = true;
+                    break;
+                }
+            }
+
+            CARROT_TEST_REQUIRE(found_tileset_collision_metadata);
+
+            world::world_t world;
+            const world::import::tilemap_world_bridge_result_t result{
+                world::import::import_tilemap_objects(world, *tilemap)
+            };
+
+            CARROT_TEST_REQUIRE(result.static_colliders_created > 0u);
+            CARROT_TEST_REQUIRE(world.collision_world().static_colliders().size() == result.static_colliders_created);
+
+            const auto& first_collider{ world.collision_world().static_colliders().front() };
+            const auto hits{ world.collision_world().point_query(first_collider.bounds.center()) };
+            CARROT_TEST_REQUIRE(!hits.empty());
+        }
+
+        void test_tilemap_world_bridge_imports_object_layer_tile_collision_as_static_collider()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            const assets::loaded_tilemap_asset_t* tilemap{ assets.tilemaps().get("tilemap.sandbox.town") };
+            CARROT_TEST_REQUIRE(tilemap != nullptr);
+
+            const assets::tilemap_object_t* hay_object{ nullptr };
+            const assets::tilemap_tileset_t* hay_tileset{ nullptr };
+            for (const assets::tilemap_layer_t& layer : tilemap->tilemap().layers())
+            {
+                if (layer.kind != assets::tilemap_layer_kind_t::object)
+                    continue;
+
+                for (const assets::tilemap_object_t& object : layer.objects)
+                {
+                    if (object.name != "hay" || object.gid == 0)
+                        continue;
+
+                    hay_object = &object;
+
+                    for (const assets::tilemap_tileset_t& tileset : tilemap->tilemap().tilesets())
+                    {
+                        const uint32_t next_first_gid{
+                            (&tileset + 1) < (tilemap->tilemap().tilesets().data() + tilemap->tilemap().tilesets().size())
+                                ? (&tileset + 1)->first_gid
+                                : std::numeric_limits<uint32_t>::max()
+                        };
+
+                        if (object.gid >= tileset.first_gid && object.gid < next_first_gid)
+                        {
+                            hay_tileset = &tileset;
+                            break;
+                        }
+                    }
+
+                    break;
+                }
+
+                if (hay_object != nullptr)
+                    break;
+            }
+
+            CARROT_TEST_REQUIRE(hay_object != nullptr);
+            CARROT_TEST_REQUIRE(hay_tileset != nullptr);
+            CARROT_TEST_REQUIRE(hay_tileset->find_tile_collision(hay_object->gid - hay_tileset->first_gid) != nullptr);
+
+            world::world_t world;
+            const world::import::tilemap_world_bridge_result_t result{
+                world::import::import_tilemap_objects(world, *tilemap)
+            };
+            CARROT_TEST_REQUIRE(result.static_colliders_created > 0u);
+
+            const world::world_object_t* hay_world_object{ world.find_object_by_name("hay") };
+            CARROT_TEST_REQUIRE(hay_world_object != nullptr);
+            CARROT_TEST_REQUIRE(hay_world_object->transform.has_value());
+
+            const collision::collision_aabb_t hay_bounds{ collision::collision_aabb_t::from_min_size(
+                hay_world_object->transform->position,
+                chlm::float2{
+                    world::world_units_t::pixels_to_world(hay_object->width),
+                    world::world_units_t::pixels_to_world(hay_object->height)
+                }) };
+            const auto overlaps{ world.collision_world().overlap_query(hay_bounds) };
+            CARROT_TEST_REQUIRE(!overlaps.empty());
+        }
+
+        void test_tilemap_world_bridge_imports_authored_triggers()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            const assets::loaded_tilemap_asset_t* tilemap{ assets.tilemaps().get("tilemap.sandbox.town") };
+            CARROT_TEST_REQUIRE(tilemap != nullptr);
+
+            world::world_t world;
+            const world::import::tilemap_world_bridge_result_t result{
+                world::import::import_tilemap_objects(world, *tilemap)
+            };
+
+            CARROT_TEST_REQUIRE(result.triggers_created > 0u);
+
+            world::world_object_t* trigger{ world.find_object_by_name("Trigger") };
+            CARROT_TEST_REQUIRE(trigger != nullptr);
+            CARROT_TEST_REQUIRE(trigger->trigger.has_value());
+            CARROT_TEST_REQUIRE(trigger->collision.has_value());
+            CARROT_TEST_REQUIRE(trigger->trigger->trigger_id == "inn_trigger_1");
+            CARROT_TEST_REQUIRE(trigger->trigger->trigger_kind == "unlock_quest");
         }
 
         void test_tiled_tilemap_import_accepts_unsupported_features_non_fatally()
@@ -789,6 +926,7 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(player != nullptr);
             CARROT_TEST_REQUIRE(player->sprite.has_value());
             CARROT_TEST_REQUIRE(player->sprite_animator.has_value());
+            CARROT_TEST_REQUIRE(player->collision.has_value());
             CARROT_TEST_REQUIRE(player->sprite->sprite != nullptr);
 
             const assets::loaded_sprite_asset_t* sprite{ player->sprite->sprite };
@@ -813,6 +951,7 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(player != nullptr);
             CARROT_TEST_REQUIRE(player->sprite.has_value());
             CARROT_TEST_REQUIRE(player->sprite_animator.has_value());
+            CARROT_TEST_REQUIRE(player->collision.has_value());
             CARROT_TEST_REQUIRE(player->sprite->sprite != nullptr);
             CARROT_TEST_REQUIRE(player->sprite_animator->animator.sprite() == player->sprite->sprite);
 
@@ -852,11 +991,256 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(player != nullptr);
             CARROT_TEST_REQUIRE(player->sprite_animator.has_value());
             CARROT_TEST_REQUIRE(player->sprite.has_value());
+            CARROT_TEST_REQUIRE(player->collision.has_value());
             CARROT_TEST_REQUIRE(player->sprite_animator->animator.sprite() == player->sprite->sprite);
 
             player->sprite_animator->animator.play("walk_right");
             CARROT_TEST_REQUIRE(player->sprite_animator->animator.current_animation() != nullptr);
             CARROT_TEST_REQUIRE(player->sprite_animator->animator.current_frame() != nullptr);
+        }
+
+        void test_player_controller_blocks_against_imported_sandbox_town_collision()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town"));
+
+            world::world_object_t* player{ world.find_object_by_name("Vraden") };
+            CARROT_TEST_REQUIRE(player != nullptr);
+            CARROT_TEST_REQUIRE(player->transform.has_value());
+            CARROT_TEST_REQUIRE(player->collision.has_value());
+            CARROT_TEST_REQUIRE(!world.collision_world().static_colliders().empty());
+
+            world::player_controller_t controller;
+            controller.set_controlled_object(player);
+
+            const auto& blocker{ world.collision_world().static_colliders().front() };
+            const chlm::float2 half_extents{ player->collision->half_extents };
+            const chlm::float2 offset{ player->collision->offset };
+
+            player->transform->position = {
+                blocker.bounds.min.x - half_extents.x - 0.05f - offset.x,
+                blocker.bounds.center().y - offset.y
+            };
+
+            const float start_x{ player->transform->position.x };
+            const world::player_move_result_t move_result{ controller.move(world, chlm::float2{ 2.f, 0.f }) };
+            const collision::collision_aabb_t final_bounds{ controller.current_collision_bounds() };
+
+            CARROT_TEST_REQUIRE(move_result.blocked_x);
+            CARROT_TEST_REQUIRE(!move_result.started_overlapping);
+            CARROT_TEST_REQUIRE(player->transform->position.x > start_x);
+            CARROT_TEST_REQUIRE(final_bounds.max.x <= blocker.bounds.min.x + 1.0e-4f);
+            CARROT_TEST_REQUIRE(final_bounds.min.y < blocker.bounds.max.y);
+            CARROT_TEST_REQUIRE(final_bounds.max.y > blocker.bounds.min.y);
+        }
+
+        void test_player_controller_can_move_away_after_blocking_against_sandbox_town_collision()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town"));
+
+            world::world_object_t* player{ world.find_object_by_name("Vraden") };
+            CARROT_TEST_REQUIRE(player != nullptr);
+            CARROT_TEST_REQUIRE(player->transform.has_value());
+            CARROT_TEST_REQUIRE(player->collision.has_value());
+            CARROT_TEST_REQUIRE(!world.collision_world().static_colliders().empty());
+
+            world::player_controller_t controller;
+            controller.set_controlled_object(player);
+
+            const auto& blocker{ world.collision_world().static_colliders().front() };
+            const chlm::float2 half_extents{ player->collision->half_extents };
+            const chlm::float2 offset{ player->collision->offset };
+
+            player->transform->position = {
+                blocker.bounds.min.x - half_extents.x - 0.05f - offset.x,
+                blocker.bounds.center().y - offset.y
+            };
+
+            const world::player_move_result_t blocked_move{ controller.move(world, chlm::float2{ 2.f, 0.f }) };
+            CARROT_TEST_REQUIRE(blocked_move.blocked_x);
+
+            const float blocked_x{ player->transform->position.x };
+            const world::player_move_result_t separating_move{ controller.move(world, chlm::float2{ -0.5f, 0.f }) };
+
+            CARROT_TEST_REQUIRE(!separating_move.started_overlapping);
+            CARROT_TEST_REQUIRE(!separating_move.blocked_x);
+            CARROT_TEST_REQUIRE(player->transform->position.x < blocked_x);
+        }
+
+        void test_player_controller_can_escape_small_initial_overlap_in_sandbox_town_collision()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town"));
+
+            world::world_object_t* player{ world.find_object_by_name("Vraden") };
+            CARROT_TEST_REQUIRE(player != nullptr);
+            CARROT_TEST_REQUIRE(player->transform.has_value());
+            CARROT_TEST_REQUIRE(player->collision.has_value());
+            CARROT_TEST_REQUIRE(!world.collision_world().static_colliders().empty());
+
+            world::player_controller_t controller;
+            controller.set_controlled_object(player);
+
+            const auto& blocker{ world.collision_world().static_colliders().front() };
+            const chlm::float2 half_extents{ player->collision->half_extents };
+            const chlm::float2 offset{ player->collision->offset };
+
+            player->transform->position = {
+                blocker.bounds.min.x - half_extents.x + 0.02f - offset.x,
+                blocker.bounds.center().y - offset.y
+            };
+
+            const world::player_move_result_t move_result{ controller.move(world, chlm::float2{ -0.5f, 0.f }) };
+            const collision::collision_aabb_t final_bounds{ controller.current_collision_bounds() };
+
+            CARROT_TEST_REQUIRE(move_result.started_overlapping);
+            CARROT_TEST_REQUIRE(final_bounds.max.x <= blocker.bounds.min.x + 1.0e-4f);
+            CARROT_TEST_REQUIRE(!move_result.blocked_x);
+        }
+
+        void test_player_controller_slides_along_vertical_blocker()
+        {
+            world::world_t world;
+            const auto& blocker = world.collision_world().add_static_collider(collision::static_collider_t{
+                .bounds = collision::collision_aabb_t::from_min_size(chlm::float2{ 2.f, -1.f }, chlm::float2{ 1.f, 4.f })
+            });
+            static_cast<void>(blocker);
+
+            world::world_object_t player;
+            player.transform = world::transform_component_t{
+                .position = { 0.f, 0.2f },
+                .scale = { 1.f, 1.f }
+            };
+
+            world::player_controller_t controller;
+            controller.set_controlled_object(&player);
+            player.collision = world::collision_component_t{
+                .half_extents = { 0.3f, 0.2f },
+                .offset = { 0.f, -0.2f }
+            };
+
+            const world::player_move_result_t move_result{ controller.move(world, chlm::float2{ 3.f, 1.f }) };
+
+            CARROT_TEST_REQUIRE(move_result.blocked_x);
+            CARROT_TEST_REQUIRE(player.transform->position.y > 0.2f);
+            CARROT_TEST_REQUIRE(player.transform->position.x < 2.f);
+            CARROT_TEST_REQUIRE(controller.current_collision_bounds().max.x <= 2.f + 1.0e-4f);
+        }
+
+        void test_scene_loader_assigns_player_collision_config()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town"));
+
+            world::world_object_t* player{ world.find_object_by_name("Vraden") };
+            CARROT_TEST_REQUIRE(player != nullptr);
+            CARROT_TEST_REQUIRE(player->collision.has_value());
+            CARROT_TEST_REQUIRE(player->collision->half_extents.x == 0.3f);
+            CARROT_TEST_REQUIRE(player->collision->half_extents.y == 0.2f);
+            CARROT_TEST_REQUIRE(player->collision->offset.x == 0.f);
+            CARROT_TEST_REQUIRE(player->collision->offset.y == -0.2f);
+            CARROT_TEST_REQUIRE(player->collision->debug_display.has_value());
+            CARROT_TEST_REQUIRE(player->collision->debug_display->color == 0xFF00FFFFu);
+        }
+
+        void test_scene_loader_imports_authored_trigger_component()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town"));
+
+            world::world_object_t* trigger{ world.find_object_by_name("Trigger") };
+            CARROT_TEST_REQUIRE(trigger != nullptr);
+            CARROT_TEST_REQUIRE(trigger->trigger.has_value());
+            CARROT_TEST_REQUIRE(trigger->collision.has_value());
+            CARROT_TEST_REQUIRE(trigger->trigger->trigger_id == "inn_trigger_1");
+            CARROT_TEST_REQUIRE(trigger->trigger->trigger_kind == "unlock_quest");
+        }
+
+        void test_trigger_query_reports_enter_stay_and_exit()
+        {
+            world::world_t world;
+
+            world::world_object_t actor;
+            actor.id = 999;
+            actor.transform = world::transform_component_t{
+                .position = { 0.f, 0.f },
+                .scale = { 1.f, 1.f }
+            };
+            actor.collision = world::collision_component_t{
+                .half_extents = { 0.3f, 0.2f },
+                .offset = { 0.f, -0.2f }
+            };
+
+            world::world_object_t& trigger{ world.create_object() };
+            trigger.name = "TestTrigger";
+            trigger.type = "Trigger";
+            trigger.transform = world::transform_component_t{
+                .position = { 1.f, -1.f },
+                .scale = { 1.f, 1.f }
+            };
+            trigger.collision = world::collision_component_t{
+                .half_extents = { 0.5f, 1.f },
+                .offset = { 0.5f, 1.f }
+            };
+            trigger.trigger = world::trigger_component_t{
+                .trigger_id = "test.trigger",
+                .trigger_kind = "test_kind"
+            };
+
+            std::unordered_set<world::world_object_id_t> active_trigger_ids;
+
+            actor.transform->position = { 1.2f, 0.3f };
+            const auto entered{ world::update_trigger_overlaps(actor, world, active_trigger_ids) };
+            CARROT_TEST_REQUIRE(entered.entered.size() == 1u);
+            CARROT_TEST_REQUIRE(entered.entered.front()->id == trigger.id);
+            CARROT_TEST_REQUIRE(active_trigger_ids.contains(trigger.id));
+
+            const auto staying{ world::update_trigger_overlaps(actor, world, active_trigger_ids) };
+            CARROT_TEST_REQUIRE(staying.entered.empty());
+            CARROT_TEST_REQUIRE(staying.staying.size() == 1u);
+            CARROT_TEST_REQUIRE(staying.staying.front()->id == trigger.id);
+
+            actor.transform->position = { 3.f, 0.3f };
+            const auto exited{ world::update_trigger_overlaps(actor, world, active_trigger_ids) };
+            CARROT_TEST_REQUIRE(exited.exited.size() == 1u);
+            CARROT_TEST_REQUIRE(exited.exited.front()->id == trigger.id);
+            CARROT_TEST_REQUIRE(active_trigger_ids.empty());
         }
     } // namespace
 
@@ -864,10 +1248,19 @@ namespace carrot::tests {
     {
         tests.emplace_back("asset discovery finds scene manifests", test_asset_discovery_finds_scene_manifest);
         tests.emplace_back("tilemap world bridge imports authored objects", test_tilemap_world_bridge_imports_authored_objects);
+        tests.emplace_back("tilemap world bridge imports tileset collision as static colliders",
+                           test_tilemap_world_bridge_imports_tileset_collision_as_static_colliders);
+        tests.emplace_back("tilemap world bridge imports object layer tile collision as static collider",
+                           test_tilemap_world_bridge_imports_object_layer_tile_collision_as_static_collider);
+        tests.emplace_back("tilemap world bridge imports authored triggers",
+                           test_tilemap_world_bridge_imports_authored_triggers);
         tests.emplace_back("tiled tilemap import accepts unsupported features non-fatally",
                            test_tiled_tilemap_import_accepts_unsupported_features_non_fatally);
         tests.emplace_back("scene loader positive path", test_scene_loader_loads_scene_successfully);
         tests.emplace_back("scene loader loads sandbox town successfully", test_scene_loader_loads_sandbox_town_successfully);
+        tests.emplace_back("scene loader assigns player collision config", test_scene_loader_assigns_player_collision_config);
+        tests.emplace_back("scene loader imports authored trigger component",
+                           test_scene_loader_imports_authored_trigger_component);
         tests.emplace_back("scene loader missing scene failure path", test_scene_loader_fails_for_missing_scene);
         tests.emplace_back("scene loader supports spawn override", test_scene_loader_supports_spawn_override);
         tests.emplace_back("scene loader supports sandbox town spawn overrides",
@@ -896,5 +1289,15 @@ namespace carrot::tests {
                            test_sandbox_town_player_animator_can_play_walk_animation);
         tests.emplace_back("player controller can switch to walk animation in sandbox town",
                            test_player_controller_can_switch_to_walk_animation_in_sandbox_town);
+        tests.emplace_back("player controller blocks against imported sandbox town collision",
+                           test_player_controller_blocks_against_imported_sandbox_town_collision);
+        tests.emplace_back("player controller can move away after blocking against sandbox town collision",
+                           test_player_controller_can_move_away_after_blocking_against_sandbox_town_collision);
+        tests.emplace_back("player controller can escape small initial overlap in sandbox town collision",
+                           test_player_controller_can_escape_small_initial_overlap_in_sandbox_town_collision);
+        tests.emplace_back("player controller slides along vertical blocker",
+                           test_player_controller_slides_along_vertical_blocker);
+        tests.emplace_back("trigger query reports enter stay and exit",
+                           test_trigger_query_reports_enter_stay_and_exit);
     }
 } // namespace carrot::tests

@@ -2,7 +2,7 @@
 
 **BunnySoft**
 **Working architecture notes**
-**Last Updated: April 2026**
+**Last Updated: April 4, 2026**
 
 ---
 
@@ -106,17 +106,17 @@ Carrot should periodically audit which current assumptions are acceptable sandbo
 * whether future games want a broader shared controller base beyond the current default movement and interaction helpers
 * render-pipeline refactoring so world, debug, UI, and future composite work no longer compete inside a one-pass frame model
 
-### 2.6 Current Post-Milestone-02 Priority Stack
+### 2.6 Current Post-Milestone-04 Priority Stack
 
-After Milestone 02, the most important next step is no longer scene-flow tightening.
+After Milestone 04, the engine no longer has collision-less authored worlds as a major structural ceiling.
 
 The current proposed engine-growth order is:
 
-1. render pipeline refactor
-2. collision / physics-lite world constraints
-3. 2D layering and depth-sort behavior
-4. gamepad input support
-5. in-game UI foundation and API
+1. 2D layering and depth-sort behavior
+2. gamepad input support
+3. in-game UI foundation and API
+4. richer Tiled feature coverage
+5. continued engine extraction of recurring gameplay-side boilerplate
 
 This ordering reflects two ideas:
 
@@ -134,7 +134,7 @@ Notable later work that should stay visible but is not the current top priority:
 
 ### 2.6.1 Current Physics / Collision Direction
 
-After the render-pipeline refactor work, the next major engine-growth area is collision and physics-lite world constraints.
+Milestone 04 validated the next major engine-growth area after the render-pipeline refactor: collision and physics-lite world constraints.
 
 Current direction:
 
@@ -153,6 +153,21 @@ The expected near-term sequence is:
 5. lightweight rigid-body features only later where truly needed
 
 For the fuller system direction, see [physics_direction.md](/Users/zshrout/dev/CarrotGameEngine/docs/systems/physics_direction.md).
+
+Current implemented slice:
+
+* `collision_world_t` now exists as an engine-owned collision/query foundation
+* Tiled tileset rectangle collision can import into runtime static blocking colliders
+* first-pass top-down kinematic player movement now resolves against authored world blocking
+* Tiled-authored trigger rectangles can import into runtime trigger world objects
+* gameplay can now consume trigger enter / exit events instead of depending on inline trigger logging
+* the engine debug stage can now render first-pass collision and trigger bounds with separate map/object visibility toggles
+
+Important current limitations:
+
+* collision support is intentionally centered on AABB-style queries and authored rectangles
+* arbitrary Tiled polygon collision is not supported yet
+* current debug collision rendering is still basic and not yet a richer inspection tool
 
 ### 2.7 Current Frame Stage Contract
 

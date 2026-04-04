@@ -6,6 +6,7 @@
 #pragma once
 
 #include "Core/GameContext.h"
+#include "Collision/CollisionWorld.h"
 #include "World/WorldObject.h"
 
 #include <cstdint>
@@ -32,6 +33,15 @@ namespace carrot::world {
         std::string walk_right{ "walk_right" };
     };
 
+    struct player_move_result_t
+    {
+        chlm::float2 requested_delta{ 0.f, 0.f };
+        chlm::float2 actual_delta{ 0.f, 0.f };
+        bool blocked_x{ false };
+        bool blocked_y{ false };
+        bool started_overlapping{ false };
+    };
+
     class player_controller_t
     {
     public:
@@ -56,6 +66,11 @@ namespace carrot::world {
         void set_facing_direction(facing_direction_t direction);
 
         void update(core::game_context_t& game, float delta_time);
+        [[nodiscard]] player_move_result_t update(world_t& world, float delta_time);
+        [[nodiscard]] player_move_result_t move(world_t& world, chlm::float2 delta);
+        [[nodiscard]] const player_move_result_t& last_move_result() const noexcept { return _last_move_result; }
+        [[nodiscard]] collision::collision_aabb_t collision_bounds_at(chlm::float2 position) const noexcept;
+        [[nodiscard]] collision::collision_aabb_t current_collision_bounds() const noexcept;
 
     protected:
         virtual void apply_animation(world_object_t& object, facing_direction_t facing, bool moving);
@@ -72,5 +87,6 @@ namespace carrot::world {
         facing_direction_t _facing_direction{ facing_direction_t::down };
         std::string _current_animation{ "idle_down" };
         player_controller_animation_set_t _animation_set{ };
+        player_move_result_t _last_move_result{ };
     };
 } // namespace carrot::world

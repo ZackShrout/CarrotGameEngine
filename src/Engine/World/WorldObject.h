@@ -6,11 +6,13 @@
 #pragma once
 
 #include "Assets/Tilemap/TilemapAsset.h"
+#include "Components/CollisionComponent.h"
 #include "Components/SpriteAnimatorComponent.h"
 #include "Components/SpriteComponent.h"
 #include "Components/TileObjectComponent.h"
 #include "Components/TilemapComponent.h"
 #include "Components/TransformComponent.h"
+#include "Components/TriggerComponent.h"
 
 #include <optional>
 #include <string>
@@ -90,6 +92,8 @@ namespace carrot::world {
         }
 
         std::optional<transform_component_t> transform;
+        std::optional<collision_component_t> collision;
+        std::optional<trigger_component_t> trigger;
         std::optional<sprite_component_t> sprite;
         std::optional<sprite_animator_component_t> sprite_animator;
         std::optional<tile_object_component_t> tile_object;

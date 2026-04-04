@@ -71,6 +71,20 @@ namespace carrot::renderer {
         uint32_t color{ 0xFFFFFFFFu };
     };
 
+    struct solid_quad_draw_info_t
+    {
+        float x{ 0.f };
+        float y{ 0.f };
+        float width{ 1.f };
+        float height{ 1.f };
+        render_layer_t layer{ render_layer_t::debug };
+        render_order_mode_t order_mode{ render_order_mode_t::explicit_order };
+        int32_t order_in_layer{ 0 };
+        float sort_reference_y{ 0.f };
+        uint32_t color{ 0xFFFFFFFFu };
+        quad_sampler_preset_t sampler_preset{ quad_sampler_preset_t::pixel_clamp };
+    };
+
     struct renderer_stats_t
     {
         uint32_t draw_calls{ 0 };
@@ -125,6 +139,9 @@ namespace carrot::renderer {
         void draw_textured_quad(const textured_quad_draw_info_t& quad);
         void draw_overlay_textured_quad(const textured_quad_draw_info_t& quad);
         void draw_ui_textured_quad(const textured_quad_draw_info_t& quad);
+        void draw_solid_quad(const solid_quad_draw_info_t& quad);
+        void draw_overlay_solid_quad(const solid_quad_draw_info_t& quad);
+        void draw_ui_solid_quad(const solid_quad_draw_info_t& quad);
         void set_fullscreen_overlay_color(uint32_t color_abgr) noexcept;
         void clear_fullscreen_overlay() noexcept;
         void draw_sprite(const sprite_draw_info_t& info);
@@ -166,6 +183,7 @@ namespace carrot::renderer {
         [[nodiscard]] stage_execution_context_t resolve_stage_execution_context(const frame_stage_plan_t& stage_plan) const noexcept;
         void queue_fullscreen_overlay_if_needed();
         void submit_textured_quad(frame_stage_kind_t stage, const textured_quad_draw_info_t& quad);
+        void submit_solid_quad(frame_stage_kind_t stage, const solid_quad_draw_info_t& quad);
         void build_textured_quad_batches(textured_quad_state_t& state) const;
         void execute_frame_stage(const frame_stage_plan_t& stage_plan);
         void execute_frame_stages();

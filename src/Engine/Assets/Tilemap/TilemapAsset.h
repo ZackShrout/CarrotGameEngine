@@ -36,6 +36,20 @@ namespace carrot::assets {
 
     struct tilemap_tileset_t
     {
+        struct collision_rect_t
+        {
+            float x{ 0.f };
+            float y{ 0.f };
+            float width{ 0.f };
+            float height{ 0.f };
+        };
+
+        struct tile_collision_t
+        {
+            uint32_t tile_id{ 0 };
+            std::vector<collision_rect_t> collision_rects;
+        };
+
         std::string name;
         uint32_t first_gid{ 0 };
 
@@ -50,6 +64,18 @@ namespace carrot::assets {
         uint32_t image_height{ 0 };
         uint32_t tile_count{ 0 };
         uint32_t columns{ 0 };
+        std::vector<tile_collision_t> tile_collisions;
+
+        [[nodiscard]] const tile_collision_t* find_tile_collision(const uint32_t tile_id) const noexcept
+        {
+            for (const tile_collision_t& collision : tile_collisions)
+            {
+                if (collision.tile_id == tile_id)
+                    return &collision;
+            }
+
+            return nullptr;
+        }
     };
 
     struct tilemap_object_t

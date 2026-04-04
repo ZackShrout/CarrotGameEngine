@@ -104,13 +104,109 @@ namespace carrot::assets {
                                                             tile_id));
                 }
 
-                if (tile_json.has("objectgroup"))
-                {
-                    diagnostics.add_unsupported(std::format("tileset '{}' tile {} uses collision/object data which is not yet supported",
-                                                            tileset_label,
-                                                            tile_id));
-                }
             }
+        }
+
+        void collect_unsupported_tileset_collision_object_features(const utils::json::json_object_view_t& object_json,
+                                                                   const std::string_view tileset_name,
+                                                                   const uint32_t tile_id,
+                                                                   tiled_import_diagnostics_t& diagnostics)
+        {
+            if (object_json.has("ellipse"))
+            {
+                diagnostics.add_unsupported(std::format("tileset '{}' tile {} uses ellipse collision geometry which is not yet supported",
+                                                        tileset_name,
+                                                        tile_id));
+            }
+
+            if (object_json.has("polygon"))
+            {
+                diagnostics.add_unsupported(std::format("tileset '{}' tile {} uses polygon collision geometry which is not yet supported",
+                                                        tileset_name,
+                                                        tile_id));
+            }
+
+            if (object_json.has("polyline"))
+            {
+                diagnostics.add_unsupported(std::format("tileset '{}' tile {} uses polyline collision geometry which is not yet supported",
+                                                        tileset_name,
+                                                        tile_id));
+            }
+
+            if (object_json.has("point") && object_json.get_bool_or("point", false))
+            {
+                diagnostics.add_unsupported(std::format("tileset '{}' tile {} uses point collision geometry which is not yet supported",
+                                                        tileset_name,
+                                                        tile_id));
+            }
+
+            if (object_json.has("text"))
+            {
+                diagnostics.add_unsupported(std::format("tileset '{}' tile {} uses text collision data which is not yet supported",
+                                                        tileset_name,
+                                                        tile_id));
+            }
+
+            const float width{ static_cast<float>(object_json.get_number_or("width", 0.0)) };
+            const float height{ static_cast<float>(object_json.get_number_or("height", 0.0)) };
+            if (width <= 0.f || height <= 0.f)
+            {
+                diagnostics.add_unsupported(std::format("tileset '{}' tile {} uses zero-size collision geometry which is not yet supported",
+                                                        tileset_name,
+                                                        tile_id));
+            }
+        }
+
+        void parse_tileset_tile_collision(const utils::json::json_object_view_t& tile_json,
+                                          const std::string_view tileset_name,
+                                          tilemap_tileset_t& tileset,
+                                          tiled_import_diagnostics_t& diagnostics)
+        {
+            if (!tile_json.has("objectgroup"))
+                return;
+
+            const uint32_t tile_id{ static_cast<uint32_t>(tile_json.get_number_or("id", 0.0)) };
+            const utils::json::json_object_view_t object_group{ tile_json.get_object("objectgroup") };
+
+            if (!object_group.has("objects"))
+                return;
+
+            tilemap_tileset_t::tile_collision_t tile_collision{ };
+            tile_collision.tile_id = tile_id;
+
+            const utils::json::json_array_view_t objects{ object_group.get_array("objects") };
+            for (const auto& object_value : objects)
+            {
+                if (!object_value.is_object())
+                    continue;
+
+                const utils::json::json_object_view_t object_json{ object_value.as_object() };
+                collect_unsupported_tileset_collision_object_features(object_json, tileset_name, tile_id, diagnostics);
+
+                if (object_json.has("ellipse") ||
+                    object_json.has("polygon") ||
+                    object_json.has("polyline") ||
+                    object_json.has("text") ||
+                    (object_json.has("point") && object_json.get_bool_or("point", false)))
+                {
+                    continue;
+                }
+
+                const float width{ static_cast<float>(object_json.get_number_or("width", 0.0)) };
+                const float height{ static_cast<float>(object_json.get_number_or("height", 0.0)) };
+                if (width <= 0.f || height <= 0.f)
+                    continue;
+
+                tile_collision.collision_rects.emplace_back(tilemap_tileset_t::collision_rect_t{
+                    .x = static_cast<float>(object_json.get_number_or("x", 0.0)),
+                    .y = static_cast<float>(object_json.get_number_or("y", 0.0)),
+                    .width = width,
+                    .height = height
+                });
+            }
+
+            if (!tile_collision.collision_rects.empty())
+                tileset.tile_collisions.emplace_back(std::move(tile_collision));
         }
 
         [[nodiscard]] bool parse_tilesets(const utils::json::json_object_view_t& root,
@@ -141,6 +237,17 @@ namespace carrot::assets {
                 tileset.columns = static_cast<uint32_t>(tileset_json.get_number_or("columns", 0.0));
 
                 collect_unsupported_tileset_features(tileset_json, diagnostics);
+                if (tileset_json.has("tiles"))
+                {
+                    const utils::json::json_array_view_t tiles{ tileset_json.get_array("tiles") };
+                    for (const auto& tile_value : tiles)
+                    {
+                        if (!tile_value.is_object())
+                            continue;
+
+                        parse_tileset_tile_collision(tile_value.as_object(), tileset.name, tileset, diagnostics);
+                    }
+                }
                 tilemap.add_tileset(std::move(tileset));
             }
 

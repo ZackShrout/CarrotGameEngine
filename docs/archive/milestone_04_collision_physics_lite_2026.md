@@ -1,7 +1,8 @@
 # Carrot Game Engine - Milestone 04
 
+**Last Updated:** April 4, 2026
 **Title:** Collision and Physics-Lite Foundation
-**Status:** Planned
+**Status:** Complete
 **Focus:** Introduce Carrot's gameplay-first collision, query, and kinematic world-constraint foundation without expanding immediately into a full rigid-body simulation system.
 
 ---
@@ -58,6 +59,31 @@ It should not sprawl into:
 * broad arbitrary polygon support
 
 For system-level direction, see [physics_direction.md](/Users/zshrout/dev/CarrotGameEngine/docs/systems/physics_direction.md).
+
+---
+
+## Current Implementation Status
+
+Milestone 04 now has a working first-pass gameplay collision slice in the engine.
+
+Implemented so far:
+
+* `collision_world_t` with layers / masks, static colliders, point queries, overlap queries, raycasts, and AABB sweeps
+* `tile_collision_field_t` as an engine-owned collision source
+* Tiled tileset rectangle collision import into runtime static map colliders
+* first-pass top-down kinematic player blocking and sweep-and-slide movement against authored world collision
+* explicit world-owned collision config for the player collider
+* authored trigger rectangle import from Tiled object layers
+* trigger overlap tracking with gameplay-facing enter / exit events
+* toggleable collision / trigger debug rectangle rendering in the engine debug stage
+* focused regression coverage around collision import, movement blocking, unsticking, sliding, and triggers
+
+Current known limitations:
+
+* arbitrary polygon collision from Tiled is not supported yet
+* debug visualization is still a first pass and not yet a full editor-grade inspection tool
+* the current movement path is intentionally narrow and top-down oriented
+* player collider configuration is explicit at runtime, but not yet authored directly from content data
 
 ---
 
@@ -123,6 +149,10 @@ Likely first concepts:
 * The design does not assume every object is a rigid body.
 * The first collision slice is not overcommitted to rigid bodies, trigger events, or full authored runtime integration before the query foundation exists.
 
+### Current Status
+
+Implemented.
+
 ---
 
 ## Ticket 2 - Tiled Tile Collision and Static Object Collision Import
@@ -154,6 +184,20 @@ This should clearly distinguish:
 * Tilemaps can provide real blocking data.
 * Tiled object layers can provide static blocking objects and trigger definitions.
 * The runtime distinction between static map collision and dynamic actors is clear.
+
+### Current Status
+
+Partially implemented.
+
+What exists now:
+
+* Tiled tileset rectangle collision is imported and instantiated as static blocking colliders
+* Tiled object-layer trigger rectangles are imported as non-blocking trigger world objects
+
+Still to expand later if needed:
+
+* broader object-layer static blocking authoring patterns
+* richer collision metadata import beyond the current narrow slice
 
 ---
 
@@ -187,6 +231,10 @@ This should improve real game support quickly while staying narrow.
 * Top-down movement works without gravity hacks.
 * Movement resolution returns useful explicit state rather than depending on hidden solver behavior.
 
+### Current Status
+
+Implemented for the current top-down player path.
+
 ---
 
 ## Ticket 4 - Trigger Volumes and Interaction-Oriented Collision
@@ -219,6 +267,16 @@ This should stay clearly separated from blocking/locomotion collision.
 * Triggers do not block movement by default.
 * Trigger handling fits naturally with the same collision/filter model as blocking collision.
 
+### Current Status
+
+Implemented as a first pass.
+
+Current runtime shape:
+
+* Tiled-authored trigger rectangles import as world objects with trigger data and non-blocking collision bounds
+* trigger overlap changes are surfaced to gameplay as enter / exit events
+* the sandbox currently logs those gameplay trigger events as the current gameplay response path
+
 ---
 
 ## Ticket 5 - Documentation, Debug Views, and Verification
@@ -246,6 +304,18 @@ Suggested outputs:
 * The collision direction and current scope are documented.
 * The map-to-runtime collision path is discoverable later.
 * The engine has enough verification support to catch obvious regressions.
+
+### Current Status
+
+Implemented as a first pass.
+
+Completed in this ticket slice:
+
+* focused verification coverage is in place for collision import, movement constraints, and trigger behavior
+* the milestone and system-direction docs capture the implemented first pass and current boundaries
+* collision debug visualization now supports separate map-collision and object-collider visibility toggles
+* object colliders can opt into debug display individually, while map collision remains a category toggle
+* the sandbox has a small on-screen legend for current collision debug visibility state
 
 ---
 
@@ -278,3 +348,19 @@ This milestone unlocks:
 * clearer foundations for future top-down, platformer, fighter, and HD2D movement systems
 
 It is the highest-leverage next step for making Carrot support a wider range of real games.
+
+---
+
+## Completion Note
+
+Milestone 04 is complete as a gameplay-first collision foundation milestone.
+
+It delivered:
+
+* engine-owned collision/query primitives
+* authored runtime blocking from Tiled collision rectangles
+* first-pass kinematic player movement constraints
+* authored trigger volumes with gameplay-facing events
+* practical debug/verification support for inspecting collision state
+
+Future work can and should build on this, but the milestone’s intended first-pass scope has been met.

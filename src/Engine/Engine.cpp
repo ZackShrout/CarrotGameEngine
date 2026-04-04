@@ -35,6 +35,26 @@ namespace carrot {
         float _fps_timer{ 0.f };
         bool _debug_overlay_initialized{ false };
         core::ce_application_t* _application{ nullptr };
+
+        [[nodiscard]] std::optional<collision::collision_aabb_t> object_collision_bounds(const world::world_object_t& object) noexcept
+        {
+            if (!object.transform || !object.collision)
+                return std::nullopt;
+
+            return collision::collision_aabb_t::from_center_extents(
+                object.transform->position + object.collision->offset,
+                object.collision->half_extents
+            );
+        }
+
+        [[nodiscard]] collision::collision_aabb_t presentation_aabb(const collision::collision_aabb_t& bounds,
+                                                                    const world::world_presentation_t& presentation) noexcept
+        {
+            return collision::collision_aabb_t::from_min_size(
+                presentation.world_position_to_pixels(bounds.min),
+                presentation.world_size_to_pixels(bounds.size())
+            );
+        }
     } // anonymous namespace
 
     // PUBLIC
@@ -251,6 +271,52 @@ namespace carrot {
         debug::text(16.f, 184.f, "Quads: %u", stats.textured_quad_count);
         debug::text(16.f, 212.f, "Batches: %u", stats.textured_quad_batch_count);
         debug::text(16.f, 240.f, "Frame: %llu", static_cast<unsigned long long>(_renderer->get_frame_index()));
+
+        const world::world_presentation_t& presentation{ _world.presentation() };
+        const world::collision_debug_view_t& debug_view{ _world.collision_debug_view() };
+        const float viewport_height{ static_cast<float>(resolved_camera.viewport_rect_px.size.y) };
+        const float legend_y_start{ std::max(268.f, viewport_height - 72.f) };
+        const uint32_t object_legend_color{ 0xFF00FFFFu };
+
+        debug::text_colored(16.f,
+                            legend_y_start,
+                            debug_view.map_collision_color,
+                            "F2 Map Collision: %s",
+                            debug_view.show_map_collision ? "ON" : "OFF");
+        debug::text_colored(16.f,
+                            legend_y_start + 28.f,
+                            object_legend_color,
+                            "F3 Object Colliders: %s",
+                            debug_view.show_object_colliders ? "ON" : "OFF");
+
+        if (debug_view.show_map_collision)
+        {
+            const debug::world_rect_style_t map_style{
+                .color = debug_view.map_collision_color,
+                .outline_thickness = debug_view.map_outline_thickness,
+                .filled = false
+            };
+
+            for (const collision::static_collider_t& collider : _world.collision_world().static_colliders())
+                debug::world_aabb(presentation_aabb(collider.bounds, presentation), map_style);
+        }
+
+        if (debug_view.show_object_colliders)
+        {
+            for (const world::world_object_t& object : _world.objects())
+            {
+                const std::optional<collision::collision_aabb_t> bounds{ object_collision_bounds(object) };
+                if (!bounds || !object.collision || !object.collision->debug_display)
+                    continue;
+
+                const world::collision_debug_display_t& object_debug{ *object.collision->debug_display };
+                debug::world_aabb(presentation_aabb(*bounds, presentation), debug::world_rect_style_t{
+                    .color = object_debug.color,
+                    .outline_thickness = object_debug.outline_thickness,
+                    .filled = object_debug.filled
+                });
+            }
+        }
     }
 
     void engine_t::render_ui()

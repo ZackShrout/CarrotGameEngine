@@ -60,6 +60,12 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Core/Platform/Window.h
 
         # ========================================
+        # Collision
+        # ========================================
+        src/Engine/Collision/CollisionWorld.cpp
+        src/Engine/Collision/CollisionWorld.h
+
+        # ========================================
         # Events & Input
         # ========================================
         src/Engine/Events/Events.h
@@ -95,11 +101,13 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Renderer/Renderer.h
         src/Engine/Renderer/RendererService.cpp
         src/Engine/Renderer/RendererService.h
+        src/Engine/World/Components/CollisionComponent.h
         src/Engine/World/Components/SpriteComponent.h
         src/Engine/World/Components/SpriteAnimatorComponent.h
         src/Engine/World/Components/TileObjectComponent.h
         src/Engine/World/Components/TilemapComponent.h
         src/Engine/World/Components/TransformComponent.h
+        src/Engine/World/Components/TriggerComponent.h
         src/Engine/World/Controllers/InteractionController.cpp
         src/Engine/World/Controllers/InteractionController.h
         src/Engine/World/Controllers/PlayerController.cpp
@@ -108,6 +116,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/World/Import/TilemapWorldBridge.h
         src/Engine/World/SceneLoader.cpp
         src/Engine/World/SceneLoader.h
+        src/Engine/World/TriggerQuery.cpp
+        src/Engine/World/TriggerQuery.h
         src/Engine/World/World.cpp
         src/Engine/World/World.h
         src/Engine/World/WorldObject.h
@@ -708,6 +718,7 @@ target_link_libraries(CarrotSandbox PRIVATE CarrotEngine)
 set(CARROT_TEST_SOURCES
         tests/TestMain.cpp
         tests/ActionMapTests.cpp
+        tests/CollisionWorldTests.cpp
         tests/SceneLoadingTests.cpp
         src/Game/TransitionRuntimeState.cpp
         src/Game/WorldInteractionHelpers.cpp

@@ -177,4 +177,35 @@ namespace carrot::world {
                 object.sprite_animator->animator.update(delta_time);
         }
     }
+
+    void world_t::set_layering_debug_snapshot(layering_debug_snapshot_t snapshot) const noexcept
+    {
+        _layering_debug_snapshot = std::move(snapshot);
+    }
+
+    std::vector<std::string_view> world_t::collect_active_visibility_tags(const chlm::float2& point) const
+    {
+        std::vector<std::string_view> active_tags;
+
+        for (const world_object_t& object : _objects)
+        {
+            if (!object.transform || !object.visibility_region || object.visibility_region->tag.empty())
+                continue;
+
+            const chlm::float2 min{ object.transform->position };
+            const chlm::float2 max{
+                object.transform->position.x + object.visibility_region->size_world.x,
+                object.transform->position.y + object.visibility_region->size_world.y
+            };
+
+            if (point.x < min.x || point.x > max.x || point.y < min.y || point.y > max.y)
+                continue;
+
+            const std::string_view tag{ object.visibility_region->tag };
+            if (std::ranges::find(active_tags, tag) == active_tags.end())
+                active_tags.push_back(tag);
+        }
+
+        return active_tags;
+    }
 } // namespace carrot::world

@@ -9,6 +9,7 @@
 
 #include "Assets/Tilemap/LoadedTilemapAsset.h"
 #include "World/World.h"
+#include "World/WorldLayering.h"
 #include "World/WorldUnits.h"
 
 namespace carrot::world::import {
@@ -186,6 +187,18 @@ namespace carrot::world::import {
                         ++result.triggers_created;
                     }
 
+                    if (const auto visibility_tag{ visibility_region_tag_for_object(object) };
+                        visibility_tag && object.width > 0.f && object.height > 0.f)
+                    {
+                        world_object.visibility_region = visibility_region_component_t{
+                            .size_world = {
+                                world_units_t::pixels_to_world(object.width),
+                                world_units_t::pixels_to_world(object.height)
+                            },
+                            .tag = std::string{ *visibility_tag }
+                        };
+                    }
+
                     ++result.markers_created;
                     continue;
                 }
@@ -196,13 +209,16 @@ namespace carrot::world::import {
                         tilemap_origin_world.y + world_units_t::pixels_to_world(object.y - object.height)
                     }
                 };
+                const authored_layer_semantics_t layer_semantics{
+                    resolve_object_layer_semantics(layer, 0)
+                };
                 world_object.tile_object = tile_object_component_t{
                     .tilemap = &tilemap,
                     .gid = object.gid,
                     .size_source_px = { object.width, object.height },
-                    .layer = renderer::render_layer_t::actors,
-                    .order_mode = renderer::render_order_mode_t::anchor_bottom_y,
-                    .order_in_layer = 0,
+                    .layer = layer_semantics.render_layer,
+                    .order_mode = layer_semantics.order_mode,
+                    .order_in_layer = layer_semantics.order_in_layer,
                     .sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp,
                     .color = 0xFFFFFFFFu
                 };

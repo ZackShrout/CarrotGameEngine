@@ -9,6 +9,7 @@
 #include "WorldObject.h"
 #include "WorldUnits.h"
 
+#include <string_view>
 #include <vector>
 
 namespace carrot::world {
@@ -18,6 +19,43 @@ namespace carrot::world {
         bool show_object_colliders{ false };
         uint32_t map_collision_color{ 0xFF00FF00u };
         float map_outline_thickness{ 2.f };
+    };
+
+    struct layering_debug_view_t
+    {
+        bool show_visibility_regions{ false };
+        uint32_t visibility_region_color{ 0x6633AAFFu };
+    };
+
+    struct layering_debug_layer_snapshot_t
+    {
+        std::string layer_name;
+        std::string source_kind;
+        renderer::render_layer_t resolved_render_layer{ renderer::render_layer_t::world_back };
+        renderer::render_order_mode_t resolved_order_mode{ renderer::render_order_mode_t::explicit_order };
+        int32_t resolved_order_in_layer{ 0 };
+        std::string visibility_zone_id;
+        bool is_visible{ true };
+        bool hidden_by_visibility_zone{ false };
+        bool is_conditional_front{ false };
+        bool is_always_front{ false };
+    };
+
+    struct layering_debug_snapshot_t
+    {
+        uint64_t frame_index{ 0 };
+        bool has_visibility_anchor{ false };
+        chlm::float2 visibility_anchor_world{ 0.f, 0.f };
+        uint32_t visibility_region_count{ 0 };
+        uint32_t rendered_tilemap_count{ 0 };
+        uint32_t layer_count{ 0 };
+        uint32_t visible_layer_count{ 0 };
+        uint32_t hidden_layer_count{ 0 };
+        uint32_t visibility_bound_layer_count{ 0 };
+        uint32_t conditional_front_layer_count{ 0 };
+        uint32_t always_front_layer_count{ 0 };
+        std::vector<std::string> active_visibility_tags;
+        std::vector<layering_debug_layer_snapshot_t> layers;
     };
 
     class world_t
@@ -53,6 +91,14 @@ namespace carrot::world {
         [[nodiscard]] collision::collision_world_t& collision_world() noexcept { return _collision_world; }
         [[nodiscard]] const collision_debug_view_t& collision_debug_view() const noexcept { return _collision_debug_view; }
         [[nodiscard]] collision_debug_view_t& collision_debug_view() noexcept { return _collision_debug_view; }
+        [[nodiscard]] const layering_debug_view_t& layering_debug_view() const noexcept { return _layering_debug_view; }
+        [[nodiscard]] layering_debug_view_t& layering_debug_view() noexcept { return _layering_debug_view; }
+        [[nodiscard]] const layering_debug_snapshot_t& layering_debug_snapshot() const noexcept
+        {
+            return _layering_debug_snapshot;
+        }
+        void set_layering_debug_snapshot(layering_debug_snapshot_t snapshot) const noexcept;
+        [[nodiscard]] std::vector<std::string_view> collect_active_visibility_tags(const chlm::float2& point) const;
 
     private:
         world_object_id_t _next_id{ 1 };
@@ -60,5 +106,7 @@ namespace carrot::world {
         world_presentation_t _presentation{ };
         collision::collision_world_t _collision_world{ };
         collision_debug_view_t _collision_debug_view{ };
+        layering_debug_view_t _layering_debug_view{ };
+        mutable layering_debug_snapshot_t _layering_debug_snapshot{ };
     };
 } // namespace carrot::world

@@ -16,6 +16,7 @@
 #include "RHI/Swapchain.h"
 #include "Window/Window.h"
 #include "World/World.h"
+#include "World/WorldLayering.h"
 #include "World/WorldUnits.h"
 
 namespace carrot::renderer {
@@ -49,6 +50,61 @@ namespace carrot::renderer {
                 return lhs.order_in_layer < rhs.order_in_layer;
 
             return false;
+        }
+
+        [[nodiscard]] const world::world_object_t* resolve_primary_visibility_anchor(const world::world_t& world) noexcept
+        {
+            for (const world::world_object_t& object : world.objects())
+            {
+                if (object.type == "Character" && object.transform)
+                    return &object;
+            }
+
+            for (const world::world_object_t& object : world.objects())
+            {
+                if (object.sprite && object.transform)
+                    return &object;
+            }
+
+            return nullptr;
+        }
+
+        void append_layering_debug_entry(world::layering_debug_snapshot_t& snapshot,
+                                         const assets::tilemap_layer_t& layer,
+                                         const world::authored_layer_semantics_t& semantics,
+                                         const bool is_visible) noexcept
+        {
+            const bool is_conditional_front{ layer.get_bool_property("carrot_conditional_front").value_or(false) };
+            const bool is_always_front{ layer.get_bool_property("carrot_always_front").value_or(false) };
+            const bool has_visibility_zone{ !semantics.visibility_tag.empty() };
+
+            snapshot.layer_count++;
+            if (is_visible)
+                snapshot.visible_layer_count++;
+            else
+                snapshot.hidden_layer_count++;
+
+            if (has_visibility_zone)
+                snapshot.visibility_bound_layer_count++;
+
+            if (is_conditional_front)
+                snapshot.conditional_front_layer_count++;
+
+            if (is_always_front)
+                snapshot.always_front_layer_count++;
+
+            snapshot.layers.push_back({
+                .layer_name = layer.name,
+                .source_kind = layer.kind == assets::tilemap_layer_kind_t::object ? "object" : "tile",
+                .resolved_render_layer = semantics.render_layer,
+                .resolved_order_mode = semantics.order_mode,
+                .resolved_order_in_layer = semantics.order_in_layer,
+                .visibility_zone_id = semantics.visibility_tag,
+                .is_visible = is_visible,
+                .hidden_by_visibility_zone = has_visibility_zone && !is_visible,
+                .is_conditional_front = is_conditional_front,
+                .is_always_front = is_always_front
+            });
         }
     } // namespace
 
@@ -306,7 +362,7 @@ namespace carrot::renderer {
         submit_tilemap(info);
     }
 
-    void renderer_t::submit_tilemap(const tilemap_draw_info_t& info)
+    void renderer_t::submit_tilemap(const tilemap_draw_info_t& info, world::layering_debug_snapshot_t* layering_debug_snapshot)
     {
         if (!info.tilemap || !info.tilemap->valid())
         {
@@ -376,13 +432,28 @@ namespace carrot::renderer {
             return true;
         };
 
-        for (const assets::tilemap_layer_t& layer : tilemap.layers())
+        if (layering_debug_snapshot)
+            layering_debug_snapshot->rendered_tilemap_count++;
+
+        const auto& layers{ tilemap.layers() };
+        for (size_t layer_index{ 0 }; layer_index < layers.size(); ++layer_index)
         {
+            const assets::tilemap_layer_t& layer{ layers[layer_index] };
             if (!layer.visible)
                 continue;
 
             if (layer.kind == assets::tilemap_layer_kind_t::tile)
             {
+                const world::authored_layer_semantics_t layer_semantics{
+                    world::resolve_tile_layer_semantics(layer, static_cast<int32_t>(layer_index))
+                };
+                const bool is_layer_visible{ world::is_layer_visible(layer_semantics, info.active_visibility_tags) };
+                if (layering_debug_snapshot)
+                    append_layering_debug_entry(*layering_debug_snapshot, layer, layer_semantics, is_layer_visible);
+
+                if (!is_layer_visible)
+                    continue;
+
                 for (uint32_t row{ 0 }; row < layer.height; ++row)
                 {
                     for (uint32_t col{ 0 }; col < layer.width; ++col)
@@ -409,10 +480,10 @@ namespace carrot::renderer {
                         tile_quad.y = info.origin.y + (static_cast<float>(row) * render_tile_size.y * info.scale.y);
                         tile_quad.width = render_tile_size.x * info.scale.x;
                         tile_quad.height = render_tile_size.y * info.scale.y;
-                        tile_quad.layer = info.layer;
-                        tile_quad.order_mode = info.order_mode;
-                        tile_quad.order_in_layer = info.order_in_layer;
-                        tile_quad.sort_reference_y = info.order_mode == render_order_mode_t::anchor_bottom_y
+                        tile_quad.layer = layer_semantics.render_layer;
+                        tile_quad.order_mode = layer_semantics.order_mode;
+                        tile_quad.order_in_layer = layer_semantics.order_in_layer;
+                        tile_quad.sort_reference_y = layer_semantics.order_mode == render_order_mode_t::anchor_bottom_y
                                                          ? (tile_quad.y + tile_quad.height)
                                                          : info.sort_reference_y;
                         tile_quad.color = info.color;
@@ -429,7 +500,17 @@ namespace carrot::renderer {
             if (layer.kind != assets::tilemap_layer_kind_t::object || !info.include_object_layers)
                 continue;
 
-            int32_t object_order{ info.order_in_layer };
+            const world::authored_layer_semantics_t layer_semantics{
+                world::resolve_object_layer_semantics(layer, static_cast<int32_t>(layer_index))
+            };
+            const bool is_layer_visible{ world::is_layer_visible(layer_semantics, info.active_visibility_tags) };
+            if (layering_debug_snapshot)
+                append_layering_debug_entry(*layering_debug_snapshot, layer, layer_semantics, is_layer_visible);
+
+            if (!is_layer_visible)
+                continue;
+
+            int32_t object_order{ layer_semantics.order_in_layer };
             for (const assets::tilemap_object_t& object : layer.objects)
             {
                 if (!object.visible || object.gid == 0)
@@ -466,10 +547,10 @@ namespace carrot::renderer {
                 object_quad.y = info.origin.y + ((object_y_offset - object_render_size.y) * info.scale.y);
                 object_quad.width = object_render_size.x * info.scale.x;
                 object_quad.height = object_render_size.y * info.scale.y;
-                object_quad.layer = info.layer;
-                object_quad.order_mode = info.order_mode;
+                object_quad.layer = layer_semantics.render_layer;
+                object_quad.order_mode = layer_semantics.order_mode;
                 object_quad.order_in_layer = object_order++;
-                object_quad.sort_reference_y = info.order_mode == render_order_mode_t::anchor_bottom_y
+                object_quad.sort_reference_y = layer_semantics.order_mode == render_order_mode_t::anchor_bottom_y
                                                    ? (object_quad.y + object_quad.height)
                                                    : info.sort_reference_y;
                 object_quad.color = info.color;
@@ -558,6 +639,25 @@ namespace carrot::renderer {
     void renderer_t::draw_world(const world::world_t& world)
     {
         const world::world_presentation_t& presentation{ world.presentation() };
+        std::vector<std::string_view> active_visibility_tags;
+        world::layering_debug_snapshot_t layering_debug_snapshot{ };
+        layering_debug_snapshot.frame_index = _frame_index;
+        if (const world::world_object_t* visibility_anchor{ resolve_primary_visibility_anchor(world) };
+            visibility_anchor && visibility_anchor->transform)
+        {
+            layering_debug_snapshot.has_visibility_anchor = true;
+            layering_debug_snapshot.visibility_anchor_world = visibility_anchor->transform->position;
+            active_visibility_tags = world.collect_active_visibility_tags(visibility_anchor->transform->position);
+        }
+        layering_debug_snapshot.active_visibility_tags.reserve(active_visibility_tags.size());
+        for (const std::string_view tag : active_visibility_tags)
+            layering_debug_snapshot.active_visibility_tags.emplace_back(tag);
+
+        for (const world::world_object_t& object : world.objects())
+        {
+            if (object.visibility_region)
+                layering_debug_snapshot.visibility_region_count++;
+        }
 
         for (const world::world_object_t& object : world.objects())
         {
@@ -579,13 +679,14 @@ namespace carrot::renderer {
                     .source_pixels_per_unit = world::world_units_t::default_pixels_per_unit,
                     .render_pixels_per_unit = presentation.pixels_per_unit,
                     .include_object_layers = tilemap.include_object_layers,
+                    .active_visibility_tags = active_visibility_tags,
                     .layer = tilemap.layer,
                     .order_mode = tilemap.order_mode,
                     .order_in_layer = tilemap.order_in_layer,
                     .sort_reference_y = tilemap.sort_reference_y,
                     .sampler_preset = tilemap.sampler_preset,
                     .color = tilemap.color
-                });
+                }, &layering_debug_snapshot);
             }
 
             if (object.tile_object)
@@ -659,7 +760,27 @@ namespace carrot::renderer {
 
                 draw_sprite(draw_info);
             }
+
+            if (object.visibility_region && object.transform && world.layering_debug_view().show_visibility_regions)
+            {
+                const chlm::float2 render_size_px{
+                    presentation.world_size_to_pixels(object.visibility_region->size_world)
+                };
+                draw_overlay_solid_quad({
+                    .x = render_position_px.x,
+                    .y = render_position_px.y,
+                    .width = render_size_px.x,
+                    .height = render_size_px.y,
+                    .layer = render_layer_t::debug,
+                    .order_mode = render_order_mode_t::explicit_order,
+                    .order_in_layer = 0,
+                    .color = world.layering_debug_view().visibility_region_color,
+                    .sampler_preset = quad_sampler_preset_t::pixel_clamp
+                });
+            }
         }
+
+        world.set_layering_debug_snapshot(std::move(layering_debug_snapshot));
     }
 
     void renderer_t::notify_shader_changed(std::string_view path)

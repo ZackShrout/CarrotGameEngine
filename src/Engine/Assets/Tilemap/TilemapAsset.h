@@ -34,6 +34,19 @@ namespace carrot::assets {
         tilemap_property_value_t value;
     };
 
+    [[nodiscard]] inline const tilemap_property_t* find_tilemap_property(
+        const std::vector<tilemap_property_t>& properties,
+        const std::string_view property_name) noexcept
+    {
+        for (const tilemap_property_t& property : properties)
+        {
+            if (property.name == property_name)
+                return &property;
+        }
+
+        return nullptr;
+    }
+
     struct tilemap_tileset_t
     {
         struct collision_rect_t
@@ -158,6 +171,58 @@ namespace carrot::assets {
         std::vector<uint32_t> gids;
         std::vector<tilemap_object_t> objects;
         std::vector<tilemap_property_t> properties;
+
+        [[nodiscard]] const tilemap_property_t* find_property(const std::string_view property_name) const noexcept
+        {
+            for (const tilemap_property_t& property : properties)
+            {
+                if (property.name == property_name)
+                    return &property;
+            }
+
+            return nullptr;
+        }
+
+        [[nodiscard]] bool has_property(const std::string_view property_name) const noexcept
+        {
+            return find_property(property_name) != nullptr;
+        }
+
+        [[nodiscard]] std::optional<std::string_view> get_string_property(const std::string_view property_name) const noexcept
+        {
+            const tilemap_property_t* property{ find_property(property_name) };
+            if (!property)
+                return std::nullopt;
+
+            if (const std::string* value{ std::get_if<std::string>(&property->value) })
+                return *value;
+
+            return std::nullopt;
+        }
+
+        [[nodiscard]] std::optional<bool> get_bool_property(const std::string_view property_name) const noexcept
+        {
+            const tilemap_property_t* property{ find_property(property_name) };
+            if (!property)
+                return std::nullopt;
+
+            if (const bool* value{ std::get_if<bool>(&property->value) })
+                return *value;
+
+            return std::nullopt;
+        }
+
+        [[nodiscard]] std::optional<double> get_number_property(const std::string_view property_name) const noexcept
+        {
+            const tilemap_property_t* property{ find_property(property_name) };
+            if (!property)
+                return std::nullopt;
+
+            if (const double* value{ std::get_if<double>(&property->value) })
+                return *value;
+
+            return std::nullopt;
+        }
     };
 
     class tilemap_asset_t

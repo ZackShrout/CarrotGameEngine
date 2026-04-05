@@ -1,8 +1,8 @@
 # Carrot Game Engine - Milestone 05
 
-**Last Updated:** April 4, 2026
+**Last Updated:** April 5, 2026
 **Title:** 2D Layering and Depth-Sort Behavior
-**Status:** Draft
+**Status:** Complete
 **Focus:** Deliver a real engine-owned solution for 2D world layering, occlusion, and depth-sort behavior so authored spaces render correctly without pushing sort hacks into gameplay code.
 
 ---
@@ -124,6 +124,15 @@ Likely outputs:
 * Known fence/bridge/roof cases are described explicitly rather than hand-waved.
 * The model is engine-owned and not expressed as game-specific workaround logic.
 
+### Current Progress
+
+Implemented first pass:
+
+* engine-owned layer semantics now resolve per tilemap layer instead of flattening all tile layers into one runtime bucket
+* the current authored/runtime contract is documented in [world_layering.md](/Users/zshrout/dev/CarrotGameEngine/docs/systems/world_layering.md)
+* tile layers and object layers can now override defaults with explicit Carrot-authored render properties
+* Tiled group-level `visibility_zone_id` can now flow to child roof layers
+
 ---
 
 ## Ticket 2 - Runtime Layering and Depth-Sort Foundation
@@ -158,6 +167,15 @@ But it should move beyond the current narrow sort mode.
 * The design remains renderer-owned rather than scattering order decisions through gameplay code.
 * The runtime model leaves room for authored partial-occluder behavior in later tickets of this milestone.
 
+### Current Progress
+
+Implemented first pass:
+
+* the renderer now resolves tilemap layers through per-layer semantics
+* built-in defaults are currently conservative and intentionally centered on `water` and `roof` patterns
+* object-layer props continue to sort through renderer-owned `anchor_bottom_y` behavior
+* explicit `carrot_conditional_front` and `carrot_always_front` layer behaviors now exist for tile content
+
 ---
 
 ## Ticket 3 - Partial Occluders and Split Visibility Cases
@@ -188,9 +206,17 @@ The implementation does not need to solve every possible exotic case immediately
 * The solution is based on clear authored/runtime concepts rather than one-off hardcoded exceptions.
 * The resulting model is suitable for future real projects, not just the current sandbox map.
 
+### Current Progress
+
+Implemented first pass:
+
+* roof/canopy-style hide behavior now has an engine path through authored `VisibilityZone` rectangles
+* the sandbox town content now includes explicit per-building visibility zones and matching roof-layer zone ids to exercise that path
+* conditional tile-front layers now provide a first usable fence/wall/rail layering path
+
 ---
 
-## Ticket 4 - Debug Views and Verification Scenes
+## Ticket 4 - Debug Views and Verification Support
 
 **Priority:** P1
 **Outcome:** Layering behavior is inspectable and regression-resistant enough to build on confidently.
@@ -203,15 +229,15 @@ Layering systems get confusing quickly when the engine cannot explain why someth
 
 Add practical verification support for the layering model:
 
-* focused verification scenes for known problem cases
-* debug views where useful
+* focused verification coverage for known problem cases
+* debug views or engine-owned inspection data where useful
 * clear documentation of the authored-to-runtime layering path
 * regression coverage for ordering/visibility behavior where feasible
 
 Likely useful outputs:
 
-* a dedicated sandbox or test scene for fence/bridge/roof cases
-* debug overlay support that exposes active layer/sort behavior
+* town-map validation of fence/bridge/roof style cases
+* engine-owned layering snapshot data for future tooling or logging
 * docs that show what authored data is expected for the supported patterns
 
 ### Acceptance Criteria
@@ -219,6 +245,39 @@ Likely useful outputs:
 * The layering path is inspectable enough to debug intentionally.
 * Known failure cases have explicit verification coverage.
 * Future regressions are easier to catch than they are today.
+
+### Current Progress
+
+Implemented first pass:
+
+* visibility-region debug overlays now exist in the world debug model
+* regression tests now cover visibility zones, group inheritance, conditional-front layers, and always-front layers
+* engine-side layering debug snapshots now capture active visibility-zone state and per-layer resolved behavior without adding client-facing overlays
+
+---
+
+## Milestone Outcome
+
+Milestone 05 is complete.
+
+Carrot now has a real engine-owned authored/runtime layering model built around:
+
+* object anchor sorting by default
+* explicit tile-layer conditional front behavior
+* explicit tile-layer always-front behavior
+* authored `VisibilityZone` roof/canopy hiding
+* Tiled group inheritance for zone binding
+* engine-side inspection data and regression coverage
+
+What this milestone intentionally does not claim:
+
+* every possible exotic occlusion case is solved forever
+* single-image Tiled objects can express split front/back rendering without authoring changes
+* future advanced overpass or tunnel cases will never want additional helpers
+
+But it does remove the previous structural ceiling.
+
+Carrot now has an understandable, documented, and Tiled-authored path for the common 2D layering cases the sandbox town needs, and future projects can build on the same model instead of reintroducing renderer heuristics or gameplay hacks.
 
 ---
 

@@ -19,6 +19,7 @@
 #include "World/Import/TilemapWorldBridge.h"
 #include "World/SceneLoader.h"
 #include "World/World.h"
+#include "World/WorldLayering.h"
 
 #include <algorithm>
 #include <array>
@@ -391,6 +392,251 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(trigger->collision.has_value());
             CARROT_TEST_REQUIRE(trigger->trigger->trigger_id == "inn_trigger_1");
             CARROT_TEST_REQUIRE(trigger->trigger->trigger_kind == "unlock_quest");
+        }
+
+        void test_tilemap_world_bridge_imports_visibility_regions()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            const assets::loaded_tilemap_asset_t* tilemap{ assets.tilemaps().get("tilemap.sandbox.town") };
+            CARROT_TEST_REQUIRE(tilemap != nullptr);
+
+            world::world_t world;
+            const world::import::tilemap_world_bridge_result_t result{
+                world::import::import_tilemap_objects(world, *tilemap)
+            };
+
+            CARROT_TEST_REQUIRE(result.markers_created > 0u);
+
+            const world::world_object_t* inn_region{ nullptr };
+            const world::world_object_t* shop_region{ nullptr };
+            for (const world::world_object_t& object : world.objects())
+            {
+                if (!object.visibility_region)
+                    continue;
+
+                if (object.visibility_region->tag == "inn_roof")
+                    inn_region = &object;
+                else if (object.visibility_region->tag == "item_shop_roof")
+                    shop_region = &object;
+            }
+            CARROT_TEST_REQUIRE(inn_region != nullptr);
+            CARROT_TEST_REQUIRE(shop_region != nullptr);
+            CARROT_TEST_REQUIRE(inn_region->transform.has_value());
+            CARROT_TEST_REQUIRE(shop_region->transform.has_value());
+            CARROT_TEST_REQUIRE(inn_region->visibility_region.has_value());
+            CARROT_TEST_REQUIRE(shop_region->visibility_region.has_value());
+            CARROT_TEST_REQUIRE(inn_region->visibility_region->tag == "inn_roof");
+            CARROT_TEST_REQUIRE(shop_region->visibility_region->tag == "item_shop_roof");
+
+            const auto active_tags{ world.collect_active_visibility_tags({
+                inn_region->transform->position.x + 0.5f,
+                inn_region->transform->position.y + 0.5f
+            }) };
+            CARROT_TEST_REQUIRE(std::ranges::find(active_tags, std::string_view{ "inn_roof" }) != active_tags.end());
+
+            const auto active_shop_tags{ world.collect_active_visibility_tags({
+                shop_region->transform->position.x + 0.5f,
+                shop_region->transform->position.y + 0.5f
+            }) };
+            CARROT_TEST_REQUIRE(std::ranges::find(active_shop_tags, std::string_view{ "item_shop_roof" }) != active_shop_tags.end());
+
+            const auto inactive_tags{ world.collect_active_visibility_tags({ 2.f, 2.f }) };
+            CARROT_TEST_REQUIRE(std::ranges::find(inactive_tags, std::string_view{ "inn_roof" }) == inactive_tags.end());
+            CARROT_TEST_REQUIRE(std::ranges::find(inactive_tags, std::string_view{ "item_shop_roof" }) == inactive_tags.end());
+        }
+
+        void test_tiled_group_visibility_zone_properties_flow_to_child_layers()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            const assets::loaded_tilemap_asset_t* tilemap{ assets.tilemaps().get("tilemap.sandbox.town") };
+            CARROT_TEST_REQUIRE(tilemap != nullptr);
+
+            bool found_inn_roof_layer{ false };
+            bool found_item_shop_roof_layer{ false };
+
+            for (const assets::tilemap_layer_t& layer : tilemap->tilemap().layers())
+            {
+                if (!layer.name.starts_with("roofs"))
+                    continue;
+
+                const auto zone_id{ layer.get_string_property("visibility_zone_id") };
+                if (!zone_id.has_value())
+                    continue;
+
+                found_inn_roof_layer = found_inn_roof_layer || (*zone_id == "inn_roof");
+                found_item_shop_roof_layer = found_item_shop_roof_layer || (*zone_id == "item_shop_roof");
+            }
+
+            CARROT_TEST_REQUIRE(found_inn_roof_layer);
+            CARROT_TEST_REQUIRE(found_item_shop_roof_layer);
+        }
+
+        void test_world_layering_uses_explicit_visibility_zones()
+        {
+            assets::tilemap_layer_t roof_layer{
+                .kind = assets::tilemap_layer_kind_t::tile,
+                .name = "roofs2"
+            };
+            roof_layer.properties.push_back(assets::tilemap_property_t{
+                .name = "visibility_zone_id",
+                .value = std::string{ "inn_roof" }
+            });
+
+            const world::authored_layer_semantics_t roof_semantics{
+                world::resolve_tile_layer_semantics(roof_layer, 13)
+            };
+            CARROT_TEST_REQUIRE(roof_semantics.render_layer == renderer::render_layer_t::world_front);
+            CARROT_TEST_REQUIRE(roof_semantics.visibility_tag == "inn_roof");
+            CARROT_TEST_REQUIRE(roof_semantics.visibility_rule == world::layer_visibility_rule_t::hidden_when_tag_active);
+            CARROT_TEST_REQUIRE(!world::is_layer_visible(roof_semantics, std::array<std::string_view, 1>{ "inn_roof" }));
+        }
+
+        void test_tiled_layer_front_properties_import_from_latest_town_map()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            const assets::loaded_tilemap_asset_t* tilemap{ assets.tilemaps().get("tilemap.sandbox.town") };
+            CARROT_TEST_REQUIRE(tilemap != nullptr);
+
+            const assets::tilemap_layer_t* props1{ nullptr };
+            const assets::tilemap_layer_t* props2{ nullptr };
+            const assets::tilemap_layer_t* foreground_props{ nullptr };
+
+            for (const assets::tilemap_layer_t& layer : tilemap->tilemap().layers())
+            {
+                if (layer.name == "props1")
+                    props1 = &layer;
+                else if (layer.name == "props2")
+                    props2 = &layer;
+                else if (layer.name == "foreground_props")
+                    foreground_props = &layer;
+            }
+
+            CARROT_TEST_REQUIRE(props1 != nullptr);
+            CARROT_TEST_REQUIRE(props2 != nullptr);
+            CARROT_TEST_REQUIRE(foreground_props != nullptr);
+            CARROT_TEST_REQUIRE(props1->get_bool_property("carrot_conditional_front").value_or(false));
+            CARROT_TEST_REQUIRE(props2->get_bool_property("carrot_conditional_front").value_or(false));
+            CARROT_TEST_REQUIRE(foreground_props->get_bool_property("carrot_always_front").value_or(false));
+        }
+
+        void test_world_layering_resolves_conditional_and_always_front()
+        {
+            assets::tilemap_layer_t conditional_layer{
+                .kind = assets::tilemap_layer_kind_t::tile,
+                .name = "props1"
+            };
+            conditional_layer.properties.push_back(assets::tilemap_property_t{
+                .name = "carrot_conditional_front",
+                .value = true
+            });
+
+            const world::authored_layer_semantics_t conditional_semantics{
+                world::resolve_tile_layer_semantics(conditional_layer, 20)
+            };
+            CARROT_TEST_REQUIRE(conditional_semantics.render_layer == renderer::render_layer_t::actors);
+            CARROT_TEST_REQUIRE(conditional_semantics.order_mode == renderer::render_order_mode_t::anchor_bottom_y);
+
+            assets::tilemap_layer_t always_front_layer{
+                .kind = assets::tilemap_layer_kind_t::tile,
+                .name = "foreground_props"
+            };
+            always_front_layer.properties.push_back(assets::tilemap_property_t{
+                .name = "carrot_always_front",
+                .value = true
+            });
+
+            const world::authored_layer_semantics_t always_front_semantics{
+                world::resolve_tile_layer_semantics(always_front_layer, 21)
+            };
+            CARROT_TEST_REQUIRE(always_front_semantics.render_layer == renderer::render_layer_t::world_front);
+            CARROT_TEST_REQUIRE(always_front_semantics.order_mode == renderer::render_order_mode_t::explicit_order);
+
+            assets::tilemap_layer_t precedence_layer{
+                .kind = assets::tilemap_layer_kind_t::tile,
+                .name = "foreground_props"
+            };
+            precedence_layer.properties.push_back(assets::tilemap_property_t{
+                .name = "carrot_conditional_front",
+                .value = true
+            });
+            precedence_layer.properties.push_back(assets::tilemap_property_t{
+                .name = "carrot_always_front",
+                .value = true
+            });
+
+            const world::authored_layer_semantics_t precedence_semantics{
+                world::resolve_tile_layer_semantics(precedence_layer, 22)
+            };
+            CARROT_TEST_REQUIRE(precedence_semantics.render_layer == renderer::render_layer_t::world_front);
+            CARROT_TEST_REQUIRE(precedence_semantics.order_mode == renderer::render_order_mode_t::explicit_order);
+        }
+
+        void test_world_layering_debug_snapshot_round_trips_through_world()
+        {
+            world::world_t world;
+
+            world::layering_debug_snapshot_t snapshot{ };
+            snapshot.frame_index = 42;
+            snapshot.has_visibility_anchor = true;
+            snapshot.visibility_anchor_world = { 12.f, 18.f };
+            snapshot.visibility_region_count = 3;
+            snapshot.rendered_tilemap_count = 1;
+            snapshot.layer_count = 4;
+            snapshot.visible_layer_count = 3;
+            snapshot.hidden_layer_count = 1;
+            snapshot.visibility_bound_layer_count = 2;
+            snapshot.conditional_front_layer_count = 1;
+            snapshot.always_front_layer_count = 1;
+            snapshot.active_visibility_tags.emplace_back("inn_roof");
+            snapshot.layers.push_back({
+                .layer_name = "props1",
+                .source_kind = "tile",
+                .resolved_render_layer = renderer::render_layer_t::actors,
+                .resolved_order_mode = renderer::render_order_mode_t::anchor_bottom_y,
+                .resolved_order_in_layer = 120,
+                .visibility_zone_id = "inn_roof",
+                .is_visible = false,
+                .hidden_by_visibility_zone = true,
+                .is_conditional_front = true,
+                .is_always_front = false
+            });
+
+            world.set_layering_debug_snapshot(std::move(snapshot));
+
+            const world::layering_debug_snapshot_t& stored{ world.layering_debug_snapshot() };
+            CARROT_TEST_REQUIRE(stored.frame_index == 42);
+            CARROT_TEST_REQUIRE(stored.has_visibility_anchor);
+            CARROT_TEST_REQUIRE(stored.visibility_anchor_world.x == 12.f);
+            CARROT_TEST_REQUIRE(stored.visibility_anchor_world.y == 18.f);
+            CARROT_TEST_REQUIRE(stored.visibility_region_count == 3u);
+            CARROT_TEST_REQUIRE(stored.rendered_tilemap_count == 1u);
+            CARROT_TEST_REQUIRE(stored.hidden_layer_count == 1u);
+            CARROT_TEST_REQUIRE(stored.conditional_front_layer_count == 1u);
+            CARROT_TEST_REQUIRE(stored.always_front_layer_count == 1u);
+            CARROT_TEST_REQUIRE(stored.active_visibility_tags.size() == 1u);
+            CARROT_TEST_REQUIRE(stored.active_visibility_tags.front() == "inn_roof");
+            CARROT_TEST_REQUIRE(stored.layers.size() == 1u);
+            CARROT_TEST_REQUIRE(stored.layers.front().layer_name == "props1");
+            CARROT_TEST_REQUIRE(stored.layers.front().hidden_by_visibility_zone);
+            CARROT_TEST_REQUIRE(stored.layers.front().is_conditional_front);
         }
 
         void test_tiled_tilemap_import_accepts_unsupported_features_non_fatally()
@@ -1254,6 +1500,18 @@ namespace carrot::tests {
                            test_tilemap_world_bridge_imports_object_layer_tile_collision_as_static_collider);
         tests.emplace_back("tilemap world bridge imports authored triggers",
                            test_tilemap_world_bridge_imports_authored_triggers);
+        tests.emplace_back("tilemap world bridge imports visibility regions",
+                           test_tilemap_world_bridge_imports_visibility_regions);
+        tests.emplace_back("tiled group visibility zone properties flow to child layers",
+                           test_tiled_group_visibility_zone_properties_flow_to_child_layers);
+        tests.emplace_back("world layering uses explicit visibility zones",
+                           test_world_layering_uses_explicit_visibility_zones);
+        tests.emplace_back("tiled layer front properties import from latest town map",
+                           test_tiled_layer_front_properties_import_from_latest_town_map);
+        tests.emplace_back("world layering resolves conditional and always front",
+                           test_world_layering_resolves_conditional_and_always_front);
+        tests.emplace_back("world layering debug snapshot round trips through world",
+                           test_world_layering_debug_snapshot_round_trips_through_world);
         tests.emplace_back("tiled tilemap import accepts unsupported features non-fatally",
                            test_tiled_tilemap_import_accepts_unsupported_features_non_fatally);
         tests.emplace_back("scene loader positive path", test_scene_loader_loads_scene_successfully);

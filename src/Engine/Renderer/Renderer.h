@@ -17,6 +17,7 @@
 #include <array>
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -34,6 +35,7 @@ namespace carrot::assets {
 
 namespace carrot::world {
     class world_t;
+    struct layering_debug_snapshot_t;
 }
 
 namespace carrot::renderer {
@@ -63,6 +65,7 @@ namespace carrot::renderer {
         float source_pixels_per_unit{ 0.f };
         float render_pixels_per_unit{ 0.f };
         bool include_object_layers{ true };
+        std::span<const std::string_view> active_visibility_tags{ };
         render_layer_t layer{ render_layer_t::world_back };
         render_order_mode_t order_mode{ render_order_mode_t::explicit_order };
         int32_t order_in_layer{ 0 };
@@ -190,7 +193,7 @@ namespace carrot::renderer {
         void release_frame_resources();
         void ensure_textured_quad_frame_buffers(textured_quad_state_t& state);
         void upload_textured_quad_frame_data(const textured_quad_state_t& state) const;
-        void submit_tilemap(const tilemap_draw_info_t& info);
+        void submit_tilemap(const tilemap_draw_info_t& info, world::layering_debug_snapshot_t* layering_debug_snapshot = nullptr);
         void submit_tile_object(const assets::loaded_tilemap_asset_t& tilemap,
                                 uint32_t gid,
                                 const chlm::float2& position_px,

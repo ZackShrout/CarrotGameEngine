@@ -11,6 +11,18 @@
 
 namespace carrot::assets {
     namespace {
+        void merge_inherited_properties(std::vector<tilemap_property_t>& target,
+                                        const std::vector<tilemap_property_t>& inherited_properties)
+        {
+            for (const tilemap_property_t& inherited : inherited_properties)
+            {
+                if (find_tilemap_property(target, inherited.name) != nullptr)
+                    continue;
+
+                target.push_back(inherited);
+            }
+        }
+
         struct tiled_import_diagnostics_t
         {
             std::vector<std::string> unsupported_features;
@@ -368,6 +380,38 @@ namespace carrot::assets {
                                                     type));
             return false;
         }
+
+        void parse_layer_list(const utils::json::json_array_view_t& layers,
+                              tilemap_asset_t& tilemap,
+                              tiled_import_diagnostics_t& diagnostics,
+                              const std::vector<tilemap_property_t>& inherited_properties = {})
+        {
+            for (const auto& layer_value : layers)
+            {
+                if (!layer_value.is_object())
+                    continue;
+
+                const utils::json::json_object_view_t layer_json{ layer_value.as_object() };
+                const std::string_view type{ layer_json.get_string_or("type", "") };
+
+                std::vector<tilemap_property_t> next_inherited_properties{ inherited_properties };
+                parse_properties(layer_json, next_inherited_properties);
+
+                if (type == "group")
+                {
+                    if (layer_json.has("layers"))
+                        parse_layer_list(layer_json.get_array("layers"), tilemap, diagnostics, next_inherited_properties);
+                    continue;
+                }
+
+                tilemap_layer_t layer{ };
+                if (!parse_layer(layer_json, layer, diagnostics))
+                    continue;
+
+                merge_inherited_properties(layer.properties, inherited_properties);
+                tilemap.add_layer(std::move(layer));
+            }
+        }
     } // anonymous namespace
 
     bool tiled_tilemap_asset_importer_t::import(const utils::json::json_document_t& doc,
@@ -420,18 +464,7 @@ namespace carrot::assets {
 
         if (root.has("layers"))
         {
-            const utils::json::json_array_view_t layers{ root.get_array("layers") };
-            for (const auto& layer_value : layers)
-            {
-                if (!layer_value.is_object())
-                    continue;
-
-                tilemap_layer_t layer{ };
-                if (!parse_layer(layer_value.as_object(), layer, diagnostics))
-                    continue;
-
-                record.tilemap.add_layer(std::move(layer));
-            }
+            parse_layer_list(root.get_array("layers"), record.tilemap, diagnostics);
         }
 
         if (!registry.register_asset(std::move(record)))

@@ -2,7 +2,7 @@
 
 **BunnySoft**
 **Working architecture notes**
-**Last Updated: April 4, 2026**
+**Last Updated: April 5, 2026**
 
 ---
 
@@ -221,6 +221,17 @@ Important current limitation:
 
 * this does not yet solve all fence, bridge, roof, or partial-occluder cases
 * future layering work still needs a broader authoring/runtime model
+
+Current first-pass Milestone 05 implementation slice:
+
+* tilemap layers now resolve through engine-owned per-layer semantics instead of one flattened render bucket
+* roof-style tile layers can participate in authored `VisibilityZone` hide behavior
+* Tiled group-level `visibility_zone_id` now flows down to child roof layers
+* tile layers can now explicitly opt into `carrot_conditional_front` and `carrot_always_front`
+* the world now exposes first-pass visibility-zone debug overlay support
+* the world also stores an engine-side layering debug snapshot for future inspection tooling without requiring client-facing text overlays
+
+For the current authored/runtime contract, see [world_layering.md](/Users/zshrout/dev/CarrotGameEngine/docs/systems/world_layering.md).
 
 ---
 

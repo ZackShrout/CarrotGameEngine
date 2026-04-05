@@ -13,6 +13,7 @@
 #include "Components/TilemapComponent.h"
 #include "Components/TransformComponent.h"
 #include "Components/TriggerComponent.h"
+#include "Components/VisibilityRegionComponent.h"
 
 #include <optional>
 #include <string>
@@ -98,5 +99,6 @@ namespace carrot::world {
         std::optional<sprite_animator_component_t> sprite_animator;
         std::optional<tile_object_component_t> tile_object;
         std::optional<tilemap_component_t> tilemap;
+        std::optional<visibility_region_component_t> visibility_region;
     };
 } // namespace carrot::world

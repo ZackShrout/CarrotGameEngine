@@ -108,6 +108,7 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/World/Components/TilemapComponent.h
         src/Engine/World/Components/TransformComponent.h
         src/Engine/World/Components/TriggerComponent.h
+        src/Engine/World/Components/VisibilityRegionComponent.h
         src/Engine/World/Controllers/InteractionController.cpp
         src/Engine/World/Controllers/InteractionController.h
         src/Engine/World/Controllers/PlayerController.cpp
@@ -120,6 +121,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/World/TriggerQuery.h
         src/Engine/World/World.cpp
         src/Engine/World/World.h
+        src/Engine/World/WorldLayering.cpp
+        src/Engine/World/WorldLayering.h
         src/Engine/World/WorldObject.h
         src/Engine/World/WorldUnits.h
 

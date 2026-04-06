@@ -106,7 +106,7 @@ namespace carrot::assets {
         std::unordered_map<std::string, uint32_t> frame_name_to_index;
         uint32_t frame_index{ 0 };
 
-        for (const auto& [frame_name_sv, frame_value]: frames_obj)
+        for (const auto [frame_name_sv, frame_value]: frames_obj)
         {
             if (frame_name_sv.empty())
             {
@@ -145,7 +145,7 @@ namespace carrot::assets {
         {
             const utils::json::json_object_view_t animations_obj{ root.get_object("animations") };
 
-            for (const auto& [anim_name_sv, anim_value]: animations_obj)
+            for (const auto [anim_name_sv, anim_value]: animations_obj)
             {
                 if (anim_name_sv.empty())
                 {
@@ -169,7 +169,7 @@ namespace carrot::assets {
                 }
 
                 const utils::json::json_array_view_t frame_array{ anim_json.get_array("frames") };
-                for (const auto& frame_entry_value: frame_array)
+                for (const auto frame_entry_value: frame_array)
                 {
                     const utils::json::json_object_view_t frame_entry{ frame_entry_value.as_object() };
 

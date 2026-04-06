@@ -126,7 +126,7 @@ namespace carrot::assets {
         std::vector<uint32_t> frame_durations_ms;
         frame_durations_ms.reserve(128);
 
-        for (const auto& [aseprite_frame_name_sv, frame_value]: frames_obj)
+        for (const auto [aseprite_frame_name_sv, frame_value]: frames_obj)
         {
             const utils::json::json_object_view_t frame_json{ frame_value.as_object() };
 
@@ -180,7 +180,7 @@ namespace carrot::assets {
             {
                 const utils::json::json_array_view_t frame_tags{ meta.get_array("frameTags") };
 
-                for (const auto& tag_value: frame_tags)
+                for (const auto tag_value: frame_tags)
                 {
                     const auto tag{ tag_value.as_object() };
 

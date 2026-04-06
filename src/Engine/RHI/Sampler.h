@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -43,7 +44,18 @@ namespace carrot::rhi {
         float min_lod{ 0.f };
         float max_lod{ 32.f };
 
-        [[nodiscard]] bool operator==(const sampler_desc_t& other) const noexcept = default;
+        [[nodiscard]] bool operator==(const sampler_desc_t& other) const noexcept
+        {
+            return min_filter == other.min_filter
+                && mag_filter == other.mag_filter
+                && mip_filter == other.mip_filter
+                && address_u == other.address_u
+                && address_v == other.address_v
+                && address_w == other.address_w
+                && std::bit_cast<std::uint32_t>(mip_lod_bias) == std::bit_cast<std::uint32_t>(other.mip_lod_bias)
+                && std::bit_cast<std::uint32_t>(min_lod) == std::bit_cast<std::uint32_t>(other.min_lod)
+                && std::bit_cast<std::uint32_t>(max_lod) == std::bit_cast<std::uint32_t>(other.max_lod);
+        }
     };
 
     class rhi_sampler_t
@@ -77,9 +89,9 @@ namespace carrot::rhi {
             hash_combine(static_cast<std::uint8_t>(desc.address_u));
             hash_combine(static_cast<std::uint8_t>(desc.address_v));
             hash_combine(static_cast<std::uint8_t>(desc.address_w));
-            hash_combine(desc.mip_lod_bias);
-            hash_combine(desc.min_lod);
-            hash_combine(desc.max_lod);
+            hash_combine(std::bit_cast<std::uint32_t>(desc.mip_lod_bias));
+            hash_combine(std::bit_cast<std::uint32_t>(desc.min_lod));
+            hash_combine(std::bit_cast<std::uint32_t>(desc.max_lod));
 
             return seed;
         }

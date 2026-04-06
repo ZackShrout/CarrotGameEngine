@@ -29,7 +29,7 @@ namespace carrot::audio {
      * If the queue is full, commands are dropped and false is returned.
      * This prevents blocking or allocation on the producer thread.
      *
-     * @tparam Capacity Maximum number of queued commands
+     * @tparam capacity Maximum number of queued commands
      */
     template<uint32_t capacity>
     class audio_command_queue_t

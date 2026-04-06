@@ -18,7 +18,8 @@ namespace carrot::world {
         {
             return collision_component_t{
                 .half_extents = { 0.3f, 0.2f },
-                .offset = { 0.f, -0.2f }
+                .offset = { 0.f, -0.2f },
+                .debug_display = std::nullopt
             };
         }
 
@@ -80,7 +81,8 @@ namespace carrot::world {
                     return;
 
                 chlm::float2 best_push{ 0.f, 0.f };
-                float best_distance{ std::numeric_limits<float>::max() };
+                float best_distance{ 0.f };
+                bool found_push{ false };
 
                 for (const collision::collision_hit_ref_t& overlap : overlaps)
                 {
@@ -89,14 +91,15 @@ namespace carrot::world {
                         std::fabs(candidate_push.x) + std::fabs(candidate_push.y)
                     };
 
-                    if (candidate_distance < best_distance)
+                    if (!found_push || candidate_distance < best_distance)
                     {
                         best_push = candidate_push;
                         best_distance = candidate_distance;
+                        found_push = true;
                     }
                 }
 
-                if (best_distance == std::numeric_limits<float>::max())
+                if (!found_push)
                     return;
 
                 if (best_push.x != 0.f)
@@ -128,9 +131,10 @@ namespace carrot::world {
                 case facing_direction_t::up: return animation_set.idle_up;
                 case facing_direction_t::left: return animation_set.idle_left;
                 case facing_direction_t::right: return animation_set.idle_right;
-                case facing_direction_t::down:
-                default: return animation_set.idle_down;
+                case facing_direction_t::down: return animation_set.idle_down;
             }
+
+            return animation_set.idle_down;
         }
 
         [[nodiscard]] const std::string& walk_animation_for(const facing_direction_t direction,
@@ -141,9 +145,10 @@ namespace carrot::world {
                 case facing_direction_t::up: return animation_set.walk_up;
                 case facing_direction_t::left: return animation_set.walk_left;
                 case facing_direction_t::right: return animation_set.walk_right;
-                case facing_direction_t::down:
-                default: return animation_set.walk_down;
+                case facing_direction_t::down: return animation_set.walk_down;
             }
+
+            return animation_set.walk_down;
         }
     } // namespace
 

@@ -5,12 +5,82 @@
 
 #pragma once
 
+#include <cstdio>
 #include <filesystem>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
 
+#if !defined(_WIN32)
+#include <sys/types.h>
+#endif
+
 namespace carrot::utils::file {
+#if defined(_WIN32)
+    using file_offset_t = std::int64_t;
+#else
+    using file_offset_t = off_t;
+#endif
+
+    /**
+     * @brief Opens a C file handle using the native platform-safe API.
+     *
+     * On Windows this uses `fopen_s()` to avoid CRT deprecation warnings.
+     * On other platforms it uses `std::fopen()`.
+     *
+     * @param path Null-terminated filesystem path to open.
+     * @param mode Null-terminated C file mode string (for example `"rb"` or `"wb"`).
+     *
+     * @return A valid `FILE*` on success, or `nullptr` if the file could not be opened.
+     *
+     * @note This is intended for low-level streaming/decoder code that already uses
+     *       C file APIs. Higher-level file loading should generally prefer
+     *       `load_binary_file()` or standard C++ streams.
+     * @note This function does not log failures; callers are expected to handle and
+     *       report errors in their own domain-specific context.
+     *
+     * @see seek_file()
+     * @see tell_file()
+     */
+    [[nodiscard]] FILE* open_file(const char* path, const char* mode) noexcept;
+
+    /**
+     * @brief Seeks within an open C file handle using a 64-bit-capable native API.
+     *
+     * On Windows this uses `_fseeki64()`. On POSIX platforms it uses `fseeko()`.
+     *
+     * @param file Open file handle to seek within.
+     * @param offset Byte offset to apply.
+     * @param origin Seek origin constant such as `SEEK_SET`, `SEEK_CUR`, or `SEEK_END`.
+     *
+     * @return `0` on success, or a non-zero value on failure.
+     *
+     * @note This wrapper exists so platform-specific large-file seek APIs are hidden
+     *       behind a single shared interface.
+     *
+     * @see open_file()
+     * @see tell_file()
+     */
+    int seek_file(FILE* file, file_offset_t offset, int origin) noexcept;
+
+    /**
+     * @brief Returns the current file position using a 64-bit-capable native API.
+     *
+     * On Windows this uses `_ftelli64()`. On POSIX platforms it uses `ftello()`.
+     *
+     * @param file Open file handle to query.
+     *
+     * @return The current byte offset in the file, or a negative value on failure.
+     *
+     * @note This wrapper is paired with `seek_file()` so streaming code can use a
+     *       single file-position type across platforms.
+     *
+     * @see open_file()
+     * @see seek_file()
+     */
+    [[nodiscard]] file_offset_t tell_file(FILE* file) noexcept;
+
     /**
      * @brief Loads the entire contents of a binary file into a vector of bytes.
      *

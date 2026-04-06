@@ -9,6 +9,8 @@
 
 namespace carrot::collision {
     namespace {
+        constexpr float k_fraction_epsilon{ 1.0e-6f };
+
         struct ray_vs_aabb_result_t
         {
             bool hit{ false };
@@ -20,6 +22,11 @@ namespace carrot::collision {
         [[nodiscard]] float vector_length(const chlm::float2 value) noexcept
         {
             return std::sqrt((value.x * value.x) + (value.y * value.y));
+        }
+
+        [[nodiscard]] bool nearly_equal_fraction(const float lhs, const float rhs) noexcept
+        {
+            return std::fabs(lhs - rhs) <= k_fraction_epsilon;
         }
 
         [[nodiscard]] bool collision_aabb_strictly_contains_point(const collision_aabb_t& bounds,
@@ -287,7 +294,9 @@ namespace carrot::collision {
 
             if (!nearest_hit
                 || hit.fraction < nearest_hit->fraction
-                || (hit.fraction == nearest_hit->fraction && hit.started_overlapping && !nearest_hit->started_overlapping))
+                || (nearly_equal_fraction(hit.fraction, nearest_hit->fraction)
+                    && hit.started_overlapping
+                    && !nearest_hit->started_overlapping))
             {
                 nearest_hit = hit;
             }
@@ -374,7 +383,9 @@ namespace carrot::collision {
 
             if (!nearest_hit
                 || hit.fraction < nearest_hit->fraction
-                || (hit.fraction == nearest_hit->fraction && hit.started_overlapping && !nearest_hit->started_overlapping))
+                || (nearly_equal_fraction(hit.fraction, nearest_hit->fraction)
+                    && hit.started_overlapping
+                    && !nearest_hit->started_overlapping))
             {
                 nearest_hit = hit;
             }

@@ -40,6 +40,8 @@ namespace carrot::world {
 }
 
 namespace carrot::renderer {
+    constexpr std::size_t k_textured_quad_frame_buffer_count{ 3 };
+
     struct sprite_draw_info_t;
 
     enum class frame_stage_kind_t : std::uint8_t
@@ -100,6 +102,14 @@ namespace carrot::renderer {
 
     struct textured_quad_state_t
     {
+        struct frame_buffers_t
+        {
+            std::unique_ptr<rhi::rhi_buffer_t> vertex_buffer;
+            std::unique_ptr<rhi::rhi_buffer_t> index_buffer;
+            size_t vertex_capacity{ 0 };
+            size_t index_capacity{ 0 };
+        };
+
         struct submission_t
         {
             textured_quad_draw_info_t quad;
@@ -113,13 +123,8 @@ namespace carrot::renderer {
         std::vector<uint32_t> indices_cpu;
         std::vector<textured_quad_batch_t> batches;
 
-        // Reusable frame geometry buffers
-        std::unique_ptr<rhi::rhi_buffer_t> frame_vertex_buffer;
-        std::unique_ptr<rhi::rhi_buffer_t> frame_index_buffer;
-
-        // Current allocated capacities in bytes
-        size_t vertex_capacity{ 0 };
-        size_t index_capacity{ 0 };
+        // Per-frame reusable geometry buffers
+        std::array<frame_buffers_t, k_textured_quad_frame_buffer_count> frame_buffers;
     };
 
     class renderer_t final : public core::module_t
@@ -205,6 +210,9 @@ namespace carrot::renderer {
                                 float sort_reference_y,
                                 quad_sampler_preset_t sampler_preset,
                                 uint32_t color);
+        [[nodiscard]] uint32_t current_textured_quad_frame_buffer_slot() const noexcept;
+        [[nodiscard]] textured_quad_state_t::frame_buffers_t& current_frame_buffers(textured_quad_state_t& state) const noexcept;
+        [[nodiscard]] const textured_quad_state_t::frame_buffers_t& current_frame_buffers(const textured_quad_state_t& state) const noexcept;
 
         // ── External context / configuration ──────────────────────────────────────
         io::virtual_file_system_t&  _vfs;

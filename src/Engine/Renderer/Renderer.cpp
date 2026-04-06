@@ -42,8 +42,10 @@ namespace carrot::renderer {
 
             if (lhs.order_mode == render_order_mode_t::anchor_bottom_y)
             {
-                if (lhs.sort_reference_y != rhs.sort_reference_y)
-                    return lhs.sort_reference_y < rhs.sort_reference_y;
+                if (lhs.sort_reference_y < rhs.sort_reference_y)
+                    return true;
+                if (rhs.sort_reference_y < lhs.sort_reference_y)
+                    return false;
             }
 
             if (lhs.order_in_layer != rhs.order_in_layer)
@@ -998,14 +1000,15 @@ namespace carrot::renderer {
         ensure_textured_quad_frame_buffers(stage_state);
         upload_textured_quad_frame_data(stage_state);
 
-        if (!stage_state.frame_vertex_buffer || !stage_state.frame_index_buffer)
+        const auto& frame_buffers{ current_frame_buffers(stage_state) };
+        if (!frame_buffers.vertex_buffer || !frame_buffers.index_buffer)
             return;
 
         const stage_execution_context_t stage_context{ resolve_stage_execution_context(stage_plan) };
         _rhi->record_textured_quad_stage({
             .stage_slot = static_cast<uint32_t>(stage_plan.kind),
-            .vertex_buffer = stage_state.frame_vertex_buffer.get(),
-            .index_buffer = stage_state.frame_index_buffer.get(),
+            .vertex_buffer = frame_buffers.vertex_buffer.get(),
+            .index_buffer = frame_buffers.index_buffer.get(),
             .batches = stage_state.batches,
             .view_projection = stage_context.view_projection,
             .viewport = stage_context.viewport
@@ -1051,10 +1054,13 @@ namespace carrot::renderer {
             stage_state.vertices_cpu.clear();
             stage_state.indices_cpu.clear();
             stage_state.batches.clear();
-            stage_state.frame_vertex_buffer.reset();
-            stage_state.frame_index_buffer.reset();
-            stage_state.vertex_capacity = 0;
-            stage_state.index_capacity = 0;
+            for (auto& frame_buffers : stage_state.frame_buffers)
+            {
+                frame_buffers.vertex_buffer.reset();
+                frame_buffers.index_buffer.reset();
+                frame_buffers.vertex_capacity = 0;
+                frame_buffers.index_capacity = 0;
+            }
         }
 
         _stats = { };
@@ -1062,6 +1068,7 @@ namespace carrot::renderer {
 
     void renderer_t::ensure_textured_quad_frame_buffers(textured_quad_state_t& state)
     {
+        auto& frame_buffers{ current_frame_buffers(state) };
         const size_t required_vertex_bytes{ state.vertices_cpu.size() * sizeof(quad_vertex_t) };
         const size_t required_index_bytes{ state.indices_cpu.size() * sizeof(uint32_t) };
 
@@ -1069,10 +1076,10 @@ namespace carrot::renderer {
             return;
 
         const bool needs_vertex_realloc{
-            state.frame_vertex_buffer != nullptr && state.vertex_capacity < required_vertex_bytes
+            frame_buffers.vertex_buffer != nullptr && frame_buffers.vertex_capacity < required_vertex_bytes
         };
         const bool needs_index_realloc{
-            state.frame_index_buffer != nullptr && state.index_capacity < required_index_bytes
+            frame_buffers.index_buffer != nullptr && frame_buffers.index_capacity < required_index_bytes
         };
 
         if ((needs_vertex_realloc || needs_index_realloc) &&
@@ -1083,7 +1090,7 @@ namespace carrot::renderer {
             _rhi->wait_idle();
         }
 
-        if (state.frame_vertex_buffer == nullptr || state.vertex_capacity < required_vertex_bytes)
+        if (frame_buffers.vertex_buffer == nullptr || frame_buffers.vertex_capacity < required_vertex_bytes)
         {
             rhi::buffer_create_info_t info{ };
             info.size_bytes = required_vertex_bytes;
@@ -1091,18 +1098,18 @@ namespace carrot::renderer {
             info.initial_data = nullptr;
             info.cpu_writable = true;
 
-            state.frame_vertex_buffer = _rhi->create_buffer(info);
-            if (!state.frame_vertex_buffer)
+            frame_buffers.vertex_buffer = _rhi->create_buffer(info);
+            if (!frame_buffers.vertex_buffer)
             {
                 LOG_GRAPHICS_FATAL("Failed to create textured quad frame vertex buffer");
-                state.vertex_capacity = 0;
+                frame_buffers.vertex_capacity = 0;
                 return;
             }
 
-            state.vertex_capacity = required_vertex_bytes;
+            frame_buffers.vertex_capacity = required_vertex_bytes;
         }
 
-        if (state.frame_index_buffer == nullptr || state.index_capacity < required_index_bytes)
+        if (frame_buffers.index_buffer == nullptr || frame_buffers.index_capacity < required_index_bytes)
         {
             rhi::buffer_create_info_t info{ };
             info.size_bytes = required_index_bytes;
@@ -1110,24 +1117,25 @@ namespace carrot::renderer {
             info.initial_data = nullptr;
             info.cpu_writable = true;
 
-            state.frame_index_buffer = _rhi->create_buffer(info);
-            if (!state.frame_index_buffer)
+            frame_buffers.index_buffer = _rhi->create_buffer(info);
+            if (!frame_buffers.index_buffer)
             {
                 LOG_GRAPHICS_FATAL("Failed to create textured quad frame index buffer");
-                state.index_capacity = 0;
+                frame_buffers.index_capacity = 0;
                 return;
             }
 
-            state.index_capacity = required_index_bytes;
+            frame_buffers.index_capacity = required_index_bytes;
         }
     }
 
     void renderer_t::upload_textured_quad_frame_data(const textured_quad_state_t& state) const
     {
+        const auto& frame_buffers{ current_frame_buffers(state) };
         if (state.vertices_cpu.empty() || state.indices_cpu.empty())
             return;
 
-        if (!state.frame_vertex_buffer || !state.frame_index_buffer)
+        if (!frame_buffers.vertex_buffer || !frame_buffers.index_buffer)
         {
             LOG_GRAPHICS_FATAL("Textured quad frame buffers are not available for upload");
             return;
@@ -1136,13 +1144,28 @@ namespace carrot::renderer {
         const size_t vertex_bytes{ state.vertices_cpu.size() * sizeof(quad_vertex_t) };
         const size_t index_bytes{ state.indices_cpu.size() * sizeof(uint32_t) };
 
-        if (!state.frame_vertex_buffer->write(state.vertices_cpu.data(), vertex_bytes, 0))
+        if (!frame_buffers.vertex_buffer->write(state.vertices_cpu.data(), vertex_bytes, 0))
         {
             LOG_GRAPHICS_FATAL("Failed to upload textured quad vertex data");
             return;
         }
 
-        if (!state.frame_index_buffer->write(state.indices_cpu.data(), index_bytes, 0))
+        if (!frame_buffers.index_buffer->write(state.indices_cpu.data(), index_bytes, 0))
             LOG_GRAPHICS_FATAL("Failed to upload textured quad index data");
+    }
+
+    uint32_t renderer_t::current_textured_quad_frame_buffer_slot() const noexcept
+    {
+        return static_cast<uint32_t>(_frame_index % k_textured_quad_frame_buffer_count);
+    }
+
+    textured_quad_state_t::frame_buffers_t& renderer_t::current_frame_buffers(textured_quad_state_t& state) const noexcept
+    {
+        return state.frame_buffers[current_textured_quad_frame_buffer_slot()];
+    }
+
+    const textured_quad_state_t::frame_buffers_t& renderer_t::current_frame_buffers(const textured_quad_state_t& state) const noexcept
+    {
+        return state.frame_buffers[current_textured_quad_frame_buffer_slot()];
     }
 } // namespace carrot::renderer

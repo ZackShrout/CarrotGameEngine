@@ -31,8 +31,8 @@ namespace carrot::core::platform {
         HWND _hwnd{ nullptr };
         HINSTANCE _hinstance{ nullptr };
         bool _was_maximized{ false };
-        DWORD _prev_style{ 0 };
-        DWORD _prev_ex_style{ 0 };
+        LONG_PTR _prev_style{ 0 };
+        LONG_PTR _prev_ex_style{ 0 };
         RECT _prev_window_rect{ };
         std::wstring _title;
         chlm::float2 _last_mouse_position{ 0.f, 0.f };

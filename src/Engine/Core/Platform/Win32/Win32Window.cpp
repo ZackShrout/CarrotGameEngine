@@ -241,8 +241,8 @@ namespace carrot::core::platform {
 
         RECT client{};
         GetClientRect(_hwnd, &client);
-        uint32_t new_w = client.right  - client.left;
-        uint32_t new_h = client.bottom - client.top;
+        const uint32_t new_w{ static_cast<uint32_t>(client.right - client.left) };
+        const uint32_t new_h{ static_cast<uint32_t>(client.bottom - client.top) };
 
         if (new_w != _width || new_h != _height)
         {
@@ -314,9 +314,6 @@ namespace carrot::core::platform {
                 const uint32_t vk{ static_cast<uint32_t>(wParam) };
                 input::key_code key_code{ input::to_carrot_key(vk) };
 
-                bool is_left{ false };
-                bool is_right{ false };
-
                 switch (vk)
                 {
                     case VK_SHIFT:
@@ -327,12 +324,10 @@ namespace carrot::core::platform {
                         if (mapped_vk == VK_LSHIFT)
                         {
                             key_code = input::to_carrot_key(VK_LSHIFT);
-                            is_left = true;
                         }
                         else if (mapped_vk == VK_RSHIFT)
                         {
                             key_code = input::to_carrot_key(VK_RSHIFT);
-                            is_right = true;
                         }
                         break;
                     }
@@ -342,8 +337,6 @@ namespace carrot::core::platform {
                         key_code = extended
                                        ? input::to_carrot_key(VK_RCONTROL)
                                        : input::to_carrot_key(VK_LCONTROL);
-                        is_left = !extended;
-                        is_right = extended;
                         break;
                     }
                     case VK_MENU:
@@ -352,8 +345,6 @@ namespace carrot::core::platform {
                         key_code = extended
                                        ? input::to_carrot_key(VK_RMENU)
                                        : input::to_carrot_key(VK_LMENU);
-                        is_left = !extended;
-                        is_right = extended;
                         break;
                     }
                     default:

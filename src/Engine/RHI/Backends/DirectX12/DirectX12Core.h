@@ -33,8 +33,9 @@ namespace carrot::rhi::dx12 {
         {
             case texture_format_t::rgba8_unorm: return DXGI_FORMAT_R8G8B8A8_UNORM;
             case texture_format_t::rgba8_srgb:  return DXGI_FORMAT_R8G8B8A8_UNORM;
-            default:                            return DXGI_FORMAT_R8G8B8A8_UNORM;
         }
+
+        return DXGI_FORMAT_R8G8B8A8_UNORM;
     }
 
     [[nodiscard]] inline DXGI_FORMAT dx12_texture_srv_format(const texture_format_t format) noexcept
@@ -43,8 +44,9 @@ namespace carrot::rhi::dx12 {
         {
             case texture_format_t::rgba8_unorm: return DXGI_FORMAT_R8G8B8A8_UNORM;
             case texture_format_t::rgba8_srgb:  return DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-            default:                            return DXGI_FORMAT_R8G8B8A8_UNORM;
         }
+
+        return DXGI_FORMAT_R8G8B8A8_UNORM;
     }
 
     [[nodiscard]] inline D3D12_FILTER dx12_filter(const sampler_desc_t& desc) noexcept
@@ -70,8 +72,9 @@ namespace carrot::rhi::dx12 {
             case sampler_address_mode_t::clamp_to_edge:   return D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
             case sampler_address_mode_t::repeat:          return D3D12_TEXTURE_ADDRESS_MODE_WRAP;
             case sampler_address_mode_t::mirrored_repeat: return D3D12_TEXTURE_ADDRESS_MODE_MIRROR;
-            default:                                      return D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
         }
+
+        return D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
     }
 
     [[nodiscard]] inline D3D12_SAMPLER_DESC dx12_sampler_desc(const sampler_desc_t& desc) noexcept

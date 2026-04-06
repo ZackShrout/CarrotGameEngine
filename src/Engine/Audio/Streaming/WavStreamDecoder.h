@@ -10,11 +10,12 @@
 #include "Audio/Sample/WavCore.h"
 
 #include <atomic>
+#include <cstdint>
 #include <thread>
 
 namespace carrot::audio {
 #if defined(_WIN32)
-    using carrot_offset_t = __int64;
+    using carrot_offset_t = std::int64_t;
 #else
     using carrot_offset_t = off_t; ///< Typically 64-bit with _FILE_OFFSET_BITS=64
 #endif

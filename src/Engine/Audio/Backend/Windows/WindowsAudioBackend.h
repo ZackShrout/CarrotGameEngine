@@ -42,7 +42,5 @@ namespace carrot::audio {
         uint32_t _sample_rate{ 0 };
         uint32_t _channels{ 0 };
         uint32_t _buffer_frames{ 0 };
-
-        double _phase{ 0.0 }; // sine test
     };
 } // namespace carrot::audio

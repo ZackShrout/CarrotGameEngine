@@ -282,8 +282,8 @@ namespace carrot::audio {
             {
                 comb_t& c{ _combs[i] };
 
-                c.len_l = chlm::max<uint32_t>(1u, static_cast<uint32_t>(comb_lengths_L[i] * scale + 0.5f));
-                c.len_r = chlm::max<uint32_t>(1u, static_cast<uint32_t>(comb_lengths_R[i] * scale + 0.5f));
+                c.len_l = chlm::max<uint32_t>(1u, static_cast<uint32_t>(static_cast<float>(comb_lengths_L[i]) * scale + 0.5f));
+                c.len_r = chlm::max<uint32_t>(1u, static_cast<uint32_t>(static_cast<float>(comb_lengths_R[i]) * scale + 0.5f));
 
                 c.buf_l = new float[c.len_l];
                 c.buf_r = new float[c.len_r];
@@ -295,8 +295,8 @@ namespace carrot::audio {
             {
                 allpass_t& a{ _allpass[i] };
 
-                a.len_l = chlm::max<uint32_t>(1u, static_cast<uint32_t>(allpass_lengths_L[i] * scale + 0.5f));
-                a.len_r = chlm::max<uint32_t>(1u, static_cast<uint32_t>(allpass_lengths_R[i] * scale + 0.5f));
+                a.len_l = chlm::max<uint32_t>(1u, static_cast<uint32_t>(static_cast<float>(allpass_lengths_L[i]) * scale + 0.5f));
+                a.len_r = chlm::max<uint32_t>(1u, static_cast<uint32_t>(static_cast<float>(allpass_lengths_R[i]) * scale + 0.5f));
 
                 a.buf_l = new float[a.len_l];
                 a.buf_r = new float[a.len_r];

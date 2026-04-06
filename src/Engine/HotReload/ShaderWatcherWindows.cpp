@@ -14,12 +14,14 @@ namespace carrot::hot_reload {
         struct state_t
         {
 
-        } _state;
+        };
 
-        constexpr size_t _buffer_size{ 8192 };
+        [[maybe_unused]] state_t _state;
+
+        [[maybe_unused]] constexpr size_t _buffer_size{ 8192 };
     } // anonymous namespace
 
-    void shader_watcher_t::init(const shader_reload_callback_t& callback) noexcept
+    void shader_watcher_t::init([[maybe_unused]] const shader_reload_callback_t& callback) noexcept
     {
     }
 

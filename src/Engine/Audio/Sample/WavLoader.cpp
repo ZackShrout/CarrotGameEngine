@@ -9,6 +9,7 @@
 
 #include "Audio/Core/AudioCore.h"
 #include "Audio/DSP/Resampler.h"
+#include "Utils/File/FileUtils.h"
 #include "WavCore.h"
 
 #include <cstdlib>
@@ -16,7 +17,7 @@
 namespace carrot::audio {
     audio_sample_t* load_wav_file(const std::string_view path)
     {
-        FILE* file{ std::fopen(path.data(), "rb") };
+        FILE* file{ utils::file::open_file(path.data(), "rb") };
         if (!file)
             return nullptr;
 
@@ -58,7 +59,7 @@ namespace carrot::audio {
                 const uint32_t remaining{ chunk.size - static_cast<uint32_t>(sizeof(fmt)) };
                 if (remaining > 0)
                 {
-                    if (std::fseek(file, static_cast<long>(remaining), SEEK_CUR) != 0)
+                    if (utils::file::seek_file(file, static_cast<utils::file::file_offset_t>(remaining), SEEK_CUR) != 0)
                         return fail();
                 }
 
@@ -82,14 +83,14 @@ namespace carrot::audio {
             }
             else
             {
-                if (std::fseek(file, static_cast<long>(chunk.size), SEEK_CUR) != 0)
+                if (utils::file::seek_file(file, static_cast<utils::file::file_offset_t>(chunk.size), SEEK_CUR) != 0)
                     return fail();
             }
 
             // RIFF chunks are word-aligned; odd-sized chunks include a pad byte.
             if ((chunk.size & 1u) != 0u)
             {
-                if (std::fseek(file, 1, SEEK_CUR) != 0)
+                if (utils::file::seek_file(file, static_cast<utils::file::file_offset_t>(1), SEEK_CUR) != 0)
                     return fail();
             }
         }

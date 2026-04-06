@@ -33,7 +33,7 @@ namespace carrot::assets {
 
         void parse_properties_array(const utils::json::json_array_view_t& array, std::vector<tilemap_property_t>& out_properties)
         {
-            for (const auto& value : array)
+            for (const auto value : array)
             {
                 if (!value.is_object())
                     continue;
@@ -45,7 +45,7 @@ namespace carrot::assets {
 
         void parse_tilemap_properties(const utils::json::json_array_view_t& array, tilemap_asset_t& tilemap)
         {
-            for (const auto& value : array)
+            for (const auto value : array)
             {
                 if (!value.is_object())
                     continue;
@@ -86,7 +86,7 @@ namespace carrot::assets {
                 const utils::json::json_array_view_t point_array{ object_json.get_array(key) };
                 points.reserve(point_array.size());
 
-                for (const auto& point_value : point_array)
+                for (const auto point_value : point_array)
                 {
                     if (!point_value.is_object())
                         continue;
@@ -150,7 +150,7 @@ namespace carrot::assets {
         if (root.has("tilesets"))
         {
             const utils::json::json_array_view_t tilesets{ root.get_array("tilesets") };
-            for (const auto& value : tilesets)
+            for (const auto value : tilesets)
             {
                 if (!value.is_object())
                     continue;
@@ -171,7 +171,7 @@ namespace carrot::assets {
                 if (obj.has("tiles"))
                 {
                     const utils::json::json_array_view_t tiles{ obj.get_array("tiles") };
-                    for (const auto& tile_value : tiles)
+                    for (const auto tile_value : tiles)
                     {
                         if (!tile_value.is_object())
                             continue;
@@ -183,7 +183,7 @@ namespace carrot::assets {
                         if (tile_json.has("collision_rects"))
                         {
                             const utils::json::json_array_view_t rects{ tile_json.get_array("collision_rects") };
-                            for (const auto& rect_value : rects)
+                            for (const auto rect_value : rects)
                             {
                                 if (!rect_value.is_object())
                                     continue;
@@ -210,7 +210,7 @@ namespace carrot::assets {
         if (root.has("layers"))
         {
             const utils::json::json_array_view_t layers{ root.get_array("layers") };
-            for (const auto& value : layers)
+            for (const auto value : layers)
             {
                 if (!value.is_object())
                     continue;
@@ -233,7 +233,7 @@ namespace carrot::assets {
                 {
                     const utils::json::json_array_view_t gids{ obj.get_array("gids") };
                     layer.gids.reserve(gids.size());
-                    for (const auto& gid_value : gids)
+                    for (const auto gid_value : gids)
                         layer.gids.emplace_back(static_cast<uint32_t>(gid_value.as_number_or(0.0)));
                 }
 
@@ -242,7 +242,7 @@ namespace carrot::assets {
                     const utils::json::json_array_view_t objects{ obj.get_array("objects") };
                     layer.objects.reserve(objects.size());
 
-                    for (const auto& object_value : objects)
+                    for (const auto object_value : objects)
                     {
                         if (!object_value.is_object())
                             continue;

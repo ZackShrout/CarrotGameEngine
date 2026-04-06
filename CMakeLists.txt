@@ -539,10 +539,10 @@ target_compile_definitions(CarrotEngine PUBLIC
 )
 
 target_compile_options(CarrotEngine PUBLIC
-        $<$<CONFIG:Debug>:-O0 -g>
-        $<$<CONFIG:Release>:-O3>
-        $<$<CONFIG:RelWithDebInfo>:-O2 -g>
-        $<$<CONFIG:MinSizeRel>:-Os>
+        $<$<AND:$<CONFIG:Debug>,$<NOT:$<BOOL:MSVC>>>:-O0 -g>
+        $<$<AND:$<CONFIG:Release>,$<NOT:$<BOOL:MSVC>>>:-O3>
+        $<$<AND:$<CONFIG:RelWithDebInfo>,$<NOT:$<BOOL:MSVC>>>:-O2 -g>
+        $<$<AND:$<CONFIG:MinSizeRel>,$<NOT:$<BOOL:MSVC>>>:-Os>
 )
 
 # ------------------------------------------------------------------------
@@ -589,6 +589,13 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND MSVC)
             -Wno-exit-time-destructors -Wno-global-constructors
             -Wno-switch-enum -Wno-switch-default
             -Wno-nrvo
+            -Wno-covered-switch-default
+            -Wno-language-extension-token
+            -Wno-disabled-macro-expansion
+            -Wno-nested-anon-types
+            -Wno-unsafe-buffer-usage
+            -Wno-unsafe-buffer-usage-in-libc-call
+            -Wno-documentation
     )
 endif()
 

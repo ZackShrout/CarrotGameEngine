@@ -8,14 +8,7 @@
 #include "WavStreamDecoder.h"
 
 #include "AudioStream.h"
-
-#if defined(_WIN32)
-#define carrot_fseek  _fseeki64
-#define carrot_ftell  _ftelli64
-#else
-#define carrot_fseek  fseeko
-#define carrot_ftell  ftello
-#endif
+#include "Utils/File/FileUtils.h"
 
 namespace carrot::audio {
     // PUBLIC
@@ -37,7 +30,7 @@ namespace carrot::audio {
         _src_frames_in_buffer = 0;
         _src_pos = 0.0;
 
-        _file = std::fopen(path.data(), "rb");
+        _file = utils::file::open_file(path.data(), "rb");
         if (!_file)
             return false;
 
@@ -92,7 +85,7 @@ namespace carrot::audio {
                 const uint32_t remaining{ chunk.size - static_cast<uint32_t>(sizeof(_fmt)) };
                 if (remaining > 0)
                 {
-                    if (carrot_fseek(_file, static_cast<carrot_offset_t>(remaining), SEEK_CUR) != 0)
+                    if (utils::file::seek_file(_file, static_cast<utils::file::file_offset_t>(remaining), SEEK_CUR) != 0)
                         return fail();
                 }
 
@@ -105,7 +98,7 @@ namespace carrot::audio {
 
                 _data_bytes_remaining = chunk.size;
                 _data_bytes_total = chunk.size;
-                _data_start_offset = carrot_ftell(_file);
+                _data_start_offset = static_cast<carrot_offset_t>(utils::file::tell_file(_file));
 
                 if (_data_start_offset < 0)
                     return fail();
@@ -115,14 +108,14 @@ namespace carrot::audio {
             }
             else
             {
-                if (carrot_fseek(_file, static_cast<carrot_offset_t>(chunk.size), SEEK_CUR) != 0)
+                if (utils::file::seek_file(_file, static_cast<utils::file::file_offset_t>(chunk.size), SEEK_CUR) != 0)
                     return fail();
             }
 
             // RIFF chunks are word-aligned; odd-sized chunks include one pad byte.
             if ((chunk.size & 1u) != 0u)
             {
-                if (carrot_fseek(_file, static_cast<carrot_offset_t>(1), SEEK_CUR) != 0)
+                if (utils::file::seek_file(_file, static_cast<utils::file::file_offset_t>(1), SEEK_CUR) != 0)
                     return fail();
             }
         }
@@ -285,7 +278,7 @@ namespace carrot::audio {
 
     void wav_stream_decoder_t::enter_loop_phase() noexcept
     {
-        if (carrot_fseek(_file, _loop_start_offset, SEEK_SET) != 0)
+        if (utils::file::seek_file(_file, static_cast<utils::file::file_offset_t>(_loop_start_offset), SEEK_SET) != 0)
         {
             if (_stream)
                 _stream->eof.store(true, std::memory_order_release);
@@ -318,7 +311,7 @@ namespace carrot::audio {
                     }
                     else
                     {
-                        if (carrot_fseek(_file, _data_start_offset, SEEK_SET) != 0)
+                        if (utils::file::seek_file(_file, static_cast<utils::file::file_offset_t>(_data_start_offset), SEEK_SET) != 0)
                         {
                             _stream->eof.store(true, std::memory_order_release);
                             break;
@@ -374,7 +367,7 @@ namespace carrot::audio {
                     }
                     else
                     {
-                        if (carrot_fseek(_file, _data_start_offset, SEEK_SET) != 0)
+                        if (utils::file::seek_file(_file, static_cast<utils::file::file_offset_t>(_data_start_offset), SEEK_SET) != 0)
                         {
                             _stream->eof.store(true, std::memory_order_release);
                             break;

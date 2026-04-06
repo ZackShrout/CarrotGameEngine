@@ -195,7 +195,14 @@ namespace carrot::debug {
             std::array<char, 1024> buffer{ };
             va_list args_copy;
             va_copy(args_copy, args);
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
+#endif
             const int written{ std::vsnprintf(buffer.data(), buffer.size(), fmt, args_copy) };
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
             va_end(args_copy);
 
             if (written <= 0)
@@ -248,7 +255,7 @@ namespace carrot::debug {
                 glyph.v1 = quad.t1;
                 glyph.layer = renderer::render_layer_t::debug;
                 glyph.color = color;
-                glyph.sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp;
+                glyph.sampler_preset = renderer::quad_sampler_preset_t::smooth_clamp;
 
                 if (glyph.width > 0.f && glyph.height > 0.f)
                     g_renderer->draw_overlay_textured_quad(glyph);

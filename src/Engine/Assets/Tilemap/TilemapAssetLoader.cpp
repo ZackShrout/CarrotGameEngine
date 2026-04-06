@@ -26,6 +26,7 @@ namespace carrot::assets {
         if (record.logical_id.empty())
         {
             return {
+                .asset = { },
                 .error = tilemap_asset_load_error_t::invalid_record
             };
         }

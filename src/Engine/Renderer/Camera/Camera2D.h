@@ -24,8 +24,9 @@ namespace carrot::renderer {
             case camera_2d_sizing_mode_t::fixed_aspect_letterbox: return "fixed_aspect_letterbox";
             case camera_2d_sizing_mode_t::fixed_height: return "fixed_height";
             case camera_2d_sizing_mode_t::fixed_width: return "fixed_width";
-            default: return "unknown";
         }
+
+        return "unknown";
     }
 
     struct resolved_camera_2d_t
@@ -156,7 +157,6 @@ namespace carrot::renderer {
                 }
 
                 case camera_2d_sizing_mode_t::responsive_world_view:
-                default:
                 {
                     resolved.visible_world_size = {
                         static_cast<float>(safe_render_width) / safe_zoom,

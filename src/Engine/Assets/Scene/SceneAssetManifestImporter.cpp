@@ -187,7 +187,7 @@ namespace carrot::assets {
         if (root.has("camera"))
         {
             const utils::json::json_object_view_t camera{ root.get_object("camera") };
-            const float zoom{ static_cast<float>(camera.get_number_or("zoom", record.scene.camera.zoom)) };
+            const float zoom{ static_cast<float>(camera.get_number_or("zoom", static_cast<double>(record.scene.camera.zoom))) };
             record.scene.camera.zoom = zoom > 0.f ? zoom : record.scene.camera.zoom;
 
             if (camera.has("follow_mode"))
@@ -218,7 +218,7 @@ namespace carrot::assets {
             };
 
             const float follow_smoothing{
-                static_cast<float>(camera.get_number_or("follow_smoothing", record.scene.camera.follow_smoothing))
+                static_cast<float>(camera.get_number_or("follow_smoothing", static_cast<double>(record.scene.camera.follow_smoothing)))
             };
             record.scene.camera.follow_smoothing = follow_smoothing >= 0.f
                 ? follow_smoothing

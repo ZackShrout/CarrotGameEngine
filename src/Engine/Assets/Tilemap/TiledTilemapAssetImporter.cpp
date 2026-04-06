@@ -60,7 +60,7 @@ namespace carrot::assets {
                 return;
 
             const utils::json::json_array_view_t properties{ obj.get_array("properties") };
-            for (const auto& property_value : properties)
+            for (const auto property_value : properties)
             {
                 if (!property_value.is_object())
                     continue;
@@ -76,7 +76,7 @@ namespace carrot::assets {
                 return;
 
             const utils::json::json_array_view_t properties{ obj.get_array("properties") };
-            for (const auto& property_value : properties)
+            for (const auto property_value : properties)
             {
                 if (!property_value.is_object())
                     continue;
@@ -102,7 +102,7 @@ namespace carrot::assets {
                 return;
 
             const utils::json::json_array_view_t tiles{ tileset_json.get_array("tiles") };
-            for (const auto& tile_value : tiles)
+            for (const auto tile_value : tiles)
             {
                 if (!tile_value.is_object())
                     continue;
@@ -124,7 +124,7 @@ namespace carrot::assets {
             animation.tile_id = tile_id;
             animation.frames.reserve(animation_frames.size());
 
-            for (const auto& frame_value : animation_frames)
+            for (const auto frame_value : animation_frames)
             {
                 if (!frame_value.is_object())
                     continue;
@@ -219,7 +219,7 @@ namespace carrot::assets {
             tile_collision.tile_id = tile_id;
 
             const utils::json::json_array_view_t objects{ object_group.get_array("objects") };
-            for (const auto& object_value : objects)
+            for (const auto object_value : objects)
             {
                 if (!object_value.is_object())
                     continue;
@@ -261,7 +261,7 @@ namespace carrot::assets {
                 return true;
 
             const utils::json::json_array_view_t tilesets{ root.get_array("tilesets") };
-            for (const auto& tileset_value : tilesets)
+            for (const auto tileset_value : tilesets)
             {
                 if (!tileset_value.is_object())
                     continue;
@@ -284,7 +284,7 @@ namespace carrot::assets {
                 if (tileset_json.has("tiles"))
                 {
                     const utils::json::json_array_view_t tiles{ tileset_json.get_array("tiles") };
-                    for (const auto& tile_value : tiles)
+                    for (const auto tile_value : tiles)
                     {
                         if (!tile_value.is_object())
                             continue;
@@ -366,7 +366,7 @@ namespace carrot::assets {
                 const utils::json::json_array_view_t point_array{ object_json.get_array(key) };
                 points.reserve(point_array.size());
 
-                for (const auto& point_value : point_array)
+                for (const auto point_value : point_array)
                 {
                     if (!point_value.is_object())
                         continue;
@@ -419,7 +419,7 @@ namespace carrot::assets {
                 {
                     const utils::json::json_array_view_t data{ layer_json.get_array("data") };
                     out_layer.gids.reserve(data.size());
-                    for (const auto& value : data)
+                    for (const auto value : data)
                         out_layer.gids.emplace_back(static_cast<uint32_t>(value.as_number_or(0.0)));
                 }
 
@@ -435,7 +435,7 @@ namespace carrot::assets {
                     const utils::json::json_array_view_t objects{ layer_json.get_array("objects") };
                     out_layer.objects.reserve(objects.size());
 
-                    for (const auto& object_value : objects)
+                    for (const auto object_value : objects)
                     {
                         if (!object_value.is_object())
                             continue;
@@ -486,7 +486,7 @@ namespace carrot::assets {
                 return;
             }
 
-            for (const auto& layer_value : layers)
+            for (const auto layer_value : layers)
             {
                 if (!layer_value.is_object())
                     continue;

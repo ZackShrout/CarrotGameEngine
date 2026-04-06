@@ -60,7 +60,7 @@ namespace carrot::audio {
     {
     public:
         audio_engine_t() = default;
-        ~audio_engine_t() = default;
+        ~audio_engine_t() override = default;
 
         /**
          * @brief Initializes the audio engine core.

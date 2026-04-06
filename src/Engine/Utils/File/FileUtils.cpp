@@ -11,6 +11,34 @@ namespace carrot::utils::file {
     namespace {
     } // anonymous namespace
 
+    FILE* open_file(const char* path, const char* mode) noexcept
+    {
+#ifdef _WIN32
+        FILE* file{ nullptr };
+        return (fopen_s(&file, path, mode) == 0) ? file : nullptr;
+#else
+        return std::fopen(path, mode);
+#endif
+    }
+
+    int seek_file(FILE* file, const file_offset_t offset, const int origin) noexcept
+    {
+#ifdef _WIN32
+        return _fseeki64(file, offset, origin);
+#else
+        return fseeko(file, offset, origin);
+#endif
+    }
+
+    file_offset_t tell_file(FILE* file) noexcept
+    {
+#ifdef _WIN32
+        return _ftelli64(file);
+#else
+        return ftello(file);
+#endif
+    }
+
     [[nodiscard]] std::optional<std::vector<std::uint8_t>> load_binary_file(const std::filesystem::path& path) noexcept
     {
         std::ifstream file{ path, std::ios::binary | std::ios::ate };

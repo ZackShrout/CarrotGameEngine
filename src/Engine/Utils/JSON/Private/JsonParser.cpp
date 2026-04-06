@@ -30,7 +30,7 @@ namespace carrot::utils::json {
 
     void parser_t::dump(json_value_t* v, const int indent/* = 0*/)
     {
-        std::string pad{ std::string(indent * 4, ' ') };
+        std::string pad{ std::string(static_cast<std::size_t>(indent) * 4u, ' ') };
 
         switch (v->type)
         {

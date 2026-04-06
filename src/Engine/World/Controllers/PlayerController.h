@@ -45,6 +45,8 @@ namespace carrot::world {
     class player_controller_t
     {
     public:
+        virtual ~player_controller_t() = default;
+
         void set_controlled_object(world_object_t* object) noexcept;
 
         [[nodiscard]] world_object_t* controlled_object() noexcept { return _controlled_object; }

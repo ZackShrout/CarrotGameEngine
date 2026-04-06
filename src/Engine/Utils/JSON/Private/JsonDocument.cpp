@@ -11,6 +11,18 @@
 #include "Utils/File/FileUtils.h"
 
 namespace carrot::utils::json {
+    namespace {
+        [[nodiscard]] size_t recommended_arena_capacity(const size_t source_size) noexcept
+        {
+            constexpr size_t k_min_capacity{ 1024u * 1024u };
+            constexpr size_t k_headroom_bytes{ 256u * 1024u };
+            constexpr size_t k_source_multiplier{ 24u };
+
+            const size_t scaled_capacity{ (source_size * k_source_multiplier) + k_headroom_bytes };
+            return std::max(k_min_capacity, scaled_capacity);
+        }
+    } // namespace
+
     json_document_t::json_document_t()
     {
         _arena = new core::memory::arena_t(1024 * 1024);
@@ -38,6 +50,13 @@ namespace carrot::utils::json {
 
     bool json_document_t::parse_from_memory(const char* data, [[maybe_unused]] size_t size)
     {
+        const size_t required_capacity{ recommended_arena_capacity(size) };
+        if (!_arena || _arena->capacity() < required_capacity)
+        {
+            delete _arena;
+            _arena = new core::memory::arena_t(required_capacity);
+        }
+
         lexer_t lexer(data);
         parser_t parser(lexer, *_arena);
 

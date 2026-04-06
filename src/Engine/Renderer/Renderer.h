@@ -15,6 +15,7 @@
 #include "RHI/RHI.h"
 
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <span>
@@ -217,6 +218,8 @@ namespace carrot::renderer {
         uint64_t            _frame_index{ 0 };
         renderer_stats_t    _stats;
         renderer_stats_t    _last_completed_stats;
+        uint64_t            _animated_tiles_elapsed_ms{ 0 };
+        std::chrono::steady_clock::time_point _animated_tiles_clock_origin{ std::chrono::steady_clock::now() };
 
         // ── Renderer path state: textured quads ───────────────────────────────────
         std::array<textured_quad_state_t, static_cast<size_t>(frame_stage_kind_t::count)> _stage_textured_quads;

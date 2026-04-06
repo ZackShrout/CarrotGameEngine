@@ -132,6 +132,15 @@ Notable later work that should stay visible but is not the current top priority:
 * hybrid 2D/3D rendering growth
 * animated 3D model workflows
 
+The Tiled pipeline has since become a more explicit authored-data contract than this early priority note reflects.
+
+Current direction is not just "support more Tiled fields," but:
+
+* treat Tiled as a first-class 2D world authoring tool for Carrot
+* keep a small engine-owned typed object set for common semantics
+* preserve unknown typed objects cleanly for game-side extension
+* prefer explicit object types, layer class usage, and documented properties over name-based heuristics
+
 ### 2.6.1 Current Physics / Collision Direction
 
 Milestone 04 validated the next major engine-growth area after the render-pipeline refactor: collision and physics-lite world constraints.
@@ -225,7 +234,7 @@ Important current limitation:
 Current first-pass Milestone 05 implementation slice:
 
 * tilemap layers now resolve through engine-owned per-layer semantics instead of one flattened render bucket
-* roof-style tile layers can participate in authored `VisibilityZone` hide behavior
+* roof-style tile layers can participate in authored `VisibilityZone` hide behavior and now rely on explicit layer class semantics rather than name heuristics
 * Tiled group-level `visibility_zone_id` now flows down to child roof layers
 * tile layers can now explicitly opt into `carrot_conditional_front` and `carrot_always_front`
 * the world now exposes first-pass visibility-zone debug overlay support
@@ -430,7 +439,7 @@ Key current priorities include:
 * first authored `*.scene.json` scene assets that select tilemaps, spawn markers, player setup, and initial music
 * controlled scene transitions that apply at a safe point in the frame rather than mutating world state inside interaction handlers
 * sandbox-owned player movement and camera follow that operate on world-object transforms rather than engine bootstrap code
-* first gameplay-facing world interaction path where sandbox code interprets authored `Sign`, `Door`, and `Chest` objects through world queries and typed properties
+* first gameplay-facing world interaction path where sandbox code interprets authored `Sign`, `Door`, and `Container` objects through world queries and typed properties
 * gameplay input routed through semantic action names instead of raw key checks in sandbox logic
 * frame lifecycle clarity
 * debug-friendly rendering flow
@@ -807,7 +816,7 @@ Planned use cases include:
 * object layers
 * visible placed props via tile objects
 * gameplay markers such as spawn points, exits, and trigger regions
-* hybrid objects that are both visible and meaningful, such as chests, doors, and signs
+* hybrid objects that are both visible and meaningful, such as containers, doors, and signs
 * map metadata
 * animated tiles
 * tilesets
@@ -820,7 +829,11 @@ Current practical direction already includes:
 * `markers`-style object layers for invisible authored scene meaning
 * `props`-style object layers for visible placed objects
 * hybrid object conventions driven by Tiled object `type` plus typed custom properties
-* early hybrid object queries for authored `Chest`, `Door`, and `Sign` objects
+* early hybrid object queries for authored `Container`, `Door`, and `Sign` objects
+* authored `VisibilityZone` objects for roof/canopy hide behavior
+* layer-class-driven defaults such as `Water` and `Roof`
+* tileset-authored animated tile support
+* preserved richer object geometry metadata for future runtime use
 
 Important long-term direction includes support for:
 
@@ -828,6 +841,12 @@ Important long-term direction includes support for:
 * streaming-style overworld structures
 * map boundaries and larger world layouts
 * later integration into world/scene systems
+
+The typed-object boundary should stay disciplined:
+
+* Carrot should only promote object types into engine-owned conventions when they have broad, stable meaning
+* likely future candidates include `SpawnPoint`, `NPC`, `Pickup`, `Switch`, and `PatrolPath`
+* unknown object types should remain valid imported authored data so game code can define project-specific behavior without importer changes
 
 ### 10.3 Why This Matters
 

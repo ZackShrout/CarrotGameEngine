@@ -7,6 +7,8 @@
 
 #include "WorldInteractionHelpers.h"
 
+#include "Assets/Tilemap/TypedObjectConventions.h"
+
 namespace sandbox {
     namespace {
         [[nodiscard]] std::string describe_world_object(const carrot::world::world_object_t& object)
@@ -46,28 +48,37 @@ namespace sandbox {
         if (object.type == "Door")
             return interaction_kind_t::door;
 
-        if (object.type == "Chest")
-            return interaction_kind_t::chest;
+        if (object.type == "Container")
+            return interaction_kind_t::container;
 
         return interaction_kind_t::none;
     }
 
     std::optional<sign_interaction_data_t> as_sign(const carrot::world::world_object_t& object) noexcept
     {
+        if (const auto sign{ carrot::assets::as_typed_sign(object) })
+        {
+            return sign_interaction_data_t{
+                .message_id = sign->message_id
+            };
+        }
+
         if (interaction_kind_for(object) != interaction_kind_t::sign)
             return std::nullopt;
-
-        const std::optional<std::string_view> message_id{ object.get_string_property("message_id") };
-        if (!message_id)
-            return std::nullopt;
-
-        return sign_interaction_data_t{
-            .message_id = *message_id
-        };
+        return std::nullopt;
     }
 
     std::optional<door_interaction_data_t> as_door(const carrot::world::world_object_t& object) noexcept
     {
+        if (const auto door{ carrot::assets::as_typed_door(object) })
+        {
+            return door_interaction_data_t{
+                .target_scene = door->target_scene,
+                .target_map = door->target_map,
+                .target_marker = door->target_marker
+            };
+        }
+
         if (interaction_kind_for(object) != interaction_kind_t::door)
             return std::nullopt;
 
@@ -85,39 +96,38 @@ namespace sandbox {
         {
             LOG_CORE_WARN("Door '{}' is missing required 'target_marker' property",
                           describe_world_object(object));
-            return std::nullopt;
         }
 
-        return door_interaction_data_t{
-            .target_scene = target_scene.value_or(std::string_view{}),
-            .target_map = target_map.value_or(std::string_view{}),
-            .target_marker = *target_marker
-        };
+        return std::nullopt;
     }
 
-    std::optional<chest_interaction_data_t> as_chest(const carrot::world::world_object_t& object) noexcept
+    std::optional<container_interaction_data_t> as_container(const carrot::world::world_object_t& object) noexcept
     {
-        if (interaction_kind_for(object) != interaction_kind_t::chest)
-            return std::nullopt;
+        if (const auto container{ carrot::assets::as_typed_container(object) })
+        {
+            return container_interaction_data_t{
+                .loot_table = container->loot_table
+            };
+        }
 
-        const std::optional<std::string_view> loot_table{ object.get_string_property("loot_table") };
-        if (!loot_table)
+        if (interaction_kind_for(object) != interaction_kind_t::container)
             return std::nullopt;
-
-        return chest_interaction_data_t{
-            .loot_table = *loot_table
-        };
+        return std::nullopt;
     }
 
     std::optional<trigger_interaction_data_t> as_trigger(const carrot::world::world_object_t& object) noexcept
     {
+        if (const auto trigger{ carrot::assets::as_typed_trigger(object) })
+        {
+            return trigger_interaction_data_t{
+                .trigger_id = trigger->trigger_id,
+                .trigger_kind = trigger->trigger_kind
+            };
+        }
+
         if (object.type != "Trigger" || !object.trigger)
             return std::nullopt;
-
-        return trigger_interaction_data_t{
-            .trigger_id = object.trigger->trigger_id,
-            .trigger_kind = object.trigger->trigger_kind
-        };
+        return std::nullopt;
     }
 
     std::optional<scene_transition_request_t> make_scene_transition_request(

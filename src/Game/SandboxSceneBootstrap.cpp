@@ -16,10 +16,12 @@ namespace sandbox {
         if (!carrot::world::scene_loader_t::load_scene(game, scene_id, spawn_marker_override))
             return false;
 
-        const size_t chest_count{ game.world.find_objects_by_type("Chest").size() };
+        size_t container_count{ 0 };
+        for (const carrot::world::world_object_t* object : game.world.find_objects_by_type("Container"))
+            if (object) ++container_count;
         const size_t door_count{ game.world.find_objects_by_type("Door").size() };
         const size_t sign_count{ game.world.find_objects_by_type("Sign").size() };
-        LOG_ASSET_INFO("Sandbox scene hybrids: Chest={}, Door={}, Sign={}", chest_count, door_count, sign_count);
+        LOG_ASSET_INFO("Sandbox scene hybrids: Container={}, Door={}, Sign={}", container_count, door_count, sign_count);
 
         const scene_validation_report_t report{ build_scene_validation_report(game.assets, game.world) };
         if (!report.valid())

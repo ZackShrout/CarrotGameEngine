@@ -21,11 +21,9 @@ namespace carrot::world {
             return result;
         }
 
-        [[nodiscard]] bool contains_case_insensitive(std::string_view haystack, std::string_view needle)
+        [[nodiscard]] bool equals_case_insensitive(std::string_view lhs, std::string_view rhs)
         {
-            const std::string lower_haystack{ lowercase_copy(haystack) };
-            const std::string lower_needle{ lowercase_copy(needle) };
-            return lower_haystack.find(lower_needle) != std::string::npos;
+            return lowercase_copy(lhs) == lowercase_copy(rhs);
         }
 
         [[nodiscard]] std::optional<renderer::render_layer_t> parse_render_layer(std::string_view value) noexcept
@@ -123,13 +121,13 @@ namespace carrot::world {
             authored_layer_semantics_t semantics{ };
             semantics.order_in_layer = source_layer_index * 10;
 
-            if (contains_case_insensitive(layer.name, "water"))
+            if (equals_case_insensitive(layer.authored_type, "Water"))
             {
                 semantics.render_layer = renderer::render_layer_t::background;
                 return semantics;
             }
 
-            if (contains_case_insensitive(layer.name, "roof"))
+            if (equals_case_insensitive(layer.authored_type, "Roof"))
             {
                 semantics.render_layer = renderer::render_layer_t::world_front;
                 return semantics;

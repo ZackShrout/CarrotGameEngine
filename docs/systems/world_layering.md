@@ -4,6 +4,8 @@
 
 This document defines the current authored/runtime layering contract between Tiled exports and Carrot.
 
+For the broader Tiled-authored data contract, see [tiled_authored_data.md](/Users/zshrout/dev/CarrotGameEngine/docs/systems/tiled_authored_data.md).
+
 This is effectively a small data API.
 
 If a map uses these authored conventions, the engine will interpret them consistently at runtime.
@@ -61,11 +63,13 @@ If no special authored properties are present:
 
 Current intentionally conservative built-in defaults:
 
-* layer names containing `water` default to `background`
-* layer names containing `roof` default to `world_front`
+* layers with authored type `Water` default to `background`
+* layers with authored type `Roof` default to `world_front`
 * object layers default to `actors + anchor_bottom_y`
 
 These defaults are only a fallback. Explicit authored properties should be preferred.
+
+For Tiled layer metadata, Carrot reads the exported layer `class` field as the layer's authored type.
 
 ## Tiled Authoring API
 
@@ -188,11 +192,38 @@ Most Tiled content should use the higher-level authoring patterns above instead.
 Recommended setup:
 
 * put a building’s roof tiles in a dedicated roof group or roof layers
+* set the roof tile layers' Tiled `Class` to `Roof`
 * bind that group/layers with `visibility_zone_id = inn_roof`
 * author one or more `VisibilityZone` rectangle objects with `type = VisibilityZone`
 * give each of those objects `visibility_zone_id = inn_roof`
 
 This is the preferred way to handle odd-shaped buildings.
+
+### Same-Map Interiors
+
+Use this pattern when the player can walk inside a building on the same map and some interior-facing layers should only appear while inside.
+
+Recommended setup:
+
+* author the roof layers with Tiled `Class = Roof`
+* bind the roof group/layers with `visibility_zone_id = inn_roof`
+* author one or more `VisibilityZone` rectangle objects with `visibility_zone_id = inn_roof`
+* put interior front-facing art on a separate tile layer
+* set that interior layer to `carrot_always_front = true`
+* bind that interior layer to the same zone with `visibility_zone_id = inn_roof` or `carrot_visibility_zone = inn_roof`
+* set `carrot_visibility_rule = visible_when_tag_active`
+
+This gives the normal intended result:
+
+* outside the building: roof visible, interior-front layer hidden
+* inside the building: roof hidden, interior-front layer visible above the player
+
+This is the recommended first-pass way to author:
+
+* interior wall trim
+* shop counters
+* hanging indoor foreground details
+* same-map inn and shop interiors
 
 ### Fences And Wall Fronts
 
@@ -238,6 +269,7 @@ The current Milestone 05 slice intentionally covers:
 * conditional-front tile layers
 * always-front tile layers
 * group-level zone binding inherited by child roof layers
+* layer-class-driven roof fallback through `Class = Roof`
 
 ## Engine Debug Snapshot
 

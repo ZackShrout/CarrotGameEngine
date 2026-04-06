@@ -292,6 +292,10 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/Tilemap/TilemapAssetRegistry.h
         src/Engine/Assets/Tilemap/TilemapAssetSystem.cpp
         src/Engine/Assets/Tilemap/TilemapAssetSystem.h
+        src/Engine/Assets/Tilemap/TilemapValidation.cpp
+        src/Engine/Assets/Tilemap/TilemapValidation.h
+        src/Engine/Assets/Tilemap/TypedObjectConventions.cpp
+        src/Engine/Assets/Tilemap/TypedObjectConventions.h
         src/Engine/Assets/Texture/TextureAsset.h
         src/Engine/Assets/Texture/TextureAssetLoader.cpp
         src/Engine/Assets/Texture/TextureAssetLoader.h

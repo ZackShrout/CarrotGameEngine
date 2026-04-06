@@ -7,6 +7,8 @@
 
 #include "TransitionRuntimeState.h"
 
+#include "Assets/Tilemap/TypedObjectConventions.h"
+
 namespace sandbox {
     namespace {
         void set_bool_property(carrot::world::world_object_t& object,
@@ -69,33 +71,33 @@ namespace sandbox {
         player_controller.set_facing_direction(*runtime_state.player_facing);
     }
 
-    void mark_chest_open(gameplay_runtime_state_t& runtime_state,
-                         const std::string_view scene_id,
-                         const carrot::world::world_object_t& chest)
+    void mark_container_open(gameplay_runtime_state_t& runtime_state,
+                             const std::string_view scene_id,
+                             const carrot::world::world_object_t& container)
     {
-        runtime_state.opened_chests.emplace(make_scene_runtime_object_key(scene_id, chest));
+        runtime_state.opened_containers.emplace(make_scene_runtime_object_key(scene_id, container));
     }
 
-    bool is_chest_open(const gameplay_runtime_state_t& runtime_state,
-                       const std::string_view scene_id,
-                       const carrot::world::world_object_t& chest)
+    bool is_container_open(const gameplay_runtime_state_t& runtime_state,
+                           const std::string_view scene_id,
+                           const carrot::world::world_object_t& container)
     {
-        return runtime_state.opened_chests.contains(make_scene_runtime_object_key(scene_id, chest));
+        return runtime_state.opened_containers.contains(make_scene_runtime_object_key(scene_id, container));
     }
 
     void apply_runtime_state_to_scene(const std::string_view scene_id,
                                       carrot::world::world_t& world,
                                       const gameplay_runtime_state_t& runtime_state)
     {
-        for (carrot::world::world_object_t* chest : world.find_objects_by_type("Chest"))
+        for (carrot::world::world_object_t& object : world.objects())
         {
-            if (!chest)
+            if (!carrot::assets::as_typed_container(object))
                 continue;
 
-            if (!is_chest_open(runtime_state, scene_id, *chest))
+            if (!is_container_open(runtime_state, scene_id, object))
                 continue;
 
-            set_bool_property(*chest, "interactable", false);
+            set_bool_property(object, "interactable", false);
         }
     }
 } // namespace sandbox

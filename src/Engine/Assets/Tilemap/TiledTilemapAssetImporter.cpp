@@ -8,6 +8,7 @@
 #include "TiledTilemapAssetImporter.h"
 
 #include "Assets/AssetID.h"
+#include "TilemapValidation.h"
 
 namespace carrot::assets {
     namespace {
@@ -106,17 +107,48 @@ namespace carrot::assets {
                 if (!tile_value.is_object())
                     continue;
 
-                const utils::json::json_object_view_t tile_json{ tile_value.as_object() };
-                const uint32_t tile_id{ static_cast<uint32_t>(tile_json.get_number_or("id", 0.0)) };
+            }
+        }
 
-                if (tile_json.has("animation"))
+        void parse_tileset_tile_animation(const utils::json::json_object_view_t& tile_json,
+                                          tilemap_tileset_t& tileset,
+                                          tiled_import_diagnostics_t& diagnostics)
+        {
+            if (!tile_json.has("animation"))
+                return;
+
+            const uint32_t tile_id{ static_cast<uint32_t>(tile_json.get_number_or("id", 0.0)) };
+            const utils::json::json_array_view_t animation_frames{ tile_json.get_array("animation") };
+
+            tilemap_tileset_t::tile_animation_t animation{ };
+            animation.tile_id = tile_id;
+            animation.frames.reserve(animation_frames.size());
+
+            for (const auto& frame_value : animation_frames)
+            {
+                if (!frame_value.is_object())
+                    continue;
+
+                const utils::json::json_object_view_t frame_json{ frame_value.as_object() };
+                const uint32_t frame_tile_id{ static_cast<uint32_t>(frame_json.get_number_or("tileid", 0.0)) };
+                const uint32_t duration_ms{ static_cast<uint32_t>(frame_json.get_number_or("duration", 0.0)) };
+
+                if (duration_ms == 0)
                 {
-                    diagnostics.add_unsupported(std::format("tileset '{}' tile {} uses animation which is not yet supported",
-                                                            tileset_label,
+                    diagnostics.add_unsupported(std::format("tileset '{}' tile {} uses an animation frame with zero duration which is ignored",
+                                                            tileset.name.empty() ? "<unnamed>" : tileset.name,
                                                             tile_id));
+                    continue;
                 }
 
+                animation.frames.push_back({
+                    .tile_id = frame_tile_id,
+                    .duration_ms = duration_ms
+                });
             }
+
+            if (!animation.frames.empty())
+                tileset.tile_animations.emplace_back(std::move(animation));
         }
 
         void collect_unsupported_tileset_collision_object_features(const utils::json::json_object_view_t& object_json,
@@ -257,9 +289,11 @@ namespace carrot::assets {
                         if (!tile_value.is_object())
                             continue;
 
+                        parse_tileset_tile_animation(tile_value.as_object(), tileset, diagnostics);
                         parse_tileset_tile_collision(tile_value.as_object(), tileset.name, tileset, diagnostics);
                     }
                 }
+                tileset.rebuild_animation_lookup();
                 tilemap.add_tileset(std::move(tileset));
             }
 
@@ -293,18 +327,71 @@ namespace carrot::assets {
                                                         object_id));
             }
 
-            if (object_json.has("point") && object_json.get_bool_or("point", false))
-            {
-                diagnostics.add_unsupported(std::format("layer '{}' object {} uses point geometry which is not yet supported",
-                                                        layer_name,
-                                                        object_id));
-            }
-
             if (object_json.has("text"))
             {
                 diagnostics.add_unsupported(std::format("layer '{}' object {} uses text data which is not yet supported",
                                                         layer_name,
                                                         object_id));
+            }
+        }
+
+        void parse_object_geometry(const utils::json::json_object_view_t& object_json, tilemap_object_t& object)
+        {
+            object.geometry_kind = tilemap_object_t::geometry_kind_t::rectangle;
+            object.geometry_points.clear();
+
+            if (object_json.has("point") && object_json.get_bool_or("point", false))
+            {
+                object.geometry_kind = tilemap_object_t::geometry_kind_t::point;
+                return;
+            }
+
+            if (object_json.has("ellipse"))
+            {
+                object.geometry_kind = tilemap_object_t::geometry_kind_t::ellipse;
+                return;
+            }
+
+            if (object_json.has("text"))
+            {
+                object.geometry_kind = tilemap_object_t::geometry_kind_t::text;
+                return;
+            }
+
+            const auto parse_point_array = [&object_json](const std::string_view key) -> std::vector<chlm::float2> {
+                std::vector<chlm::float2> points;
+                if (!object_json.has(key))
+                    return points;
+
+                const utils::json::json_array_view_t point_array{ object_json.get_array(key) };
+                points.reserve(point_array.size());
+
+                for (const auto& point_value : point_array)
+                {
+                    if (!point_value.is_object())
+                        continue;
+
+                    const utils::json::json_object_view_t point_json{ point_value.as_object() };
+                    points.emplace_back(chlm::float2{
+                        static_cast<float>(point_json.get_number_or("x", 0.0)),
+                        static_cast<float>(point_json.get_number_or("y", 0.0))
+                    });
+                }
+
+                return points;
+            };
+
+            if (object_json.has("polygon"))
+            {
+                object.geometry_kind = tilemap_object_t::geometry_kind_t::polygon;
+                object.geometry_points = parse_point_array("polygon");
+                return;
+            }
+
+            if (object_json.has("polyline"))
+            {
+                object.geometry_kind = tilemap_object_t::geometry_kind_t::polyline;
+                object.geometry_points = parse_point_array("polyline");
             }
         }
 
@@ -317,6 +404,7 @@ namespace carrot::assets {
                 return false;
 
             out_layer.name = std::string{ layer_json.get_string_or("name", "") };
+            out_layer.authored_type = std::string{ layer_json.get_string_or("class", "") };
             out_layer.visible = layer_json.get_bool_or("visible", true);
             out_layer.opacity = static_cast<float>(layer_json.get_number_or("opacity", 1.0));
             parse_properties(layer_json, out_layer.properties);
@@ -365,6 +453,7 @@ namespace carrot::assets {
                         object.rotation = static_cast<float>(object_json.get_number_or("rotation", 0.0));
                         object.visible = object_json.get_bool_or("visible", true);
                         object.gid = static_cast<uint32_t>(object_json.get_number_or("gid", 0.0));
+                        parse_object_geometry(object_json, object);
                         parse_properties(object_json, object.properties);
                         collect_unsupported_object_features(object_json, out_layer.name, diagnostics);
 
@@ -381,11 +470,22 @@ namespace carrot::assets {
             return false;
         }
 
+        constexpr size_t k_max_supported_group_depth{ 32u };
+
         void parse_layer_list(const utils::json::json_array_view_t& layers,
                               tilemap_asset_t& tilemap,
                               tiled_import_diagnostics_t& diagnostics,
-                              const std::vector<tilemap_property_t>& inherited_properties = {})
+                              const std::vector<tilemap_property_t>& inherited_properties = {},
+                              const bool inherited_visible = true,
+                              const size_t group_depth = 0u)
         {
+            if (group_depth > k_max_supported_group_depth)
+            {
+                diagnostics.add_unsupported(std::format("tilemap uses nested group depth beyond supported limit ({})",
+                                                        k_max_supported_group_depth));
+                return;
+            }
+
             for (const auto& layer_value : layers)
             {
                 if (!layer_value.is_object())
@@ -393,14 +493,22 @@ namespace carrot::assets {
 
                 const utils::json::json_object_view_t layer_json{ layer_value.as_object() };
                 const std::string_view type{ layer_json.get_string_or("type", "") };
-
-                std::vector<tilemap_property_t> next_inherited_properties{ inherited_properties };
-                parse_properties(layer_json, next_inherited_properties);
+                const bool effective_visible{ inherited_visible && layer_json.get_bool_or("visible", true) };
 
                 if (type == "group")
                 {
+                    std::vector<tilemap_property_t> next_inherited_properties{ inherited_properties };
+                    parse_properties(layer_json, next_inherited_properties);
+
                     if (layer_json.has("layers"))
-                        parse_layer_list(layer_json.get_array("layers"), tilemap, diagnostics, next_inherited_properties);
+                    {
+                        parse_layer_list(layer_json.get_array("layers"),
+                                         tilemap,
+                                         diagnostics,
+                                         next_inherited_properties,
+                                         effective_visible,
+                                         group_depth + 1u);
+                    }
                     continue;
                 }
 
@@ -409,6 +517,7 @@ namespace carrot::assets {
                     continue;
 
                 merge_inherited_properties(layer.properties, inherited_properties);
+                layer.visible = layer.visible && effective_visible;
                 tilemap.add_layer(std::move(layer));
             }
         }
@@ -467,6 +576,11 @@ namespace carrot::assets {
             parse_layer_list(root.get_array("layers"), record.tilemap, diagnostics);
         }
 
+        for (tilemap_validation_issue_t issue : validate_tiled_authored_data(record.tilemap))
+        {
+            record.tilemap.add_validation_issue(issue);
+        }
+
         if (!registry.register_asset(std::move(record)))
         {
             LOG_ASSET_ERROR("Failed to register tilemap asset '{}'", logical_id);
@@ -475,6 +589,21 @@ namespace carrot::assets {
 
         for (const std::string& issue : diagnostics.unsupported_features)
             LOG_ASSET_WARN("Tilemap asset '{}': {}", logical_id, issue);
+
+        if (const tilemap_asset_record_t* stored_record{ registry.find(make_asset_id(logical_id)) })
+        {
+            for (const tilemap_validation_issue_t& issue : stored_record->tilemap.validation_issues())
+            {
+                const std::string_view severity{
+                    issue.severity == tilemap_validation_issue_severity_t::error ? "error" : "warning"
+                };
+                LOG_ASSET_WARN("Tilemap asset '{}': [{}] {} ({})",
+                               logical_id,
+                               severity,
+                               issue.message,
+                               issue.code);
+            }
+        }
 
         LOG_ASSET_INFO("Registered Tiled tilemap asset '{}'", logical_id);
         return true;

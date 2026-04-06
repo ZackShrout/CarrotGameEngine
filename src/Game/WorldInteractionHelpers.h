@@ -13,7 +13,7 @@ namespace sandbox {
         none = 0,
         sign,
         door,
-        chest
+        container
     };
 
     struct sign_interaction_data_t
@@ -34,7 +34,7 @@ namespace sandbox {
         std::string marker_name;
     };
 
-    struct chest_interaction_data_t
+    struct container_interaction_data_t
     {
         std::string_view loot_table;
     };
@@ -55,7 +55,7 @@ namespace sandbox {
     [[nodiscard]] interaction_kind_t interaction_kind_for(const carrot::world::world_object_t& object) noexcept;
     [[nodiscard]] std::optional<sign_interaction_data_t> as_sign(const carrot::world::world_object_t& object) noexcept;
     [[nodiscard]] std::optional<door_interaction_data_t> as_door(const carrot::world::world_object_t& object) noexcept;
-    [[nodiscard]] std::optional<chest_interaction_data_t> as_chest(const carrot::world::world_object_t& object) noexcept;
+    [[nodiscard]] std::optional<container_interaction_data_t> as_container(const carrot::world::world_object_t& object) noexcept;
     [[nodiscard]] std::optional<trigger_interaction_data_t> as_trigger(const carrot::world::world_object_t& object) noexcept;
     [[nodiscard]] std::optional<scene_transition_request_t> make_scene_transition_request(
         const carrot::assets::asset_manager_t& assets,

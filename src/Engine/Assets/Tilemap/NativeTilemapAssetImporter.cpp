@@ -54,6 +54,66 @@ namespace carrot::assets {
                     tilemap.add_property(std::move(*property));
             }
         }
+
+        void parse_object_geometry(const utils::json::json_object_view_t& object_json, tilemap_object_t& object)
+        {
+            object.geometry_kind = tilemap_object_t::geometry_kind_t::rectangle;
+            object.geometry_points.clear();
+
+            if (object_json.has("point") && object_json.get_bool_or("point", false))
+            {
+                object.geometry_kind = tilemap_object_t::geometry_kind_t::point;
+                return;
+            }
+
+            if (object_json.has("ellipse"))
+            {
+                object.geometry_kind = tilemap_object_t::geometry_kind_t::ellipse;
+                return;
+            }
+
+            if (object_json.has("text"))
+            {
+                object.geometry_kind = tilemap_object_t::geometry_kind_t::text;
+                return;
+            }
+
+            const auto parse_point_array = [&object_json](const std::string_view key) -> std::vector<chlm::float2> {
+                std::vector<chlm::float2> points;
+                if (!object_json.has(key))
+                    return points;
+
+                const utils::json::json_array_view_t point_array{ object_json.get_array(key) };
+                points.reserve(point_array.size());
+
+                for (const auto& point_value : point_array)
+                {
+                    if (!point_value.is_object())
+                        continue;
+
+                    const utils::json::json_object_view_t point_json{ point_value.as_object() };
+                    points.emplace_back(chlm::float2{
+                        static_cast<float>(point_json.get_number_or("x", 0.0)),
+                        static_cast<float>(point_json.get_number_or("y", 0.0))
+                    });
+                }
+
+                return points;
+            };
+
+            if (object_json.has("polygon"))
+            {
+                object.geometry_kind = tilemap_object_t::geometry_kind_t::polygon;
+                object.geometry_points = parse_point_array("polygon");
+                return;
+            }
+
+            if (object_json.has("polyline"))
+            {
+                object.geometry_kind = tilemap_object_t::geometry_kind_t::polyline;
+                object.geometry_points = parse_point_array("polyline");
+            }
+        }
     }
 
     bool native_tilemap_asset_importer_t::import(const utils::json::json_document_t& doc,
@@ -200,6 +260,7 @@ namespace carrot::assets {
                         object.rotation = static_cast<float>(object_json.get_number_or("rotation", 0.0));
                         object.visible = object_json.get_bool_or("visible", true);
                         object.gid = static_cast<uint32_t>(object_json.get_number_or("gid", 0.0));
+                        parse_object_geometry(object_json, object);
 
                         if (object_json.has("properties"))
                             parse_properties_array(object_json.get_array("properties"), object.properties);

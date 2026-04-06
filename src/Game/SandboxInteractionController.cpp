@@ -17,10 +17,10 @@ namespace sandbox {
         return request;
     }
 
-    std::optional<opened_chest_request_t> sandbox_interaction_controller_t::consume_pending_opened_chest() noexcept
+    std::optional<opened_container_request_t> sandbox_interaction_controller_t::consume_pending_opened_container() noexcept
     {
-        std::optional<opened_chest_request_t> request{ std::move(_pending_opened_chest) };
-        _pending_opened_chest.reset();
+        std::optional<opened_container_request_t> request{ std::move(_pending_opened_container) };
+        _pending_opened_container.reset();
         return request;
     }
 
@@ -52,12 +52,12 @@ namespace sandbox {
             return;
         }
 
-        if (const std::optional<chest_interaction_data_t> chest{ as_chest(object) })
+        if (const std::optional<container_interaction_data_t> container{ as_container(object) })
         {
-            _pending_opened_chest = opened_chest_request_t{
+            _pending_opened_container = opened_container_request_t{
                 .object_id = object.id
             };
-            LOG_CORE_INFO("Interact Chest '{}' -> loot_table='{}'", object.name, chest->loot_table);
+            LOG_CORE_INFO("Interact Container '{}' -> loot_table='{}'", object.name, container->loot_table);
             return;
         }
 

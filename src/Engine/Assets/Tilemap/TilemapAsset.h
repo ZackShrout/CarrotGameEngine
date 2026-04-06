@@ -7,7 +7,10 @@
 
 #include "Assets/AssetID.h"
 
+#include <chlm/CarrotHLM.h>
+
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -27,6 +30,19 @@ namespace carrot::assets {
     };
 
     using tilemap_property_value_t = std::variant<bool, double, std::string>;
+
+    enum class tilemap_validation_issue_severity_t : uint8_t
+    {
+        warning = 0,
+        error
+    };
+
+    struct tilemap_validation_issue_t
+    {
+        tilemap_validation_issue_severity_t severity{ tilemap_validation_issue_severity_t::warning };
+        std::string code;
+        std::string message;
+    };
 
     struct tilemap_property_t
     {
@@ -49,6 +65,26 @@ namespace carrot::assets {
 
     struct tilemap_tileset_t
     {
+        struct animation_frame_t
+        {
+            uint32_t tile_id{ 0 };
+            uint32_t duration_ms{ 0 };
+        };
+
+        struct tile_animation_t
+        {
+            uint32_t tile_id{ 0 };
+            uint32_t total_duration_ms{ 0 };
+            std::vector<animation_frame_t> frames;
+
+            void rebuild_cached_duration() noexcept
+            {
+                total_duration_ms = 0;
+                for (const animation_frame_t& frame : frames)
+                    total_duration_ms += frame.duration_ms;
+            }
+        };
+
         struct collision_rect_t
         {
             float x{ 0.f };
@@ -77,7 +113,9 @@ namespace carrot::assets {
         uint32_t image_height{ 0 };
         uint32_t tile_count{ 0 };
         uint32_t columns{ 0 };
+        std::vector<tile_animation_t> tile_animations;
         std::vector<tile_collision_t> tile_collisions;
+        std::vector<int32_t> animation_lookup_by_tile_id;
 
         [[nodiscard]] const tile_collision_t* find_tile_collision(const uint32_t tile_id) const noexcept
         {
@@ -89,13 +127,71 @@ namespace carrot::assets {
 
             return nullptr;
         }
+
+        void rebuild_animation_lookup() noexcept
+        {
+            animation_lookup_by_tile_id.assign(tile_count, -1);
+
+            for (size_t animation_index{ 0 }; animation_index < tile_animations.size(); ++animation_index)
+            {
+                tile_animation_t& animation{ tile_animations[animation_index] };
+                animation.rebuild_cached_duration();
+
+                if (animation.tile_id >= animation_lookup_by_tile_id.size())
+                    continue;
+
+                animation_lookup_by_tile_id[animation.tile_id] = static_cast<int32_t>(animation_index);
+            }
+        }
+
+        [[nodiscard]] const tile_animation_t* find_tile_animation(const uint32_t tile_id) const noexcept
+        {
+            if (tile_id >= animation_lookup_by_tile_id.size())
+                return nullptr;
+
+            const int32_t animation_index{ animation_lookup_by_tile_id[tile_id] };
+            if (animation_index < 0 || static_cast<size_t>(animation_index) >= tile_animations.size())
+                return nullptr;
+
+            return &tile_animations[static_cast<size_t>(animation_index)];
+        }
+
+        [[nodiscard]] uint32_t resolve_animated_tile_id(const uint32_t tile_id, const uint64_t elapsed_ms) const noexcept
+        {
+            const tile_animation_t* animation{ find_tile_animation(tile_id) };
+            if (!animation || animation->frames.empty() || animation->total_duration_ms == 0)
+                return tile_id;
+
+            const uint64_t animation_time_ms{ elapsed_ms % animation->total_duration_ms };
+            uint64_t accumulated_ms{ 0 };
+
+            for (const animation_frame_t& frame : animation->frames)
+            {
+                accumulated_ms += frame.duration_ms;
+                if (animation_time_ms < accumulated_ms)
+                    return frame.tile_id;
+            }
+
+            return animation->frames.back().tile_id;
+        }
     };
 
     struct tilemap_object_t
     {
+        enum class geometry_kind_t : uint8_t
+        {
+            rectangle = 0,
+            point,
+            ellipse,
+            polygon,
+            polyline,
+            text
+        };
+
         uint32_t id{ 0 };
         std::string name;
         std::string type;
+        geometry_kind_t geometry_kind{ geometry_kind_t::rectangle };
         float x{ 0.f };
         float y{ 0.f };
         float width{ 0.f };
@@ -103,6 +199,7 @@ namespace carrot::assets {
         float rotation{ 0.f };
         bool visible{ true };
         uint32_t gid{ 0 };
+        std::vector<chlm::float2> geometry_points;
         std::vector<tilemap_property_t> properties;
 
         [[nodiscard]] const tilemap_property_t* find_property(const std::string_view property_name) const noexcept
@@ -162,6 +259,7 @@ namespace carrot::assets {
     {
         tilemap_layer_kind_t kind{ tilemap_layer_kind_t::tile };
         std::string name;
+        std::string authored_type;
         uint32_t width{ 0 };
         uint32_t height{ 0 };
         bool visible{ true };
@@ -238,6 +336,10 @@ namespace carrot::assets {
         [[nodiscard]] const std::vector<tilemap_tileset_t>& tilesets() const noexcept { return _tilesets; }
         [[nodiscard]] const std::vector<tilemap_layer_t>& layers() const noexcept { return _layers; }
         [[nodiscard]] const std::vector<tilemap_property_t>& properties() const noexcept { return _properties; }
+        [[nodiscard]] const std::vector<tilemap_validation_issue_t>& validation_issues() const noexcept
+        {
+            return _validation_issues;
+        }
 
         void set_orientation(const tilemap_orientation_t orientation) noexcept { _orientation = orientation; }
         void set_size(const uint32_t width, const uint32_t height) noexcept
@@ -255,6 +357,7 @@ namespace carrot::assets {
         void add_tileset(tilemap_tileset_t tileset) { _tilesets.emplace_back(std::move(tileset)); }
         void add_layer(tilemap_layer_t layer) { _layers.emplace_back(std::move(layer)); }
         void add_property(tilemap_property_t property) { _properties.emplace_back(std::move(property)); }
+        void add_validation_issue(tilemap_validation_issue_t issue) { _validation_issues.emplace_back(std::move(issue)); }
 
     private:
         tilemap_orientation_t _orientation{ tilemap_orientation_t::orthogonal };
@@ -266,6 +369,7 @@ namespace carrot::assets {
         std::vector<tilemap_tileset_t> _tilesets;
         std::vector<tilemap_layer_t> _layers;
         std::vector<tilemap_property_t> _properties;
+        std::vector<tilemap_validation_issue_t> _validation_issues;
     };
 
     struct tilemap_asset_record_t

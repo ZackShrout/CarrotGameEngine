@@ -217,18 +217,18 @@ namespace sandbox {
         if (!_game || _current_scene_id.empty())
             return;
 
-        if (const std::optional<opened_chest_request_t> opened_chest{ _interaction_controller.consume_pending_opened_chest() })
+        if (const std::optional<opened_container_request_t> opened_container{ _interaction_controller.consume_pending_opened_container() })
         {
-            carrot::world::world_object_t* chest{ find_object_by_id(_game->world, opened_chest->object_id) };
-            if (!chest)
+            carrot::world::world_object_t* container{ find_object_by_id(_game->world, opened_container->object_id) };
+            if (!container)
             {
-                LOG_CORE_WARN("Opened chest request referenced missing world object id {}", opened_chest->object_id);
+                LOG_CORE_WARN("Opened container request referenced missing world object id {}", opened_container->object_id);
                 return;
             }
 
-            mark_chest_open(_runtime_state, _current_scene_id, *chest);
+            mark_container_open(_runtime_state, _current_scene_id, *container);
             apply_runtime_state_to_scene(_current_scene_id, _game->world, _runtime_state);
-            LOG_CORE_INFO("Marked chest '{}' as opened in scene '{}'", chest->name, _current_scene_id);
+            LOG_CORE_INFO("Marked container '{}' as opened in scene '{}'", container->name, _current_scene_id);
         }
 
         for (const trigger_event_t& event : _pending_trigger_events)

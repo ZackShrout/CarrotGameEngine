@@ -181,6 +181,8 @@ namespace carrot::renderer {
     void renderer_t::begin_frame()
     {
         _frame_index++;
+        _animated_tiles_elapsed_ms = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - _animated_tiles_clock_origin).count());
 
         for (textured_quad_state_t& stage_state : _stage_textured_quads)
         {
@@ -474,6 +476,13 @@ namespace carrot::renderer {
                             continue;
                         }
 
+                        const assets::tilemap_tileset_t& tileset{ tilesets[tileset_index] };
+                        const uint32_t local_tile_id{ gid - tileset.first_gid };
+                        const uint32_t resolved_local_tile_id{
+                            tileset.resolve_animated_tile_id(local_tile_id, _animated_tiles_elapsed_ms)
+                        };
+                        const uint32_t resolved_gid{ tileset.first_gid + resolved_local_tile_id };
+
                         textured_quad_draw_info_t tile_quad{ };
                         tile_quad.texture = textures[tileset_index].get();
                         tile_quad.x = info.origin.x + (static_cast<float>(col) * render_tile_size.x * info.scale.x);
@@ -489,7 +498,7 @@ namespace carrot::renderer {
                         tile_quad.color = info.color;
                         tile_quad.sampler_preset = info.sampler_preset;
 
-                        if (!populate_tile_uvs(tileset_index, gid, tile_quad))
+                        if (!populate_tile_uvs(tileset_index, resolved_gid, tile_quad))
                             continue;
 
                         draw_textured_quad(tile_quad);
@@ -524,6 +533,13 @@ namespace carrot::renderer {
                     continue;
                 }
 
+                const assets::tilemap_tileset_t& tileset{ tilesets[tileset_index] };
+                const uint32_t local_tile_id{ object.gid - tileset.first_gid };
+                const uint32_t resolved_local_tile_id{
+                    tileset.resolve_animated_tile_id(local_tile_id, _animated_tiles_elapsed_ms)
+                };
+                const uint32_t resolved_gid{ tileset.first_gid + resolved_local_tile_id };
+
                 textured_quad_draw_info_t object_quad{ };
                 object_quad.texture = textures[tileset_index].get();
                 const chlm::float2 raw_object_pixel_size{ object.width, object.height };
@@ -556,7 +572,7 @@ namespace carrot::renderer {
                 object_quad.color = info.color;
                 object_quad.sampler_preset = info.sampler_preset;
 
-                if (!populate_tile_uvs(tileset_index, object.gid, object_quad))
+                if (!populate_tile_uvs(tileset_index, resolved_gid, object_quad))
                     continue;
 
                 draw_textured_quad(object_quad);
@@ -611,7 +627,10 @@ namespace carrot::renderer {
             return;
         }
 
-        const uint32_t local_tile_index{ gid - tileset.first_gid };
+        const uint32_t resolved_local_tile_id{
+            tileset.resolve_animated_tile_id(gid - tileset.first_gid, _animated_tiles_elapsed_ms)
+        };
+        const uint32_t local_tile_index{ resolved_local_tile_id };
         const uint32_t tile_u_index{ local_tile_index % tileset.columns };
         const uint32_t tile_v_index{ local_tile_index / tileset.columns };
 

@@ -6,7 +6,10 @@
 #include "Assets/Scene/SceneAssetManifestImporter.h"
 #include "Assets/Sprite/SpriteAssetManifestImporter.h"
 #include "Assets/Texture/TextureAssetManifestImporter.h"
+#include "Assets/Tilemap/TiledTilemapAssetImporter.h"
 #include "Assets/Tilemap/TilemapAssetManifestImporter.h"
+#include "Assets/Tilemap/TypedObjectConventions.h"
+#include "Assets/Tilemap/TilemapValidation.h"
 #include "Core/GameView.h"
 #include "Renderer/Renderer.h"
 #include "TransitionRuntimeState.h"
@@ -468,9 +471,6 @@ namespace carrot::tests {
 
             for (const assets::tilemap_layer_t& layer : tilemap->tilemap().layers())
             {
-                if (!layer.name.starts_with("roofs"))
-                    continue;
-
                 const auto zone_id{ layer.get_string_property("visibility_zone_id") };
                 if (!zone_id.has_value())
                     continue;
@@ -483,11 +483,76 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(found_item_shop_roof_layer);
         }
 
+        void test_tiled_nested_group_properties_flow_to_child_layers()
+        {
+            constexpr std::string_view json_source{ R"json(
+                {
+                  "type": "map",
+                  "orientation": "orthogonal",
+                  "width": 4,
+                  "height": 4,
+                  "tilewidth": 16,
+                  "tileheight": 16,
+                  "layers": [
+                    {
+                      "type": "group",
+                      "name": "Outer",
+                      "visible": false,
+                      "properties": [
+                        { "name": "visibility_zone_id", "type": "string", "value": "outer_zone" }
+                      ],
+                      "layers": [
+                        {
+                          "type": "group",
+                          "name": "Inner",
+                          "properties": [
+                            { "name": "carrot_conditional_front", "type": "bool", "value": true }
+                          ],
+                          "layers": [
+                            {
+                              "type": "tilelayer",
+                              "name": "NestedRoof",
+                              "width": 4,
+                              "height": 4,
+                              "visible": true,
+                              "opacity": 1,
+                              "data": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ],
+                  "tilesets": []
+                }
+            )json" };
+
+            utils::json::json_document_t doc;
+            CARROT_TEST_REQUIRE(doc.parse_from_memory(json_source.data(), json_source.size()));
+
+            assets::tilemap_asset_registry_t registry;
+            CARROT_TEST_REQUIRE(assets::tiled_tilemap_asset_importer_t::import(doc,
+                                                                               registry,
+                                                                               "tilemap.test.nested_groups",
+                                                                               "game://tilemaps/test_nested_groups.tmj"));
+
+            const assets::tilemap_asset_record_t* record{ registry.find("tilemap.test.nested_groups") };
+            CARROT_TEST_REQUIRE(record != nullptr);
+            CARROT_TEST_REQUIRE(record->tilemap.layers().size() == 1u);
+
+            const assets::tilemap_layer_t& layer{ record->tilemap.layers().front() };
+            CARROT_TEST_REQUIRE(layer.name == "NestedRoof");
+            CARROT_TEST_REQUIRE(!layer.visible);
+            CARROT_TEST_REQUIRE(layer.get_string_property("visibility_zone_id").value_or("") == "outer_zone");
+            CARROT_TEST_REQUIRE(layer.get_bool_property("carrot_conditional_front").value_or(false));
+        }
+
         void test_world_layering_uses_explicit_visibility_zones()
         {
             assets::tilemap_layer_t roof_layer{
                 .kind = assets::tilemap_layer_kind_t::tile,
-                .name = "roofs2"
+                .name = "AnyLayerName",
+                .authored_type = "Roof"
             };
             roof_layer.properties.push_back(assets::tilemap_property_t{
                 .name = "visibility_zone_id",
@@ -589,6 +654,33 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(precedence_semantics.order_mode == renderer::render_order_mode_t::explicit_order);
         }
 
+        void test_world_layering_does_not_force_waterfall_layers_into_background()
+        {
+            assets::tilemap_layer_t waterfall_layer{
+                .kind = assets::tilemap_layer_kind_t::tile,
+                .name = "waterfall",
+                .authored_type = "Waterfall"
+            };
+
+            const world::authored_layer_semantics_t waterfall_semantics{
+                world::resolve_tile_layer_semantics(waterfall_layer, 8)
+            };
+
+            CARROT_TEST_REQUIRE(waterfall_semantics.render_layer == renderer::render_layer_t::world_back);
+
+            assets::tilemap_layer_t water_layer{
+                .kind = assets::tilemap_layer_kind_t::tile,
+                .name = "anything",
+                .authored_type = "Water"
+            };
+
+            const world::authored_layer_semantics_t water_semantics{
+                world::resolve_tile_layer_semantics(water_layer, 0)
+            };
+
+            CARROT_TEST_REQUIRE(water_semantics.render_layer == renderer::render_layer_t::background);
+        }
+
         void test_world_layering_debug_snapshot_round_trips_through_world()
         {
             world::world_t world;
@@ -637,6 +729,340 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(stored.layers.front().layer_name == "props1");
             CARROT_TEST_REQUIRE(stored.layers.front().hidden_by_visibility_zone);
             CARROT_TEST_REQUIRE(stored.layers.front().is_conditional_front);
+        }
+
+        void test_tiled_authored_data_validation_reports_visibility_zone_contract_issues()
+        {
+            assets::tilemap_asset_t tilemap;
+
+            assets::tilemap_layer_t roof_layer{
+                .kind = assets::tilemap_layer_kind_t::tile,
+                .name = "RoofFront"
+            };
+            roof_layer.properties.push_back(assets::tilemap_property_t{
+                .name = "carrot_conditional_front",
+                .value = true
+            });
+            roof_layer.properties.push_back(assets::tilemap_property_t{
+                .name = "carrot_always_front",
+                .value = true
+            });
+            roof_layer.properties.push_back(assets::tilemap_property_t{
+                .name = "carrot_visibility_zone",
+                .value = std::string{ "roof_a" }
+            });
+            roof_layer.properties.push_back(assets::tilemap_property_t{
+                .name = "visibility_zone_id",
+                .value = std::string{ "roof_b" }
+            });
+            tilemap.add_layer(std::move(roof_layer));
+
+            assets::tilemap_layer_t markers_layer{
+                .kind = assets::tilemap_layer_kind_t::object,
+                .name = "Markers"
+            };
+
+            assets::tilemap_object_t wrong_type_zone{ };
+            wrong_type_zone.name = "BadZone";
+            wrong_type_zone.type = "Marker";
+            wrong_type_zone.width = 32.f;
+            wrong_type_zone.height = 32.f;
+            wrong_type_zone.properties.push_back(assets::tilemap_property_t{
+                .name = "visibility_zone_id",
+                .value = std::string{ "roof_a" }
+            });
+            markers_layer.objects.push_back(std::move(wrong_type_zone));
+
+            assets::tilemap_object_t empty_visibility_zone{ };
+            empty_visibility_zone.name = "EmptyZone";
+            empty_visibility_zone.type = "VisibilityZone";
+            markers_layer.objects.push_back(std::move(empty_visibility_zone));
+
+            tilemap.add_layer(std::move(markers_layer));
+
+            const auto issues{ assets::validate_tiled_authored_data(tilemap) };
+            CARROT_TEST_REQUIRE(issues.size() >= 5u);
+
+            const auto has_issue_code{ [&issues](const std::string_view code) {
+                return std::ranges::any_of(issues, [code](const assets::tilemap_validation_issue_t& issue) {
+                    return issue.code == code;
+                });
+            } };
+
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.visibility_zone.property_without_type"));
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.visibility_zone.missing_id"));
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.visibility_zone.zero_size"));
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.layer.front_policy_conflict"));
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.layer.visibility_zone_override_conflict"));
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.layer.visibility_zone_without_matching_object"));
+        }
+
+        void test_imported_sandbox_town_has_no_tiled_authored_data_validation_issues()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            const assets::loaded_tilemap_asset_t* tilemap{ assets.tilemaps().get("tilemap.sandbox.town") };
+            CARROT_TEST_REQUIRE(tilemap != nullptr);
+            CARROT_TEST_REQUIRE(tilemap->tilemap().validation_issues().empty());
+        }
+
+        void test_tiled_point_objects_import_as_explicit_point_geometry()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            const assets::loaded_tilemap_asset_t* tilemap{ assets.tilemaps().get("tilemap.sandbox.town") };
+            CARROT_TEST_REQUIRE(tilemap != nullptr);
+
+            const assets::tilemap_object_t* player_spawn{ tilemap->find_object_by_name("PlayerSpawn") };
+            const assets::tilemap_object_t* door_to_inn{ tilemap->find_object_by_name("DoorToInn") };
+            CARROT_TEST_REQUIRE(player_spawn != nullptr);
+            CARROT_TEST_REQUIRE(door_to_inn != nullptr);
+            CARROT_TEST_REQUIRE(player_spawn->geometry_kind == assets::tilemap_object_t::geometry_kind_t::point);
+            CARROT_TEST_REQUIRE(player_spawn->width == 0.f);
+            CARROT_TEST_REQUIRE(player_spawn->height == 0.f);
+            CARROT_TEST_REQUIRE(door_to_inn->geometry_kind == assets::tilemap_object_t::geometry_kind_t::rectangle);
+        }
+
+        void test_tiled_polygon_geometry_parses_into_object_metadata()
+        {
+            constexpr std::string_view json_source{ R"json(
+{
+  "height": 1,
+  "width": 1,
+  "tilewidth": 32,
+  "tileheight": 32,
+  "orientation": "orthogonal",
+  "type": "map",
+  "layers": [
+    {
+      "id": 1,
+      "name": "Markers",
+      "type": "objectgroup",
+      "objects": [
+        {
+          "id": 1,
+          "name": "PathA",
+          "type": "Path",
+          "x": 16,
+          "y": 32,
+          "polyline": [
+            { "x": 0, "y": 0 },
+            { "x": 10, "y": -4 },
+            { "x": 30, "y": 8 }
+          ]
+        },
+        {
+          "id": 2,
+          "name": "RegionA",
+          "type": "Region",
+          "x": 4,
+          "y": 5,
+          "polygon": [
+            { "x": 0, "y": 0 },
+            { "x": 12, "y": 0 },
+            { "x": 12, "y": 16 }
+          ]
+        }
+      ]
+    }
+  ],
+  "tilesets": []
+}
+)json" };
+
+            utils::json::json_document_t doc;
+            CARROT_TEST_REQUIRE(doc.parse_from_memory(json_source.data(), json_source.size()));
+
+            assets::tilemap_asset_registry_t registry;
+            CARROT_TEST_REQUIRE(assets::tiled_tilemap_asset_importer_t::import(doc, registry, "tilemap.test.geometry", "game://tilemaps/test_geometry.tmj"));
+
+            const assets::tilemap_asset_record_t* record{ registry.find("tilemap.test.geometry") };
+            CARROT_TEST_REQUIRE(record != nullptr);
+
+            const assets::tilemap_layer_t& layer{ record->tilemap.layers().front() };
+            CARROT_TEST_REQUIRE(layer.objects.size() == 2u);
+            CARROT_TEST_REQUIRE(layer.objects[0].geometry_kind == assets::tilemap_object_t::geometry_kind_t::polyline);
+            CARROT_TEST_REQUIRE(layer.objects[0].geometry_points.size() == 3u);
+            CARROT_TEST_REQUIRE(layer.objects[1].geometry_kind == assets::tilemap_object_t::geometry_kind_t::polygon);
+            CARROT_TEST_REQUIRE(layer.objects[1].geometry_points.size() == 3u);
+        }
+
+        void test_typed_object_conventions_parse_current_sandbox_objects()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            const assets::loaded_tilemap_asset_t* tilemap{ assets.tilemaps().get("tilemap.sandbox.town") };
+            CARROT_TEST_REQUIRE(tilemap != nullptr);
+
+            const assets::tilemap_object_t* sign{ tilemap->find_object_by_name("WelcomeSign") };
+            const assets::tilemap_object_t* chest{ tilemap->find_object_by_name("StarterChest") };
+            const assets::tilemap_object_t* door{ tilemap->find_object_by_name("DoorToInn") };
+            const assets::tilemap_object_t* trigger{ tilemap->find_object_by_name("Trigger") };
+            const assets::tilemap_object_t* visibility_zone{ tilemap->find_object_by_name("InnRoofTrigger1") };
+            CARROT_TEST_REQUIRE(sign != nullptr);
+            CARROT_TEST_REQUIRE(chest != nullptr);
+            CARROT_TEST_REQUIRE(door != nullptr);
+            CARROT_TEST_REQUIRE(trigger != nullptr);
+            CARROT_TEST_REQUIRE(visibility_zone != nullptr);
+
+            const auto typed_sign{ assets::as_typed_sign(*sign) };
+            const auto typed_container{ assets::as_typed_container(*chest) };
+            const auto typed_door{ assets::as_typed_door(*door) };
+            const auto typed_trigger{ assets::as_typed_trigger(*trigger) };
+            const auto typed_visibility_zone{ assets::as_typed_visibility_zone(*visibility_zone) };
+            CARROT_TEST_REQUIRE(typed_sign.has_value());
+            CARROT_TEST_REQUIRE(typed_container.has_value());
+            CARROT_TEST_REQUIRE(typed_door.has_value());
+            CARROT_TEST_REQUIRE(typed_trigger.has_value());
+            CARROT_TEST_REQUIRE(typed_visibility_zone.has_value());
+            CARROT_TEST_REQUIRE(typed_sign->message_id == "sign.welcome");
+            CARROT_TEST_REQUIRE(typed_container->loot_table == "starter_chest");
+            CARROT_TEST_REQUIRE(typed_door->target_scene == "scene.sandbox.inn");
+            CARROT_TEST_REQUIRE(typed_door->target_marker == "EntryFromTown");
+            CARROT_TEST_REQUIRE(typed_trigger->trigger_id == "inn_trigger_1");
+            CARROT_TEST_REQUIRE(typed_trigger->trigger_kind == "unlock_quest");
+            CARROT_TEST_REQUIRE(typed_visibility_zone->visibility_zone_id == "inn_roof");
+        }
+
+        void test_tiled_authored_data_validation_reports_typed_object_contract_issues()
+        {
+            assets::tilemap_asset_t tilemap;
+            assets::tilemap_layer_t markers_layer{
+                .kind = assets::tilemap_layer_kind_t::object,
+                .name = "Markers"
+            };
+
+            assets::tilemap_object_t bad_sign{ };
+            bad_sign.name = "BadSign";
+            bad_sign.type = "Sign";
+            markers_layer.objects.push_back(std::move(bad_sign));
+
+            assets::tilemap_object_t bad_chest{ };
+            bad_chest.name = "BadChest";
+            bad_chest.type = "Container";
+            markers_layer.objects.push_back(std::move(bad_chest));
+
+            assets::tilemap_object_t bad_door{ };
+            bad_door.name = "BadDoor";
+            bad_door.type = "Door";
+            bad_door.properties.push_back({
+                .name = "target_scene",
+                .value = std::string{ "scene.test" }
+            });
+            markers_layer.objects.push_back(std::move(bad_door));
+
+            assets::tilemap_object_t mixed_door{ };
+            mixed_door.name = "MixedDoor";
+            mixed_door.type = "Door";
+            mixed_door.properties.push_back({
+                .name = "target_scene",
+                .value = std::string{ "scene.test" }
+            });
+            mixed_door.properties.push_back({
+                .name = "target_map",
+                .value = std::string{ "tilemap.test" }
+            });
+            mixed_door.properties.push_back({
+                .name = "target_marker",
+                .value = std::string{ "Spawn" }
+            });
+            markers_layer.objects.push_back(std::move(mixed_door));
+
+            assets::tilemap_object_t bad_trigger{ };
+            bad_trigger.name = "BadTrigger";
+            bad_trigger.type = "Trigger";
+            bad_trigger.properties.push_back({
+                .name = "trigger_id",
+                .value = std::string{ "quest.a" }
+            });
+            markers_layer.objects.push_back(std::move(bad_trigger));
+
+            assets::tilemap_object_t unknown_object{ };
+            unknown_object.name = "MysteryThing";
+            unknown_object.type = "MysteryThing";
+            markers_layer.objects.push_back(std::move(unknown_object));
+
+            tilemap.add_layer(std::move(markers_layer));
+
+            const auto issues{ assets::validate_tiled_authored_data(tilemap) };
+            const auto has_issue_code{ [&issues](const std::string_view code) {
+                return std::ranges::any_of(issues, [code](const assets::tilemap_validation_issue_t& issue) {
+                    return issue.code == code;
+                });
+            } };
+
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.object.sign.missing_message_id"));
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.object.container.missing_loot_table"));
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.object.door.invalid_target"));
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.object.door.mixed_target_modes"));
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.object.trigger.missing_fields"));
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.object.unknown_type"));
+        }
+
+        void test_tiled_tile_animation_metadata_imports_from_sandbox_town()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            const assets::loaded_tilemap_asset_t* tilemap{ assets.tilemaps().get("tilemap.sandbox.town") };
+            CARROT_TEST_REQUIRE(tilemap != nullptr);
+
+            const auto& tilesets{ tilemap->tilemap().tilesets() };
+            const auto it{ std::ranges::find_if(tilesets, [](const assets::tilemap_tileset_t& tileset) {
+                return tileset.name == "water";
+            }) };
+            CARROT_TEST_REQUIRE(it != tilesets.end());
+            CARROT_TEST_REQUIRE(!it->tile_animations.empty());
+
+            const assets::tilemap_tileset_t::tile_animation_t* water_animation{ it->find_tile_animation(95) };
+            CARROT_TEST_REQUIRE(water_animation != nullptr);
+            CARROT_TEST_REQUIRE(water_animation->frames.size() == 6u);
+            CARROT_TEST_REQUIRE(water_animation->total_duration_ms == 600u);
+            CARROT_TEST_REQUIRE(water_animation->frames.front().tile_id == 95u);
+            CARROT_TEST_REQUIRE(water_animation->frames.back().tile_id == 100u);
+        }
+
+        void test_tile_animation_resolves_expected_frame_by_elapsed_time()
+        {
+            assets::tilemap_tileset_t tileset{ };
+            tileset.tile_count = 16;
+            tileset.tile_animations.push_back({
+                .tile_id = 5,
+                .frames = {
+                    { .tile_id = 5, .duration_ms = 100 },
+                    { .tile_id = 6, .duration_ms = 150 },
+                    { .tile_id = 7, .duration_ms = 250 }
+                }
+            });
+            tileset.rebuild_animation_lookup();
+
+            CARROT_TEST_REQUIRE(tileset.resolve_animated_tile_id(5, 0) == 5u);
+            CARROT_TEST_REQUIRE(tileset.resolve_animated_tile_id(5, 99) == 5u);
+            CARROT_TEST_REQUIRE(tileset.resolve_animated_tile_id(5, 100) == 6u);
+            CARROT_TEST_REQUIRE(tileset.resolve_animated_tile_id(5, 249) == 6u);
+            CARROT_TEST_REQUIRE(tileset.resolve_animated_tile_id(5, 250) == 7u);
+            CARROT_TEST_REQUIRE(tileset.resolve_animated_tile_id(5, 499) == 7u);
+            CARROT_TEST_REQUIRE(tileset.resolve_animated_tile_id(5, 500) == 5u);
+            CARROT_TEST_REQUIRE(tileset.resolve_animated_tile_id(4, 250) == 4u);
         }
 
         void test_tiled_tilemap_import_accepts_unsupported_features_non_fatally()
@@ -1094,7 +1520,7 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(item_shop_exit_request->marker_name == "ItemShopExteriorSpawn");
         }
 
-        void test_transition_runtime_state_preserves_opened_chest_across_scene_reload()
+        void test_transition_runtime_state_preserves_opened_container_across_scene_reload()
         {
             io::virtual_file_system_t vfs;
             mount_test_asset_roots(vfs);
@@ -1111,7 +1537,7 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(first_load_chest != nullptr);
             CARROT_TEST_REQUIRE(first_load_chest->get_bool_property("interactable").value_or(false));
 
-            sandbox::mark_chest_open(runtime_state, "scene.sandbox.town", *first_load_chest);
+            sandbox::mark_container_open(runtime_state, "scene.sandbox.town", *first_load_chest);
             sandbox::apply_runtime_state_to_scene("scene.sandbox.town", world, runtime_state);
 
             const world::world_object_t* opened_chest{ world.find_object_by_name("StarterChest") };
@@ -1123,7 +1549,7 @@ namespace carrot::tests {
 
             const world::world_object_t* reloaded_chest{ world.find_object_by_name("StarterChest") };
             CARROT_TEST_REQUIRE(reloaded_chest != nullptr);
-            CARROT_TEST_REQUIRE(sandbox::is_chest_open(runtime_state, "scene.sandbox.town", *reloaded_chest));
+            CARROT_TEST_REQUIRE(sandbox::is_container_open(runtime_state, "scene.sandbox.town", *reloaded_chest));
             CARROT_TEST_REQUIRE(!reloaded_chest->get_bool_property("interactable").value_or(true));
         }
 
@@ -1504,14 +1930,34 @@ namespace carrot::tests {
                            test_tilemap_world_bridge_imports_visibility_regions);
         tests.emplace_back("tiled group visibility zone properties flow to child layers",
                            test_tiled_group_visibility_zone_properties_flow_to_child_layers);
+        tests.emplace_back("tiled nested group properties flow to child layers",
+                           test_tiled_nested_group_properties_flow_to_child_layers);
         tests.emplace_back("world layering uses explicit visibility zones",
                            test_world_layering_uses_explicit_visibility_zones);
         tests.emplace_back("tiled layer front properties import from latest town map",
                            test_tiled_layer_front_properties_import_from_latest_town_map);
         tests.emplace_back("world layering resolves conditional and always front",
                            test_world_layering_resolves_conditional_and_always_front);
+        tests.emplace_back("world layering does not force waterfall layers into background",
+                           test_world_layering_does_not_force_waterfall_layers_into_background);
         tests.emplace_back("world layering debug snapshot round trips through world",
                            test_world_layering_debug_snapshot_round_trips_through_world);
+        tests.emplace_back("tiled authored data validation reports visibility zone contract issues",
+                           test_tiled_authored_data_validation_reports_visibility_zone_contract_issues);
+        tests.emplace_back("imported sandbox town has no tiled authored data validation issues",
+                           test_imported_sandbox_town_has_no_tiled_authored_data_validation_issues);
+        tests.emplace_back("tiled point objects import as explicit point geometry",
+                           test_tiled_point_objects_import_as_explicit_point_geometry);
+        tests.emplace_back("tiled polygon geometry parses into object metadata",
+                           test_tiled_polygon_geometry_parses_into_object_metadata);
+        tests.emplace_back("typed object conventions parse current sandbox objects",
+                           test_typed_object_conventions_parse_current_sandbox_objects);
+        tests.emplace_back("tiled authored data validation reports typed object contract issues",
+                           test_tiled_authored_data_validation_reports_typed_object_contract_issues);
+        tests.emplace_back("tiled tile animation metadata imports from sandbox town",
+                           test_tiled_tile_animation_metadata_imports_from_sandbox_town);
+        tests.emplace_back("tile animation resolves expected frame by elapsed time",
+                           test_tile_animation_resolves_expected_frame_by_elapsed_time);
         tests.emplace_back("tiled tilemap import accepts unsupported features non-fatally",
                            test_tiled_tilemap_import_accepts_unsupported_features_non_fatally);
         tests.emplace_back("scene loader positive path", test_scene_loader_loads_scene_successfully);
@@ -1537,8 +1983,8 @@ namespace carrot::tests {
                            test_validate_scene_transition_targets_rejects_missing_destination_marker);
         tests.emplace_back("sandbox scene transition requests connect all three scenes",
                            test_sandbox_scene_transition_requests_connect_all_three_scenes);
-        tests.emplace_back("transition runtime state preserves opened chest across scene reload",
-                           test_transition_runtime_state_preserves_opened_chest_across_scene_reload);
+        tests.emplace_back("transition runtime state preserves opened container across scene reload",
+                           test_transition_runtime_state_preserves_opened_container_across_scene_reload);
         tests.emplace_back("transition runtime state restores player facing after rebind",
                            test_transition_runtime_state_restores_player_facing_after_rebind);
         tests.emplace_back("sandbox town player sprite exposes walk animation",

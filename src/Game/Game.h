@@ -61,6 +61,11 @@ namespace sandbox {
         };
         chlm::float2 _camera_dead_zone_size_world{ 0.f, 0.f };
         float _camera_follow_smoothing{ 0.f };
+        bool _interact_was_pressed{ false };
+        bool _quit_was_pressed{ false };
+        bool _toggle_fullscreen_was_pressed{ false };
+        bool _toggle_map_collision_debug_was_pressed{ false };
+        bool _toggle_object_collision_debug_was_pressed{ false };
 
         void start(carrot::core::game_context_t& game) override;
 

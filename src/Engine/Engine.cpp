@@ -191,7 +191,8 @@ namespace carrot {
         core::game_context_t game{
             .world = _world,
             .assets = *_asset_manager,
-            .view = game_view
+            .view = game_view,
+            .controllers = _controller_manager
         };
         _application->start(game);
 
@@ -235,6 +236,7 @@ namespace carrot {
         }
 
         _audio_module->update(_delta_time);
+        _controller_manager.update(_delta_time);
         _world.update(_delta_time);
 
         _on_tick.broadcast(_delta_time);
@@ -257,6 +259,7 @@ namespace carrot {
         const renderer::renderer_stats_t& stats{ _renderer->get_last_completed_stats() };
         const renderer::camera_2d_t& active_camera{ _renderer->get_camera_2d() };
         const renderer::resolved_camera_2d_t resolved_camera{ _renderer->resolve_camera_2d() };
+        const input::controller_debug_snapshot_t controller_snapshot{ _controller_manager.debug_snapshot() };
 
         debug::text(16.f, 16.f, "Carrot Debug Text V1");
         debug::text(16.f, 44.f, "Backend: %s", rhi::graphics_api_to_string(_renderer->get_graphics_api()).data());
@@ -271,11 +274,31 @@ namespace carrot {
         debug::text(16.f, 184.f, "Quads: %u", stats.textured_quad_count);
         debug::text(16.f, 212.f, "Batches: %u", stats.textured_quad_batch_count);
         debug::text(16.f, 240.f, "Frame: %llu", static_cast<unsigned long long>(_renderer->get_frame_index()));
+        debug::text(16.f,
+                    268.f,
+                    "Controllers: %u connected | Active Slot: %s",
+                    controller_snapshot.connected_gamepad_count,
+                    controller_snapshot.active_gamepad_index.has_value()
+                        ? std::to_string(*controller_snapshot.active_gamepad_index).c_str()
+                        : "None");
+        debug::text(16.f,
+                    296.f,
+                    "Stable Left Stick: %.2f, %.2f | South: %s",
+                    static_cast<double>(controller_snapshot.active_gamepad.left_stick().x),
+                    static_cast<double>(controller_snapshot.active_gamepad.left_stick().y),
+                    controller_snapshot.active_gamepad.is_pressed(input::gamepad_button_t::south) ? "Down" : "Up");
+        debug::text(16.f,
+                    324.f,
+                    "Raw Left Stick: %.2f, %.2f | South: %s | Release Pending: %.3f s",
+                    static_cast<double>(controller_snapshot.raw_active_gamepad.left_stick().x),
+                    static_cast<double>(controller_snapshot.raw_active_gamepad.left_stick().y),
+                    controller_snapshot.raw_active_gamepad.is_pressed(input::gamepad_button_t::south) ? "Down" : "Up",
+                    static_cast<double>(controller_snapshot.south_release_pending_seconds));
 
         const world::world_presentation_t& presentation{ _world.presentation() };
         const world::collision_debug_view_t& debug_view{ _world.collision_debug_view() };
         const float viewport_height{ static_cast<float>(resolved_camera.viewport_rect_px.size.y) };
-        const float legend_y_start{ std::max(268.f, viewport_height - 72.f) };
+        const float legend_y_start{ std::max(352.f, viewport_height - 72.f) };
         const uint32_t object_legend_color{ 0xFF00FFFFu };
 
         debug::text_colored(16.f,

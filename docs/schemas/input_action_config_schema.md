@@ -8,7 +8,7 @@
 
 ## Purpose
 
-Input action config files define default keyboard bindings for gameplay-facing actions.
+Input action config files define default keyboard and controller bindings for gameplay-facing actions.
 
 This first pass is intentionally small.
 It exists to move default bindings out of hardcoded game setup and into authored data while preserving safe code-side fallback behavior.
@@ -16,13 +16,14 @@ It exists to move default bindings out of hardcoded game setup and into authored
 Current runtime use:
 
 * sandbox default keyboard bindings
+* sandbox default gamepad bindings
 * multiple bindings per action
 * modifier-aware bindings such as `Alt+Enter`
+* button and axis-threshold gamepad bindings
 
 This format does **not** yet cover:
 
 * user rebinding persistence
-* gamepad bindings
 * per-platform override layering
 * UI-facing control metadata
 
@@ -55,6 +56,7 @@ Example:
   "bindings": [
     { "action": "move_up", "key": "W" },
     { "action": "move_up", "key": "Up" },
+    { "action": "move_up", "gamepad_button": "DPadUp" },
     { "action": "toggle_fullscreen", "key": "Enter", "mods": ["Alt"] }
   ]
 }
@@ -64,7 +66,7 @@ Example:
 
 ## Binding Entries
 
-Each entry in `bindings` must be an object with:
+Each entry in `bindings` must be an object with an `action` plus exactly one device field:
 
 ### `action`
 
@@ -101,6 +103,22 @@ Examples:
 ```json
 ["Ctrl", "Shift"]
 ```
+
+### `gamepad_button`
+
+Normalized engine-facing gamepad button name.
+
+### `gamepad_axis`
+
+Normalized engine-facing gamepad axis name.
+
+### `direction`
+
+Required for `gamepad_axis` bindings. Supported values are `Negative` and `Positive`.
+
+### `threshold`
+
+Optional for `gamepad_axis` bindings. Must be greater than `0.0` and less than or equal to `1.0`.
 
 ---
 
@@ -139,6 +157,33 @@ The parser is case-insensitive.
 
 ---
 
+## Supported Gamepad Button Names
+
+Current supported names:
+
+* `South`, `East`, `West`, `North`
+* `DPadUp`, `DPadDown`, `DPadLeft`, `DPadRight`
+* `LeftShoulder`, `RightShoulder`
+* `LeftStick`, `RightStick`
+* `Back`, `Start`
+
+Aliases such as `A`, `B`, `X`, `Y`, `LB`, `RB`, `Select`, and `Menu` also resolve.
+
+---
+
+## Supported Gamepad Axis Names
+
+Current supported names:
+
+* `LeftX`
+* `LeftY`
+* `RightX`
+* `RightY`
+* `LeftTrigger`
+* `RightTrigger`
+
+---
+
 ## Current Sandbox Example
 
 ```json
@@ -146,13 +191,22 @@ The parser is case-insensitive.
   "bindings": [
     { "action": "move_up", "key": "W" },
     { "action": "move_up", "key": "Up" },
+    { "action": "move_up", "gamepad_button": "DPadUp" },
+    { "action": "move_up", "gamepad_axis": "LeftY", "direction": "Negative", "threshold": 0.5 },
     { "action": "move_down", "key": "S" },
     { "action": "move_down", "key": "Down" },
+    { "action": "move_down", "gamepad_button": "DPadDown" },
+    { "action": "move_down", "gamepad_axis": "LeftY", "direction": "Positive", "threshold": 0.5 },
     { "action": "move_left", "key": "A" },
     { "action": "move_left", "key": "Left" },
+    { "action": "move_left", "gamepad_button": "DPadLeft" },
+    { "action": "move_left", "gamepad_axis": "LeftX", "direction": "Negative", "threshold": 0.5 },
     { "action": "move_right", "key": "D" },
     { "action": "move_right", "key": "Right" },
+    { "action": "move_right", "gamepad_button": "DPadRight" },
+    { "action": "move_right", "gamepad_axis": "LeftX", "direction": "Positive", "threshold": 0.5 },
     { "action": "interact", "key": "E" },
+    { "action": "interact", "gamepad_button": "South" },
     { "action": "quit", "key": "Escape" },
     { "action": "toggle_fullscreen", "key": "F11" },
     { "action": "toggle_fullscreen", "key": "Enter", "mods": ["Alt"] }
@@ -170,7 +224,12 @@ The config currently fails and falls back if:
 * `bindings` is missing or not an array
 * a binding entry is not an object
 * `action` is missing or empty
-* `key` is missing or unknown
+* the binding does not specify exactly one supported device field
+* `key` is unknown
+* `gamepad_button` is unknown
+* `gamepad_axis` is unknown
+* `direction` is missing or invalid for axis bindings
+* `threshold` is non-numeric or out of range
 * modifier data is malformed
 
 The current goal is to fail clearly and safely rather than partially applying a broken config.

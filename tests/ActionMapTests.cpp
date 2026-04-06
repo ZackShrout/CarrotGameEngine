@@ -64,7 +64,9 @@ namespace carrot::tests {
                 R"({
                   "bindings": [
                     { "action": "move_up", "key": "W" },
-                    { "action": "toggle_fullscreen", "key": "Enter", "mods": ["Alt"] }
+                    { "action": "toggle_fullscreen", "key": "Enter", "mods": ["Alt"] },
+                    { "action": "interact", "gamepad_button": "South" },
+                    { "action": "move_left", "gamepad_axis": "LeftX", "direction": "Negative", "threshold": 0.5 }
                   ]
                 })"
             };
@@ -84,6 +86,13 @@ namespace carrot::tests {
                 ._mods = static_cast<uint8_t>(input::modifier::alt)
             };
             CARROT_TEST_REQUIRE(actions.matches("toggle_fullscreen", fullscreen));
+
+            input::gamepad_state_t gamepad{ .connected = true };
+            gamepad.buttons[static_cast<size_t>(input::gamepad_button_t::south)] = true;
+            gamepad.axes[static_cast<size_t>(input::gamepad_axis_t::left_x)] = -0.75f;
+            actions.update_gamepad_state(&gamepad);
+            CARROT_TEST_REQUIRE(actions.is_pressed("interact"));
+            CARROT_TEST_REQUIRE(actions.is_pressed("move_left"));
         }
 
         void test_action_map_rejects_invalid_memory_config()
@@ -105,6 +114,34 @@ namespace carrot::tests {
                 ._action = events::key_action::press
             };
             CARROT_TEST_REQUIRE(actions.matches("move_up", move_up));
+        }
+
+        void test_action_map_rejects_invalid_gamepad_binding_config()
+        {
+            constexpr const char* json{
+                R"({
+                  "bindings": [
+                    { "action": "move_left", "gamepad_axis": "LeftX", "direction": "Banana", "threshold": 0.5 }
+                  ]
+                })"
+            };
+
+            input::input_action_map_t actions;
+            CARROT_TEST_REQUIRE(!actions.load_bindings_from_memory(json, std::strlen(json)));
+        }
+
+        void test_action_map_tracks_gamepad_button_pressed_state()
+        {
+            input::input_action_map_t actions;
+            actions.bind_gamepad_button("interact", input::gamepad_button_t::south);
+
+            input::gamepad_state_t gamepad{ .connected = true };
+            gamepad.buttons[static_cast<size_t>(input::gamepad_button_t::south)] = true;
+            actions.update_gamepad_state(&gamepad);
+            CARROT_TEST_REQUIRE(actions.is_pressed("interact"));
+
+            actions.update_gamepad_state(nullptr);
+            CARROT_TEST_REQUIRE(!actions.is_pressed("interact"));
         }
 
         void test_action_map_loads_bindings_from_vfs_config()
@@ -136,6 +173,8 @@ namespace carrot::tests {
         tests.emplace_back("action map matches modifier binding", test_action_map_matches_modifier_binding);
         tests.emplace_back("action map loads bindings from memory", test_action_map_loads_bindings_from_memory);
         tests.emplace_back("action map rejects invalid memory config", test_action_map_rejects_invalid_memory_config);
+        tests.emplace_back("action map rejects invalid gamepad binding config", test_action_map_rejects_invalid_gamepad_binding_config);
+        tests.emplace_back("action map tracks gamepad button pressed state", test_action_map_tracks_gamepad_button_pressed_state);
         tests.emplace_back("action map loads bindings from vfs config", test_action_map_loads_bindings_from_vfs_config);
     }
 } // namespace carrot::tests

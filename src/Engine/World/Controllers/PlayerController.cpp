@@ -197,22 +197,29 @@ namespace carrot::world {
             return player_move_result_t{ };
 
         chlm::float2 movement{ 0.f, 0.f };
-        if (_move_up)
-            movement.y -= 1.f;
-        if (_move_down)
-            movement.y += 1.f;
-        if (_move_left)
-            movement.x -= 1.f;
-        if (_move_right)
-            movement.x += 1.f;
+        if (std::fabs(_move_intent.x) > k_movement_epsilon || std::fabs(_move_intent.y) > k_movement_epsilon)
+        {
+            movement = _move_intent;
+        }
+        else
+        {
+            if (_move_up)
+                movement.y -= 1.f;
+            if (_move_down)
+                movement.y += 1.f;
+            if (_move_left)
+                movement.x -= 1.f;
+            if (_move_right)
+                movement.x += 1.f;
+        }
 
-        const bool moving{ is_moving(movement) };
+        const float length_sq{ (movement.x * movement.x) + (movement.y * movement.y) };
+        const bool moving{ length_sq > 0.f };
         if (moving)
         {
-            const float length_sq{ (movement.x * movement.x) + (movement.y * movement.y) };
-            if (length_sq > 0.f)
+            const float length{ std::sqrt(length_sq) };
+            if (length > 1.f)
             {
-                const float length{ std::sqrt(length_sq) };
                 movement.x /= length;
                 movement.y /= length;
             }

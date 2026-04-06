@@ -1,8 +1,8 @@
 # Carrot Game Engine - Milestone 07
 
-**Last Updated:** April 5, 2026
+**Last Updated:** April 6, 2026
 **Title:** Controller Input Support
-**Status:** Draft
+**Status:** In Progress
 **Focus:** Add a real engine-owned controller input path that flows through Carrot's existing action-based input model rather than creating a separate gameplay-only input system.
 
 ---
@@ -83,20 +83,69 @@ It should complete it.
 
 ## Current Implementation Baseline
 
-Carrot already has:
+Milestone 07 now has a real first-pass implementation on Windows.
 
-* keyboard input events routed through platform windows
-* an engine-owned input action map
-* JSON-authored default keyboard action bindings
-* gameplay code that already uses semantic action names in the sandbox
+What is currently in place:
+
+* an engine-owned controller manager and normalized controller state vocabulary
+* platform-separated controller backends selected through CMake
+* a Windows backend using GameInput
+* Linux and macOS controller backend stubs that fail soft
+* controller button and axis-threshold support in the input action map
+* JSON-authored default controller bindings in the sandbox input config
+* sandbox movement parity across keyboard, d-pad, and left stick
+* sandbox interaction parity across keyboard and controller face button
+* controller debug overlay data showing connected count, active slot, raw state, and stabilized state
+* regression coverage for controller/action-map/player-controller integration
 
 Current notable gaps:
 
-* no controller discovery or connection state
-* no normalized gamepad button/axis vocabulary
-* no controller bindings in the action config path yet
-* no analog movement intent path
-* no controller-facing validation or debug inspection data
+* no Linux controller backend implementation yet
+* no macOS controller backend implementation yet
+* no real hardware-validation pass yet for non-Xbox controllers on Windows
+* no final decision yet on how much long-term engine-side stabilization policy should remain after more platform coverage exists
+
+---
+
+## Current Status Snapshot
+
+Milestone 07 is no longer a design-only milestone.
+
+The current state is:
+
+* Windows controller bring-up is working in the sandbox
+* the Windows backend is on GameInput rather than XInput
+* the action map now supports keyboard plus controller bindings through one shared semantic action path
+* player movement resolves per tick from keyboard, d-pad, and left stick
+* controller state debug visibility exists in-engine and was used to validate a raw-input flutter issue on Windows
+* a time-based engine stabilization layer currently smooths short raw-release flutter without changing the shared gameplay-facing API
+
+Most important conclusion so far:
+
+* the raw button flutter observed during hold testing reproduced in the raw backend state even after moving from XInput to GameInput
+* that means the current stabilization layer is compensating for noisy raw controller state on the tested Windows setup rather than masking an engine action-map bug
+* the current stabilization policy is intentionally time-based and device-agnostic, not a frame-count hack
+
+---
+
+## Where We Should Pick This Up Next
+
+The strongest next step is Linux backend implementation.
+
+That follow-up should focus on:
+
+* implementing `LinuxControllerManager.cpp`
+* preserving the current shared `ControllerManager` contract instead of changing gameplay-facing APIs again
+* validating that raw-vs-stable debug output works on Linux too
+* checking whether Linux needs the same stabilization policy, less stabilization, or effectively none
+
+Recommended Linux pickup order:
+
+1. choose the Linux-native controller/device path that best matches Carrot's engine-owned direction
+2. implement raw controller discovery and polling in `LinuxControllerManager.cpp`
+3. verify normalized button and axis mapping against the existing `ControllerState` contract
+4. test sandbox movement and interaction parity on Linux
+5. compare Linux raw vs stable behavior before changing the shared stabilization policy
 
 ---
 
@@ -260,9 +309,9 @@ This matches Carrot's broader architecture direction:
 
 Current practical expectation for this milestone:
 
-* **Windows:** intended to be implemented and hardware-validated
-* **Linux:** intended to be implemented and hardware-validated
-* **macOS:** intended to be implemented against native APIs, but may remain unverified if suitable hardware/controller testing is unavailable during the milestone
+* **Windows:** implemented, sandbox-validated, and currently the strongest supported path
+* **Linux:** next planned implementation target
+* **macOS:** backend seam is in place, but implementation remains pending and unverified
 
 Important rule:
 
@@ -397,7 +446,7 @@ This allows controller analog movement to fit naturally without forcing gameplay
 
 ### 4. Debug, Validation, Docs, and Tests
 
-For this milestone, debugability should stay **log-based only** unless implementation pressure proves that a visual debug path is necessary later.
+For this milestone, debugability is now expected to include both log output and a lightweight on-screen engine debug overlay.
 
 Current debug expectations:
 
@@ -405,8 +454,7 @@ Current debug expectations:
 * log active controller changes
 * log controller-binding validation failures clearly
 * avoid noisy per-frame controller-state spam by default
-
-This can be revisited later if live on-screen inspection becomes necessary.
+* expose enough live on-screen controller state to compare raw and stabilized behavior during bring-up
 
 Docs and tests should cover:
 
@@ -414,6 +462,7 @@ Docs and tests should cover:
 * controller binding validation behavior
 * action-map controller matching behavior
 * safe fallback behavior when controller bindings are malformed
+* stabilization/debug expectations clearly enough that future backend work can be verified quickly
 
 ---
 
@@ -466,17 +515,19 @@ Why this direction is preferred:
 
 ## Recommended Implementation Order
 
-If milestone 07 work begins immediately, the recommended implementation order is:
+If milestone 07 work continues from the current implementation, the recommended remaining order is:
 
-1. define normalized controller engine types and state vocabulary
-2. add the shared controller service / manager
-3. bring up at least one platform backend end-to-end
-4. extend the action map and config parsing for controller bindings
-5. add per-tick movement-intent resolution using keyboard, d-pad, and left stick
-6. wire sandbox movement and interaction through the new path
-7. finish docs, validation coverage, and logging polish
+1. implement and validate the Linux controller backend
+2. implement and validate the macOS controller backend
+3. expand regression coverage around controller manager state transitions and backend-facing assumptions
+4. re-evaluate the shared stabilization policy after Linux and macOS data exists
+5. document final per-platform validation notes and any intentionally retained stabilization behavior
 
-This order keeps the platform boundary narrow while proving the shared engine behavior early.
-4. add docs, validation, and engine-side debug snapshots alongside the feature
+What is already complete enough to build on:
 
-That keeps the milestone focused on input architecture and playability instead of turning into a general UX or UI milestone.
+* normalized controller engine types and shared controller manager
+* Windows backend bring-up
+* action-map/config integration for controller bindings
+* per-tick movement-intent resolution
+* sandbox movement and interaction wiring
+* first-pass docs, validation, and engine debug snapshots

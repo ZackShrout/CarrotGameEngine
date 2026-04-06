@@ -6,6 +6,7 @@
 #pragma once
 
 #include "GameView.h"
+#include "Input/ControllerManager.h"
 
 namespace carrot::assets {
     class asset_manager_t;
@@ -21,5 +22,6 @@ namespace carrot::core {
         world::world_t& world;
         assets::asset_manager_t& assets;
         game_view_t& view;
+        input::controller_manager_t& controllers;
     };
 } // namespace carrot::core

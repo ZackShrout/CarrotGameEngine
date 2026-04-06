@@ -72,6 +72,9 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Input/KeyCodes.h
         src/Engine/Input/ActionMap.cpp
         src/Engine/Input/ActionMap.h
+        src/Engine/Input/ControllerManager.cpp
+        src/Engine/Input/ControllerManager.h
+        src/Engine/Input/ControllerState.h
         src/Engine/Input/PlatformKeyMapping.cpp
         src/Engine/Input/PlatformKeyMapping.h
 
@@ -357,6 +360,8 @@ if (APPLE)
     set(CARROT_PLATFORM_COCOA ON CACHE INTERNAL "")
     add_compile_definitions(CARROT_PLATFORM_COCOA=1)
     list(APPEND CARROT_ENGINE_SOURCES
+            src/Engine/Input/AppleControllerManager.mm
+
             src/Engine/HotReload/ShaderWatcherApple.mm
 
             src/Engine/Core/Platform/Cocoa/CocoaWindow.mm
@@ -400,6 +405,8 @@ elseif (WIN32)
     set(CARROT_PLATFORM_WIN32 ON CACHE INTERNAL "")
     add_compile_definitions(CARROT_PLATFORM_WIN32=1)
     list(APPEND CARROT_ENGINE_SOURCES
+            src/Engine/Input/WindowsControllerManager.cpp
+
             src/Engine/HotReload/ShaderWatcherWindows.cpp
 
             src/Engine/Core/Platform/Win32/Win32Window.cpp
@@ -496,6 +503,8 @@ elseif (UNIX)
 
     # All Linux platforms get these
     list(APPEND CARROT_ENGINE_SOURCES
+            src/Engine/Input/LinuxControllerManager.cpp
+
             src/Engine/HotReload/ShaderWatcherLinux.cpp
 
             src/Engine/Audio/Backend/Linux/LinuxAudioBackend.cpp
@@ -661,7 +670,7 @@ elseif(WIN32)
 
     target_compile_definitions(CarrotEngine PUBLIC VK_USE_PLATFORM_WIN32_KHR)
 
-    target_link_libraries(CarrotEngine PRIVATE d3d12 dxgi dxguid ole32 avrt uuid)
+    target_link_libraries(CarrotEngine PRIVATE d3d12 dxgi dxguid ole32 avrt uuid gameinput)
     target_compile_definitions(CarrotEngine PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
 # ------------------------------------------------------------------------
 # Linux
@@ -732,6 +741,7 @@ target_link_libraries(CarrotSandbox PRIVATE CarrotEngine)
 set(CARROT_TEST_SOURCES
         tests/TestMain.cpp
         tests/ActionMapTests.cpp
+        tests/ControllerTests.cpp
         tests/CollisionWorldTests.cpp
         tests/SceneLoadingTests.cpp
         src/Game/TransitionRuntimeState.cpp

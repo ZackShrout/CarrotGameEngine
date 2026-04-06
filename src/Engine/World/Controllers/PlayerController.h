@@ -53,6 +53,8 @@ namespace carrot::world {
         [[nodiscard]] const world_object_t* controlled_object() const noexcept { return _controlled_object; }
 
         void set_move_input(bool up, bool down, bool left, bool right) noexcept;
+        void set_move_intent(chlm::float2 intent) noexcept { _move_intent = intent; }
+        [[nodiscard]] chlm::float2 move_intent() const noexcept { return _move_intent; }
         void set_move_up(bool value) noexcept { _move_up = value; }
         void set_move_down(bool value) noexcept { _move_down = value; }
         void set_move_left(bool value) noexcept { _move_left = value; }
@@ -84,6 +86,7 @@ namespace carrot::world {
         bool _move_down{ false };
         bool _move_left{ false };
         bool _move_right{ false };
+        chlm::float2 _move_intent{ 0.f, 0.f };
 
         float _move_speed{ 4.0f };
         facing_direction_t _facing_direction{ facing_direction_t::down };

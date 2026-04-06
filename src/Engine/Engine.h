@@ -9,6 +9,7 @@
 #include "Audio/AudioModule.h"
 #include "Core/CoreDefines.h"
 #include "IO/VirtualFileSystem.h"
+#include "Input/ControllerManager.h"
 #include "Renderer/Renderer.h"
 #include "Utils/MulticastDelegate.h"
 #include "World/World.h"
@@ -86,6 +87,7 @@ namespace carrot {
 
         io::virtual_file_system_t                           _vfs;
         std::unique_ptr<assets::asset_manager_t>            _asset_manager{ nullptr };
+        input::controller_manager_t                         _controller_manager;
 
         on_tick_t                                           _on_tick;
         renderer::renderer_stats_t                          _last_logged_renderer_stats;

@@ -53,6 +53,43 @@ namespace sandbox {
 
             return nullptr;
         }
+
+        [[nodiscard]] chlm::float2 digital_move_vector(const carrot::input::input_action_map_t& actions) noexcept
+        {
+            chlm::float2 movement{ 0.f, 0.f };
+            if (actions.is_pressed(k_action_move_up))
+                movement.y -= 1.f;
+            if (actions.is_pressed(k_action_move_down))
+                movement.y += 1.f;
+            if (actions.is_pressed(k_action_move_left))
+                movement.x -= 1.f;
+            if (actions.is_pressed(k_action_move_right))
+                movement.x += 1.f;
+
+            const float length_sq{ (movement.x * movement.x) + (movement.y * movement.y) };
+            if (length_sq > 1.f)
+            {
+                const float length{ std::sqrt(length_sq) };
+                movement.x /= length;
+                movement.y /= length;
+            }
+
+            return movement;
+        }
+
+        [[nodiscard]] chlm::float2 resolve_move_intent(const carrot::core::game_context_t& game,
+                                                       const carrot::input::input_action_map_t& actions) noexcept
+        {
+            if (const carrot::input::gamepad_state_t* gamepad{ game.controllers.active_gamepad() })
+            {
+                const chlm::float2 left_stick{ gamepad->left_stick() };
+                const float length_sq{ (left_stick.x * left_stick.x) + (left_stick.y * left_stick.y) };
+                if (length_sq > 0.f)
+                    return left_stick;
+            }
+
+            return digital_move_vector(actions);
+        }
     }
 
     void sandbox_t::configure_fallback_input_actions()
@@ -61,14 +98,31 @@ namespace sandbox {
 
         _actions.bind(std::string{ k_action_move_up }, carrot::input::key_code::w);
         _actions.bind(std::string{ k_action_move_up }, carrot::input::key_code::up);
+        _actions.bind_gamepad_button(std::string{ k_action_move_up }, carrot::input::gamepad_button_t::dpad_up);
+        _actions.bind_gamepad_axis(std::string{ k_action_move_up },
+                                   carrot::input::gamepad_axis_t::left_y,
+                                   carrot::input::gamepad_axis_direction_t::negative);
         _actions.bind(std::string{ k_action_move_down }, carrot::input::key_code::s);
         _actions.bind(std::string{ k_action_move_down }, carrot::input::key_code::down);
+        _actions.bind_gamepad_button(std::string{ k_action_move_down }, carrot::input::gamepad_button_t::dpad_down);
+        _actions.bind_gamepad_axis(std::string{ k_action_move_down },
+                                   carrot::input::gamepad_axis_t::left_y,
+                                   carrot::input::gamepad_axis_direction_t::positive);
         _actions.bind(std::string{ k_action_move_left }, carrot::input::key_code::a);
         _actions.bind(std::string{ k_action_move_left }, carrot::input::key_code::left);
+        _actions.bind_gamepad_button(std::string{ k_action_move_left }, carrot::input::gamepad_button_t::dpad_left);
+        _actions.bind_gamepad_axis(std::string{ k_action_move_left },
+                                   carrot::input::gamepad_axis_t::left_x,
+                                   carrot::input::gamepad_axis_direction_t::negative);
         _actions.bind(std::string{ k_action_move_right }, carrot::input::key_code::d);
         _actions.bind(std::string{ k_action_move_right }, carrot::input::key_code::right);
+        _actions.bind_gamepad_button(std::string{ k_action_move_right }, carrot::input::gamepad_button_t::dpad_right);
+        _actions.bind_gamepad_axis(std::string{ k_action_move_right },
+                                   carrot::input::gamepad_axis_t::left_x,
+                                   carrot::input::gamepad_axis_direction_t::positive);
 
         _actions.bind(std::string{ k_action_interact }, carrot::input::key_code::e);
+        _actions.bind_gamepad_button(std::string{ k_action_interact }, carrot::input::gamepad_button_t::south);
         _actions.bind(std::string{ k_action_quit }, carrot::input::key_code::escape);
         _actions.bind(std::string{ k_action_toggle_fullscreen }, carrot::input::key_code::f11);
         _actions.bind(std::string{ k_action_toggle_fullscreen },
@@ -354,6 +408,43 @@ namespace sandbox {
         if (!_game)
             return;
 
+        _actions.update_gamepad_state(_game->controllers.active_gamepad());
+        _player_controller.set_move_intent(resolve_move_intent(*_game, _actions));
+
+        const bool interact_pressed{ _actions.is_pressed(k_action_interact) };
+        if (interact_pressed && !_interact_was_pressed)
+        {
+            if (!_interaction_controller.actor() || !_interaction_controller.actor()->transform)
+            {
+                LOG_CORE_WARN("Interaction failed: controlled player world object is missing a transform");
+            }
+            else if (!_interaction_controller.try_interact(*_game))
+            {
+                LOG_CORE_INFO("No interactable in range");
+            }
+        }
+        _interact_was_pressed = interact_pressed;
+
+        const bool quit_pressed{ _actions.is_pressed(k_action_quit) };
+        if (quit_pressed && !_quit_was_pressed)
+            quit_application();
+        _quit_was_pressed = quit_pressed;
+
+        const bool toggle_fullscreen_pressed{ _actions.is_pressed(k_action_toggle_fullscreen) };
+        if (toggle_fullscreen_pressed && !_toggle_fullscreen_was_pressed)
+            set_fullscreen(!is_fullscreen());
+        _toggle_fullscreen_was_pressed = toggle_fullscreen_pressed;
+
+        const bool toggle_map_collision_debug_pressed{ _actions.is_pressed(k_action_toggle_map_collision_debug) };
+        if (toggle_map_collision_debug_pressed && !_toggle_map_collision_debug_was_pressed)
+            toggle_map_collision_debug();
+        _toggle_map_collision_debug_was_pressed = toggle_map_collision_debug_pressed;
+
+        const bool toggle_object_collision_debug_pressed{ _actions.is_pressed(k_action_toggle_object_collision_debug) };
+        if (toggle_object_collision_debug_pressed && !_toggle_object_collision_debug_was_pressed)
+            toggle_object_collision_debug();
+        _toggle_object_collision_debug_was_pressed = toggle_object_collision_debug_pressed;
+
         consume_pending_runtime_events();
 
         if (const std::optional<scene_transition_request_t> request{ _interaction_controller.consume_pending_transition() })
@@ -375,17 +466,6 @@ namespace sandbox {
             {
                 LOG_CORE_INFO("Key pressed: {} ({}) (mods: {})", carrot::input::key_code_to_string(e._key),
                               static_cast<uint32_t>(e._key), carrot::input::modifiers_to_string(e._mods));
-                if (!_interaction_controller.actor() || !_interaction_controller.actor()->transform)
-                {
-                    LOG_CORE_WARN("Interaction failed: controlled player world object is missing a transform");
-                }
-                else if (_interaction_controller.try_interact(*_game))
-                {
-                }
-                else
-                {
-                    LOG_CORE_INFO("No interactable in range");
-                }
             }
         }
         else if (e._action == carrot::events::key_action::repeat &&
@@ -403,27 +483,10 @@ namespace sandbox {
             LOG_CORE_INFO("Key released: {} ({})", carrot::input::key_code_to_string(e._key),
                       static_cast<uint32_t>(e._key));
 
-        if (e._action == carrot::events::key_action::press || e._action == carrot::events::key_action::release)
-        {
-            _player_controller.set_move_up(_actions.is_pressed(k_action_move_up));
-            _player_controller.set_move_down(_actions.is_pressed(k_action_move_down));
-            _player_controller.set_move_left(_actions.is_pressed(k_action_move_left));
-            _player_controller.set_move_right(_actions.is_pressed(k_action_move_right));
-        }
-
-        if (e._action == carrot::events::key_action::press && _actions.matches(k_action_quit, e))
-            quit_application();
-
-        if (e._action == carrot::events::key_action::press && _actions.matches(k_action_toggle_fullscreen, e))
-        {
-            set_fullscreen(!is_fullscreen());
-        }
-
-        if (e._action == carrot::events::key_action::press && _actions.matches(k_action_toggle_map_collision_debug, e))
-            toggle_map_collision_debug();
-
-        if (e._action == carrot::events::key_action::press && _actions.matches(k_action_toggle_object_collision_debug, e))
-            toggle_object_collision_debug();
+        _player_controller.set_move_up(_actions.is_pressed(k_action_move_up));
+        _player_controller.set_move_down(_actions.is_pressed(k_action_move_down));
+        _player_controller.set_move_left(_actions.is_pressed(k_action_move_left));
+        _player_controller.set_move_right(_actions.is_pressed(k_action_move_right));
     }
 
     void sandbox_t::on_mouse_moved(const carrot::events::mouse_moved_event_t& e)

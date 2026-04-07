@@ -83,14 +83,15 @@ It should complete it.
 
 ## Current Implementation Baseline
 
-Milestone 07 now has a real first-pass implementation on Windows.
+Milestone 07 now has real first-pass implementations on Windows and Linux.
 
 What is currently in place:
 
 * an engine-owned controller manager and normalized controller state vocabulary
 * platform-separated controller backends selected through CMake
 * a Windows backend using GameInput
-* Linux and macOS controller backend stubs that fail soft
+* a Linux backend using `libudev` plus `libevdev`
+* a macOS controller backend stub that still fails soft
 * controller button and axis-threshold support in the input action map
 * JSON-authored default controller bindings in the sandbox input config
 * sandbox movement parity across keyboard, d-pad, and left stick
@@ -100,9 +101,8 @@ What is currently in place:
 
 Current notable gaps:
 
-* no Linux controller backend implementation yet
 * no macOS controller backend implementation yet
-* no real hardware-validation pass yet for non-Xbox controllers on Windows
+* no real broad hardware-validation pass yet for non-Xbox controllers on Windows
 * no final decision yet on how much long-term engine-side stabilization policy should remain after more platform coverage exists
 
 ---
@@ -114,10 +114,13 @@ Milestone 07 is no longer a design-only milestone.
 The current state is:
 
 * Windows controller bring-up is working in the sandbox
+* Linux controller bring-up is working in the sandbox
 * the Windows backend is on GameInput rather than XInput
+* the Linux backend uses `libudev` for discovery/hotplug and `libevdev` for polling/normalization
 * the action map now supports keyboard plus controller bindings through one shared semantic action path
 * player movement resolves per tick from keyboard, d-pad, and left stick
 * controller state debug visibility exists in-engine and was used to validate a raw-input flutter issue on Windows
+* Linux sandbox validation confirmed movement, interaction, buttons, and sticks behave correctly with the shared action/gameplay path
 * a time-based engine stabilization layer currently smooths short raw-release flutter without changing the shared gameplay-facing API
 
 Most important conclusion so far:
@@ -130,22 +133,22 @@ Most important conclusion so far:
 
 ## Where We Should Pick This Up Next
 
-The strongest next step is Linux backend implementation.
+The strongest next step is macOS backend implementation plus broader post-bring-up validation.
 
 That follow-up should focus on:
 
-* implementing `LinuxControllerManager.cpp`
-* preserving the current shared `ControllerManager` contract instead of changing gameplay-facing APIs again
-* validating that raw-vs-stable debug output works on Linux too
-* checking whether Linux needs the same stabilization policy, less stabilization, or effectively none
+* implementing the macOS controller backend while preserving the current shared `ControllerManager` contract
+* broadening hardware validation across more controller types on Windows and Linux
+* comparing Linux raw-vs-stable behavior against Windows before changing the shared stabilization policy
+* deciding whether any backend-specific normalization or deadzone policy should move out of gameplay-side assumptions
 
-Recommended Linux pickup order:
+Recommended pickup order:
 
-1. choose the Linux-native controller/device path that best matches Carrot's engine-owned direction
-2. implement raw controller discovery and polling in `LinuxControllerManager.cpp`
-3. verify normalized button and axis mapping against the existing `ControllerState` contract
-4. test sandbox movement and interaction parity on Linux
-5. compare Linux raw vs stable behavior before changing the shared stabilization policy
+1. implement the macOS backend behind the existing shared controller contract
+2. run broader hardware validation across Windows and Linux devices beyond the initial successful sandbox pass
+3. compare Windows and Linux raw-vs-stable behavior before changing the shared stabilization policy
+4. document any controller quirks or package requirements that surfaced during platform bring-up
+5. revisit whether any additional regression coverage is warranted for backend-side normalization helpers
 
 ---
 

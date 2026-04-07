@@ -685,6 +685,8 @@ elseif(UNIX)
             libpulse-simple
             libpulse
     )
+    pkg_check_modules(LIBUDEV REQUIRED IMPORTED_TARGET libudev)
+    pkg_check_modules(LIBEVDEV REQUIRED IMPORTED_TARGET libevdev)
 
     # Apply libc++ only to C++ compilation and linking
     target_compile_options(CarrotEngine PUBLIC
@@ -695,8 +697,12 @@ elseif(UNIX)
     )
 
     # Apply libc++ to CarrotPNG
-    target_compile_options(CarrotPNG PUBLIC -stdlib=libc++)
-    target_link_options(CarrotPNG PUBLIC -stdlib=libc++)
+    target_compile_options(CarrotPNG PUBLIC
+            $<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>
+    )
+    target_link_options(CarrotPNG PUBLIC
+            $<$<LINK_LANGUAGE:CXX>:-stdlib=libc++>
+    )
 
     target_compile_definitions(CarrotEngine PUBLIC VK_USE_PLATFORM_WAYLAND_KHR)
 
@@ -704,6 +710,8 @@ elseif(UNIX)
             Vulkan::Vulkan
             ALSA::ALSA
             PkgConfig::PULSEAUDIO
+            PkgConfig::LIBUDEV
+            PkgConfig::LIBEVDEV
             wayland-client
             wayland-cursor
             wayland-egl

@@ -119,7 +119,6 @@ namespace carrot::core::platform {
         xkb_keymap* _xkb_keymap{ nullptr };
         xkb_state* _xkb_state{ nullptr };
 
-        uint8_t _modifiers{ 0 };
         uint32_t _pending_width{ 0 };
         uint32_t _pending_height{ 0 };
         bool _pending_focus{ false };
@@ -128,7 +127,6 @@ namespace carrot::core::platform {
         bool _is_focused{ false };
         bool _is_resizing{ false };
 
-        bool _keys_down[static_cast<uint16_t>(input::key_code::max_key_code)]{ false };
         chlm::float2 _last_mouse_pos{ 0.f, 0.f };
         uint8_t _keyboard_mods{ 0 };
         key_repeat_state_t _repeat_state;

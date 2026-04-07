@@ -116,6 +116,13 @@ namespace carrot::core::platform {
             return;
         }
 
+        // Apply title explicitly after creation to avoid any ambiguity in caption assignment.
+        if (!SetWindowTextW(_hwnd, _title.c_str()))
+            LOG_CORE_WARN("SetWindowTextW failed with error {}", GetLastError());
+
+        const int caption_len{ GetWindowTextLengthW(_hwnd) };
+        LOG_CORE_INFO("Win32 window caption length: {}", caption_len);
+
         const BOOL use_dark{ is_system_dark_mode() ? TRUE : FALSE };
         HRESULT hr{DwmSetWindowAttribute(_hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &use_dark, sizeof(BOOL)) };
 

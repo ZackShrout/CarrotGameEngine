@@ -87,6 +87,32 @@ namespace carrot::core {
 #endif
     }
 
+    // ── in_memory_log_sink_t ───────────────────────────────────
+    void in_memory_log_sink_t::write(const log_message& msg)
+    {
+        std::lock_guard<std::mutex> lock{ _mutex };
+
+        if (_max_entries == 0)
+            return;
+
+        while (_entries.size() >= _max_entries)
+            _entries.pop_front();
+
+        _entries.push_back(msg);
+    }
+
+    std::vector<log_message> in_memory_log_sink_t::snapshot() const
+    {
+        std::lock_guard<std::mutex> lock{ _mutex };
+        return { _entries.begin(), _entries.end() };
+    }
+
+    size_t in_memory_log_sink_t::size() const noexcept
+    {
+        std::lock_guard<std::mutex> lock{ _mutex };
+        return _entries.size();
+    }
+
     // ── async_sink_t ────────────────────────────────────────────
     // PUBLIC
     async_sink_t::async_sink_t(std::unique_ptr<log_sink_t> wrapped_sink) : _sink{ std::move(wrapped_sink) }

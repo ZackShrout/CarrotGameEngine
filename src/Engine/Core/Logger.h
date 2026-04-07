@@ -16,6 +16,7 @@
 namespace carrot::core {
     struct log_message;
     class log_sink_t;
+    class in_memory_log_sink_t;
 
     enum class log_category : uint32_t
     {
@@ -106,6 +107,7 @@ namespace carrot::core {
         static void add_sink(std::unique_ptr<log_sink_t> sink);
         static void remove_all_sinks();
         static void flush();
+        [[nodiscard]] static std::vector<log_message> recent_messages();
 
         template<typename... Args>
         static void log(const std::source_location& loc, log_category category, log_severity severity,
@@ -128,6 +130,7 @@ namespace carrot::core {
 
         static log_category _enabled_categories;
         static log_severity _min_severity;
+        static in_memory_log_sink_t* _in_memory_sink;
 
         static std::vector<std::unique_ptr<log_sink_t>> _sinks;
         static std::mutex _sinks_mutex;

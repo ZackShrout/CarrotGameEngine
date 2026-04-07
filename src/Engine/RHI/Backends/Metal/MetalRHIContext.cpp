@@ -198,7 +198,10 @@ namespace carrot::rhi::metal {
 
         _active_command_buffer->retain();
         metal_add_command_buffer_completion_signal(_active_command_buffer, _frame_semaphore);
-        acquire_auxiliary_drawables();
+        if (!window::is_fullscreen(_presentation_window_id))
+            acquire_auxiliary_drawables();
+        else
+            release_auxiliary_drawables();
 
         _render_encoder.begin(_active_command_buffer, _active_drawable, MTL::ClearColor(0.02, 0.02, 0.04, 1.0));
     }
@@ -214,7 +217,8 @@ namespace carrot::rhi::metal {
         if (!encoder)
             return;
 
-        encode_textured_quad_stage(encoder, stage);
+        if (presentation_mask_includes(stage.presentation_mask, presentation_channel_gameplay))
+            encode_textured_quad_stage(encoder, stage);
     }
 
     void metal_rhi_context_t::end_frame()
@@ -234,7 +238,11 @@ namespace carrot::rhi::metal {
             if (MTL::RenderCommandEncoder* encoder{ auxiliary_encoder.encoder() })
             {
                 for (const textured_quad_stage_record_t& stage : _recorded_stages)
+                {
+                    if (!presentation_mask_includes(stage.presentation_mask, surface.presentation_channel_mask))
+                        continue;
                     encode_textured_quad_stage(encoder, stage);
+                }
             }
             auxiliary_encoder.end();
             _active_command_buffer->presentDrawable(surface.drawable);
@@ -420,7 +428,8 @@ namespace carrot::rhi::metal {
         return _active_command_buffer != nullptr && _active_drawable != nullptr;
     }
 
-    bool metal_rhi_context_t::add_presentation_window(const window::window_id_t window_id)
+    bool metal_rhi_context_t::add_presentation_window(const window::window_id_t window_id,
+                                                      const uint32_t presentation_channel_mask)
     {
         if (!_device || window_id == window::invalid_window_id || window_id == _presentation_window_id)
             return false;
@@ -447,6 +456,7 @@ namespace carrot::rhi::metal {
 
         _auxiliary_surfaces.push_back(auxiliary_surface_t{
             .id = window_id,
+            .presentation_channel_mask = presentation_channel_mask,
             .swapchain = std::make_unique<metal_swapchain_t>(_device->mtl_device(),
                                                               handle.cocoa_t.metal_layer,
                                                               window::get_width(window_id),

@@ -275,10 +275,13 @@ namespace carrot::rhi::vulkan {
         recorded_stage.descriptor_set_count = batch_count;
         _recorded_stages.push_back(recorded_stage);
 
-        encode_textured_quad_stage_to_command_buffer(_frames[_current_frame].command_buffer,
-                                                     stage,
-                                                     descriptor_set_offset,
-                                                     batch_count);
+        if (presentation_mask_includes(stage.presentation_mask, presentation_channel_gameplay))
+        {
+            encode_textured_quad_stage_to_command_buffer(_frames[_current_frame].command_buffer,
+                                                         stage,
+                                                         descriptor_set_offset,
+                                                         batch_count);
+        }
     }
 
     void vulkan_rhi_context_t::end_frame()
@@ -288,14 +291,9 @@ namespace carrot::rhi::vulkan {
 
         const frame_resources_t& frame{ _frames[_current_frame] };
         std::vector<auxiliary_surface_t*> acquired_aux_surfaces;
-        bool allow_auxiliary_presentation{ true };
-
-#if defined(CARROT_PLATFORM_WAYLAND)
-        // On Wayland (RADV), presenting an auxiliary swapchain while the main surface is fullscreen
-        // can block inside vkQueuePresentKHR indefinitely (driver enters wl_display_dispatch_queue poll).
-        // Keep the frame loop responsive by suppressing auxiliary presentation during main fullscreen.
-        allow_auxiliary_presentation = !window::is_fullscreen(_presentation_window_id);
-#endif
+        // Engine policy: when the main presentation surface is fullscreen, auxiliary windows are not
+        // visible in typical gameplay mode, so skip auxiliary rendering/presentation work.
+        const bool allow_auxiliary_presentation{ !window::is_fullscreen(_presentation_window_id) };
 
         // 1. End render pass (if not already ended in record_frame)
         if (_render_pass_active)
@@ -351,10 +349,15 @@ namespace carrot::rhi::vulkan {
 
             vkCmdBeginRenderPass(frame.command_buffer, &rp_begin, VK_SUBPASS_CONTENTS_INLINE);
             for (const recorded_stage_t& recorded_stage : _recorded_stages)
+            {
+                if (!presentation_mask_includes(recorded_stage.stage.presentation_mask,
+                                                aux_surface.presentation_channel_mask))
+                    continue;
                 encode_textured_quad_stage_to_command_buffer(frame.command_buffer,
                                                              recorded_stage.stage,
                                                              recorded_stage.descriptor_set_offset,
                                                              recorded_stage.descriptor_set_count);
+            }
             vkCmdEndRenderPass(frame.command_buffer);
 
             acquired_aux_surfaces.push_back(&aux_surface);
@@ -476,7 +479,8 @@ namespace carrot::rhi::vulkan {
         _swapchain_dirty = true;
     }
 
-    bool vulkan_rhi_context_t::add_presentation_window(const window::window_id_t window_id)
+    bool vulkan_rhi_context_t::add_presentation_window(const window::window_id_t window_id,
+                                                       const uint32_t presentation_channel_mask)
     {
         if (window_id == window::invalid_window_id || window_id == _presentation_window_id)
             return false;
@@ -489,7 +493,7 @@ namespace carrot::rhi::vulkan {
         if (already_registered)
             return true;
 
-        return create_auxiliary_surface(window_id);
+        return create_auxiliary_surface(window_id, presentation_channel_mask);
     }
 
     bool vulkan_rhi_context_t::remove_presentation_window(const window::window_id_t window_id)
@@ -912,13 +916,15 @@ namespace carrot::rhi::vulkan {
 #endif
     }
 
-    bool vulkan_rhi_context_t::create_auxiliary_surface(const window::window_id_t window_id)
+    bool vulkan_rhi_context_t::create_auxiliary_surface(const window::window_id_t window_id,
+                                                        const uint32_t presentation_channel_mask)
     {
         if (!_device || !_render_pass || !_vk_instance)
             return false;
 
         auxiliary_surface_t surface{ };
         surface.id = window_id;
+        surface.presentation_channel_mask = presentation_channel_mask;
         surface.framebuffers = framebuffer_array_t{ _device->vk_device() };
 
         if (!create_surface_for_window(window_id, surface.surface) || surface.surface == VK_NULL_HANDLE)

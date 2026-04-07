@@ -215,12 +215,13 @@ namespace carrot::renderer {
         _rhi->end_frame();
     }
 
-    bool renderer_t::add_presentation_window(const window::window_id_t window_id)
+    bool renderer_t::add_presentation_window(const window::window_id_t window_id,
+                                             const uint32_t presentation_channel_mask)
     {
         if (!_rhi || window_id == window::invalid_window_id || window_id == _render_window_id)
             return false;
 
-        return _rhi->add_presentation_window(window_id);
+        return _rhi->add_presentation_window(window_id, presentation_channel_mask);
     }
 
     bool renderer_t::remove_presentation_window(const window::window_id_t window_id)
@@ -246,6 +247,11 @@ namespace carrot::renderer {
         submit_textured_quad(frame_stage_kind_t::ui, quad);
     }
 
+    void renderer_t::draw_log_console_textured_quad(const textured_quad_draw_info_t& quad)
+    {
+        submit_textured_quad(frame_stage_kind_t::log_console, quad);
+    }
+
     void renderer_t::draw_solid_quad(const solid_quad_draw_info_t& quad)
     {
         submit_solid_quad(frame_stage_kind_t::world, quad);
@@ -259,6 +265,11 @@ namespace carrot::renderer {
     void renderer_t::draw_ui_solid_quad(const solid_quad_draw_info_t& quad)
     {
         submit_solid_quad(frame_stage_kind_t::ui, quad);
+    }
+
+    void renderer_t::draw_log_console_solid_quad(const solid_quad_draw_info_t& quad)
+    {
+        submit_solid_quad(frame_stage_kind_t::log_console, quad);
     }
 
     void renderer_t::set_fullscreen_overlay_color(const uint32_t color_abgr) noexcept
@@ -1032,7 +1043,10 @@ namespace carrot::renderer {
             .index_buffer = frame_buffers.index_buffer.get(),
             .batches = stage_state.batches,
             .view_projection = stage_context.view_projection,
-            .viewport = stage_context.viewport
+            .viewport = stage_context.viewport,
+            .presentation_mask = stage_plan.kind == frame_stage_kind_t::log_console
+                                     ? rhi::presentation_channel_log_console
+                                     : rhi::presentation_channel_gameplay
         });
 
         _stats.vertex_count += static_cast<uint32_t>(stage_state.vertices_cpu.size());
@@ -1057,6 +1071,9 @@ namespace carrot::renderer {
         CE_ASSERT(_frame_stage_plan[3].kind == frame_stage_kind_t::overlay_debug &&
                       _frame_stage_plan[3].space == frame_stage_space_t::viewport_pixels,
                   "Renderer stage 3 must remain the debug overlay stage in viewport pixel space");
+        CE_ASSERT(_frame_stage_plan[4].kind == frame_stage_kind_t::log_console &&
+                      _frame_stage_plan[4].space == frame_stage_space_t::render_target_pixels,
+                  "Renderer stage 4 must remain the log console stage in render-target pixel space");
 
         _stats.vertex_count = 0;
         _stats.index_count = 0;

@@ -2,7 +2,7 @@
 
 **Last Updated:** April 7, 2026
 **Title:** Window Management System
-**Status:** Planned
+**Status:** In Progress
 **Focus:** Replace one-window bring-up assumptions with an engine-owned multi-window foundation that is ready for future UI/tooling/editor work.
 
 ---
@@ -203,6 +203,12 @@ Define practical policy for this milestone:
 
 **Priority:** P1  
 **Outcome:** A small third window displays live colorized engine logs as a foundational diagnostics proof.
+
+**Current Progress (April 7, 2026):**
+
+* In progress.
+* Completed: bounded in-memory log fan-out sink foundation (`logger_t::recent_messages()` now provides snapshot access).
+* Remaining: dedicated log window rendering path (read-only text draw + severity color mapping) and final runtime wiring.
 
 ### Why
 

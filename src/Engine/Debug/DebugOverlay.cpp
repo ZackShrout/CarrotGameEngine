@@ -183,9 +183,16 @@ namespace carrot::debug {
     }
 
     namespace {
+        enum class debug_text_target_t : uint8_t
+        {
+            overlay = 0,
+            log_console
+        };
+
         void text_v(const float x,
                     const float y,
                     const uint32_t color,
+                    const debug_text_target_t target,
                     const char* fmt,
                     va_list args) noexcept
         {
@@ -258,7 +265,12 @@ namespace carrot::debug {
                 glyph.sampler_preset = renderer::quad_sampler_preset_t::smooth_clamp;
 
                 if (glyph.width > 0.f && glyph.height > 0.f)
-                    g_renderer->draw_overlay_textured_quad(glyph);
+                {
+                    if (target == debug_text_target_t::log_console)
+                        g_renderer->draw_log_console_textured_quad(glyph);
+                    else
+                        g_renderer->draw_overlay_textured_quad(glyph);
+                }
             }
         }
     } // namespace
@@ -267,7 +279,7 @@ namespace carrot::debug {
     {
         va_list args;
         va_start(args, fmt);
-        text_v(x, y, 0xFFFFFFFFu, fmt, args);
+        text_v(x, y, 0xFFFFFFFFu, debug_text_target_t::overlay, fmt, args);
         va_end(args);
     }
 
@@ -275,7 +287,23 @@ namespace carrot::debug {
     {
         va_list args;
         va_start(args, fmt);
-        text_v(x, y, color, fmt, args);
+        text_v(x, y, color, debug_text_target_t::overlay, fmt, args);
+        va_end(args);
+    }
+
+    void log_console_text(const float x, const float y, const char* fmt, ...) noexcept
+    {
+        va_list args;
+        va_start(args, fmt);
+        text_v(x, y, 0xFFFFFFFFu, debug_text_target_t::log_console, fmt, args);
+        va_end(args);
+    }
+
+    void log_console_text_colored(const float x, const float y, const uint32_t color, const char* fmt, ...) noexcept
+    {
+        va_list args;
+        va_start(args, fmt);
+        text_v(x, y, color, debug_text_target_t::log_console, fmt, args);
         va_end(args);
     }
 

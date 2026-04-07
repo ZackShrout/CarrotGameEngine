@@ -51,7 +51,8 @@ namespace carrot::rhi::metal {
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
         void bind_textured_quad_resources([[maybe_unused]] const rhi_texture_t& texture,
                                           [[maybe_unused]] const rhi_sampler_t& sampler) override {}
-        bool add_presentation_window(window::window_id_t window_id) override;
+        bool add_presentation_window(window::window_id_t window_id,
+                                     uint32_t presentation_channel_mask = presentation_channel_gameplay) override;
         bool remove_presentation_window(window::window_id_t window_id) override;
 
         void wait_idle() override;
@@ -60,6 +61,7 @@ namespace carrot::rhi::metal {
         struct auxiliary_surface_t
         {
             window::window_id_t id{ window::invalid_window_id };
+            uint32_t presentation_channel_mask{ presentation_channel_gameplay };
             std::unique_ptr<metal_swapchain_t> swapchain;
             const CA::MetalDrawable* drawable{ nullptr };
         };

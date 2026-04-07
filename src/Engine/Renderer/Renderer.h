@@ -51,6 +51,7 @@ namespace carrot::renderer {
         ui,
         composite,
         overlay_debug,
+        log_console,
         count
     };
 
@@ -144,7 +145,8 @@ namespace carrot::renderer {
         // Main loop integration
         void begin_frame();
         void end_frame();
-        bool add_presentation_window(window::window_id_t window_id);
+        bool add_presentation_window(window::window_id_t window_id,
+                                     uint32_t presentation_channel_mask = rhi::presentation_channel_gameplay);
         bool remove_presentation_window(window::window_id_t window_id);
 
         void set_camera_2d(const camera_2d_t& camera) noexcept { _active_camera = camera; }
@@ -153,9 +155,11 @@ namespace carrot::renderer {
         void draw_textured_quad(const textured_quad_draw_info_t& quad);
         void draw_overlay_textured_quad(const textured_quad_draw_info_t& quad);
         void draw_ui_textured_quad(const textured_quad_draw_info_t& quad);
+        void draw_log_console_textured_quad(const textured_quad_draw_info_t& quad);
         void draw_solid_quad(const solid_quad_draw_info_t& quad);
         void draw_overlay_solid_quad(const solid_quad_draw_info_t& quad);
         void draw_ui_solid_quad(const solid_quad_draw_info_t& quad);
+        void draw_log_console_solid_quad(const solid_quad_draw_info_t& quad);
         void set_fullscreen_overlay_color(uint32_t color_abgr) noexcept;
         void clear_fullscreen_overlay() noexcept;
         void draw_sprite(const sprite_draw_info_t& info);
@@ -241,7 +245,8 @@ namespace carrot::renderer {
             frame_stage_plan_t{ .kind = frame_stage_kind_t::world, .space = frame_stage_space_t::world_camera },
             frame_stage_plan_t{ .kind = frame_stage_kind_t::ui, .space = frame_stage_space_t::render_target_pixels },
             frame_stage_plan_t{ .kind = frame_stage_kind_t::composite, .space = frame_stage_space_t::render_target_pixels },
-            frame_stage_plan_t{ .kind = frame_stage_kind_t::overlay_debug, .space = frame_stage_space_t::viewport_pixels }
+            frame_stage_plan_t{ .kind = frame_stage_kind_t::overlay_debug, .space = frame_stage_space_t::viewport_pixels },
+            frame_stage_plan_t{ .kind = frame_stage_kind_t::log_console, .space = frame_stage_space_t::render_target_pixels }
         };
 
         camera_2d_t _active_camera{ };

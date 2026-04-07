@@ -12,6 +12,7 @@
 namespace carrot::core {
     std::vector<std::unique_ptr<log_sink_t>> logger_t::_sinks;
     std::mutex logger_t::_sinks_mutex;
+    in_memory_log_sink_t* logger_t::_in_memory_sink{ nullptr };
 
     // PUBLIC
     void logger_t::init()
@@ -29,6 +30,11 @@ namespace carrot::core {
 
         // Add it
         add_sink(std::move(async_console));
+
+        // Add bounded in-memory sink for window-log fan-out and tooling diagnostics.
+        std::unique_ptr<in_memory_log_sink_t> in_memory_sink{ std::make_unique<in_memory_log_sink_t>(2000) };
+        _in_memory_sink = in_memory_sink.get();
+        add_sink(std::move(in_memory_sink));
 
         // Note: We can't use macros yet because sinks just got added, but internal_log bypasses filters,
         //       so we do a direct internal log here.
@@ -56,6 +62,7 @@ namespace carrot::core {
     void logger_t::remove_all_sinks()
     {
         std::lock_guard<std::mutex> lock{ _sinks_mutex };
+        _in_memory_sink = nullptr;
         _sinks.clear(); // This destroys all sink objects
     }
 
@@ -64,6 +71,17 @@ namespace carrot::core {
         std::lock_guard<std::mutex> lock{ _sinks_mutex };
         for (const auto& sink: _sinks)
             sink->flush();
+    }
+
+    std::vector<log_message> logger_t::recent_messages()
+    {
+        in_memory_log_sink_t* sink{ nullptr };
+        {
+            std::lock_guard<std::mutex> lock{ _sinks_mutex };
+            sink = _in_memory_sink;
+        }
+
+        return sink ? sink->snapshot() : std::vector<log_message>{ };
     }
 
     std::string logger_t::category_to_string(log_category categories)

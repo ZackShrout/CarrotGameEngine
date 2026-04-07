@@ -9,11 +9,13 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <deque>
 #include <memory>
 #include <mutex>
 #include <queue>
 #include <string>
 #include <thread>
+#include <vector>
 
 namespace carrot::core {
     class log_sink_t
@@ -33,6 +35,21 @@ namespace carrot::core {
         static std::string format_message(const log_message& msg);
         static void set_console_color(log_severity level);
         static void reset_console_color();
+    };
+
+    class in_memory_log_sink_t final : public log_sink_t
+    {
+    public:
+        explicit in_memory_log_sink_t(size_t max_entries = 1024) : _max_entries{ max_entries } {}
+
+        void write(const log_message& msg) override;
+        [[nodiscard]] std::vector<log_message> snapshot() const;
+        [[nodiscard]] size_t size() const noexcept;
+
+    private:
+        size_t _max_entries{ 1024 };
+        mutable std::mutex _mutex;
+        std::deque<log_message> _entries;
     };
 
     // Async sink that wraps any other sink

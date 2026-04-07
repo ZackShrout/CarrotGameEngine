@@ -34,6 +34,8 @@ namespace carrot::debug {
     // convention so text appears in the authored top-left camera space.
     void text(float x, float y, const char* fmt, ...) noexcept;
     void text_colored(float x, float y, uint32_t color, const char* fmt, ...) noexcept;
+    void log_console_text(float x, float y, const char* fmt, ...) noexcept;
+    void log_console_text_colored(float x, float y, uint32_t color, const char* fmt, ...) noexcept;
     void world_rect(float x, float y, float width, float height, world_rect_style_t style = {}) noexcept;
     void world_aabb(const collision::collision_aabb_t& bounds, world_rect_style_t style = {}) noexcept;
 } // namespace carrot::debug

@@ -70,7 +70,8 @@ namespace carrot::rhi::vulkan {
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
         void bind_textured_quad_resources([[maybe_unused]] const rhi_texture_t& texture,
                                           [[maybe_unused]] const rhi_sampler_t& sampler) override {}
-        bool add_presentation_window(window::window_id_t window_id) override;
+        bool add_presentation_window(window::window_id_t window_id,
+                                     uint32_t presentation_channel_mask = presentation_channel_gameplay) override;
         bool remove_presentation_window(window::window_id_t window_id) override;
 
         void wait_idle() override;
@@ -79,6 +80,7 @@ namespace carrot::rhi::vulkan {
         struct auxiliary_surface_t
         {
             window::window_id_t id{ window::invalid_window_id };
+            uint32_t presentation_channel_mask{ presentation_channel_gameplay };
             VkSurfaceKHR surface{ VK_NULL_HANDLE };
             std::unique_ptr<vulkan_swapchain_t> swapchain;
             framebuffer_array_t framebuffers;
@@ -100,7 +102,7 @@ namespace carrot::rhi::vulkan {
         void recreate_swapchain_dependent_resources();
         void recreate_render_finished_semaphores();
         bool create_surface_for_window(window::window_id_t window_id, VkSurfaceKHR& out_surface) const;
-        bool create_auxiliary_surface(window::window_id_t window_id);
+        bool create_auxiliary_surface(window::window_id_t window_id, uint32_t presentation_channel_mask);
         void destroy_auxiliary_surface(auxiliary_surface_t& surface) noexcept;
         void destroy_all_auxiliary_surfaces() noexcept;
         void sync_auxiliary_surface_sizes();

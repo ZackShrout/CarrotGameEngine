@@ -45,7 +45,20 @@ namespace carrot::rhi {
         std::span<const renderer::textured_quad_batch_t> batches{ };
         chlm::float4x4 view_projection{ chlm::float4x4::identity() };
         render_viewport_t viewport{ };
+        uint32_t presentation_mask{ 1u };
     };
+
+    enum presentation_channel_bits_t : uint32_t
+    {
+        presentation_channel_gameplay = 1u << 0u,
+        presentation_channel_log_console = 1u << 1u,
+        presentation_channel_all = 0xFFFFFFFFu
+    };
+
+    [[nodiscard]] constexpr bool presentation_mask_includes(const uint32_t mask, const uint32_t channel) noexcept
+    {
+        return (mask & channel) != 0u;
+    }
 
     enum class graphics_api { vulkan, direct_x12, metal, default_api, count };
 
@@ -98,7 +111,12 @@ namespace carrot::rhi {
 
         // Multi-window presentation surface management.
         // Backends can override these when they support more than one presentation surface.
-        virtual bool add_presentation_window([[maybe_unused]] window::window_id_t window_id) { return false; }
+        virtual bool add_presentation_window([[maybe_unused]] window::window_id_t window_id,
+                                             [[maybe_unused]] uint32_t presentation_channel_mask =
+                                                 presentation_channel_gameplay)
+        {
+            return false;
+        }
         virtual bool remove_presentation_window([[maybe_unused]] window::window_id_t window_id) { return false; }
 
         virtual void wait_idle() = 0;

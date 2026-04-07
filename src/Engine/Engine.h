@@ -65,6 +65,7 @@ namespace carrot {
         {
             gameplay_main = 0,
             gameplay_mirror = 1,
+            log_console = 2,
         };
 
         struct runtime_window_spec_t
@@ -73,6 +74,7 @@ namespace carrot {
             window::window_create_desc_t create_desc{ };
             bool is_main_window{ false };
             bool register_for_presentation{ false };
+            uint32_t presentation_channel_mask{ rhi::presentation_channel_gameplay };
             bool receives_gameplay_input{ false };
         };
 
@@ -82,6 +84,7 @@ namespace carrot {
             window::window_id_t id{ window::invalid_window_id };
             bool is_main_window{ false };
             bool registered_for_presentation{ false };
+            uint32_t presentation_channel_mask{ rhi::presentation_channel_gameplay };
             bool receives_gameplay_input{ false };
         };
 
@@ -90,6 +93,7 @@ namespace carrot {
         void render_world();
         void render_debug();
         void render_ui();
+        void render_log_console();
         [[nodiscard]] std::vector<runtime_window_spec_t> build_runtime_window_specs(uint32_t width, uint32_t height) const;
         bool create_runtime_window(const runtime_window_spec_t& spec);
         void bind_window_events(window::window_id_t window_id, window::window_id_t main_window_id);

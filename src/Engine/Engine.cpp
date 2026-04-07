@@ -19,6 +19,7 @@
 #include "Core/EnginePaths.h"
 #include "Core/GameContext.h"
 #include "Core/GameView.h"
+#include "Core/Logger.h"
 #include "Debug/DebugOverlay.h"
 #include "HotReload/ShaderWatcher.h"
 #include "RHI/RHI.h"
@@ -36,7 +37,8 @@ namespace carrot {
         bool _debug_overlay_initialized{ false };
         core::ce_application_t* _application{ nullptr };
 
-        [[nodiscard]] std::optional<collision::collision_aabb_t> object_collision_bounds(const world::world_object_t& object) noexcept
+        [[nodiscard]] std::optional<collision::collision_aabb_t> object_collision_bounds(
+            const world::world_object_t& object) noexcept
         {
             if (!object.transform || !object.collision)
                 return std::nullopt;
@@ -48,7 +50,8 @@ namespace carrot {
         }
 
         [[nodiscard]] collision::collision_aabb_t presentation_aabb(const collision::collision_aabb_t& bounds,
-                                                                    const world::world_presentation_t& presentation) noexcept
+                                                                    const world::world_presentation_t& presentation)
+            noexcept
         {
             return collision::collision_aabb_t::from_min_size(
                 presentation.world_position_to_pixels(bounds.min),
@@ -147,7 +150,7 @@ namespace carrot {
         _asset_manager = std::make_unique<assets::asset_manager_t>(_vfs, *_renderer->get_rhi());
         assets::asset_service_t::provide(_asset_manager.get());
 
-        for (const runtime_window_spec_t& spec : window_specs)
+        for (const runtime_window_spec_t& spec: window_specs)
         {
             if (spec.is_main_window)
                 continue;
@@ -215,7 +218,7 @@ namespace carrot {
         // Bind the on_tick function in the engine's application class, to be inherited
         _on_tick += BIND_MEMBER(_application, on_tick);
 
-        for (const window::window_id_t window_id : window::get_window_ids())
+        for (const window::window_id_t window_id: window::get_window_ids())
             bind_window_events(window_id, main_window_id);
 
         LOG_CORE_INFO("Starting application...");
@@ -241,6 +244,7 @@ namespace carrot {
             render_world();
             render_ui();
             render_debug();
+            render_log_console();
             _renderer->end_frame();
         }
 
@@ -353,13 +357,13 @@ namespace carrot {
                 .filled = false
             };
 
-            for (const collision::static_collider_t& collider : _world.collision_world().static_colliders())
+            for (const collision::static_collider_t& collider: _world.collision_world().static_colliders())
                 debug::world_aabb(presentation_aabb(collider.bounds, presentation), map_style);
         }
 
         if (debug_view.show_object_colliders)
         {
-            for (const world::world_object_t& object : _world.objects())
+            for (const world::world_object_t& object: _world.objects())
             {
                 const std::optional<collision::collision_aabb_t> bounds{ object_collision_bounds(object) };
                 if (!bounds || !object.collision || !object.collision->debug_display)
@@ -367,10 +371,10 @@ namespace carrot {
 
                 const world::collision_debug_display_t& object_debug{ *object.collision->debug_display };
                 debug::world_aabb(presentation_aabb(*bounds, presentation), debug::world_rect_style_t{
-                    .color = object_debug.color,
-                    .outline_thickness = object_debug.outline_thickness,
-                    .filled = object_debug.filled
-                });
+                                      .color = object_debug.color,
+                                      .outline_thickness = object_debug.outline_thickness,
+                                      .filled = object_debug.filled
+                                  });
             }
         }
     }
@@ -380,8 +384,127 @@ namespace carrot {
         // Reserved UI stage. Kept explicit now so future UI work has a stable engine-owned hook.
     }
 
+    void engine_t::render_log_console()
+    {
+        const auto log_window_it{
+            std::find_if(_runtime_windows.begin(),
+                         _runtime_windows.end(),
+                         [](const runtime_window_instance_t& window) {
+                             return window.role == runtime_window_role_t::log_console;
+                         })
+        };
+
+        if (log_window_it == _runtime_windows.end())
+            return;
+
+        const window::window_id_t log_window_id{ log_window_it->id };
+        if (!window::has_window(log_window_id) || window::is_minimized(log_window_id))
+            return;
+
+        const float window_width{ static_cast<float>(window::get_width(log_window_id)) };
+        const float window_height{ static_cast<float>(window::get_height(log_window_id)) };
+        if (window_width <= 0.f || window_height <= 0.f)
+            return;
+
+        constexpr float outer_padding_x{ 12.f };
+        constexpr float outer_padding_y{ 10.f };
+        constexpr float line_height{ 18.f };
+        constexpr float bottom_gutter{ 8.f };
+
+        // Debug text is currently monospaced-ish enough that a simple width estimate is good
+        // enough for console tuning. Better than a fixed hardcoded character count.
+        constexpr float estimated_glyph_width{ 8.f };
+        constexpr size_t min_visible_chars{ 12u };
+
+        auto severity_color = [](const core::log_severity severity) noexcept -> uint32_t
+        {
+            switch (severity)
+            {
+                case core::log_severity::trace: return 0xFF7A7A7Au;
+                case core::log_severity::debug: return 0xFFD8D8D8u;
+                case core::log_severity::info:  return 0xFF4CE04Cu;
+                case core::log_severity::warn:  return 0xFF44D8FFu;
+                case core::log_severity::error: return 0xFF7070FFu;
+                case core::log_severity::fatal: return 0xFFFFFFFFu;
+                default:                        return 0xFFFFFFFFu;
+            }
+        };
+
+        auto truncate_for_width = [](std::string text, const size_t max_chars) -> std::string {
+            if (text.size() <= max_chars)
+                return text;
+
+            if (max_chars <= 3u)
+                return text.substr(0, max_chars);
+
+            text.resize(max_chars - 3u);
+            text += "...";
+            return text;
+        };
+
+        _renderer->draw_log_console_solid_quad({
+            .x = 0.f,
+            .y = 0.f,
+            .width = window_width,
+            .height = window_height,
+            .layer = renderer::render_layer_t::ui,
+            .color = 0x00121212u,
+            .sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp
+        });
+
+        const std::vector<core::log_message> messages{ core::logger_t::recent_messages() };
+
+        const float content_width{ std::max(1.f, window_width - outer_padding_x * 2.f) };
+        const float content_height{ std::max(1.f, window_height - outer_padding_y * 2.f - bottom_gutter) };
+
+        const uint32_t max_visible_lines{
+            static_cast<uint32_t>(std::max(1.f, std::floor(content_height / line_height)))
+        };
+
+        const size_t start_index{
+            messages.size() > max_visible_lines
+                ? messages.size() - static_cast<size_t>(max_visible_lines)
+                : 0u
+        };
+
+        const size_t max_chars_per_line{
+            std::max(min_visible_chars,
+                     static_cast<size_t>(std::floor(content_width / estimated_glyph_width)))
+        };
+
+        // Bottom-anchor rows so resizing feels stable and the newest message lives at the bottom.
+        const uint32_t visible_line_count{ static_cast<uint32_t>(messages.size() - start_index) };
+        float y{
+            window_height - outer_padding_y - bottom_gutter - (static_cast<float>(visible_line_count) * line_height)
+        };
+
+        for (size_t i = start_index; i < messages.size(); ++i)
+        {
+            const core::log_message& msg{ messages[i] };
+
+            std::string rendered_message{
+                std::format("[{} | {}] {}",
+                            core::logger_t::category_to_string(msg.category),
+                            core::logger_t::severity_to_string(msg.severity),
+                            msg.message)
+            };
+
+            rendered_message = truncate_for_width(std::move(rendered_message), max_chars_per_line);
+
+            debug::log_console_text_colored(
+                outer_padding_x,
+                y,
+                severity_color(msg.severity),
+                "%s",
+                rendered_message.c_str()
+            );
+
+            y += line_height;
+        }
+    }
+
     std::vector<engine_t::runtime_window_spec_t> engine_t::build_runtime_window_specs(const uint32_t width,
-                                                                                       const uint32_t height) const
+        const uint32_t height) const
     {
         return {
             runtime_window_spec_t{
@@ -400,6 +523,19 @@ namespace carrot {
                 .create_desc = { },
                 .is_main_window = false,
                 .register_for_presentation = true,
+                .presentation_channel_mask = rhi::presentation_channel_gameplay,
+                .receives_gameplay_input = false
+            },
+            runtime_window_spec_t{
+                .role = runtime_window_role_t::log_console,
+                .create_desc = {
+                    .width = 1280,
+                    .height = 280,
+                    .title = "Carrot Log Console"
+                },
+                .is_main_window = false,
+                .register_for_presentation = true,
+                .presentation_channel_mask = rhi::presentation_channel_log_console,
                 .receives_gameplay_input = false
             }
         };
@@ -425,12 +561,14 @@ namespace carrot {
             .id = window_id,
             .is_main_window = spec.is_main_window,
             .registered_for_presentation = false,
+            .presentation_channel_mask = spec.presentation_channel_mask,
             .receives_gameplay_input = spec.receives_gameplay_input
         };
 
         if (_renderer && spec.register_for_presentation)
         {
-            instance.registered_for_presentation = _renderer->add_presentation_window(window_id);
+            instance.registered_for_presentation =
+                    _renderer->add_presentation_window(window_id, spec.presentation_channel_mask);
         }
 
         _runtime_windows.push_back(instance);
@@ -451,7 +589,7 @@ namespace carrot {
         {
             runtime_window->_on_window_resized += BIND_LAMBDA([this](const events::window_resized_t& e) {
                 _renderer->get_rhi()->resize(e._width, e._height);
-            });
+                });
         }
 
         runtime_window->_on_window_closed += BIND_MEMBER(_application, on_window_closed);
@@ -604,19 +742,19 @@ namespace carrot {
 
         bool all_registered{ true };
 
-        for (const std::string& manifest : manifests.audio)
+        for (const std::string& manifest: manifests.audio)
             all_registered = register_audio_asset_manifest(manifest) && all_registered;
 
-        for (const std::string& manifest : manifests.textures)
+        for (const std::string& manifest: manifests.textures)
             all_registered = register_texture_asset_manifest(manifest) && all_registered;
 
-        for (const std::string& manifest : manifests.sprites)
+        for (const std::string& manifest: manifests.sprites)
             all_registered = register_sprite_asset_manifest(manifest) && all_registered;
 
-        for (const std::string& manifest : manifests.tilemaps)
+        for (const std::string& manifest: manifests.tilemaps)
             all_registered = register_tilemap_asset_manifest(manifest) && all_registered;
 
-        for (const std::string& manifest : manifests.scenes)
+        for (const std::string& manifest: manifests.scenes)
             all_registered = register_scene_asset_manifest(manifest) && all_registered;
 
         return all_registered;
@@ -723,7 +861,8 @@ namespace carrot {
             return false;
         }
 
-        if (!assets::scene_asset_manifest_importer_t::import(doc, _asset_manager->scenes().registry(), _vfs, manifest_uri))
+        if (!assets::scene_asset_manifest_importer_t::import(doc, _asset_manager->scenes().registry(), _vfs,
+                                                             manifest_uri))
             return false;
 
         const utils::json::json_object_view_t root{ doc.root().as_object() };
@@ -740,5 +879,4 @@ namespace carrot {
                                                                        _asset_manager->sprites().registry(),
                                                                        _asset_manager->audio().registry());
     }
-
 } // namespace carrot

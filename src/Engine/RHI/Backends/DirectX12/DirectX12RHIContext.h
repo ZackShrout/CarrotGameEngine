@@ -68,7 +68,8 @@ namespace carrot::rhi::dx12 {
 
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
         void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) override;
-        bool add_presentation_window(window::window_id_t window_id) override;
+        bool add_presentation_window(window::window_id_t window_id,
+                                     uint32_t presentation_channel_mask = presentation_channel_gameplay) override;
         bool remove_presentation_window(window::window_id_t window_id) override;
 
         void wait_idle() override;
@@ -77,6 +78,7 @@ namespace carrot::rhi::dx12 {
         struct auxiliary_surface_t
         {
             window::window_id_t id{ window::invalid_window_id };
+            uint32_t presentation_channel_mask{ presentation_channel_gameplay };
             std::unique_ptr<dx12_swapchain_t> swapchain;
             uint32_t last_width{ 0 };
             uint32_t last_height{ 0 };
@@ -84,7 +86,7 @@ namespace carrot::rhi::dx12 {
 
         void record_textured_quad_stage_to_active_target(const textured_quad_stage_record_t& stage);
         void sync_auxiliary_surface_sizes();
-        bool create_auxiliary_surface(window::window_id_t window_id);
+        bool create_auxiliary_surface(window::window_id_t window_id, uint32_t presentation_channel_mask);
         void destroy_auxiliary_surface(auxiliary_surface_t& surface) noexcept;
 
         void ensure_textured_quad_descriptor_capacity(uint32_t required_capacity);

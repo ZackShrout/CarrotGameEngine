@@ -1,8 +1,8 @@
 # Carrot Game Engine - Milestone 07
 
-**Last Updated:** April 6, 2026
+**Last Updated:** April 7, 2026
 **Title:** Controller Input Support
-**Status:** In Progress
+**Status:** Complete
 **Focus:** Add a real engine-owned controller input path that flows through Carrot's existing action-based input model rather than creating a separate gameplay-only input system.
 
 ---
@@ -81,9 +81,33 @@ It should complete it.
 
 ---
 
+## Closeout Summary (April 7, 2026)
+
+Milestone 07 is now considered complete.
+
+Delivered outcomes:
+
+* engine-owned controller discovery/state path on Windows, Linux, and macOS
+* shared semantic action routing for keyboard plus controller bindings
+* analog movement support through shared gameplay-facing movement intent
+* sandbox gameplay parity for movement and interaction
+* runtime debug visibility for connected count, active slot, raw/stable state
+* regression coverage for action-map/controller/player-controller integration
+* backend-aware stabilization policy without preprocessor branching:
+  * Windows/Linux keep release debounce enabled
+  * macOS runs with debounce disabled based on stable hardware validation
+
+Deferred follow-up (post-milestone hardening, not milestone blockers):
+
+* broader controller-family validation (including PlayStation-style hardware when available)
+* additional per-platform quirk notes as more devices are tested
+* future stabilization re-tuning only if broader hardware data indicates it
+
+---
+
 ## Current Implementation Baseline
 
-Milestone 07 now has real first-pass implementations on Windows and Linux.
+Milestone 07 now has real first-pass implementations on all desktop targets.
 
 What is currently in place:
 
@@ -91,7 +115,7 @@ What is currently in place:
 * platform-separated controller backends selected through CMake
 * a Windows backend using GameInput
 * a Linux backend using `libudev` plus `libevdev`
-* a macOS controller backend stub that still fails soft
+* a macOS backend using Apple's GameController framework
 * controller button and axis-threshold support in the input action map
 * JSON-authored default controller bindings in the sandbox input config
 * sandbox movement parity across keyboard, d-pad, and left stick
@@ -101,9 +125,9 @@ What is currently in place:
 
 Current notable gaps:
 
-* no macOS controller backend implementation yet
-* no real broad hardware-validation pass yet for non-Xbox controllers on Windows
-* no final decision yet on how much long-term engine-side stabilization policy should remain after more platform coverage exists
+* no broad controller-family validation yet across all desktop backends
+* no PlayStation-style controller validation data yet
+* per-platform quirks still need to be expanded as more hardware is tested
 
 ---
 
@@ -115,8 +139,10 @@ The current state is:
 
 * Windows controller bring-up is working in the sandbox
 * Linux controller bring-up is working in the sandbox
+* macOS first-pass controller bring-up is now wired through GameController
 * the Windows backend is on GameInput rather than XInput
 * the Linux backend uses `libudev` for discovery/hotplug and `libevdev` for polling/normalization
+* the macOS backend currently polls connected `GCController` instances and maps them into the shared normalized gamepad vocabulary
 * the action map now supports keyboard plus controller bindings through one shared semantic action path
 * player movement resolves per tick from keyboard, d-pad, and left stick
 * controller state debug visibility exists in-engine and was used to validate a raw-input flutter issue on Windows
@@ -131,22 +157,22 @@ Most important conclusion so far:
 
 ---
 
-## Where We Should Pick This Up Next
+## Post-Milestone Follow-Ups
 
-The strongest next step is macOS backend implementation plus broader post-bring-up validation.
+The strongest next step after Milestone 07 is broader hardware validation across controller families.
 
 That follow-up should focus on:
 
-* implementing the macOS controller backend while preserving the current shared `ControllerManager` contract
+* broadening validation on macOS controller hardware and transport types (wired, Bluetooth, first-party and third-party)
 * broadening hardware validation across more controller types on Windows and Linux
 * comparing Linux raw-vs-stable behavior against Windows before changing the shared stabilization policy
 * deciding whether any backend-specific normalization or deadzone policy should move out of gameplay-side assumptions
 
-Recommended pickup order:
+Recommended follow-up order:
 
-1. implement the macOS backend behind the existing shared controller contract
-2. run broader hardware validation across Windows and Linux devices beyond the initial successful sandbox pass
-3. compare Windows and Linux raw-vs-stable behavior before changing the shared stabilization policy
+1. run broader hardware validation across macOS, Windows, and Linux devices beyond the initial successful sandbox pass
+2. compare Windows and Linux raw-vs-stable behavior before changing the shared stabilization policy
+3. compare macOS raw-vs-stable behavior against Windows/Linux before changing shared stabilization
 4. document any controller quirks or package requirements that surfaced during platform bring-up
 5. revisit whether any additional regression coverage is warranted for backend-side normalization helpers
 
@@ -299,8 +325,8 @@ The current intended implementation direction for Milestone 07 is:
 
 * keep platform-specific controller code as small as possible
 * let shared engine systems own controller policy, normalization, routing, and gameplay-facing behavior
-* validate the shared engine/controller path on Windows and Linux
-* implement a macOS backend carefully, but treat it as unverified until real hardware testing is available
+* keep validating the shared engine/controller path across broader hardware on every desktop backend
+* treat new controller-family behavior as data-driven follow-up rather than changing the shared API shape
 
 This matches Carrot's broader architecture direction:
 
@@ -310,11 +336,11 @@ This matches Carrot's broader architecture direction:
 
 ### Platform Validation Expectations
 
-Current practical expectation for this milestone:
+Current practical expectation after milestone closeout:
 
-* **Windows:** implemented, sandbox-validated, and currently the strongest supported path
-* **Linux:** next planned implementation target
-* **macOS:** backend seam is in place, but implementation remains pending and unverified
+* **Windows:** implemented and sandbox-validated
+* **Linux:** implemented and sandbox-validated
+* **macOS:** implemented and sandbox-validated on Xbox-style hardware (8BitDo SN30 Pro), with debounce disabled by backend policy
 
 Important rule:
 
@@ -518,13 +544,13 @@ Why this direction is preferred:
 
 ## Recommended Implementation Order
 
-If milestone 07 work continues from the current implementation, the recommended remaining order is:
+After Milestone 07 closeout, the recommended order is:
 
-1. implement and validate the Linux controller backend
-2. implement and validate the macOS controller backend
-3. expand regression coverage around controller manager state transitions and backend-facing assumptions
-4. re-evaluate the shared stabilization policy after Linux and macOS data exists
-5. document final per-platform validation notes and any intentionally retained stabilization behavior
+1. run broader hardware validation across Windows, Linux, and macOS controller families
+2. expand per-platform controller quirk documentation as data emerges
+3. add any targeted regression coverage motivated by hardware findings
+4. re-evaluate debounce defaults only if broader validation indicates a need
+5. defer UI rebinding/navigation work to its own milestone
 
 What is already complete enough to build on:
 

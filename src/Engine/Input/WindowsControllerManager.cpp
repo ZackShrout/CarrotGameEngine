@@ -185,4 +185,9 @@ namespace carrot::input {
             ++output_index;
         }
     }
+
+    float controller_manager_t::platform_button_release_debounce_seconds() const noexcept
+    {
+        return 0.08f;
+    }
 } // namespace carrot::input

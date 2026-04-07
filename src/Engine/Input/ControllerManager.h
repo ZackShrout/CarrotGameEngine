@@ -32,6 +32,7 @@ namespace carrot::input {
 
     private:
         void update_platform_state() noexcept;
+        [[nodiscard]] float platform_button_release_debounce_seconds() const noexcept;
         void log_connection_changes() noexcept;
         void reset_gamepads() noexcept;
         void reset_raw_gamepads() noexcept;

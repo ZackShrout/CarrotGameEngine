@@ -8,10 +8,6 @@
 #include "ControllerManager.h"
 
 namespace carrot::input {
-    namespace {
-        constexpr float k_button_release_debounce_seconds{ 0.08f };
-    } // namespace
-
     void controller_manager_t::update(const float delta_time) noexcept
     {
         const std::array<gamepad_state_t, 4> previous_gamepads{ _gamepads };
@@ -133,6 +129,13 @@ namespace carrot::input {
     void controller_manager_t::stabilize_button_states(const std::array<gamepad_state_t, 4>& previous_gamepads,
                                                        const float delta_time) noexcept
     {
+        const float release_debounce_seconds{ std::max(0.f, platform_button_release_debounce_seconds()) };
+        if (release_debounce_seconds <= 0.f)
+        {
+            _button_release_pending_seconds = { };
+            return;
+        }
+
         for (uint32_t gamepad_index{ 0 }; gamepad_index < _gamepads.size(); ++gamepad_index)
         {
             gamepad_state_t& current{ _gamepads[gamepad_index] };
@@ -160,7 +163,7 @@ namespace carrot::input {
                     float& pending_seconds{ _button_release_pending_seconds[gamepad_index][button_index] };
                     pending_seconds += std::max(0.f, delta_time);
 
-                    if (pending_seconds < k_button_release_debounce_seconds)
+                    if (pending_seconds < release_debounce_seconds)
                     {
                         current.buttons[button_index] = true;
                         continue;

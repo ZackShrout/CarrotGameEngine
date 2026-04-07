@@ -641,6 +641,7 @@ if(APPLE)
     target_link_libraries(CarrotEngine PRIVATE
             "-framework Metal"
             "-framework MetalKit"
+            "-framework GameController"
             "-framework Cocoa"
             "-framework AppKit"
             "-framework QuartzCore"

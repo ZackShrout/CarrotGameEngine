@@ -496,4 +496,9 @@ namespace carrot::input {
             populate_axis_state(device.evdev, gamepad);
         }
     }
+
+    float controller_manager_t::platform_button_release_debounce_seconds() const noexcept
+    {
+        return 0.08f;
+    }
 } // namespace carrot::input

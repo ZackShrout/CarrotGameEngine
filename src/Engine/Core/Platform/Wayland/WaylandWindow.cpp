@@ -573,6 +573,17 @@ namespace carrot::core::platform {
         wl_surface_commit(_surface);
     }
 
+    void wayland_window_t::request_focus() noexcept
+    {
+        if (!_surface || !_display)
+            return;
+
+        // Wayland compositors own activation policy; clients generally cannot force focus.
+        // Best effort here is to commit/flush surface state and let compositor policy decide.
+        wl_surface_commit(_surface);
+        wl_display_flush(_display);
+    }
+
     native_window_handle_t wayland_window_t::get_native_handle() const noexcept
     {
         native_window_handle_t handle{ nullptr };

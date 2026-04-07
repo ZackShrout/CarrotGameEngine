@@ -12,12 +12,48 @@
 #include "Protocols/xdg-decoration-unstable-v1-client-protocol.h"
 #include "Protocols/xdg-shell-client-protocol.h"
 
+#include <cerrno>
+#include <cstring>
 #include <poll.h>
 #include <sys/mman.h>
 #include <wayland-client-protocol.h>
 
 namespace carrot::core::platform {
     namespace {
+        [[nodiscard]] bool check_wayland_display_error(wl_display* display, std::string_view context)
+        {
+            if (!display)
+                return false;
+
+            const int error_code{ wl_display_get_error(display) };
+            if (error_code == 0)
+                return false;
+
+            const wl_interface* interface{ nullptr };
+            uint32_t object_id{ 0 };
+            const uint32_t protocol_code{ wl_display_get_protocol_error(display, &interface, &object_id) };
+            if (protocol_code != 0)
+            {
+                const char* interface_name{ interface ? interface->name : "unknown" };
+                LOG_CORE_ERROR(
+                    "Wayland protocol error in {}: interface={} object_id={} code={}",
+                    context,
+                    interface_name,
+                    object_id,
+                    protocol_code
+                );
+            }
+            else
+            {
+                LOG_CORE_ERROR("Wayland display error in {}: errno={} ({})",
+                               context,
+                               error_code,
+                               std::strerror(error_code));
+            }
+
+            return true;
+        }
+
         void xdg_wm_base_ping(void*, xdg_wm_base* shell, const uint32_t serial)
         {
             xdg_wm_base_pong(shell, serial);
@@ -509,12 +545,30 @@ namespace carrot::core::platform {
         if (!_display) return;
 
         // 1. Drain already-queued events first.
-        wl_display_dispatch_pending(_display);
+        if (wl_display_dispatch_pending(_display) < 0)
+        {
+            if (check_wayland_display_error(_display, "dispatch_pending(initial)"))
+                _should_close = true;
+            return;
+        }
         wl_display_flush(_display);
 
         // 2. Non-blocking read/dispatch of new compositor events.
         while (wl_display_prepare_read(_display) != 0)
-            wl_display_dispatch_pending(_display);
+        {
+            if (check_wayland_display_error(_display, "prepare_read"))
+            {
+                _should_close = true;
+                return;
+            }
+
+            if (wl_display_dispatch_pending(_display) < 0)
+            {
+                if (check_wayland_display_error(_display, "dispatch_pending(prepare_read loop)"))
+                    _should_close = true;
+                return;
+            }
+        }
 
         pollfd pfd{ };
         pfd.fd = wl_display_get_fd(_display);
@@ -524,13 +578,32 @@ namespace carrot::core::platform {
         if (poll_result > 0 && (pfd.revents & POLLIN))
         {
             if (wl_display_read_events(_display) == 0)
-                wl_display_dispatch_pending(_display);
+            {
+                if (wl_display_dispatch_pending(_display) < 0)
+                {
+                    if (check_wayland_display_error(_display, "dispatch_pending(after read_events)"))
+                        _should_close = true;
+                    return;
+                }
+            }
             else
+            {
                 wl_display_cancel_read(_display);
+                if (check_wayland_display_error(_display, "read_events"))
+                    _should_close = true;
+                return;
+            }
         }
         else
         {
             wl_display_cancel_read(_display);
+            if (poll_result < 0 && errno != EINTR)
+                LOG_CORE_WARN("Wayland poll returned error: errno={} ({})", errno, std::strerror(errno));
+            if (check_wayland_display_error(_display, "poll/cancel_read"))
+            {
+                _should_close = true;
+                return;
+            }
         }
 
         // 3. Generate synthetic repeats (only if we have an active repeating key)

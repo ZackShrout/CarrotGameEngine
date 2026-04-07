@@ -201,9 +201,16 @@ namespace carrot::rhi::vulkan {
 
         // Acquire next swapchain image
         const VkResult acquire_result{
-            vkAcquireNextImageKHR(_device->vk_device(), _swapchain->vk_swapchain(), UINT64_MAX, frame.image_acquire,
+            // Non-blocking acquire keeps the app responsive during Wayland fullscreen/configure transitions.
+            vkAcquireNextImageKHR(_device->vk_device(), _swapchain->vk_swapchain(), 0, frame.image_acquire,
                                   VK_NULL_HANDLE, &_current_image_index)
         };
+
+        if (acquire_result == VK_NOT_READY)
+        {
+            _skip_frame = true;
+            return;
+        }
 
         if (acquire_result == VK_ERROR_OUT_OF_DATE_KHR)
         {
@@ -295,13 +302,17 @@ namespace carrot::rhi::vulkan {
                 continue;
 
             const VkResult acquire_result{
+                // Non-blocking acquire prevents an auxiliary surface from stalling the whole frame.
                 vkAcquireNextImageKHR(_device->vk_device(),
                                       aux_surface.swapchain->vk_swapchain(),
-                                      UINT64_MAX,
+                                      0,
                                       aux_surface.image_acquire[_current_frame],
                                       VK_NULL_HANDLE,
                                       &aux_surface.current_image_index)
             };
+
+            if (acquire_result == VK_NOT_READY)
+                continue;
 
             if (acquire_result == VK_ERROR_OUT_OF_DATE_KHR || acquire_result == VK_SUBOPTIMAL_KHR)
             {

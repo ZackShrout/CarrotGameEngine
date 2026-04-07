@@ -132,6 +132,21 @@ namespace carrot::core::platform {
         }
     }
 
+    void cocoa_window_t::request_focus() noexcept
+    {
+        if (!_ns_window)
+            return;
+
+        @autoreleasepool
+        {
+            NSApplication* app{ [NSApplication sharedApplication] };
+            NSWindow* window{ (NSWindow*)_ns_window };
+
+            [app activateIgnoringOtherApps:YES];
+            [window makeKeyAndOrderFront:nil];
+        }
+    }
+
     native_window_handle_t cocoa_window_t::get_native_handle() const noexcept
     {
         native_window_handle_t handle{ };

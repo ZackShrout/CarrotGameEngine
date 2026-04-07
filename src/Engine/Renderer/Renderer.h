@@ -13,6 +13,7 @@
 #include "EngineConfig.h"
 #include "Primitives/QuadVertex.h"
 #include "RHI/RHI.h"
+#include "Window/Window.h"
 
 #include <array>
 #include <chrono>
@@ -132,7 +133,9 @@ namespace carrot::renderer {
     public:
         CARROT_MODULE_NAME("Renderer")
 
-        explicit renderer_t(io::virtual_file_system_t& vfs, const engine_graphics_config_t& config);
+        explicit renderer_t(io::virtual_file_system_t& vfs,
+                            const engine_graphics_config_t& config,
+                            window::window_id_t render_window_id = window::invalid_window_id);
         ~renderer_t() override { shutdown(); }
 
         void init() override;
@@ -141,6 +144,8 @@ namespace carrot::renderer {
         // Main loop integration
         void begin_frame();
         void end_frame();
+        bool add_presentation_window(window::window_id_t window_id);
+        bool remove_presentation_window(window::window_id_t window_id);
 
         void set_camera_2d(const camera_2d_t& camera) noexcept { _active_camera = camera; }
 
@@ -217,6 +222,7 @@ namespace carrot::renderer {
         // ── External context / configuration ──────────────────────────────────────
         io::virtual_file_system_t&  _vfs;
         engine_graphics_config_t    _config;
+        window::window_id_t         _render_window_id{ window::invalid_window_id };
 
         // ── Backend integration ───────────────────────────────────────────────────
         std::unique_ptr<rhi::rhi_context_t>                 _rhi;

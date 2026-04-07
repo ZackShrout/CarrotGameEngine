@@ -22,6 +22,7 @@ namespace carrot::core::platform {
         virtual void minimize() noexcept {}
         virtual void maximize() noexcept {}
         virtual void restore() noexcept {}
+        virtual void request_focus() noexcept {}
 
         [[nodiscard]] virtual bool is_maximized() const noexcept { return false; }
         [[nodiscard]] virtual bool is_focused() const noexcept { return true; }

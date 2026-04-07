@@ -20,6 +20,8 @@
 #include "Renderer/Draw/TexturedQuadCameraUniform.h"
 #include "Window/Window.h"
 
+#include <algorithm>
+
 namespace carrot::rhi::metal {
     namespace {
         constexpr NS::UInteger k_textured_quad_root_argument_buffer_index{ 2 };
@@ -69,7 +71,13 @@ namespace carrot::rhi::metal {
 
     metal_rhi_context_t::metal_rhi_context_t(const rhi_desc_t& desc)
     {
-        core::platform::native_window_handle_t window_handle{ window::get_primary_window().get_native_handle() };
+        const window::window_id_t presentation_window_id{
+            window::has_window(desc.presentation_window_id)
+                ? desc.presentation_window_id
+                : window::get_main_window_id()
+        };
+        _presentation_window_id = presentation_window_id;
+        core::platform::native_window_handle_t window_handle{ window::get_native_handle(presentation_window_id) };
         _metal_layer = window_handle.cocoa_t.metal_layer;
 
         if (!_metal_layer)
@@ -167,6 +175,7 @@ namespace carrot::rhi::metal {
             return;
 
         dispatch_semaphore_wait(_frame_semaphore, DISPATCH_TIME_FOREVER);
+        _recorded_stages.clear();
 
         _swapchain->acquire_next_image(nullptr);
         _active_drawable = static_cast<const CA::MetalDrawable*>(_swapchain->get_current_drawable());
@@ -189,6 +198,7 @@ namespace carrot::rhi::metal {
 
         _active_command_buffer->retain();
         metal_add_command_buffer_completion_signal(_active_command_buffer, _frame_semaphore);
+        acquire_auxiliary_drawables();
 
         _render_encoder.begin(_active_command_buffer, _active_drawable, MTL::ClearColor(0.02, 0.02, 0.04, 1.0));
     }
@@ -198,95 +208,13 @@ namespace carrot::rhi::metal {
         if (!is_frame_active())
             return;
 
+        _recorded_stages.push_back(stage);
+
         MTL::RenderCommandEncoder* encoder{ _render_encoder.encoder() };
         if (!encoder)
             return;
 
-        if (!_textured_quad_pipeline || !_textured_quad_pipeline->is_valid())
-            return;
-
-        const metal_buffer_t* vertex_buffer{ dynamic_cast<const metal_buffer_t*>(stage.vertex_buffer) };
-        const metal_buffer_t* index_buffer{ dynamic_cast<const metal_buffer_t*>(stage.index_buffer) };
-        if (!vertex_buffer || !index_buffer || stage.batches.empty())
-            return;
-
-        if (stage.stage_slot >= k_max_textured_quad_stage_records_per_frame)
-        {
-            LOG_GRAPHICS_FATAL("Metal textured quad stage slot {} exceeds max supported stage slots {}", stage.stage_slot,
-                               k_max_textured_quad_stage_records_per_frame);
-            return;
-        }
-
-        ensure_textured_quad_argument_capacity(stage.stage_slot, stage.batches.size());
-
-        const chlm::uint_rect viewport_rect{ stage.viewport.rect_px };
-
-        MTL::Viewport viewport{ };
-        viewport.originX = static_cast<double>(viewport_rect.position.x);
-        viewport.originY = static_cast<double>(viewport_rect.position.y);
-        viewport.width = static_cast<double>(viewport_rect.size.x);
-        viewport.height = static_cast<double>(viewport_rect.size.y);
-        viewport.znear = 0.0;
-        viewport.zfar = 1.0;
-        encoder->setViewport(viewport);
-
-        MTL::ScissorRect scissor{ };
-        scissor.x = viewport_rect.position.x;
-        scissor.y = viewport_rect.position.y;
-        scissor.width = viewport_rect.size.x;
-        scissor.height = viewport_rect.size.y;
-        encoder->setScissorRect(scissor);
-
-        encoder->setRenderPipelineState(_textured_quad_pipeline->state());
-        encoder->setVertexBuffer(vertex_buffer->mtl_buffer(), 0, 0);
-
-        renderer::textured_quad_camera_uniform_t camera_uniform{ };
-        camera_uniform.view_projection = stage.view_projection;
-
-        if (!_textured_quad_camera_uniform_buffers[stage.stage_slot] ||
-            !_textured_quad_camera_uniform_buffers[stage.stage_slot]->write(&camera_uniform, sizeof(camera_uniform), 0))
-        {
-            LOG_GRAPHICS_WARN("Failed to upload Metal textured quad camera uniform");
-            return;
-        }
-
-        for (size_t i{ 0 }; i < stage.batches.size(); ++i)
-        {
-            const renderer::textured_quad_batch_t& batch{ stage.batches[i] };
-
-            const metal_texture_t* texture{ dynamic_cast<const metal_texture_t*>(batch.texture) };
-            if (!texture)
-            {
-                LOG_GRAPHICS_WARN("Skipping Metal textured quad batch with non-Metal texture");
-                continue;
-            }
-
-            size_t root_ab_offset{ 0 };
-            encode_textured_quad_argument_buffers(*texture, stage.stage_slot, i, batch, root_ab_offset);
-            encoder->setVertexBuffer(_textured_quad_root_argument_buffers[stage.stage_slot]->mtl_buffer(),
-                                     root_ab_offset,
-                                     k_textured_quad_root_argument_buffer_index);
-            encoder->setFragmentBuffer(_textured_quad_root_argument_buffers[stage.stage_slot]->mtl_buffer(),
-                                       root_ab_offset,
-                                       k_textured_quad_root_argument_buffer_index);
-
-            encoder->useResource(_textured_quad_cbv_descriptor_tables[stage.stage_slot]->mtl_buffer(), MTL::ResourceUsageRead,
-                                 MTL::RenderStageVertex);
-            encoder->useResource(_textured_quad_camera_uniform_buffers[stage.stage_slot]->mtl_buffer(), MTL::ResourceUsageRead,
-                                 MTL::RenderStageVertex);
-
-            encoder->useResource(_textured_quad_srv_descriptor_tables[stage.stage_slot]->mtl_buffer(), MTL::ResourceUsageRead,
-                                 MTL::RenderStageFragment);
-
-            encoder->useResource(_textured_quad_sampler_descriptor_tables[stage.stage_slot]->mtl_buffer(), MTL::ResourceUsageRead,
-                                 MTL::RenderStageFragment);
-
-            encoder->useResource(texture->mtl_texture(), MTL::ResourceUsageRead, MTL::RenderStageFragment);
-
-            encoder->drawIndexedPrimitives(MTL::PrimitiveTypeTriangle, batch.index_count, MTL::IndexTypeUInt32,
-                                           index_buffer->mtl_buffer(),
-                                           batch.first_index * sizeof(uint32_t));
-        }
+        encode_textured_quad_stage(encoder, stage);
     }
 
     void metal_rhi_context_t::end_frame()
@@ -296,12 +224,29 @@ namespace carrot::rhi::metal {
 
         _render_encoder.end();
 
+        for (auxiliary_surface_t& surface : _auxiliary_surfaces)
+        {
+            if (!surface.drawable)
+                continue;
+
+            metal_render_encoder_t auxiliary_encoder;
+            auxiliary_encoder.begin(_active_command_buffer, surface.drawable, MTL::ClearColor(0.02, 0.02, 0.04, 1.0));
+            if (MTL::RenderCommandEncoder* encoder{ auxiliary_encoder.encoder() })
+            {
+                for (const textured_quad_stage_record_t& stage : _recorded_stages)
+                    encode_textured_quad_stage(encoder, stage);
+            }
+            auxiliary_encoder.end();
+            _active_command_buffer->presentDrawable(surface.drawable);
+        }
+
         _active_command_buffer->presentDrawable(_active_drawable);
         _active_command_buffer->commit();
         _active_command_buffer->release();
         _active_command_buffer = nullptr;
 
         _active_drawable = nullptr;
+        release_auxiliary_drawables();
     }
 
     void metal_rhi_context_t::resize(const uint32_t width, const uint32_t height)
@@ -475,8 +420,172 @@ namespace carrot::rhi::metal {
         return _active_command_buffer != nullptr && _active_drawable != nullptr;
     }
 
+    bool metal_rhi_context_t::add_presentation_window(const window::window_id_t window_id)
+    {
+        if (!_device || window_id == window::invalid_window_id || window_id == _presentation_window_id)
+            return false;
+
+        const bool already_registered{
+            std::find_if(_auxiliary_surfaces.begin(),
+                         _auxiliary_surfaces.end(),
+                         [window_id](const auxiliary_surface_t& surface) {
+                             return surface.id == window_id;
+                         }) != _auxiliary_surfaces.end()
+        };
+        if (already_registered)
+            return true;
+
+        if (!window::has_window(window_id))
+            return false;
+
+        const core::platform::native_window_handle_t handle{ window::get_native_handle(window_id) };
+        if (!handle.cocoa_t.metal_layer)
+            return false;
+
+        // Keep auxiliary window render-target format consistent with the primary pipeline target.
+        metal_set_layer_pixel_format_srgb(handle.cocoa_t.metal_layer);
+
+        _auxiliary_surfaces.push_back(auxiliary_surface_t{
+            .id = window_id,
+            .swapchain = std::make_unique<metal_swapchain_t>(_device->mtl_device(),
+                                                              handle.cocoa_t.metal_layer,
+                                                              window::get_width(window_id),
+                                                              window::get_height(window_id))
+        });
+
+        return true;
+    }
+
+    bool metal_rhi_context_t::remove_presentation_window(const window::window_id_t window_id)
+    {
+        if (window_id == window::invalid_window_id)
+            return false;
+
+        const auto old_size{ _auxiliary_surfaces.size() };
+        std::erase_if(_auxiliary_surfaces, [window_id](const auxiliary_surface_t& surface) {
+            return surface.id == window_id;
+        });
+
+        return _auxiliary_surfaces.size() != old_size;
+    }
+
+    void metal_rhi_context_t::acquire_auxiliary_drawables()
+    {
+        for (auto it = _auxiliary_surfaces.begin(); it != _auxiliary_surfaces.end();)
+        {
+            if (!window::has_window(it->id))
+            {
+                it = _auxiliary_surfaces.erase(it);
+                continue;
+            }
+
+            it->swapchain->resize(window::get_width(it->id), window::get_height(it->id));
+            it->swapchain->acquire_next_image(nullptr);
+            it->drawable = static_cast<const CA::MetalDrawable*>(it->swapchain->get_current_drawable());
+            ++it;
+        }
+    }
+
+    void metal_rhi_context_t::release_auxiliary_drawables() noexcept
+    {
+        for (auxiliary_surface_t& surface : _auxiliary_surfaces)
+            surface.drawable = nullptr;
+    }
+
+    void metal_rhi_context_t::encode_textured_quad_stage(MTL::RenderCommandEncoder* encoder,
+                                                         const textured_quad_stage_record_t& stage)
+    {
+        if (!encoder || !_textured_quad_pipeline || !_textured_quad_pipeline->is_valid())
+            return;
+
+        const metal_buffer_t* vertex_buffer{ dynamic_cast<const metal_buffer_t*>(stage.vertex_buffer) };
+        const metal_buffer_t* index_buffer{ dynamic_cast<const metal_buffer_t*>(stage.index_buffer) };
+        if (!vertex_buffer || !index_buffer || stage.batches.empty())
+            return;
+
+        if (stage.stage_slot >= k_max_textured_quad_stage_records_per_frame)
+        {
+            LOG_GRAPHICS_FATAL("Metal textured quad stage slot {} exceeds max supported stage slots {}", stage.stage_slot,
+                               k_max_textured_quad_stage_records_per_frame);
+            return;
+        }
+
+        ensure_textured_quad_argument_capacity(stage.stage_slot, stage.batches.size());
+
+        const chlm::uint_rect viewport_rect{ stage.viewport.rect_px };
+
+        MTL::Viewport viewport{ };
+        viewport.originX = static_cast<double>(viewport_rect.position.x);
+        viewport.originY = static_cast<double>(viewport_rect.position.y);
+        viewport.width = static_cast<double>(viewport_rect.size.x);
+        viewport.height = static_cast<double>(viewport_rect.size.y);
+        viewport.znear = 0.0;
+        viewport.zfar = 1.0;
+        encoder->setViewport(viewport);
+
+        MTL::ScissorRect scissor{ };
+        scissor.x = viewport_rect.position.x;
+        scissor.y = viewport_rect.position.y;
+        scissor.width = viewport_rect.size.x;
+        scissor.height = viewport_rect.size.y;
+        encoder->setScissorRect(scissor);
+
+        encoder->setRenderPipelineState(_textured_quad_pipeline->state());
+        encoder->setVertexBuffer(vertex_buffer->mtl_buffer(), 0, 0);
+
+        renderer::textured_quad_camera_uniform_t camera_uniform{ };
+        camera_uniform.view_projection = stage.view_projection;
+
+        if (!_textured_quad_camera_uniform_buffers[stage.stage_slot] ||
+            !_textured_quad_camera_uniform_buffers[stage.stage_slot]->write(&camera_uniform, sizeof(camera_uniform), 0))
+        {
+            LOG_GRAPHICS_WARN("Failed to upload Metal textured quad camera uniform");
+            return;
+        }
+
+        for (size_t i{ 0 }; i < stage.batches.size(); ++i)
+        {
+            const renderer::textured_quad_batch_t& batch{ stage.batches[i] };
+
+            const metal_texture_t* texture{ dynamic_cast<const metal_texture_t*>(batch.texture) };
+            if (!texture)
+            {
+                LOG_GRAPHICS_WARN("Skipping Metal textured quad batch with non-Metal texture");
+                continue;
+            }
+
+            size_t root_ab_offset{ 0 };
+            encode_textured_quad_argument_buffers(*texture, stage.stage_slot, i, batch, root_ab_offset);
+            encoder->setVertexBuffer(_textured_quad_root_argument_buffers[stage.stage_slot]->mtl_buffer(),
+                                     root_ab_offset,
+                                     k_textured_quad_root_argument_buffer_index);
+            encoder->setFragmentBuffer(_textured_quad_root_argument_buffers[stage.stage_slot]->mtl_buffer(),
+                                       root_ab_offset,
+                                       k_textured_quad_root_argument_buffer_index);
+
+            encoder->useResource(_textured_quad_cbv_descriptor_tables[stage.stage_slot]->mtl_buffer(), MTL::ResourceUsageRead,
+                                 MTL::RenderStageVertex);
+            encoder->useResource(_textured_quad_camera_uniform_buffers[stage.stage_slot]->mtl_buffer(), MTL::ResourceUsageRead,
+                                 MTL::RenderStageVertex);
+
+            encoder->useResource(_textured_quad_srv_descriptor_tables[stage.stage_slot]->mtl_buffer(), MTL::ResourceUsageRead,
+                                 MTL::RenderStageFragment);
+
+            encoder->useResource(_textured_quad_sampler_descriptor_tables[stage.stage_slot]->mtl_buffer(), MTL::ResourceUsageRead,
+                                 MTL::RenderStageFragment);
+
+            encoder->useResource(texture->mtl_texture(), MTL::ResourceUsageRead, MTL::RenderStageFragment);
+
+            encoder->drawIndexedPrimitives(MTL::PrimitiveTypeTriangle, batch.index_count, MTL::IndexTypeUInt32,
+                                           index_buffer->mtl_buffer(),
+                                           batch.first_index * sizeof(uint32_t));
+        }
+    }
+
     void metal_rhi_context_t::reset_frame_state() noexcept
     {
+        _render_encoder.end();
+
         if (_active_command_buffer)
         {
             _active_command_buffer->release();
@@ -484,6 +593,7 @@ namespace carrot::rhi::metal {
         }
 
         _active_drawable = nullptr;
+        release_auxiliary_drawables();
     }
 
     void metal_rhi_context_t::ensure_textured_quad_argument_capacity(const uint32_t stage_slot, const size_t batch_count)

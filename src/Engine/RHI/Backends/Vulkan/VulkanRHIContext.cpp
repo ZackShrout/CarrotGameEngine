@@ -18,6 +18,8 @@
 #include "VulkanTexture.h"
 #include "Window/Window.h"
 
+#include <algorithm>
+
 namespace carrot::rhi::vulkan {
     namespace {
         [[nodiscard]] VkBufferUsageFlags to_vk_buffer_usage(const buffer_usage_t usage) noexcept
@@ -115,6 +117,7 @@ namespace carrot::rhi::vulkan {
         _sampler_cache.clear();
         _textured_quad_pipeline.reset();
         _render_pass.reset();
+        destroy_all_auxiliary_surfaces();
 
         if (_swapchain)
         {
@@ -166,7 +169,9 @@ namespace carrot::rhi::vulkan {
         _skip_frame = false;
         _frame_active = false;
         _render_pass_active = false;
+        _recorded_stages.clear();
         _textured_quad_descriptor_set_cursor[_current_frame] = 0;
+        sync_auxiliary_surface_sizes();
 
         if (_swapchain_dirty)
         {
@@ -252,115 +257,21 @@ namespace carrot::rhi::vulkan {
         if (_skip_frame || !_frame_active)
             return;
 
-        const frame_resources_t& frame{ _frames[_current_frame] };
-
-        if (_textured_quad_pipeline == nullptr)
-        {
-            LOG_GRAPHICS_FATAL("Textured quad pipeline not initialized");
-            return;
-        }
-
-        const vulkan_buffer_t* vertex_buffer{ dynamic_cast<const vulkan_buffer_t*>(stage.vertex_buffer) };
-        const vulkan_buffer_t* index_buffer{ dynamic_cast<const vulkan_buffer_t*>(stage.index_buffer) };
-        if (vertex_buffer == nullptr || index_buffer == nullptr)
-        {
-            LOG_GRAPHICS_FATAL("Textured quad geometry not initialized");
-            return;
-        }
-
-        if (stage.batches.empty())
+        uint32_t batch_count{ 0 };
+        const uint32_t descriptor_set_offset{ prepare_textured_quad_stage_descriptors(stage, batch_count) };
+        if (batch_count == 0)
             return;
 
-        if (stage.stage_slot >= k_max_textured_quad_stage_records_per_frame)
-        {
-            LOG_GRAPHICS_FATAL("Vulkan textured quad stage slot {} exceeds max supported stage slots {}", stage.stage_slot,
-                               k_max_textured_quad_stage_records_per_frame);
-            return;
-        }
+        recorded_stage_t recorded_stage{ };
+        recorded_stage.stage = stage;
+        recorded_stage.descriptor_set_offset = descriptor_set_offset;
+        recorded_stage.descriptor_set_count = batch_count;
+        _recorded_stages.push_back(recorded_stage);
 
-        renderer::textured_quad_camera_uniform_t camera_uniform{ };
-        camera_uniform.view_projection = stage.view_projection;
-        if (!_textured_quad.camera_uniform_buffers[_current_frame][stage.stage_slot] ||
-            !_textured_quad.camera_uniform_buffers[_current_frame][stage.stage_slot]->write(&camera_uniform,
-                                                                                            sizeof(camera_uniform), 0))
-        {
-            LOG_GRAPHICS_FATAL("Failed to upload Vulkan textured quad camera uniform");
-            return;
-        }
-        write_textured_quad_camera_descriptor_set(_current_frame, stage.stage_slot);
-
-        const uint32_t batch_count{ static_cast<uint32_t>(stage.batches.size()) };
-        const uint32_t descriptor_set_offset{ _textured_quad_descriptor_set_cursor[_current_frame] };
-        ensure_textured_quad_descriptor_sets_for_frame(_current_frame, descriptor_set_offset + batch_count);
-
-        const std::vector<VkDescriptorSet_T*>& frame_descriptor_sets{ _textured_quad.descriptor_sets[_current_frame] };
-
-        const chlm::uint_rect viewport_rect{ stage.viewport.rect_px };
-
-        VkViewport viewport{ };
-        viewport.x = static_cast<float>(viewport_rect.position.x);
-        viewport.y = static_cast<float>(viewport_rect.position.y);
-        viewport.width = static_cast<float>(viewport_rect.size.x);
-        viewport.height = static_cast<float>(viewport_rect.size.y);
-        viewport.minDepth = 0.f;
-        viewport.maxDepth = 1.f;
-
-        VkRect2D scissor{ };
-        scissor.offset = {
-            static_cast<int32_t>(viewport_rect.position.x),
-            static_cast<int32_t>(viewport_rect.position.y)
-        };
-        scissor.extent = {
-            viewport_rect.size.x,
-            viewport_rect.size.y
-        };
-
-        vkCmdSetViewport(frame.command_buffer, 0, 1, &viewport);
-        vkCmdSetScissor(frame.command_buffer, 0, 1, &scissor);
-
-        vkCmdBindPipeline(
-            frame.command_buffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS,
-            _textured_quad_pipeline->vk_pipeline()
-        );
-
-        const VkBuffer vertex_buffers[]{ vertex_buffer->vk_buffer() };
-        const VkDeviceSize offsets[]{ 0 };
-
-        vkCmdBindVertexBuffers(frame.command_buffer, 0, 1, vertex_buffers, offsets);
-        vkCmdBindIndexBuffer(frame.command_buffer, index_buffer->vk_buffer(), 0, VK_INDEX_TYPE_UINT32);
-
-        VkDescriptorSet camera_descriptor_set{ _textured_quad.camera_descriptor_sets[_current_frame][stage.stage_slot] };
-
-        vkCmdBindDescriptorSets(frame.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                _textured_quad_pipeline->vk_layout(), 0, 1, &camera_descriptor_set, 0, nullptr);
-
-        for (uint32_t batch_index{ 0 }; batch_index < batch_count; ++batch_index)
-        {
-            const renderer::textured_quad_batch_t& batch{ stage.batches[batch_index] };
-
-            if (batch.texture == nullptr || batch.index_count == 0)
-                continue;
-
-            VkDescriptorSet descriptor_set{ frame_descriptor_sets[descriptor_set_offset + batch_index] };
-
-            const sampler_desc_t sampler_desc{ sampler_desc_from_preset(batch.sampler_preset) };
-            const rhi_sampler_t* sampler{ get_or_create_sampler(sampler_desc) };
-            if (!sampler)
-            {
-                LOG_GRAPHICS_WARN("Failed to resolve Vulkan sampler for textured quad batch");
-                continue;
-            }
-
-            write_textured_quad_descriptor_set(descriptor_set, *batch.texture, *sampler);
-
-            vkCmdBindDescriptorSets(frame.command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                    _textured_quad_pipeline->vk_layout(), 1, 1, &descriptor_set, 0, nullptr);
-
-            vkCmdDrawIndexed(frame.command_buffer, batch.index_count, 1, batch.first_index, 0, 0);
-        }
-
-        _textured_quad_descriptor_set_cursor[_current_frame] += batch_count;
+        encode_textured_quad_stage_to_command_buffer(_frames[_current_frame].command_buffer,
+                                                     stage,
+                                                     descriptor_set_offset,
+                                                     batch_count);
     }
 
     void vulkan_rhi_context_t::end_frame()
@@ -369,6 +280,7 @@ namespace carrot::rhi::vulkan {
             return;
 
         const frame_resources_t& frame{ _frames[_current_frame] };
+        std::vector<auxiliary_surface_t*> acquired_aux_surfaces;
 
         // 1. End render pass (if not already ended in record_frame)
         if (_render_pass_active)
@@ -377,21 +289,79 @@ namespace carrot::rhi::vulkan {
             _render_pass_active = false;
         }
 
+        for (auxiliary_surface_t& aux_surface : _auxiliary_surfaces)
+        {
+            if (!window::has_window(aux_surface.id))
+                continue;
+
+            const VkResult acquire_result{
+                vkAcquireNextImageKHR(_device->vk_device(),
+                                      aux_surface.swapchain->vk_swapchain(),
+                                      UINT64_MAX,
+                                      aux_surface.image_acquire[_current_frame],
+                                      VK_NULL_HANDLE,
+                                      &aux_surface.current_image_index)
+            };
+
+            if (acquire_result == VK_ERROR_OUT_OF_DATE_KHR || acquire_result == VK_SUBOPTIMAL_KHR)
+            {
+                aux_surface.swapchain->recreate();
+                aux_surface.framebuffers = aux_surface.swapchain->create_framebuffers(_render_pass->vk_render_pass());
+                continue;
+            }
+
+            if (acquire_result != VK_SUCCESS)
+            {
+                VK_CHECK_FATAL(acquire_result);
+                continue;
+            }
+
+            constexpr VkClearValue clear_color{ { { 0.02f, 0.02f, 0.04f, 1.0f } } };
+
+            VkRenderPassBeginInfo rp_begin{ };
+            rp_begin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            rp_begin.renderPass = _render_pass->vk_render_pass();
+            rp_begin.framebuffer = aux_surface.framebuffers[aux_surface.current_image_index];
+            rp_begin.renderArea.offset = { 0, 0 };
+            rp_begin.renderArea.extent = aux_surface.swapchain->extent();
+            rp_begin.clearValueCount = 1;
+            rp_begin.pClearValues = &clear_color;
+
+            vkCmdBeginRenderPass(frame.command_buffer, &rp_begin, VK_SUBPASS_CONTENTS_INLINE);
+            for (const recorded_stage_t& recorded_stage : _recorded_stages)
+                encode_textured_quad_stage_to_command_buffer(frame.command_buffer,
+                                                             recorded_stage.stage,
+                                                             recorded_stage.descriptor_set_offset,
+                                                             recorded_stage.descriptor_set_count);
+            vkCmdEndRenderPass(frame.command_buffer);
+
+            acquired_aux_surfaces.push_back(&aux_surface);
+        }
+
         // 2. End command buffer
         VK_CHECK_FATAL(vkEndCommandBuffer(frame.command_buffer));
 
         // 3. Submit to graphics queue
-        VkPipelineStageFlags wait_stage{ VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+        std::vector<VkSemaphore> wait_semaphores{ frame.image_acquire };
+        std::vector<VkPipelineStageFlags> wait_stages{ VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+        std::vector<VkSemaphore> signal_semaphores{ _render_finished_semaphores[_current_image_index] };
+
+        for (auxiliary_surface_t* aux_surface : acquired_aux_surfaces)
+        {
+            wait_semaphores.push_back(aux_surface->image_acquire[_current_frame]);
+            wait_stages.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+            signal_semaphores.push_back(aux_surface->render_finished[_current_frame]);
+        }
 
         VkSubmitInfo submit_info{ };
         submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        submit_info.waitSemaphoreCount = 1;
-        submit_info.pWaitSemaphores = &frame.image_acquire;
-        submit_info.pWaitDstStageMask = &wait_stage;
+        submit_info.waitSemaphoreCount = static_cast<uint32_t>(wait_semaphores.size());
+        submit_info.pWaitSemaphores = wait_semaphores.data();
+        submit_info.pWaitDstStageMask = wait_stages.data();
         submit_info.commandBufferCount = 1;
         submit_info.pCommandBuffers = &frame.command_buffer;
-        submit_info.signalSemaphoreCount = 1;
-        submit_info.pSignalSemaphores = &_render_finished_semaphores[_current_image_index];
+        submit_info.signalSemaphoreCount = static_cast<uint32_t>(signal_semaphores.size());
+        submit_info.pSignalSemaphores = signal_semaphores.data();
 
         VK_CHECK_FATAL(vkQueueSubmit(_device->graphics_queue(), 1, &submit_info, frame.in_flight));
 
@@ -416,6 +386,32 @@ namespace carrot::rhi::vulkan {
         else if (present_result != VK_SUCCESS)
         {
             VK_CHECK_FATAL(present_result);
+        }
+
+        for (auxiliary_surface_t* aux_surface : acquired_aux_surfaces)
+        {
+            VkSwapchainKHR aux_swapchain{ aux_surface->swapchain->vk_swapchain() };
+            const uint32_t aux_image_index{ aux_surface->current_image_index };
+            const VkSemaphore aux_wait{ aux_surface->render_finished[_current_frame] };
+
+            VkPresentInfoKHR aux_present_info{ };
+            aux_present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+            aux_present_info.waitSemaphoreCount = 1;
+            aux_present_info.pWaitSemaphores = &aux_wait;
+            aux_present_info.swapchainCount = 1;
+            aux_present_info.pSwapchains = &aux_swapchain;
+            aux_present_info.pImageIndices = &aux_image_index;
+
+            const VkResult aux_present_result{ vkQueuePresentKHR(_device->graphics_queue(), &aux_present_info) };
+            if (aux_present_result == VK_ERROR_OUT_OF_DATE_KHR || aux_present_result == VK_SUBOPTIMAL_KHR)
+            {
+                aux_surface->swapchain->recreate();
+                aux_surface->framebuffers = aux_surface->swapchain->create_framebuffers(_render_pass->vk_render_pass());
+            }
+            else if (aux_present_result != VK_SUCCESS)
+            {
+                VK_CHECK_FATAL(aux_present_result);
+            }
         }
 
         // Advance frame index
@@ -456,6 +452,43 @@ namespace carrot::rhi::vulkan {
         _pending_resize_width = width;
         _pending_resize_height = height;
         _swapchain_dirty = true;
+    }
+
+    bool vulkan_rhi_context_t::add_presentation_window(const window::window_id_t window_id)
+    {
+        if (window_id == window::invalid_window_id || window_id == _presentation_window_id)
+            return false;
+
+        const bool already_registered{
+            std::find_if(_auxiliary_surfaces.begin(),
+                         _auxiliary_surfaces.end(),
+                         [window_id](const auxiliary_surface_t& surface) { return surface.id == window_id; }) != _auxiliary_surfaces.end()
+        };
+        if (already_registered)
+            return true;
+
+        return create_auxiliary_surface(window_id);
+    }
+
+    bool vulkan_rhi_context_t::remove_presentation_window(const window::window_id_t window_id)
+    {
+        if (window_id == window::invalid_window_id)
+            return false;
+
+        auto it{
+            std::find_if(_auxiliary_surfaces.begin(),
+                         _auxiliary_surfaces.end(),
+                         [window_id](const auxiliary_surface_t& surface) { return surface.id == window_id; })
+        };
+        if (it == _auxiliary_surfaces.end())
+            return false;
+
+        // The auxiliary surface resources (semaphores/framebuffers/swapchain images) may still be
+        // referenced by in-flight submissions. Wait before destroying to satisfy Vulkan lifetime rules.
+        wait_idle();
+        destroy_auxiliary_surface(*it);
+        _auxiliary_surfaces.erase(it);
+        return true;
     }
 
     std::unique_ptr<rhi_texture_t> vulkan_rhi_context_t::create_texture_2d(const texture_create_info_t& info)
@@ -826,10 +859,327 @@ namespace carrot::rhi::vulkan {
             VK_CHECK_FATAL(vkDeviceWaitIdle(_device->vk_device()));
     }
 
+    bool vulkan_rhi_context_t::create_surface_for_window(const window::window_id_t window_id, VkSurfaceKHR& out_surface) const
+    {
+        if (!window::has_window(window_id))
+            return false;
+
+        const core::platform::native_window_handle_t handle{ window::get_native_handle(window_id) };
+
+#if defined(CARROT_PLATFORM_WAYLAND)
+        VkWaylandSurfaceCreateInfoKHR surf_info{ };
+        surf_info.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
+        surf_info.display = handle.wayland_t.display;
+        surf_info.surface = handle.wayland_t.surface;
+        return vkCreateWaylandSurfaceKHR(_vk_instance, &surf_info, nullptr, &out_surface) == VK_SUCCESS;
+#elif defined(CARROT_PLATFORM_WIN32)
+        VkWin32SurfaceCreateInfoKHR surf_info{ };
+        surf_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+        surf_info.hwnd = static_cast<HWND>(handle.win32_t.hwnd);
+        surf_info.hinstance = static_cast<HINSTANCE>(handle.win32_t.hinstance);
+        return vkCreateWin32SurfaceKHR(_vk_instance, &surf_info, nullptr, &out_surface) == VK_SUCCESS;
+#elif defined(CARROT_PLATFORM_COCOA)
+        VkMetalSurfaceCreateInfoEXT surf_info{ };
+        surf_info.sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT;
+        surf_info.pLayer = handle.cocoa_t.metal_layer;
+        return vkCreateMetalSurfaceEXT(_vk_instance, &surf_info, nullptr, &out_surface) == VK_SUCCESS;
+#else
+        (void)window_id;
+        (void)out_surface;
+        return false;
+#endif
+    }
+
+    bool vulkan_rhi_context_t::create_auxiliary_surface(const window::window_id_t window_id)
+    {
+        if (!_device || !_render_pass || !_vk_instance)
+            return false;
+
+        auxiliary_surface_t surface{ };
+        surface.id = window_id;
+        surface.framebuffers = framebuffer_array_t{ _device->vk_device() };
+
+        if (!create_surface_for_window(window_id, surface.surface) || surface.surface == VK_NULL_HANDLE)
+            return false;
+
+        const uint32_t width{ window::get_width(window_id) };
+        const uint32_t height{ window::get_height(window_id) };
+        if (width == 0 || height == 0)
+        {
+            vkDestroySurfaceKHR(_vk_instance, surface.surface, nullptr);
+            return false;
+        }
+
+        surface.swapchain = std::make_unique<vulkan_swapchain_t>(_device.get(), surface.surface, width, height);
+        surface.framebuffers = surface.swapchain->create_framebuffers(_render_pass->vk_render_pass());
+        surface.last_width = width;
+        surface.last_height = height;
+
+        for (uint32_t i{ 0 }; i < k_max_frames_in_flight; ++i)
+        {
+            VkSemaphoreCreateInfo sem_info{ };
+            sem_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+            VK_CHECK_FATAL(vkCreateSemaphore(_device->vk_device(), &sem_info, nullptr, &surface.image_acquire[i]));
+            VK_CHECK_FATAL(vkCreateSemaphore(_device->vk_device(), &sem_info, nullptr, &surface.render_finished[i]));
+        }
+
+        _auxiliary_surfaces.push_back(std::move(surface));
+        return true;
+    }
+
+    void vulkan_rhi_context_t::destroy_auxiliary_surface(auxiliary_surface_t& surface) noexcept
+    {
+        if (!_device)
+            return;
+
+        const VkDevice device{ _device->vk_device() };
+
+        for (VkSemaphore& sem : surface.image_acquire)
+        {
+            if (sem)
+            {
+                vkDestroySemaphore(device, sem, nullptr);
+                sem = VK_NULL_HANDLE;
+            }
+        }
+
+        for (VkSemaphore& sem : surface.render_finished)
+        {
+            if (sem)
+            {
+                vkDestroySemaphore(device, sem, nullptr);
+                sem = VK_NULL_HANDLE;
+            }
+        }
+
+        surface.framebuffers = framebuffer_array_t{ device };
+        surface.swapchain.reset();
+
+        if (surface.surface != VK_NULL_HANDLE)
+        {
+            vkDestroySurfaceKHR(_vk_instance, surface.surface, nullptr);
+            surface.surface = VK_NULL_HANDLE;
+        }
+    }
+
+    void vulkan_rhi_context_t::destroy_all_auxiliary_surfaces() noexcept
+    {
+        for (auxiliary_surface_t& surface : _auxiliary_surfaces)
+            destroy_auxiliary_surface(surface);
+        _auxiliary_surfaces.clear();
+    }
+
+    void vulkan_rhi_context_t::sync_auxiliary_surface_sizes()
+    {
+        if (!_render_pass)
+            return;
+
+        bool needs_idle_for_destroy{ false };
+        for (auto it = _auxiliary_surfaces.begin(); it != _auxiliary_surfaces.end();)
+        {
+            if (!window::has_window(it->id))
+            {
+                if (!needs_idle_for_destroy)
+                {
+                    // Closed windows can disappear between frames while previous submissions still
+                    // reference their sync/framebuffer objects.
+                    wait_idle();
+                    needs_idle_for_destroy = true;
+                }
+                destroy_auxiliary_surface(*it);
+                it = _auxiliary_surfaces.erase(it);
+                continue;
+            }
+
+            const uint32_t width{ window::get_width(it->id) };
+            const uint32_t height{ window::get_height(it->id) };
+            if (width > 0 && height > 0 && (width != it->last_width || height != it->last_height))
+            {
+                it->swapchain->resize(width, height);
+                it->framebuffers = it->swapchain->create_framebuffers(_render_pass->vk_render_pass());
+                it->last_width = width;
+                it->last_height = height;
+            }
+
+            ++it;
+        }
+    }
+
+    uint32_t vulkan_rhi_context_t::prepare_textured_quad_stage_descriptors(const textured_quad_stage_record_t& stage,
+                                                                           uint32_t& out_batch_count)
+    {
+        out_batch_count = 0;
+
+        if (_textured_quad_pipeline == nullptr)
+        {
+            LOG_GRAPHICS_FATAL("Textured quad pipeline not initialized");
+            return 0;
+        }
+
+        if (stage.batches.empty())
+            return 0;
+
+        if (stage.stage_slot >= k_max_textured_quad_stage_records_per_frame)
+        {
+            LOG_GRAPHICS_FATAL("Vulkan textured quad stage slot {} exceeds max supported stage slots {}", stage.stage_slot,
+                               k_max_textured_quad_stage_records_per_frame);
+            return 0;
+        }
+
+        renderer::textured_quad_camera_uniform_t camera_uniform{ };
+        camera_uniform.view_projection = stage.view_projection;
+        if (!_textured_quad.camera_uniform_buffers[_current_frame][stage.stage_slot] ||
+            !_textured_quad.camera_uniform_buffers[_current_frame][stage.stage_slot]->write(&camera_uniform,
+                                                                                            sizeof(camera_uniform), 0))
+        {
+            LOG_GRAPHICS_FATAL("Failed to upload Vulkan textured quad camera uniform");
+            return 0;
+        }
+        write_textured_quad_camera_descriptor_set(_current_frame, stage.stage_slot);
+
+        const uint32_t batch_count{ static_cast<uint32_t>(stage.batches.size()) };
+        const uint32_t descriptor_set_offset{ _textured_quad_descriptor_set_cursor[_current_frame] };
+        ensure_textured_quad_descriptor_sets_for_frame(_current_frame, descriptor_set_offset + batch_count);
+
+        const std::vector<VkDescriptorSet_T*>& frame_descriptor_sets{ _textured_quad.descriptor_sets[_current_frame] };
+        if (frame_descriptor_sets.size() < descriptor_set_offset + batch_count)
+        {
+            LOG_GRAPHICS_FATAL("Textured quad descriptor set allocation shortfall for frame {}: required {}, got {}",
+                               _current_frame,
+                               descriptor_set_offset + batch_count,
+                               frame_descriptor_sets.size());
+            return 0;
+        }
+
+        for (uint32_t batch_index{ 0 }; batch_index < batch_count; ++batch_index)
+        {
+            const renderer::textured_quad_batch_t& batch{ stage.batches[batch_index] };
+            if (batch.texture == nullptr || batch.index_count == 0)
+                continue;
+
+            const sampler_desc_t sampler_desc{ sampler_desc_from_preset(batch.sampler_preset) };
+            const rhi_sampler_t* sampler{ get_or_create_sampler(sampler_desc) };
+            if (!sampler)
+            {
+                LOG_GRAPHICS_WARN("Failed to resolve Vulkan sampler for textured quad batch");
+                continue;
+            }
+
+            VkDescriptorSet descriptor_set{ frame_descriptor_sets[descriptor_set_offset + batch_index] };
+            write_textured_quad_descriptor_set(descriptor_set, *batch.texture, *sampler);
+        }
+
+        _textured_quad_descriptor_set_cursor[_current_frame] += batch_count;
+        out_batch_count = batch_count;
+        return descriptor_set_offset;
+    }
+
+    void vulkan_rhi_context_t::encode_textured_quad_stage_to_command_buffer(const VkCommandBuffer command_buffer,
+                                                                            const textured_quad_stage_record_t& stage,
+                                                                            const uint32_t descriptor_set_offset,
+                                                                            const uint32_t batch_count)
+    {
+        if (_textured_quad_pipeline == nullptr)
+        {
+            LOG_GRAPHICS_FATAL("Textured quad pipeline not initialized");
+            return;
+        }
+
+        const vulkan_buffer_t* vertex_buffer{ dynamic_cast<const vulkan_buffer_t*>(stage.vertex_buffer) };
+        const vulkan_buffer_t* index_buffer{ dynamic_cast<const vulkan_buffer_t*>(stage.index_buffer) };
+        if (vertex_buffer == nullptr || index_buffer == nullptr)
+        {
+            LOG_GRAPHICS_FATAL("Textured quad geometry not initialized");
+            return;
+        }
+
+        if (batch_count == 0)
+            return;
+
+        if (stage.stage_slot >= k_max_textured_quad_stage_records_per_frame)
+        {
+            LOG_GRAPHICS_FATAL("Vulkan textured quad stage slot {} exceeds max supported stage slots {}", stage.stage_slot,
+                               k_max_textured_quad_stage_records_per_frame);
+            return;
+        }
+
+        const std::vector<VkDescriptorSet_T*>& frame_descriptor_sets{ _textured_quad.descriptor_sets[_current_frame] };
+        if (frame_descriptor_sets.size() < descriptor_set_offset + batch_count)
+        {
+            LOG_GRAPHICS_FATAL("Textured quad descriptor range out of bounds for frame {}: requested [{}, {}) with {} sets",
+                               _current_frame,
+                               descriptor_set_offset,
+                               descriptor_set_offset + batch_count,
+                               frame_descriptor_sets.size());
+            return;
+        }
+
+        const chlm::uint_rect viewport_rect{ stage.viewport.rect_px };
+
+        VkViewport viewport{ };
+        viewport.x = static_cast<float>(viewport_rect.position.x);
+        viewport.y = static_cast<float>(viewport_rect.position.y);
+        viewport.width = static_cast<float>(viewport_rect.size.x);
+        viewport.height = static_cast<float>(viewport_rect.size.y);
+        viewport.minDepth = 0.f;
+        viewport.maxDepth = 1.f;
+
+        VkRect2D scissor{ };
+        scissor.offset = {
+            static_cast<int32_t>(viewport_rect.position.x),
+            static_cast<int32_t>(viewport_rect.position.y)
+        };
+        scissor.extent = {
+            viewport_rect.size.x,
+            viewport_rect.size.y
+        };
+
+        vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+        vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+
+        vkCmdBindPipeline(
+            command_buffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            _textured_quad_pipeline->vk_pipeline()
+        );
+
+        const VkBuffer vertex_buffers[]{ vertex_buffer->vk_buffer() };
+        const VkDeviceSize offsets[]{ 0 };
+
+        vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
+        vkCmdBindIndexBuffer(command_buffer, index_buffer->vk_buffer(), 0, VK_INDEX_TYPE_UINT32);
+
+        VkDescriptorSet camera_descriptor_set{ _textured_quad.camera_descriptor_sets[_current_frame][stage.stage_slot] };
+
+        vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                _textured_quad_pipeline->vk_layout(), 0, 1, &camera_descriptor_set, 0, nullptr);
+
+        for (uint32_t batch_index{ 0 }; batch_index < batch_count; ++batch_index)
+        {
+            const renderer::textured_quad_batch_t& batch{ stage.batches[batch_index] };
+
+            if (batch.texture == nullptr || batch.index_count == 0)
+                continue;
+
+            VkDescriptorSet descriptor_set{ frame_descriptor_sets[descriptor_set_offset + batch_index] };
+
+            vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                    _textured_quad_pipeline->vk_layout(), 1, 1, &descriptor_set, 0, nullptr);
+
+            vkCmdDrawIndexed(command_buffer, batch.index_count, 1, batch.first_index, 0, 0);
+        }
+    }
+
     // PRIVATE
     void vulkan_rhi_context_t::init(const rhi_desc_t& desc)
     {
-        core::platform::native_window_handle_t handle{ window::get_native_handle() };
+        const window::window_id_t presentation_window_id{
+            window::has_window(desc.presentation_window_id)
+                ? desc.presentation_window_id
+                : window::get_main_window_id()
+        };
+        _presentation_window_id = presentation_window_id;
+        core::platform::native_window_handle_t handle{ window::get_native_handle(presentation_window_id) };
         _shader_files = desc.shader_files;
 
         // ── 1. Create Vulkan Instance ─────────────────────────────────────────────

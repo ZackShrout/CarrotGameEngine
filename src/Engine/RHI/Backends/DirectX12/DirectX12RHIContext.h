@@ -68,10 +68,25 @@ namespace carrot::rhi::dx12 {
 
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
         void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) override;
+        bool add_presentation_window(window::window_id_t window_id) override;
+        bool remove_presentation_window(window::window_id_t window_id) override;
 
         void wait_idle() override;
 
     private:
+        struct auxiliary_surface_t
+        {
+            window::window_id_t id{ window::invalid_window_id };
+            std::unique_ptr<dx12_swapchain_t> swapchain;
+            uint32_t last_width{ 0 };
+            uint32_t last_height{ 0 };
+        };
+
+        void record_textured_quad_stage_to_active_target(const textured_quad_stage_record_t& stage);
+        void sync_auxiliary_surface_sizes();
+        bool create_auxiliary_surface(window::window_id_t window_id);
+        void destroy_auxiliary_surface(auxiliary_surface_t& surface) noexcept;
+
         void ensure_textured_quad_descriptor_capacity(uint32_t required_capacity);
 
         // ── Backend-owned services and persistent objects ──
@@ -83,6 +98,9 @@ namespace carrot::rhi::dx12 {
         // ── Per-frame GPU resources and frame progression ──
         std::array<dx12_frame_t, k_max_frames_in_flight>  _frames;
         uint32_t                                          _frame_index{ 0 };
+        window::window_id_t                               _presentation_window_id{ window::invalid_window_id };
+        std::vector<auxiliary_surface_t>                  _auxiliary_surfaces;
+        std::vector<textured_quad_stage_record_t>         _recorded_stages;
 
         // ── Swapchain / render-target descriptor bookkeeping ──
         uint32_t                                          _rtv_descriptor_stride{ 0 };

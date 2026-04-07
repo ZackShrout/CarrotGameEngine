@@ -63,7 +63,6 @@ namespace sandbox {
         float _camera_follow_smoothing{ 0.f };
         bool _interact_was_pressed{ false };
         bool _quit_was_pressed{ false };
-        bool _toggle_fullscreen_was_pressed{ false };
         bool _toggle_map_collision_debug_was_pressed{ false };
         bool _toggle_object_collision_debug_was_pressed{ false };
 

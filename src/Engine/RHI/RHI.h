@@ -9,6 +9,7 @@
 #include "Renderer/Draw/TexturedQuadBatch.h"
 #include "Sampler.h"
 #include "Texture.h"
+#include "Window/Window.h"
 
 #include <chlm/CarrotHLM.h>
 #include <memory>
@@ -63,6 +64,7 @@ namespace carrot::rhi {
     struct rhi_desc_t
     {
         graphics_api api{ graphics_api::default_api };
+        window::window_id_t presentation_window_id{ window::invalid_window_id };
         uint32_t width{ 1280 };
         uint32_t height{ 720 };
         bool enable_debug_layers{ true };
@@ -93,6 +95,11 @@ namespace carrot::rhi {
 
         [[nodiscard]] virtual rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) = 0;
         virtual void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) = 0;
+
+        // Multi-window presentation surface management.
+        // Backends can override these when they support more than one presentation surface.
+        virtual bool add_presentation_window([[maybe_unused]] window::window_id_t window_id) { return false; }
+        virtual bool remove_presentation_window([[maybe_unused]] window::window_id_t window_id) { return false; }
 
         virtual void wait_idle() = 0;
     };

@@ -82,7 +82,7 @@ namespace carrot {
         _audio_module.reset();
 
         _renderer.reset();
-        window::destroy_primary_window();
+        window::destroy_all_windows();
         core::logger_t::shutdown();
     }
 
@@ -102,10 +102,31 @@ namespace carrot {
         constexpr uint32_t width{ 1280 };
         constexpr uint32_t height{ 720 };
 
-        window::create_primary_window(width, height, "Carrot Engine – Month 1");
+        _runtime_windows.clear();
+        _gameplay_window_id = window::invalid_window_id;
+
+        const std::vector<runtime_window_spec_t> window_specs{ build_runtime_window_specs(width, height) };
+        const auto main_spec_it{
+            std::find_if(window_specs.begin(),
+                         window_specs.end(),
+                         [](const runtime_window_spec_t& spec) { return spec.is_main_window; })
+        };
+
+        if (main_spec_it == window_specs.end() || !create_runtime_window(*main_spec_it))
+        {
+            LOG_CORE_FATAL("Failed to create main engine window");
+            return;
+        }
+
+        const window::window_id_t main_window_id{ window::get_main_window_id() };
+        if (!window::has_window(main_window_id))
+        {
+            LOG_CORE_FATAL("Failed to resolve main engine window id");
+            return;
+        }
 
         // RENDERER
-        _renderer = std::make_unique<renderer::renderer_t>(_vfs, config.graphics);
+        _renderer = std::make_unique<renderer::renderer_t>(_vfs, config.graphics, main_window_id);
         renderer::renderer_service_t::provide(_renderer.get());
 
         // CAMERA (test code)
@@ -124,6 +145,17 @@ namespace carrot {
 
         _asset_manager = std::make_unique<assets::asset_manager_t>(_vfs, *_renderer->get_rhi());
         assets::asset_service_t::provide(_asset_manager.get());
+
+        for (const runtime_window_spec_t& spec : window_specs)
+        {
+            if (spec.is_main_window)
+                continue;
+
+            if (!create_runtime_window(spec))
+            {
+                LOG_CORE_WARN("Failed to create runtime window for role {}", static_cast<uint32_t>(spec.role));
+            }
+        }
 
         // Discover and register supported asset manifests under engine:// and game://
         discover_and_register_assets();
@@ -164,7 +196,14 @@ namespace carrot {
             return static_cast<int>(exit_code::error);
         }
 
-        core::platform::window_t& main_window{ window::get_primary_window() };
+        const window::window_id_t main_window_id{ window::get_main_window_id() };
+        if (!window::has_window(main_window_id))
+        {
+            LOG_CORE_FATAL("Main window was not available");
+            return static_cast<int>(exit_code::error);
+        }
+        if (_gameplay_window_id == window::invalid_window_id || !window::has_window(_gameplay_window_id))
+            _gameplay_window_id = main_window_id;
 
         _running = true;
         _application = app;
@@ -175,16 +214,8 @@ namespace carrot {
         // Bind the on_tick function in the engine's application class, to be inherited
         _on_tick += BIND_MEMBER(_application, on_tick);
 
-        // Bind window events
-        main_window._on_window_resized += BIND_LAMBDA([this](const events::window_resized_t& e) {
-            _renderer->get_rhi()->resize(e._width, e._height);
-            });
-
-        // Bind input events
-        main_window._on_key += BIND_MEMBER(_application, on_key);
-        main_window._on_mouse_button += BIND_MEMBER(_application, on_mouse_button);
-        main_window._on_mouse_moved += BIND_MEMBER(_application, on_mouse_moved);
-        main_window._on_mouse_scrolled += BIND_MEMBER(_application, on_mouse_scrolled);
+        for (const window::window_id_t window_id : window::get_window_ids())
+            bind_window_events(window_id, main_window_id);
 
         LOG_CORE_INFO("Starting application...");
         core::game_view_t game_view{ *_renderer };
@@ -196,13 +227,14 @@ namespace carrot {
         };
         _application->start(game);
 
-        while (!_should_quit && !main_window.should_close())
+        while (!_should_quit && !window::should_close(main_window_id))
         {
             window::poll_events();
+            destroy_closed_auxiliary_windows();
             hot_reload::shader_watcher_t::poll();
             tick();
 
-            if (window::is_minimized()) continue;
+            if (window::is_minimized(main_window_id)) continue;
 
             _renderer->begin_frame();
             render_world();
@@ -345,6 +377,135 @@ namespace carrot {
     void engine_t::render_ui()
     {
         // Reserved UI stage. Kept explicit now so future UI work has a stable engine-owned hook.
+    }
+
+    std::vector<engine_t::runtime_window_spec_t> engine_t::build_runtime_window_specs(const uint32_t width,
+                                                                                       const uint32_t height) const
+    {
+        return {
+            runtime_window_spec_t{
+                .role = runtime_window_role_t::gameplay_main,
+                .create_desc = {
+                    .width = width,
+                    .height = height,
+                    .title = "Carrot Engine – Main Window"
+                },
+                .is_main_window = true,
+                .register_for_presentation = false,
+                .receives_gameplay_input = true
+            },
+            runtime_window_spec_t{
+                .role = runtime_window_role_t::gameplay_mirror,
+                .create_desc = { },
+                .is_main_window = false,
+                .register_for_presentation = true,
+                .receives_gameplay_input = false
+            }
+        };
+    }
+
+    bool engine_t::create_runtime_window(const runtime_window_spec_t& spec)
+    {
+        const window::window_id_t window_id{ window::create_window(spec.create_desc) };
+        if (window_id == window::invalid_window_id)
+            return false;
+
+        if (spec.is_main_window && !window::set_main_window(window_id))
+        {
+            (void)window::destroy_window(window_id);
+            return false;
+        }
+
+        if (spec.receives_gameplay_input)
+            _gameplay_window_id = window_id;
+
+        runtime_window_instance_t instance{
+            .role = spec.role,
+            .id = window_id,
+            .is_main_window = spec.is_main_window,
+            .registered_for_presentation = false,
+            .receives_gameplay_input = spec.receives_gameplay_input
+        };
+
+        if (_renderer && spec.register_for_presentation)
+        {
+            instance.registered_for_presentation = _renderer->add_presentation_window(window_id);
+        }
+
+        _runtime_windows.push_back(instance);
+
+        if (!spec.is_main_window)
+            LOG_CORE_INFO("Created auxiliary window with id {}", static_cast<unsigned long long>(window_id));
+
+        return true;
+    }
+
+    void engine_t::bind_window_events(const window::window_id_t window_id, const window::window_id_t main_window_id)
+    {
+        core::platform::window_t* runtime_window{ window::get_window(window_id) };
+        if (!runtime_window)
+            return;
+
+        if (window_id == main_window_id)
+        {
+            runtime_window->_on_window_resized += BIND_LAMBDA([this](const events::window_resized_t& e) {
+                _renderer->get_rhi()->resize(e._width, e._height);
+            });
+        }
+
+        runtime_window->_on_window_closed += BIND_MEMBER(_application, on_window_closed);
+        runtime_window->_on_window_focus_changed += BIND_MEMBER(_application, on_window_focus_changed);
+        runtime_window->_on_key += BIND_MEMBER(_application, on_key);
+
+        const auto receives_gameplay_input{
+            std::find_if(_runtime_windows.begin(),
+                         _runtime_windows.end(),
+                         [window_id](const runtime_window_instance_t& instance) {
+                             return instance.id == window_id && instance.receives_gameplay_input;
+                         }) != _runtime_windows.end()
+        };
+        if (receives_gameplay_input)
+        {
+            runtime_window->_on_mouse_button += BIND_MEMBER(_application, on_mouse_button);
+            runtime_window->_on_mouse_moved += BIND_MEMBER(_application, on_mouse_moved);
+            runtime_window->_on_mouse_scrolled += BIND_MEMBER(_application, on_mouse_scrolled);
+        }
+    }
+
+    void engine_t::destroy_closed_auxiliary_windows()
+    {
+        bool refocus_main_window{ false };
+
+        for (auto it = _runtime_windows.begin(); it != _runtime_windows.end();)
+        {
+            if (it->is_main_window)
+            {
+                ++it;
+                continue;
+            }
+
+            const window::window_id_t id{ it->id };
+            if (!window::has_window(id))
+            {
+                it = _runtime_windows.erase(it);
+                continue;
+            }
+
+            if (window::should_close(id))
+            {
+                if (_renderer && it->registered_for_presentation)
+                    (void)_renderer->remove_presentation_window(id);
+                (void)window::destroy_window(id);
+                it = _runtime_windows.erase(it);
+                refocus_main_window = true;
+                continue;
+            }
+
+            ++it;
+        }
+
+        if (refocus_main_window)
+            window::request_focus(window::get_main_window_id());
     }
 
     core::engine_paths_t engine_t::make_default_engine_paths() noexcept

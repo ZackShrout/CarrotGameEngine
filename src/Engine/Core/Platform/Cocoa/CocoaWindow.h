@@ -19,6 +19,7 @@ namespace carrot::core::platform {
         void poll_events() noexcept override;
         void set_should_close(bool should_close) noexcept override;
         void set_fullscreen(bool fullscreen) noexcept override;
+        void request_focus() noexcept override;
 
         [[nodiscard]] native_window_handle_t get_native_handle() const noexcept override;
 

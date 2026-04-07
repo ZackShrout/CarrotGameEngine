@@ -70,13 +70,45 @@ namespace carrot::rhi::vulkan {
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
         void bind_textured_quad_resources([[maybe_unused]] const rhi_texture_t& texture,
                                           [[maybe_unused]] const rhi_sampler_t& sampler) override {}
+        bool add_presentation_window(window::window_id_t window_id) override;
+        bool remove_presentation_window(window::window_id_t window_id) override;
 
         void wait_idle() override;
 
     private:
+        struct auxiliary_surface_t
+        {
+            window::window_id_t id{ window::invalid_window_id };
+            VkSurfaceKHR surface{ VK_NULL_HANDLE };
+            std::unique_ptr<vulkan_swapchain_t> swapchain;
+            framebuffer_array_t framebuffers;
+            uint32_t current_image_index{ 0 };
+            std::array<VkSemaphore, k_max_frames_in_flight> image_acquire{ };
+            std::array<VkSemaphore, k_max_frames_in_flight> render_finished{ };
+            uint32_t last_width{ 0 };
+            uint32_t last_height{ 0 };
+        };
+
+        struct recorded_stage_t
+        {
+            textured_quad_stage_record_t stage;
+            uint32_t descriptor_set_offset{ 0 };
+            uint32_t descriptor_set_count{ 0 };
+        };
+
         void init(const rhi_desc_t& desc);
         void recreate_swapchain_dependent_resources();
         void recreate_render_finished_semaphores();
+        bool create_surface_for_window(window::window_id_t window_id, VkSurfaceKHR& out_surface) const;
+        bool create_auxiliary_surface(window::window_id_t window_id);
+        void destroy_auxiliary_surface(auxiliary_surface_t& surface) noexcept;
+        void destroy_all_auxiliary_surfaces() noexcept;
+        void sync_auxiliary_surface_sizes();
+        uint32_t prepare_textured_quad_stage_descriptors(const textured_quad_stage_record_t& stage, uint32_t& out_batch_count);
+        void encode_textured_quad_stage_to_command_buffer(VkCommandBuffer command_buffer,
+                                                          const textured_quad_stage_record_t& stage,
+                                                          uint32_t descriptor_set_offset,
+                                                          uint32_t batch_count);
         [[nodiscard]] uint32_t find_memory_type(uint32_t type_filter, VkMemoryPropertyFlags properties) const;
         [[nodiscard]] VkCommandBuffer begin_single_time_commands() const;
         void end_single_time_commands(VkCommandBuffer cmd) const;
@@ -133,5 +165,10 @@ namespace carrot::rhi::vulkan {
         bool _render_pass_active{ false };
         bool _skip_frame{ false };
         bool _swapchain_dirty{ false };
+
+        // ── Multi-window presentation surfaces (optional) ──
+        window::window_id_t _presentation_window_id{ window::invalid_window_id };
+        std::vector<auxiliary_surface_t> _auxiliary_surfaces;
+        std::vector<recorded_stage_t> _recorded_stages;
     };
 } // namespace carrot::rhi::vulkan

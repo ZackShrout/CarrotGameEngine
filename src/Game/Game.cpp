@@ -430,11 +430,6 @@ namespace sandbox {
             quit_application();
         _quit_was_pressed = quit_pressed;
 
-        const bool toggle_fullscreen_pressed{ _actions.is_pressed(k_action_toggle_fullscreen) };
-        if (toggle_fullscreen_pressed && !_toggle_fullscreen_was_pressed)
-            set_fullscreen(!is_fullscreen());
-        _toggle_fullscreen_was_pressed = toggle_fullscreen_pressed;
-
         const bool toggle_map_collision_debug_pressed{ _actions.is_pressed(k_action_toggle_map_collision_debug) };
         if (toggle_map_collision_debug_pressed && !_toggle_map_collision_debug_was_pressed)
             toggle_map_collision_debug();
@@ -462,6 +457,9 @@ namespace sandbox {
 
         if (e._action == carrot::events::key_action::press)
         {
+            if (_actions.matches(k_action_toggle_fullscreen, e) && !e._repeat)
+                set_fullscreen(!is_fullscreen());
+
             if (_actions.matches(k_action_interact, e) && _game)
             {
                 LOG_CORE_INFO("Key pressed: {} ({}) (mods: {})", carrot::input::key_code_to_string(e._key),

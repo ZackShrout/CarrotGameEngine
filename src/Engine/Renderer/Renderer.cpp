@@ -112,8 +112,10 @@ namespace carrot::renderer {
 
     // PUBLIC
 
-    renderer_t::renderer_t(io::virtual_file_system_t& vfs, const engine_graphics_config_t& config)
-        : _vfs{ vfs }, _config{ config }
+    renderer_t::renderer_t(io::virtual_file_system_t& vfs,
+                           const engine_graphics_config_t& config,
+                           const window::window_id_t render_window_id)
+        : _vfs{ vfs }, _config{ config }, _render_window_id{ render_window_id }
     {
         init();
     }
@@ -129,8 +131,11 @@ namespace carrot::renderer {
         rhi::rhi_desc_t desc{ };
         desc.api = _config.api;
         desc.enable_debug_layers = _config.enable_debug_layers;
-        desc.width = window::get_width();
-        desc.height = window::get_height();
+        desc.presentation_window_id = window::has_window(_render_window_id)
+                                          ? _render_window_id
+                                          : window::get_main_window_id();
+        desc.width = window::get_width(desc.presentation_window_id);
+        desc.height = window::get_height(desc.presentation_window_id);
         desc.shader_files = _shader_provider.get();
 
         _rhi = rhi::create_rhi_context(desc);
@@ -208,6 +213,22 @@ namespace carrot::renderer {
         _last_completed_stats = _stats;
 
         _rhi->end_frame();
+    }
+
+    bool renderer_t::add_presentation_window(const window::window_id_t window_id)
+    {
+        if (!_rhi || window_id == window::invalid_window_id || window_id == _render_window_id)
+            return false;
+
+        return _rhi->add_presentation_window(window_id);
+    }
+
+    bool renderer_t::remove_presentation_window(const window::window_id_t window_id)
+    {
+        if (!_rhi || window_id == window::invalid_window_id)
+            return false;
+
+        return _rhi->remove_presentation_window(window_id);
     }
 
     void renderer_t::draw_textured_quad(const textured_quad_draw_info_t& quad)

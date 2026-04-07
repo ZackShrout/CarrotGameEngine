@@ -8,6 +8,7 @@
 #include "MetalCommon.h"
 #include "MetalRenderEncoder.h"
 #include "RHI/RHI.h"
+#include "Window/Window.h"
 
 #include <memory>
 #include <span>
@@ -50,12 +51,24 @@ namespace carrot::rhi::metal {
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
         void bind_textured_quad_resources([[maybe_unused]] const rhi_texture_t& texture,
                                           [[maybe_unused]] const rhi_sampler_t& sampler) override {}
+        bool add_presentation_window(window::window_id_t window_id) override;
+        bool remove_presentation_window(window::window_id_t window_id) override;
 
         void wait_idle() override;
 
     private:
+        struct auxiliary_surface_t
+        {
+            window::window_id_t id{ window::invalid_window_id };
+            std::unique_ptr<metal_swapchain_t> swapchain;
+            const CA::MetalDrawable* drawable{ nullptr };
+        };
+
         [[nodiscard]] bool is_frame_active() const noexcept;
         void reset_frame_state() noexcept;
+        void acquire_auxiliary_drawables();
+        void release_auxiliary_drawables() noexcept;
+        void encode_textured_quad_stage(MTL::RenderCommandEncoder* encoder, const textured_quad_stage_record_t& stage);
 
         void ensure_textured_quad_argument_capacity(uint32_t stage_slot, size_t batch_count);
         void encode_textured_quad_argument_buffers(const metal_texture_t& texture,
@@ -68,6 +81,7 @@ namespace carrot::rhi::metal {
 
         // ── Core Metal handles & synchronization ──
         void*                                           _metal_layer{ nullptr };
+        window::window_id_t                             _presentation_window_id{ window::invalid_window_id };
         dispatch_semaphore_t                            _frame_semaphore{ nullptr };
 
         // ── Backend-owned services and persistent objects ──
@@ -80,6 +94,8 @@ namespace carrot::rhi::metal {
         metal_render_encoder_t                          _render_encoder;
         MTL::CommandBuffer*                             _active_command_buffer{ nullptr };
         const CA::MetalDrawable*                        _active_drawable{ nullptr };
+        std::vector<auxiliary_surface_t>                _auxiliary_surfaces;
+        std::vector<textured_quad_stage_record_t>       _recorded_stages;
 
         std::array<std::unique_ptr<metal_buffer_t>, k_max_textured_quad_stage_records_per_frame>
                                                       _textured_quad_camera_uniform_buffers;

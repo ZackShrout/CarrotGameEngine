@@ -16,6 +16,8 @@
 #include "Utils/File/FileUtils.h"
 #include "Window/Window.h"
 
+#include <algorithm>
+
 namespace carrot::rhi::dx12 {
     namespace {
         [[nodiscard]] constexpr uint32_t align_constant_buffer_size(const uint32_t size_bytes) noexcept
@@ -30,7 +32,13 @@ namespace carrot::rhi::dx12 {
         if (core::platform::current_platform() != core::platform::platform_type::win32)
             LOG_GRAPHICS_FATAL("DX12 backend requires Win32 platform");
 
-        core::platform::native_window_handle_t window{ window::get_native_handle() };
+        const window::window_id_t presentation_window_id{
+            window::has_window(desc.presentation_window_id)
+                ? desc.presentation_window_id
+                : window::get_main_window_id()
+        };
+        _presentation_window_id = presentation_window_id;
+        core::platform::native_window_handle_t window{ window::get_native_handle(presentation_window_id) };
 
         HWND hwnd{ static_cast<HWND>(window.win32_t.hwnd) };
         if (!hwnd)
@@ -89,6 +97,9 @@ namespace carrot::rhi::dx12 {
     dx12_rhi_context_t::~dx12_rhi_context_t()
     {
         wait_idle();
+        for (auxiliary_surface_t& surface : _auxiliary_surfaces)
+            destroy_auxiliary_surface(surface);
+        _auxiliary_surfaces.clear();
 
         for (uint32_t i{ 0 }; i < k_max_frames_in_flight; ++i)
         {
@@ -131,6 +142,8 @@ namespace carrot::rhi::dx12 {
     {
         const dx12_frame_t& frame{ _frames[_frame_index] };
         frame.fence->wait(frame.fence_value);
+        _recorded_stages.clear();
+        sync_auxiliary_surface_sizes();
 
         DX12_CHECK(frame.allocator->Reset());
         frame.command_list->set_allocator(frame.allocator);
@@ -160,7 +173,7 @@ namespace carrot::rhi::dx12 {
         cmd->ClearRenderTargetView(rtv, clear, 0, nullptr);
     }
 
-    void dx12_rhi_context_t::record_textured_quad_stage(const textured_quad_stage_record_t& stage)
+    void dx12_rhi_context_t::record_textured_quad_stage_to_active_target(const textured_quad_stage_record_t& stage)
     {
         ID3D12GraphicsCommandList* cmd{ _frames[_frame_index].command_list->id3d12_graphics_command_list() };
 
@@ -233,12 +246,57 @@ namespace carrot::rhi::dx12 {
         }
     }
 
+    void dx12_rhi_context_t::record_textured_quad_stage(const textured_quad_stage_record_t& stage)
+    {
+        _recorded_stages.push_back(stage);
+        record_textured_quad_stage_to_active_target(stage);
+    }
+
     void dx12_rhi_context_t::end_frame()
     {
         auto& f{ _frames[_frame_index] };
         ID3D12GraphicsCommandList* cmd{ f.command_list->id3d12_graphics_command_list() };
         const dx12_swapchain_t* sc{ _swapchain.get() };
         ID3D12Resource* backbuffer{ sc->get_backbuffer(sc->get_current_image_index()) };
+        std::vector<dx12_swapchain_t*> present_aux_swapchains;
+
+        for (auxiliary_surface_t& surface : _auxiliary_surfaces)
+        {
+            if (!surface.swapchain)
+                continue;
+
+            surface.swapchain->acquire_next_image(nullptr);
+            const uint32_t aux_image_index{ surface.swapchain->get_current_image_index() };
+            ID3D12Resource* aux_backbuffer{ surface.swapchain->get_backbuffer(aux_image_index) };
+            const D3D12_CPU_DESCRIPTOR_HANDLE aux_rtv{ surface.swapchain->get_current_rtv(_rtv_descriptor_stride) };
+
+            D3D12_RESOURCE_BARRIER aux_to_rtv{ };
+            aux_to_rtv.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+            aux_to_rtv.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+            aux_to_rtv.Transition.pResource = aux_backbuffer;
+            aux_to_rtv.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+            aux_to_rtv.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+            aux_to_rtv.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+            cmd->ResourceBarrier(1, &aux_to_rtv);
+
+            float clear[]{ 0.02f, 0.02f, 0.04f, 1.0f };
+            cmd->OMSetRenderTargets(1, &aux_rtv, FALSE, nullptr);
+            cmd->ClearRenderTargetView(aux_rtv, clear, 0, nullptr);
+
+            for (const textured_quad_stage_record_t& stage : _recorded_stages)
+                record_textured_quad_stage_to_active_target(stage);
+
+            D3D12_RESOURCE_BARRIER aux_to_present{ };
+            aux_to_present.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+            aux_to_present.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+            aux_to_present.Transition.pResource = aux_backbuffer;
+            aux_to_present.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+            aux_to_present.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+            aux_to_present.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+            cmd->ResourceBarrier(1, &aux_to_present);
+
+            present_aux_swapchains.push_back(surface.swapchain.get());
+        }
 
         D3D12_RESOURCE_BARRIER to_present{ };
         to_present.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
@@ -254,6 +312,8 @@ namespace carrot::rhi::dx12 {
         _graphics_queue->submit(f.command_list.get(), f.fence.get(), nullptr, nullptr);
         f.fence_value = f.fence->current_value();
         _swapchain->present(nullptr);
+        for (dx12_swapchain_t* aux_swapchain : present_aux_swapchains)
+            aux_swapchain->present(nullptr);
 
         _frame_index = (_frame_index + 1) % k_max_frames_in_flight;
     }
@@ -285,6 +345,41 @@ namespace carrot::rhi::dx12 {
     rhi_command_queue_t* dx12_rhi_context_t::get_command_queue() const noexcept
     {
         return _graphics_queue.get();
+    }
+
+    bool dx12_rhi_context_t::add_presentation_window(const window::window_id_t window_id)
+    {
+        if (window_id == window::invalid_window_id || window_id == _presentation_window_id)
+            return false;
+
+        const bool already_registered{
+            std::find_if(_auxiliary_surfaces.begin(),
+                         _auxiliary_surfaces.end(),
+                         [window_id](const auxiliary_surface_t& surface) { return surface.id == window_id; }) != _auxiliary_surfaces.end()
+        };
+        if (already_registered)
+            return true;
+
+        return create_auxiliary_surface(window_id);
+    }
+
+    bool dx12_rhi_context_t::remove_presentation_window(const window::window_id_t window_id)
+    {
+        if (window_id == window::invalid_window_id)
+            return false;
+
+        auto it{
+            std::find_if(_auxiliary_surfaces.begin(),
+                         _auxiliary_surfaces.end(),
+                         [window_id](const auxiliary_surface_t& surface) { return surface.id == window_id; })
+        };
+        if (it == _auxiliary_surfaces.end())
+            return false;
+
+        wait_idle();
+        destroy_auxiliary_surface(*it);
+        _auxiliary_surfaces.erase(it);
+        return true;
     }
 
     std::unique_ptr<rhi_texture_t> dx12_rhi_context_t::create_texture_2d(const texture_create_info_t& info)
@@ -489,6 +584,65 @@ namespace carrot::rhi::dx12 {
     }
 
     // PRIVATE
+
+    void dx12_rhi_context_t::sync_auxiliary_surface_sizes()
+    {
+        for (auto it = _auxiliary_surfaces.begin(); it != _auxiliary_surfaces.end();)
+        {
+            if (!window::has_window(it->id))
+            {
+                wait_idle();
+                destroy_auxiliary_surface(*it);
+                it = _auxiliary_surfaces.erase(it);
+                continue;
+            }
+
+            const uint32_t width{ window::get_width(it->id) };
+            const uint32_t height{ window::get_height(it->id) };
+            if (width > 0 && height > 0 && (width != it->last_width || height != it->last_height))
+            {
+                wait_idle();
+                it->swapchain->resize(width, height);
+                it->last_width = width;
+                it->last_height = height;
+            }
+
+            ++it;
+        }
+    }
+
+    bool dx12_rhi_context_t::create_auxiliary_surface(const window::window_id_t window_id)
+    {
+        if (!_device || !_graphics_queue || !window::has_window(window_id))
+            return false;
+
+        const core::platform::native_window_handle_t window_handle{ window::get_native_handle(window_id) };
+        const HWND hwnd{ static_cast<HWND>(window_handle.win32_t.hwnd) };
+        const uint32_t width{ window::get_width(window_id) };
+        const uint32_t height{ window::get_height(window_id) };
+        if (!hwnd || width == 0 || height == 0)
+            return false;
+
+        auxiliary_surface_t surface{ };
+        surface.id = window_id;
+        surface.last_width = width;
+        surface.last_height = height;
+        surface.swapchain = std::make_unique<dx12_swapchain_t>(_device->id3d12_device(),
+                                                                _graphics_queue->id3d12_command_queue(),
+                                                                hwnd,
+                                                                width,
+                                                                height);
+        _auxiliary_surfaces.push_back(std::move(surface));
+        return true;
+    }
+
+    void dx12_rhi_context_t::destroy_auxiliary_surface(auxiliary_surface_t& surface) noexcept
+    {
+        surface.swapchain.reset();
+        surface.id = window::invalid_window_id;
+        surface.last_width = 0;
+        surface.last_height = 0;
+    }
 
     void dx12_rhi_context_t::ensure_textured_quad_descriptor_capacity(const uint32_t required_capacity)
     {

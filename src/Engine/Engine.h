@@ -12,7 +12,10 @@
 #include "Input/ControllerManager.h"
 #include "Renderer/Renderer.h"
 #include "Utils/MulticastDelegate.h"
+#include "Window/Window.h"
 #include "World/World.h"
+
+#include <vector>
 
 namespace carrot {
     namespace rhi {
@@ -58,11 +61,38 @@ namespace carrot {
         [[nodiscard]] const io::virtual_file_system_t& vfs() const noexcept { return _vfs; }
 
     private:
+        enum class runtime_window_role_t : uint8_t
+        {
+            gameplay_main = 0,
+            gameplay_mirror = 1,
+        };
+
+        struct runtime_window_spec_t
+        {
+            runtime_window_role_t role{ runtime_window_role_t::gameplay_main };
+            window::window_create_desc_t create_desc{ };
+            bool is_main_window{ false };
+            bool register_for_presentation{ false };
+            bool receives_gameplay_input{ false };
+        };
+
+        struct runtime_window_instance_t
+        {
+            runtime_window_role_t role{ runtime_window_role_t::gameplay_main };
+            window::window_id_t id{ window::invalid_window_id };
+            bool is_main_window{ false };
+            bool registered_for_presentation{ false };
+            bool receives_gameplay_input{ false };
+        };
+
         void tick();
 
         void render_world();
         void render_debug();
         void render_ui();
+        [[nodiscard]] std::vector<runtime_window_spec_t> build_runtime_window_specs(uint32_t width, uint32_t height) const;
+        bool create_runtime_window(const runtime_window_spec_t& spec);
+        void bind_window_events(window::window_id_t window_id, window::window_id_t main_window_id);
 
         [[nodiscard]] core::engine_paths_t make_default_engine_paths() noexcept;
         [[nodiscard]] static std::optional<std::filesystem::path> find_repo_root(std::filesystem::path start) noexcept;
@@ -74,6 +104,7 @@ namespace carrot {
         bool register_sprite_asset_manifest(std::string_view manifest_uri);
         bool register_tilemap_asset_manifest(std::string_view manifest_uri);
         bool register_scene_asset_manifest(std::string_view manifest_uri);
+        void destroy_closed_auxiliary_windows();
 
         bool                                                _initialized{ false };
         bool                                                _running{ false };
@@ -88,6 +119,8 @@ namespace carrot {
         io::virtual_file_system_t                           _vfs;
         std::unique_ptr<assets::asset_manager_t>            _asset_manager{ nullptr };
         input::controller_manager_t                         _controller_manager;
+        window::window_id_t                                 _gameplay_window_id{ window::invalid_window_id };
+        std::vector<runtime_window_instance_t>              _runtime_windows;
 
         on_tick_t                                           _on_tick;
         renderer::renderer_stats_t                          _last_logged_renderer_stats;

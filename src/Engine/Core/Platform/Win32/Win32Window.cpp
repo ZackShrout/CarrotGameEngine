@@ -34,7 +34,11 @@ namespace carrot::core::platform {
             wc.lpszClassName = window_class_name;
             wc.hIconSm = LoadIcon(nullptr, IDI_APPLICATION);
 
-            return RegisterClassExW(&wc) != 0;
+            if (RegisterClassExW(&wc) != 0)
+                return true;
+
+            const DWORD error{ GetLastError() };
+            return error == ERROR_CLASS_ALREADY_EXISTS;
         }
 
         bool is_system_dark_mode() noexcept
@@ -250,6 +254,21 @@ namespace carrot::core::platform {
             _height = new_h;
             _on_window_resized.broadcast({ _width, _height });
         }
+    }
+
+    void win32_window_t::request_focus() noexcept
+    {
+        if (!_hwnd)
+            return;
+
+        if (IsIconic(_hwnd))
+            ShowWindow(_hwnd, SW_RESTORE);
+        else
+            ShowWindow(_hwnd, SW_SHOW);
+
+        BringWindowToTop(_hwnd);
+        SetForegroundWindow(_hwnd);
+        SetFocus(_hwnd);
     }
 
     LRESULT win32_window_t::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) noexcept

@@ -115,6 +115,7 @@ namespace carrot {
         if (main_spec_it == window_specs.end() || !create_runtime_window(*main_spec_it))
         {
             LOG_CORE_FATAL("Failed to create main engine window");
+
             return;
         }
 

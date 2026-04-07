@@ -33,6 +33,20 @@ namespace carrot::rhi::vulkan {
             return;
         }
 
+        VkSurfaceCapabilitiesKHR caps{ };
+        VK_CHECK_FATAL(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(_device->physical_device(), _surface, &caps));
+
+        // Wayland can transiently report 0x0 currentExtent during async fullscreen/configure transitions.
+        // Defer recreation until compositor reports a valid extent.
+        if (caps.currentExtent.width != UINT32_MAX &&
+            (caps.currentExtent.width == 0 || caps.currentExtent.height == 0))
+        {
+            LOG_GRAPHICS_WARN("Deferring swapchain resize while compositor extent is {}x{}",
+                              caps.currentExtent.width,
+                              caps.currentExtent.height);
+            return;
+        }
+
         // Wait for GPU to finish using the current swapchain
         vkDeviceWaitIdle(_device->vk_device());
 
@@ -65,7 +79,7 @@ namespace carrot::rhi::vulkan {
         uint32_t width{ 0 };
         uint32_t height{ 0 };
 
-        if (caps.currentExtent.width != UINT32_MAX && caps.currentExtent.width != 0)
+        if (caps.currentExtent.width != UINT32_MAX && caps.currentExtent.width != 0 && caps.currentExtent.height != 0)
         {
             width = caps.currentExtent.width;
             height = caps.currentExtent.height;
@@ -150,8 +164,17 @@ namespace carrot::rhi::vulkan {
         VK_CHECK_FATAL(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phys, _surface, &caps));
 
         VkExtent2D extent{ width, height };
-        if (caps.currentExtent.width != ~0u)
+        if (caps.currentExtent.width != ~0u &&
+            caps.currentExtent.width != 0 &&
+            caps.currentExtent.height != 0)
             extent = caps.currentExtent;
+        else
+        {
+            extent.width = std::clamp(extent.width, caps.minImageExtent.width, caps.maxImageExtent.width);
+            extent.height = std::clamp(extent.height, caps.minImageExtent.height, caps.maxImageExtent.height);
+        }
+
+        CE_ASSERT(extent.width > 0 && extent.height > 0 && "Swapchain extent must be non-zero");
 
         uint32_t image_count = caps.minImageCount + 1;
         if (caps.maxImageCount > 0)

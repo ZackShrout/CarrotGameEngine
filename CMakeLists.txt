@@ -757,6 +757,7 @@ set(CARROT_TEST_SOURCES
         tests/SceneLoadingTests.cpp
         src/Game/TransitionRuntimeState.cpp
         src/Game/WorldInteractionHelpers.cpp
+        tests/WindowSystemTests.cpp
 )
 
 add_executable(CarrotEngineTests ${CARROT_TEST_SOURCES})

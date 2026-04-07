@@ -1,3 +1,8 @@
+//
+// Created by Zack Shrout on 4/6/26.
+// Copyright (c) 2026 BunnySoft. All rights reserved.
+//
+
 #include "TestCommon.h"
 
 #include <functional>
@@ -10,6 +15,7 @@ namespace carrot::tests {
     void register_controller_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
     void register_collision_world_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
     void register_scene_loading_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
+    void register_window_system_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
 }
 
 int main()
@@ -21,6 +27,7 @@ int main()
     carrot::tests::register_controller_tests(tests);
     carrot::tests::register_collision_world_tests(tests);
     carrot::tests::register_scene_loading_tests(tests);
+    carrot::tests::register_window_system_tests(tests);
 
     size_t passed{ 0 };
 

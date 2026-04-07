@@ -478,6 +478,19 @@ namespace carrot::input {
         refresh_pressed_actions();
     }
 
+    void input_action_map_t::release_all_keys() noexcept
+    {
+        for (action_binding_t& binding : _bindings)
+        {
+            if (binding.type != action_binding_type_t::key)
+                continue;
+
+            binding.active = false;
+        }
+
+        refresh_pressed_actions();
+    }
+
     bool input_action_map_t::matches(const std::string_view action, const events::key_event_t& e) const noexcept
     {
         for (const action_binding_t& binding : _bindings)

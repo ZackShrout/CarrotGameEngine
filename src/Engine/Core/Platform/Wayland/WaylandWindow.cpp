@@ -12,6 +12,7 @@
 #include "Protocols/xdg-decoration-unstable-v1-client-protocol.h"
 #include "Protocols/xdg-shell-client-protocol.h"
 
+#include <poll.h>
 #include <sys/mman.h>
 #include <wayland-client-protocol.h>
 
@@ -311,9 +312,27 @@ namespace carrot::core::platform {
 
         constexpr wl_keyboard_listener keyboard_listener = {
             .keymap = keyboard_keymap,
-            .enter = [](void*, wl_keyboard*, [[maybe_unused]] uint32_t serial, wl_surface*,
-                        [[maybe_unused]] wl_array* keys) {},
-            .leave = [](void*, wl_keyboard*, [[maybe_unused]] uint32_t serial, wl_surface*) {},
+            .enter = [](void* data, wl_keyboard*, [[maybe_unused]] uint32_t serial, wl_surface*,
+                        [[maybe_unused]] wl_array* keys) {
+                auto* win = static_cast<wayland_window_t *>(data);
+                if (!win->is_focused())
+                {
+                    win->set_wayland_focused_state(true);
+                    win->on_window_focus_changed(events::window_focused_t{ true });
+                }
+            },
+            .leave = [](void* data, wl_keyboard*, [[maybe_unused]] uint32_t serial, wl_surface*) {
+                auto* win = static_cast<wayland_window_t *>(data);
+                if (win->is_focused())
+                {
+                    win->set_wayland_focused_state(false);
+                    win->on_window_focus_changed(events::window_focused_t{ false });
+                }
+
+                // Stop synthetic repeat immediately on keyboard focus loss.
+                win->set_repeat_state_active(false);
+                win->set_repeat_state_key(input::key_code::unknown);
+            },
             .key = keyboard_key,
             .modifiers = keyboard_modifiers,
             .repeat_info = keyboard_repeat_info
@@ -489,11 +508,32 @@ namespace carrot::core::platform {
     {
         if (!_display) return;
 
-        // 1. Dispatch all pending Wayland events (keys, buttons, motion, scroll, modifiers, etc.)
+        // 1. Drain already-queued events first.
         wl_display_dispatch_pending(_display);
         wl_display_flush(_display);
 
-        // 2. Generate synthetic repeats (only if we have an active repeating key)
+        // 2. Non-blocking read/dispatch of new compositor events.
+        while (wl_display_prepare_read(_display) != 0)
+            wl_display_dispatch_pending(_display);
+
+        pollfd pfd{ };
+        pfd.fd = wl_display_get_fd(_display);
+        pfd.events = POLLIN;
+
+        const int poll_result{ poll(&pfd, 1, 0) };
+        if (poll_result > 0 && (pfd.revents & POLLIN))
+        {
+            if (wl_display_read_events(_display) == 0)
+                wl_display_dispatch_pending(_display);
+            else
+                wl_display_cancel_read(_display);
+        }
+        else
+        {
+            wl_display_cancel_read(_display);
+        }
+
+        // 3. Generate synthetic repeats (only if we have an active repeating key)
         if (_repeat_state._active && _repeat_state._key != input::key_code::unknown)
         {
             const uint64_t now_ms{

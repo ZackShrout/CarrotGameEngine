@@ -450,6 +450,26 @@ namespace sandbox {
         update_camera_follow(delta_time);
     }
 
+    void sandbox_t::on_window_focus_changed(const carrot::events::window_focused_t& e)
+    {
+        ce_application_t::on_window_focus_changed(e);
+
+        if (e._focused)
+            return;
+
+        // Wayland fullscreen/state transitions can drop key-release events on focus changes.
+        // Flush held key action state to prevent gameplay input from latching.
+        _actions.release_all_keys();
+        _player_controller.set_move_up(false);
+        _player_controller.set_move_down(false);
+        _player_controller.set_move_left(false);
+        _player_controller.set_move_right(false);
+        _interact_was_pressed = false;
+        _quit_was_pressed = false;
+        _toggle_map_collision_debug_was_pressed = false;
+        _toggle_object_collision_debug_was_pressed = false;
+    }
+
     void sandbox_t::on_key(const carrot::events::key_event_t& e)
     {
         ce_application_t::on_key(e);

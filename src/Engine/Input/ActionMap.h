@@ -54,6 +54,7 @@ namespace carrot::input {
 
         void handle_key_event(const events::key_event_t& e) noexcept;
         void update_gamepad_state(const gamepad_state_t* gamepad) noexcept;
+        void release_all_keys() noexcept;
 
         [[nodiscard]] bool matches(std::string_view action, const events::key_event_t& e) const noexcept;
         [[nodiscard]] bool is_pressed(std::string_view action) const noexcept;

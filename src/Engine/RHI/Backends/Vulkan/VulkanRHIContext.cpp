@@ -288,6 +288,14 @@ namespace carrot::rhi::vulkan {
 
         const frame_resources_t& frame{ _frames[_current_frame] };
         std::vector<auxiliary_surface_t*> acquired_aux_surfaces;
+        bool allow_auxiliary_presentation{ true };
+
+#if defined(CARROT_PLATFORM_WAYLAND)
+        // On Wayland (RADV), presenting an auxiliary swapchain while the main surface is fullscreen
+        // can block inside vkQueuePresentKHR indefinitely (driver enters wl_display_dispatch_queue poll).
+        // Keep the frame loop responsive by suppressing auxiliary presentation during main fullscreen.
+        allow_auxiliary_presentation = !window::is_fullscreen(_presentation_window_id);
+#endif
 
         // 1. End render pass (if not already ended in record_frame)
         if (_render_pass_active)
@@ -298,6 +306,9 @@ namespace carrot::rhi::vulkan {
 
         for (auxiliary_surface_t& aux_surface : _auxiliary_surfaces)
         {
+            if (!allow_auxiliary_presentation)
+                break;
+
             if (!window::has_window(aux_surface.id))
                 continue;
 

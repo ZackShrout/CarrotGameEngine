@@ -178,6 +178,21 @@ Important current limitations:
 * arbitrary Tiled polygon collision is not supported yet
 * current debug collision rendering is still basic and not yet a richer inspection tool
 
+### 2.6.2 Optional Local Multiplayer Input Direction
+
+Milestone 07 completed the first-pass controller/device and action-routing foundation for single-player-forward workflows.
+
+Next input-direction expansion should preserve that default simplicity while enabling optional local multiplayer for games that need it.
+
+Current direction:
+
+* local multiplayer input should be opt-in, not automatic
+* controller device handling should remain separate from player-assignment policy
+* games should explicitly choose a routing mode rather than inheriting one implicitly
+* single-player convenience paths should remain first-class and unchanged by default
+
+For fuller design details, see [input_router_direction.md](/Users/zshrout/dev/CarrotGameEngine/docs/systems/input_router_direction.md).
+
 ### 2.7 Current Frame Stage Contract
 
 After the first Milestone 03 render-pipeline refactor pass, Carrot’s frame stages are expected to mean:

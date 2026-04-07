@@ -637,6 +637,7 @@ Important but intentionally later / dependent work:
 * richer Tiled support such as animated tiles and more authored feature coverage
 * screen-transition presentation modules such as fade-to-black built on top of stronger frame architecture
 * broader gameplay modules layered above engine primitives
+* optional local-multiplayer input routing built on top of the existing controller/action-map foundation
 * 2D lighting and later shadow support
 * hybrid 2D/3D rendering expansion
 * animated 3D model support
@@ -655,7 +656,10 @@ These priorities build on the near-term rendering and asset foundation.
     * layered rendering
     * world-space 2D workflows
 * Improve input routing / layer-aware input handling
+* Add an opt-in player input-router layer so local multiplayer assignment remains game-configured, not engine-forced
 * Continue maturing asset import and runtime asset systems
+
+For current direction, see [input_router_direction.md](/Users/zshrout/dev/CarrotGameEngine/docs/systems/input_router_direction.md).
 
 ### 11.3 Long-Term Priorities
 

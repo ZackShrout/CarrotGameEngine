@@ -6,6 +6,7 @@
 #include "Core/Pch.h"
 
 #include "FileUtils.h"
+#include "Utils/TextEncoding.h"
 
 namespace carrot::utils::file {
     namespace {
@@ -78,8 +79,7 @@ namespace carrot::utils::file {
     std::string to_log_string(const std::filesystem::path& path)
     {
 #ifdef _WIN32
-        const auto utf8 = path.u8string();
-        return std::string{ utf8.begin(), utf8.end() };
+        return utils::text::wide_to_utf8(path.native());
 #else
         return path.string();
 #endif

@@ -334,6 +334,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Utils/MulticastDelegate.h
         src/Engine/Utils/ShaderUtils.cpp
         src/Engine/Utils/ShaderUtils.h
+        src/Engine/Utils/TextEncoding.cpp
+        src/Engine/Utils/TextEncoding.h
 
         # ========================================
         # IO & Virtual File System

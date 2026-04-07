@@ -8,6 +8,7 @@
 #include "Win32Window.h"
 
 #include "Input/PlatformKeyMapping.h"
+#include "Utils/TextEncoding.h"
 
 #include <dwmapi.h>
 
@@ -66,7 +67,9 @@ namespace carrot::core::platform {
     {
         _width = width;
         _height = height;
-        _title = std::wstring(title.begin(), title.end());
+        _title = utils::text::utf8_to_wide(title);
+        if (_title.empty())
+            _title = L"Carrot Window";
 
         _hinstance = GetModuleHandleW(nullptr);
         if (!_hinstance)
@@ -163,6 +166,17 @@ namespace carrot::core::platform {
 
         if (should_close && _hwnd)
             PostQuitMessage(0);
+    }
+
+    void win32_window_t::set_title(const std::string_view title) noexcept
+    {
+        std::wstring wide_title{ utils::text::utf8_to_wide(title) };
+        if (wide_title.empty())
+            return;
+
+        _title = std::move(wide_title);
+        if (_hwnd)
+            SetWindowTextW(_hwnd, _title.c_str());
     }
 
     native_window_handle_t win32_window_t::get_native_handle() const noexcept

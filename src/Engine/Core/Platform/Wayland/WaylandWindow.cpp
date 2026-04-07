@@ -598,12 +598,21 @@ namespace carrot::core::platform {
         if (!_xdg_toplevel || !_surface)
             return;
 
+        // Wayland fullscreen state is compositor-driven and asynchronous.
+        // Keep requests idempotent to avoid transition thrash.
+        if (fullscreen == _is_fullscreen)
+            return;
+
         if (fullscreen)
             xdg_toplevel_set_fullscreen(_xdg_toplevel, nullptr);
         else
             xdg_toplevel_unset_fullscreen(_xdg_toplevel);
 
+        // Optimistically track requested state; compositor configure will reconcile actual state.
+        _is_fullscreen = fullscreen;
         wl_surface_commit(_surface);
+        if (_display)
+            wl_display_flush(_display);
     }
 
     void wayland_window_t::apply_pending_configure() noexcept

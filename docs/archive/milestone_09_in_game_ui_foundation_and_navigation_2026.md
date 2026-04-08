@@ -1,8 +1,8 @@
 # Carrot Game Engine - Milestone 09
 
-**Last Updated:** April 7, 2026  
+**Last Updated:** April 8, 2026  
 **Title:** In-Game UI Foundation and Navigation  
-**Status:** Planned  
+**Status:** Complete  
 **Focus:** Introduce a real engine-owned UI framework that is code-first, composable, and naturally navigable by keyboard and controller, without over-engineering or editor-first assumptions.
 
 ---
@@ -73,6 +73,30 @@ Without UI:
 - engine usability for real games remains incomplete
 
 This milestone introduces the layer that makes Carrot **usable as a game platform**, not just a gameplay foundation.
+
+---
+
+## Closeout Summary (April 8, 2026)
+
+Milestone 09 is now considered complete.
+
+Delivered outcomes:
+
+* engine-owned retained UI subsystem (`ui_module_t`, widget tree, lifecycle integration)
+* foundational layout system (stack layout, spacing/padding/alignment, fixed/flex sizing, clamp-aware redistribution)
+* deterministic focus/navigation model with action-name routing and looping traversal defaults
+* runtime UI rendering bridge with visible focus states and on-screen UI diagnostics
+* reusable `ui_button_t` baseline widget with built-in focus/action behavior hooks
+* `ui_focus_scope_t` modal-focus system with trap behavior, show policies (`first`/`last`/`explicit`), and focus restore on hide
+* engine-level UI feedback hooks (focus move / accept / cancel) and game-level placeholder logging bridge for future SFX wiring
+* engine-level input ownership policy backbone (`passthrough`, `ui_priority`, `ui_exclusive`) with trap-default exclusivity and scope/runtime overrides
+* expanded regression coverage for layout, navigation, focus scopes, ownership policy semantics, and UI action stream behavior
+
+Out of scope by design (deferred):
+
+* actual shipped UI SFX assets/content (hook is in place; content wiring intentionally deferred)
+* full game-facing API simplification/refactor beyond milestone foundation needs
+* broader editor-grade widget catalog/styling system and visual authoring tooling
 
 ---
 

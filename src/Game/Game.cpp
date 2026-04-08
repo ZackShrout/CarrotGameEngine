@@ -26,6 +26,12 @@ namespace sandbox {
         constexpr std::string_view k_action_toggle_fullscreen{ "toggle_fullscreen" };
         constexpr std::string_view k_action_toggle_map_collision_debug{ "toggle_map_collision_debug" };
         constexpr std::string_view k_action_toggle_object_collision_debug{ "toggle_object_collision_debug" };
+        constexpr std::string_view k_action_ui_up{ "ui_up" };
+        constexpr std::string_view k_action_ui_down{ "ui_down" };
+        constexpr std::string_view k_action_ui_left{ "ui_left" };
+        constexpr std::string_view k_action_ui_right{ "ui_right" };
+        constexpr std::string_view k_action_ui_accept{ "ui_accept" };
+        constexpr std::string_view k_action_ui_cancel{ "ui_cancel" };
         constexpr std::string_view k_input_bindings_config_path{ "game://config/input_actions.json" };
 
         [[nodiscard]] float apply_dead_zone_axis(const float current,
@@ -54,16 +60,20 @@ namespace sandbox {
             return nullptr;
         }
 
-        [[nodiscard]] chlm::float2 digital_move_vector(const carrot::input::input_action_map_t& actions) noexcept
+        [[nodiscard]] chlm::float2 digital_move_vector(const carrot::input::input_action_map_t& actions,
+                                                       const bool suppress_up,
+                                                       const bool suppress_down,
+                                                       const bool suppress_left,
+                                                       const bool suppress_right) noexcept
         {
             chlm::float2 movement{ 0.f, 0.f };
-            if (actions.is_pressed(k_action_move_up))
+            if (actions.is_pressed(k_action_move_up) && !suppress_up)
                 movement.y -= 1.f;
-            if (actions.is_pressed(k_action_move_down))
+            if (actions.is_pressed(k_action_move_down) && !suppress_down)
                 movement.y += 1.f;
-            if (actions.is_pressed(k_action_move_left))
+            if (actions.is_pressed(k_action_move_left) && !suppress_left)
                 movement.x -= 1.f;
-            if (actions.is_pressed(k_action_move_right))
+            if (actions.is_pressed(k_action_move_right) && !suppress_right)
                 movement.x += 1.f;
 
             const float length_sq{ (movement.x * movement.x) + (movement.y * movement.y) };
@@ -78,7 +88,11 @@ namespace sandbox {
         }
 
         [[nodiscard]] chlm::float2 resolve_move_intent(const carrot::core::game_context_t& game,
-                                                       const carrot::input::input_action_map_t& actions) noexcept
+                                                       const carrot::input::input_action_map_t& actions,
+                                                       const bool suppress_up,
+                                                       const bool suppress_down,
+                                                       const bool suppress_left,
+                                                       const bool suppress_right) noexcept
         {
             if (const carrot::input::gamepad_state_t* gamepad{ game.controllers.active_gamepad() })
             {
@@ -88,7 +102,53 @@ namespace sandbox {
                     return left_stick;
             }
 
-            return digital_move_vector(actions);
+            return digital_move_vector(actions, suppress_up, suppress_down, suppress_left, suppress_right);
+        }
+
+        [[nodiscard]] bool consume_gamepad_repeat(const bool pressed,
+                                                  const float delta_time,
+                                                  ui_gamepad_repeat_state_t& state,
+                                                  const float initial_delay_seconds,
+                                                  const float repeat_interval_seconds) noexcept
+        {
+            if (!pressed)
+            {
+                state.was_pressed = false;
+                state.hold_time_seconds = 0.f;
+                state.repeat_time_seconds = 0.f;
+                return false;
+            }
+
+            if (!state.was_pressed)
+            {
+                state.was_pressed = true;
+                state.hold_time_seconds = 0.f;
+                state.repeat_time_seconds = 0.f;
+                return true;
+            }
+
+            state.hold_time_seconds += std::max(0.f, delta_time);
+            if (state.hold_time_seconds < initial_delay_seconds)
+                return false;
+
+            const float clamped_interval{ std::max(0.0001f, repeat_interval_seconds) };
+            state.repeat_time_seconds += std::max(0.f, delta_time);
+            if (state.repeat_time_seconds < clamped_interval)
+                return false;
+
+            state.repeat_time_seconds = std::fmod(state.repeat_time_seconds, clamped_interval);
+            return true;
+        }
+
+        [[nodiscard]] const char* ui_feedback_event_to_string(const carrot::ui::ui_feedback_event_t event) noexcept
+        {
+            switch (event)
+            {
+                case carrot::ui::ui_feedback_event_t::focus_move: return "focus_move";
+                case carrot::ui::ui_feedback_event_t::accept: return "accept";
+                case carrot::ui::ui_feedback_event_t::cancel: return "cancel";
+                default: return "unknown";
+            }
         }
     } // anonymous namespace
 
@@ -130,6 +190,12 @@ namespace sandbox {
                       static_cast<uint8_t>(carrot::input::modifier::alt));
         _actions.bind(std::string{ k_action_toggle_map_collision_debug }, carrot::input::key_code::f2);
         _actions.bind(std::string{ k_action_toggle_object_collision_debug }, carrot::input::key_code::f3);
+        _actions.bind(std::string{ k_action_ui_up }, carrot::input::key_code::i);
+        _actions.bind(std::string{ k_action_ui_down }, carrot::input::key_code::k);
+        _actions.bind(std::string{ k_action_ui_left }, carrot::input::key_code::j);
+        _actions.bind(std::string{ k_action_ui_right }, carrot::input::key_code::l);
+        _actions.bind(std::string{ k_action_ui_accept }, carrot::input::key_code::o);
+        _actions.bind(std::string{ k_action_ui_cancel }, carrot::input::key_code::p);
     }
 
     void sandbox_t::configure_default_input_actions()
@@ -359,6 +425,98 @@ namespace sandbox {
         LOG_CORE_INFO("Object collider debug: {}", debug_view.show_object_colliders ? "ON" : "OFF");
     }
 
+    void sandbox_t::initialize_runtime_ui_probe() noexcept
+    {
+        carrot::ui::ui_module_t* ui_module{ carrot::ui::ui_service_t::try_get() };
+        if (!ui_module)
+            return;
+
+        carrot::ui::ui_root_widget_t* root{ ui_module->get_root() };
+        if (!root)
+            return;
+
+        root->remove_all_children();
+
+        carrot::ui::ui_stack_t& stack{ root->emplace_child<carrot::ui::ui_stack_t>(carrot::ui::ui_stack_orientation_t::vertical) };
+        stack.set_padding({ .left = 24.f, .top = 24.f, .right = 24.f, .bottom = 24.f });
+        stack.set_spacing(12.f);
+        stack.set_cross_alignment(carrot::ui::ui_stack_cross_alignment_t::start);
+
+        carrot::ui::ui_button_t& item_a{ stack.emplace_child<carrot::ui::ui_button_t>("Start Game") };
+        carrot::ui::ui_button_t& item_b{ stack.emplace_child<carrot::ui::ui_button_t>("Options") };
+        carrot::ui::ui_button_t& item_c{ stack.emplace_child<carrot::ui::ui_button_t>("Exit") };
+
+        item_a.set_on_focused([]() { LOG_UI_INFO("UI Probe 'Start Game' focused"); });
+        item_a.set_on_focus_lost([]() { LOG_UI_INFO("UI Probe 'Start Game' focus lost"); });
+        item_a.set_on_pressed([]() { LOG_UI_INFO("UI Probe 'Start Game' accepted"); });
+        item_a.set_on_canceled([]() { LOG_UI_INFO("UI Probe 'Start Game' canceled"); });
+
+        item_b.set_on_focused([]() { LOG_UI_INFO("UI Probe 'Options' focused"); });
+        item_b.set_on_focus_lost([]() { LOG_UI_INFO("UI Probe 'Options' focus lost"); });
+        item_b.set_on_pressed([]() { LOG_UI_INFO("UI Probe 'Options' accepted"); });
+        item_b.set_on_canceled([]() { LOG_UI_INFO("UI Probe 'Options' canceled"); });
+
+        item_c.set_on_focused([]() { LOG_UI_INFO("UI Probe 'Exit' focused"); });
+        item_c.set_on_focus_lost([]() { LOG_UI_INFO("UI Probe 'Exit' focus lost"); });
+        item_c.set_on_pressed([]() { LOG_UI_INFO("UI Probe 'Exit' accepted"); });
+        item_c.set_on_canceled([]() { LOG_UI_INFO("UI Probe 'Exit' canceled"); });
+
+        item_a.set_navigation_target(carrot::ui::ui_navigation_direction_t::down, &item_b);
+        item_b.set_navigation_target(carrot::ui::ui_navigation_direction_t::up, &item_a);
+        item_b.set_navigation_target(carrot::ui::ui_navigation_direction_t::down, &item_c);
+        item_c.set_navigation_target(carrot::ui::ui_navigation_direction_t::up, &item_b);
+
+        const bool focused{ ui_module->focus_first() };
+        LOG_UI_INFO("Runtime UI probe initialized (focus set: {})", focused ? "yes" : "no");
+    }
+
+    void sandbox_t::update_runtime_ui_navigation(const float delta_time) noexcept
+    {
+        carrot::ui::ui_module_t* ui_module{ carrot::ui::ui_service_t::try_get() };
+        if (!ui_module)
+            return;
+
+        const bool up_pressed{ _actions.is_pressed_by_gamepad(k_action_ui_up) };
+        const bool down_pressed{ _actions.is_pressed_by_gamepad(k_action_ui_down) };
+        const bool left_pressed{ _actions.is_pressed_by_gamepad(k_action_ui_left) };
+        const bool right_pressed{ _actions.is_pressed_by_gamepad(k_action_ui_right) };
+        const bool accept_pressed{ _actions.is_pressed_by_gamepad(k_action_ui_accept) };
+        const bool cancel_pressed{ _actions.is_pressed_by_gamepad(k_action_ui_cancel) };
+
+        if (consume_gamepad_repeat(up_pressed,
+                                   delta_time,
+                                   _ui_up_gamepad_repeat,
+                                   _ui_gamepad_nav_repeat_initial_delay_seconds,
+                                   _ui_gamepad_nav_repeat_interval_seconds))
+            (void)ui_module->dispatch_navigation_action(k_action_ui_up);
+        if (consume_gamepad_repeat(down_pressed,
+                                   delta_time,
+                                   _ui_down_gamepad_repeat,
+                                   _ui_gamepad_nav_repeat_initial_delay_seconds,
+                                   _ui_gamepad_nav_repeat_interval_seconds))
+            (void)ui_module->dispatch_navigation_action(k_action_ui_down);
+        if (consume_gamepad_repeat(left_pressed,
+                                   delta_time,
+                                   _ui_left_gamepad_repeat,
+                                   _ui_gamepad_nav_repeat_initial_delay_seconds,
+                                   _ui_gamepad_nav_repeat_interval_seconds))
+            (void)ui_module->dispatch_navigation_action(k_action_ui_left);
+        if (consume_gamepad_repeat(right_pressed,
+                                   delta_time,
+                                   _ui_right_gamepad_repeat,
+                                   _ui_gamepad_nav_repeat_initial_delay_seconds,
+                                   _ui_gamepad_nav_repeat_interval_seconds))
+            (void)ui_module->dispatch_navigation_action(k_action_ui_right);
+
+        if (accept_pressed && !_ui_accept_gamepad_was_pressed)
+            (void)ui_module->dispatch_navigation_action(k_action_ui_accept);
+        if (cancel_pressed && !_ui_cancel_gamepad_was_pressed)
+            (void)ui_module->dispatch_navigation_action(k_action_ui_cancel);
+
+        _ui_accept_gamepad_was_pressed = accept_pressed;
+        _ui_cancel_gamepad_was_pressed = cancel_pressed;
+    }
+
     bool sandbox_t::load_scene(const std::string_view scene_id, const std::string_view spawn_marker)
     {
         if (!_game)
@@ -388,6 +546,17 @@ namespace sandbox {
     {
         _game = &game;
         configure_default_input_actions();
+
+        if (carrot::ui::ui_module_t* ui_module{ carrot::ui::ui_service_t::try_get() })
+        {
+            ui_module->set_feedback_callback([](const carrot::ui::ui_feedback_event_t event)
+            {
+                // Placeholder bridge for future UI SFX wiring.
+                // Replace each case with audio::play(...) once assets are ready.
+                LOG_UI_INFO("UI feedback: {}", ui_feedback_event_to_string(event));
+            });
+        }
+
         _player_controller.set_animation_set({
             .idle_down = "idle_down",
             .idle_up = "idle_up",
@@ -400,19 +569,8 @@ namespace sandbox {
         });
         _player_controller.set_move_speed(4.0f);
         _interaction_controller.set_interaction_radius(3.0f);
+        initialize_runtime_ui_probe();
         load_scene(k_bootstrap_scene_id);
-
-        // Quick, in place UI tree validation - move and expand to UITests.cpp very soon
-        carrot::ui::ui_module_t& ui{ carrot::ui::ui_service_t::get() };
-        carrot::ui::ui_root_widget_t* root{ ui.get_root() };
-
-        if (root)
-        {
-            carrot::ui::ui_panel_t& panel_a{ root->emplace_child<carrot::ui::ui_panel_t>() };
-            carrot::ui::ui_panel_t& panel_b{ panel_a.emplace_child<carrot::ui::ui_panel_t>() };
-
-            (void)panel_b;
-        }
     }
 
     void sandbox_t::on_tick(const float delta_time)
@@ -421,7 +579,13 @@ namespace sandbox {
             return;
 
         _actions.update_gamepad_state(_game->controllers.active_gamepad());
-        _player_controller.set_move_intent(resolve_move_intent(*_game, _actions));
+        update_runtime_ui_navigation(delta_time);
+        _player_controller.set_move_intent(resolve_move_intent(*_game,
+                                                               _actions,
+                                                               _move_up_suppressed_by_ui,
+                                                               _move_down_suppressed_by_ui,
+                                                               _move_left_suppressed_by_ui,
+                                                               _move_right_suppressed_by_ui));
 
         const bool interact_pressed{ _actions.is_pressed(k_action_interact) };
         if (interact_pressed && !_interact_was_pressed)
@@ -480,12 +644,89 @@ namespace sandbox {
         _quit_was_pressed = false;
         _toggle_map_collision_debug_was_pressed = false;
         _toggle_object_collision_debug_was_pressed = false;
+        _ui_up_was_pressed = false;
+        _ui_down_was_pressed = false;
+        _ui_left_was_pressed = false;
+        _ui_right_was_pressed = false;
+        _ui_accept_was_pressed = false;
+        _ui_cancel_was_pressed = false;
+        _move_up_suppressed_by_ui = false;
+        _move_down_suppressed_by_ui = false;
+        _move_left_suppressed_by_ui = false;
+        _move_right_suppressed_by_ui = false;
+        _ui_up_gamepad_repeat = {};
+        _ui_down_gamepad_repeat = {};
+        _ui_left_gamepad_repeat = {};
+        _ui_right_gamepad_repeat = {};
+        _ui_accept_gamepad_was_pressed = false;
+        _ui_cancel_gamepad_was_pressed = false;
     }
 
     void sandbox_t::on_key(const carrot::events::key_event_t& e)
     {
         ce_application_t::on_key(e);
         _actions.handle_key_event(e);
+
+        bool ui_consumed_event{ false };
+        auto handle_ui_key_action = [this, &e, &ui_consumed_event](const std::string_view action_name, bool& was_pressed_flag) noexcept
+        {
+            if (!_actions.matches(action_name, e))
+                return false;
+
+            if (e._action == carrot::events::key_action::press)
+            {
+                if (carrot::ui::ui_module_t* ui_module{ carrot::ui::ui_service_t::try_get() })
+                    ui_consumed_event = ui_module->dispatch_navigation_action(action_name) || ui_consumed_event;
+                was_pressed_flag = true;
+                return true;
+            }
+
+            if (e._action == carrot::events::key_action::repeat)
+            {
+                if (carrot::ui::ui_module_t* ui_module{ carrot::ui::ui_service_t::try_get() })
+                    ui_consumed_event = ui_module->dispatch_navigation_action(action_name) || ui_consumed_event;
+                was_pressed_flag = true;
+                return true;
+            }
+
+            if (e._action == carrot::events::key_action::release)
+            {
+                was_pressed_flag = false;
+                return true;
+            }
+
+            return false;
+        };
+
+        (void)handle_ui_key_action(k_action_ui_up, _ui_up_was_pressed);
+        (void)handle_ui_key_action(k_action_ui_down, _ui_down_was_pressed);
+        (void)handle_ui_key_action(k_action_ui_left, _ui_left_was_pressed);
+        (void)handle_ui_key_action(k_action_ui_right, _ui_right_was_pressed);
+        (void)handle_ui_key_action(k_action_ui_accept, _ui_accept_was_pressed);
+        (void)handle_ui_key_action(k_action_ui_cancel, _ui_cancel_was_pressed);
+
+        auto update_move_suppression = [this, &e, ui_consumed_event](const std::string_view move_action, bool& suppressed_flag) noexcept
+        {
+            if (!_actions.matches(move_action, e))
+                return;
+
+            if (e._action == carrot::events::key_action::release)
+            {
+                suppressed_flag = false;
+                return;
+            }
+
+            if (e._action == carrot::events::key_action::press || e._action == carrot::events::key_action::repeat)
+            {
+                if (ui_consumed_event)
+                    suppressed_flag = true;
+            }
+        };
+
+        update_move_suppression(k_action_move_up, _move_up_suppressed_by_ui);
+        update_move_suppression(k_action_move_down, _move_down_suppressed_by_ui);
+        update_move_suppression(k_action_move_left, _move_left_suppressed_by_ui);
+        update_move_suppression(k_action_move_right, _move_right_suppressed_by_ui);
 
         if (e._action == carrot::events::key_action::press)
         {
@@ -513,10 +754,10 @@ namespace sandbox {
             LOG_CORE_INFO("Key released: {} ({})", carrot::input::key_code_to_string(e._key),
                       static_cast<uint32_t>(e._key));
 
-        _player_controller.set_move_up(_actions.is_pressed(k_action_move_up));
-        _player_controller.set_move_down(_actions.is_pressed(k_action_move_down));
-        _player_controller.set_move_left(_actions.is_pressed(k_action_move_left));
-        _player_controller.set_move_right(_actions.is_pressed(k_action_move_right));
+        _player_controller.set_move_up(_actions.is_pressed(k_action_move_up) && !_move_up_suppressed_by_ui);
+        _player_controller.set_move_down(_actions.is_pressed(k_action_move_down) && !_move_down_suppressed_by_ui);
+        _player_controller.set_move_left(_actions.is_pressed(k_action_move_left) && !_move_left_suppressed_by_ui);
+        _player_controller.set_move_right(_actions.is_pressed(k_action_move_right) && !_move_right_suppressed_by_ui);
     }
 
     void sandbox_t::on_mouse_moved(const carrot::events::mouse_moved_event_t& e)

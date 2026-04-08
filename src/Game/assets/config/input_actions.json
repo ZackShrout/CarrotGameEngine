@@ -22,6 +22,12 @@
     { "action": "toggle_fullscreen", "key": "F11" },
     { "action": "toggle_fullscreen", "key": "Enter", "mods": ["Alt"] },
     { "action": "toggle_map_collision_debug", "key": "F2" },
-    { "action": "toggle_object_collision_debug", "key": "F3" }
+    { "action": "toggle_object_collision_debug", "key": "F3" },
+    { "action": "ui_up", "key": "I" },
+    { "action": "ui_down", "key": "K" },
+    { "action": "ui_left", "key": "J" },
+    { "action": "ui_right", "key": "L" },
+    { "action": "ui_accept", "key": "O" },
+    { "action": "ui_cancel", "key": "P" }
   ]
 }

@@ -349,13 +349,20 @@ set(CARROT_ENGINE_SOURCES
         shaders/ShaderCommon.h
         src/Engine/UI/UIModule.cpp
         src/Engine/UI/UIModule.h
+        src/Engine/UI/UIInputOwnership.h
         src/Engine/UI/UIWidget.cpp
         src/Engine/UI/UIWidget.h
         src/Engine/UI/UIRootWidget.h
         src/Engine/UI/UIService.cpp
         src/Engine/UI/UIService.h
+        src/Engine/UI/Widgets/UIButton.cpp
+        src/Engine/UI/Widgets/UIButton.h
+        src/Engine/UI/Widgets/UIFocusScope.cpp
+        src/Engine/UI/Widgets/UIFocusScope.h
         src/Engine/UI/Widgets/UIPanel.cpp
         src/Engine/UI/Widgets/UIPanel.h
+        src/Engine/UI/Widgets/UIStack.cpp
+        src/Engine/UI/Widgets/UIStack.h
         src/Engine/UI/UI.h
 )
 
@@ -765,6 +772,9 @@ set(CARROT_TEST_SOURCES
         tests/ControllerTests.cpp
         tests/CollisionWorldTests.cpp
         tests/SceneLoadingTests.cpp
+        tests/UITests.cpp
+        tests/UILayoutTests.cpp
+        tests/UINavigationTests.cpp
         src/Game/TransitionRuntimeState.cpp
         src/Game/WorldInteractionHelpers.cpp
         tests/WindowSystemTests.cpp

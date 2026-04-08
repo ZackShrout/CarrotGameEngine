@@ -26,6 +26,13 @@ namespace sandbox {
         std::string trigger_kind;
     };
 
+    struct ui_gamepad_repeat_state_t
+    {
+        bool was_pressed{ false };
+        float hold_time_seconds{ 0.f };
+        float repeat_time_seconds{ 0.f };
+    };
+
     class sandbox_t : public carrot::core::ce_application_t
     {
         void configure_fallback_input_actions();
@@ -42,6 +49,8 @@ namespace sandbox {
         void update_trigger_overlaps() noexcept;
         void toggle_map_collision_debug() noexcept;
         void toggle_object_collision_debug() noexcept;
+        void initialize_runtime_ui_probe() noexcept;
+        void update_runtime_ui_navigation(float delta_time) noexcept;
         bool load_scene(std::string_view scene_id, std::string_view spawn_marker = {});
 
         carrot::core::game_context_t* _game{ nullptr };
@@ -65,6 +74,24 @@ namespace sandbox {
         bool _quit_was_pressed{ false };
         bool _toggle_map_collision_debug_was_pressed{ false };
         bool _toggle_object_collision_debug_was_pressed{ false };
+        bool _ui_up_was_pressed{ false };
+        bool _ui_down_was_pressed{ false };
+        bool _ui_left_was_pressed{ false };
+        bool _ui_right_was_pressed{ false };
+        bool _ui_accept_was_pressed{ false };
+        bool _ui_cancel_was_pressed{ false };
+        bool _move_up_suppressed_by_ui{ false };
+        bool _move_down_suppressed_by_ui{ false };
+        bool _move_left_suppressed_by_ui{ false };
+        bool _move_right_suppressed_by_ui{ false };
+        ui_gamepad_repeat_state_t _ui_up_gamepad_repeat;
+        ui_gamepad_repeat_state_t _ui_down_gamepad_repeat;
+        ui_gamepad_repeat_state_t _ui_left_gamepad_repeat;
+        ui_gamepad_repeat_state_t _ui_right_gamepad_repeat;
+        bool _ui_accept_gamepad_was_pressed{ false };
+        bool _ui_cancel_gamepad_was_pressed{ false };
+        float _ui_gamepad_nav_repeat_initial_delay_seconds{ 0.35f };
+        float _ui_gamepad_nav_repeat_interval_seconds{ 0.10f };
 
         void start(carrot::core::game_context_t& game) override;
 

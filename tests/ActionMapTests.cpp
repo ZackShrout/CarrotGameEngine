@@ -98,6 +98,8 @@ namespace carrot::tests {
             actions.update_gamepad_state(&gamepad);
             CARROT_TEST_REQUIRE(actions.is_pressed("interact"));
             CARROT_TEST_REQUIRE(actions.is_pressed("move_left"));
+            CARROT_TEST_REQUIRE(actions.is_pressed_by_gamepad("interact"));
+            CARROT_TEST_REQUIRE(actions.is_pressed_by_gamepad("move_left"));
         }
 
         void test_action_map_rejects_invalid_memory_config()
@@ -144,9 +146,11 @@ namespace carrot::tests {
             gamepad.buttons[static_cast<size_t>(input::gamepad_button_t::south)] = true;
             actions.update_gamepad_state(&gamepad);
             CARROT_TEST_REQUIRE(actions.is_pressed("interact"));
+            CARROT_TEST_REQUIRE(actions.is_pressed_by_gamepad("interact"));
 
             actions.update_gamepad_state(nullptr);
             CARROT_TEST_REQUIRE(!actions.is_pressed("interact"));
+            CARROT_TEST_REQUIRE(!actions.is_pressed_by_gamepad("interact"));
         }
 
         void test_action_map_loads_bindings_from_vfs_config()

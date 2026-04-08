@@ -511,6 +511,12 @@ namespace carrot::input {
         return it != _pressed_actions.end() && it->second;
     }
 
+    bool input_action_map_t::is_pressed_by_gamepad(const std::string_view action) const noexcept
+    {
+        const auto it{ _pressed_actions_gamepad.find(std::string{ action }) };
+        return it != _pressed_actions_gamepad.end() && it->second;
+    }
+
     bool input_action_map_t::binding_matches_event(const action_binding_t& binding,
                                                    const events::key_event_t& e) const noexcept
     {
@@ -548,11 +554,18 @@ namespace carrot::input {
     void input_action_map_t::refresh_pressed_actions() noexcept
     {
         _pressed_actions.clear();
+        _pressed_actions_gamepad.clear();
 
         for (const action_binding_t& binding : _bindings)
         {
             auto& action_pressed{ _pressed_actions[binding.action] };
             action_pressed = action_pressed || binding.active;
+
+            if (binding.type == action_binding_type_t::key)
+                continue;
+
+            auto& gamepad_action_pressed{ _pressed_actions_gamepad[binding.action] };
+            gamepad_action_pressed = gamepad_action_pressed || binding.active;
         }
     }
 } // namespace carrot::input

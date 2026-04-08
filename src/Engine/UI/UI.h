@@ -6,4 +6,9 @@
 #pragma once
 
 #include "UIService.h"
+#include "UIInputOwnership.h"
+#include "UIRootWidget.h"
+#include "Widgets/UIButton.h"
+#include "Widgets/UIFocusScope.h"
 #include "Widgets/UIPanel.h"
+#include "Widgets/UIStack.h"

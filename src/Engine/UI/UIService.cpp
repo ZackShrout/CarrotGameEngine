@@ -14,7 +14,7 @@ namespace carrot::ui {
     {
         // We still overwrite — last write wins (helps hot-reload experiments)
         if (_instance != nullptr) [[unlikely]]
-                LOG_AUDIO_WARN("UI service already provided — double registration?");
+                LOG_UI_WARN("UI service already provided — double registration?");
 
         _instance = instance;
     }
@@ -22,7 +22,7 @@ namespace carrot::ui {
     ui_module_t& ui_service_t::get()
     {
         if (_instance == nullptr) [[unlikely]]
-                LOG_AUDIO_FATAL("Attempted to use ui_service_t::get() before ui_module_t was provided");
+                LOG_UI_FATAL("Attempted to use ui_service_t::get() before ui_module_t was provided");
 
         return *_instance;
     }

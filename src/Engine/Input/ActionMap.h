@@ -58,6 +58,7 @@ namespace carrot::input {
 
         [[nodiscard]] bool matches(std::string_view action, const events::key_event_t& e) const noexcept;
         [[nodiscard]] bool is_pressed(std::string_view action) const noexcept;
+        [[nodiscard]] bool is_pressed_by_gamepad(std::string_view action) const noexcept;
 
     private:
         [[nodiscard]] bool binding_matches_event(const action_binding_t& binding,
@@ -68,5 +69,6 @@ namespace carrot::input {
 
         std::vector<action_binding_t> _bindings;
         std::unordered_map<std::string, bool, std::hash<std::string>, std::equal_to<>> _pressed_actions;
+        std::unordered_map<std::string, bool, std::hash<std::string>, std::equal_to<>> _pressed_actions_gamepad;
     };
 } // namespace carrot::input

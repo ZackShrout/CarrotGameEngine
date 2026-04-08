@@ -1,8 +1,8 @@
 # Carrot Game Engine - Milestone 08
 
-**Last Updated:** April 7, 2026
+**Last Updated:** April 8, 2026
 **Title:** Window Management System
-**Status:** In Progress
+**Status:** Complete
 **Focus:** Replace one-window bring-up assumptions with an engine-owned multi-window foundation that is ready for future UI/tooling/editor work.
 
 ---
@@ -67,6 +67,27 @@ Milestone 08 is the right moment to:
 * convert windowing from bring-up code into an engine system
 * protect upcoming UI work from one-window coupling
 * prove the engine can run multiple windows in a controlled way
+
+---
+
+## Closeout Summary (April 8, 2026)
+
+Milestone 08 is now considered complete.
+
+Delivered outcomes:
+
+* engine-owned multi-window lifecycle with explicit runtime window roles
+* two-window sandbox presentation path across supported backends
+* third read-only log console window with live severity-colored rendering
+* per-window presentation-channel routing so gameplay and log-console surfaces stay decoupled
+* fullscreen auxiliary presentation policy stabilization (auxiliary presentation suppressed while main gameplay window is fullscreen)
+* backend hardening for Vulkan/Metal/DirectX12 multi-window behavior (including validation-layer cleanup)
+* focused regression coverage for window spec invariants and presentation-channel mask behavior
+
+Out of scope by design (deferred):
+
+* full editor console UX (filters, search, commands, docking)
+* workspace/layout persistence and broader editor panel architecture
 
 ---
 
@@ -204,11 +225,11 @@ Define practical policy for this milestone:
 **Priority:** P1  
 **Outcome:** A small third window displays live colorized engine logs as a foundational diagnostics proof.
 
-**Current Progress (April 7, 2026):**
+**Current Progress (April 8, 2026):**
 
-* In progress.
-* Completed: bounded in-memory log fan-out sink foundation (`logger_t::recent_messages()` now provides snapshot access).
-* Remaining: dedicated log window rendering path (read-only text draw + severity color mapping) and final runtime wiring.
+* Complete.
+* Bounded in-memory log fan-out sink foundation delivered (`logger_t::recent_messages()` snapshot access).
+* Dedicated log window rendering path delivered (read-only text draw + severity color mapping + runtime wiring).
 
 ### Why
 

@@ -24,6 +24,7 @@
 #include "HotReload/ShaderWatcher.h"
 #include "RHI/RHI.h"
 #include "Renderer/RendererService.h"
+#include "RuntimeWindowSpecs.h"
 #include "UI/UIService.h"
 #include "Utils/File/FileUtils.h"
 #include "Utils/File/PlatformPaths.h"
@@ -112,11 +113,11 @@ namespace carrot {
         _runtime_windows.clear();
         _gameplay_window_id = window::invalid_window_id;
 
-        const std::vector<runtime_window_spec_t> window_specs{ build_runtime_window_specs(width, height) };
+        const std::vector<engine_runtime_window_spec_t> window_specs{ build_runtime_window_specs(width, height) };
         const auto main_spec_it{
             std::find_if(window_specs.begin(),
                          window_specs.end(),
-                         [](const runtime_window_spec_t& spec) { return spec.is_main_window; })
+                         [](const engine_runtime_window_spec_t& spec) { return spec.is_main_window; })
         };
 
         if (main_spec_it == window_specs.end() || !create_runtime_window(*main_spec_it))
@@ -159,7 +160,7 @@ namespace carrot {
         _asset_manager = std::make_unique<assets::asset_manager_t>(_vfs, *_renderer->get_rhi());
         assets::asset_service_t::provide(_asset_manager.get());
 
-        for (const runtime_window_spec_t& spec: window_specs)
+        for (const engine_runtime_window_spec_t& spec: window_specs)
         {
             if (spec.is_main_window)
                 continue;
@@ -399,7 +400,7 @@ namespace carrot {
             std::find_if(_runtime_windows.begin(),
                          _runtime_windows.end(),
                          [](const runtime_window_instance_t& window) {
-                             return window.role == runtime_window_role_t::log_console;
+                             return window.role == engine_runtime_window_role_t::log_console;
                          })
         };
 
@@ -512,45 +513,13 @@ namespace carrot {
         }
     }
 
-    std::vector<engine_t::runtime_window_spec_t> engine_t::build_runtime_window_specs(const uint32_t width,
-        const uint32_t height) const
+    std::vector<engine_runtime_window_spec_t> engine_t::build_runtime_window_specs(const uint32_t width,
+                                                                                    const uint32_t height) const
     {
-        return {
-            runtime_window_spec_t{
-                .role = runtime_window_role_t::gameplay_main,
-                .create_desc = {
-                    .width = width,
-                    .height = height,
-                    .title = "Carrot Engine – Main Window"
-                },
-                .is_main_window = true,
-                .register_for_presentation = false,
-                .receives_gameplay_input = true
-            },
-            runtime_window_spec_t{
-                .role = runtime_window_role_t::gameplay_mirror,
-                .create_desc = { },
-                .is_main_window = false,
-                .register_for_presentation = true,
-                .presentation_channel_mask = rhi::presentation_channel_gameplay,
-                .receives_gameplay_input = false
-            },
-            runtime_window_spec_t{
-                .role = runtime_window_role_t::log_console,
-                .create_desc = {
-                    .width = 1280,
-                    .height = 280,
-                    .title = "Carrot Log Console"
-                },
-                .is_main_window = false,
-                .register_for_presentation = true,
-                .presentation_channel_mask = rhi::presentation_channel_log_console,
-                .receives_gameplay_input = false
-            }
-        };
+        return build_engine_runtime_window_specs(width, height);
     }
 
-    bool engine_t::create_runtime_window(const runtime_window_spec_t& spec)
+    bool engine_t::create_runtime_window(const engine_runtime_window_spec_t& spec)
     {
         const window::window_id_t window_id{ window::create_window(spec.create_desc) };
         if (window_id == window::invalid_window_id)

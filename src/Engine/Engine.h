@@ -11,6 +11,7 @@
 #include "IO/VirtualFileSystem.h"
 #include "Input/ControllerManager.h"
 #include "Renderer/Renderer.h"
+#include "RuntimeWindowSpecs.h"
 #include "Utils/MulticastDelegate.h"
 #include "Window/Window.h"
 #include "World/World.h"
@@ -68,26 +69,9 @@ namespace carrot {
         [[nodiscard]] const io::virtual_file_system_t& vfs() const noexcept { return _vfs; }
 
     private:
-        enum class runtime_window_role_t : uint8_t
-        {
-            gameplay_main = 0,
-            gameplay_mirror = 1,
-            log_console = 2,
-        };
-
-        struct runtime_window_spec_t
-        {
-            runtime_window_role_t role{ runtime_window_role_t::gameplay_main };
-            window::window_create_desc_t create_desc{ };
-            bool is_main_window{ false };
-            bool register_for_presentation{ false };
-            uint32_t presentation_channel_mask{ rhi::presentation_channel_gameplay };
-            bool receives_gameplay_input{ false };
-        };
-
         struct runtime_window_instance_t
         {
-            runtime_window_role_t role{ runtime_window_role_t::gameplay_main };
+            engine_runtime_window_role_t role{ engine_runtime_window_role_t::gameplay_main };
             window::window_id_t id{ window::invalid_window_id };
             bool is_main_window{ false };
             bool registered_for_presentation{ false };
@@ -101,8 +85,8 @@ namespace carrot {
         void render_debug();
         void render_ui();
         void render_log_console();
-        [[nodiscard]] std::vector<runtime_window_spec_t> build_runtime_window_specs(uint32_t width, uint32_t height) const;
-        bool create_runtime_window(const runtime_window_spec_t& spec);
+        [[nodiscard]] std::vector<engine_runtime_window_spec_t> build_runtime_window_specs(uint32_t width, uint32_t height) const;
+        bool create_runtime_window(const engine_runtime_window_spec_t& spec);
         void bind_window_events(window::window_id_t window_id, window::window_id_t main_window_id);
 
         [[nodiscard]] core::engine_paths_t make_default_engine_paths() noexcept;

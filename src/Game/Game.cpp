@@ -401,6 +401,18 @@ namespace sandbox {
         _player_controller.set_move_speed(4.0f);
         _interaction_controller.set_interaction_radius(3.0f);
         load_scene(k_bootstrap_scene_id);
+
+        // Quick, in place UI tree validation - move and expand to UITests.cpp very soon
+        carrot::ui::ui_module_t& ui{ carrot::ui::ui_service_t::get() };
+        carrot::ui::ui_root_widget_t* root{ ui.get_root() };
+
+        if (root)
+        {
+            carrot::ui::ui_panel_t& panel_a{ root->emplace_child<carrot::ui::ui_panel_t>() };
+            carrot::ui::ui_panel_t& panel_b{ panel_a.emplace_child<carrot::ui::ui_panel_t>() };
+
+            (void)panel_b;
+        }
     }
 
     void sandbox_t::on_tick(const float delta_time)

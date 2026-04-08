@@ -5,19 +5,19 @@
 
 #pragma once
 
+#include "Engine.h"
 #include "Audio/Audio.h"
 #include "Core/Application.h"
 #include "Core/EnginePaths.h"
 #include "Core/GameContext.h"
 #include "Core/GameView.h"
 #include "Debug/DebugOverlay.h"
-#include "Engine.h"
 #include "Input/ActionMap.h"
 #include "Input/ControllerManager.h"
 #include "Renderer/Renderer.h"
+#include "UI/UI.h"
 #include "Window/Window.h"
-#include "World/Controllers/InteractionController.h"
-#include "World/Controllers/PlayerController.h"
 #include "World/SceneLoader.h"
 #include "World/TriggerQuery.h"
-#include "UI/UIService.h"
+#include "World/Controllers/InteractionController.h"
+#include "World/Controllers/PlayerController.h"

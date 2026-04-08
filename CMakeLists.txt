@@ -354,6 +354,9 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/UI/UIRootWidget.h
         src/Engine/UI/UIService.cpp
         src/Engine/UI/UIService.h
+        src/Engine/UI/Widgets/UIPanel.cpp
+        src/Engine/UI/Widgets/UIPanel.h
+        src/Engine/UI/UI.h
 )
 
 # ------------------------------------------------------------------------

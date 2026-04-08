@@ -139,6 +139,7 @@ namespace carrot {
 
         // UI
         _ui_module = std::make_unique<ui::ui_module_t>();
+        _ui_module->init();
         ui::ui_service_t::provide(_ui_module.get());
 
         // CAMERA (test code)

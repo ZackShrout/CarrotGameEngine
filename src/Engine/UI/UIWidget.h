@@ -78,8 +78,11 @@ namespace carrot::ui {
         T& emplace_child(Args&&... args)
         {
             auto child{ std::make_unique<T>(std::forward<Args>(args)...) };
+            T* raw_child{ child.get() };
+
             add_child(std::move(child));
-            return *child;
+
+            return *raw_child;
         }
 
         void tick_tree(float delta_time) noexcept;

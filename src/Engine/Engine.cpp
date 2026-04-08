@@ -24,6 +24,7 @@
 #include "HotReload/ShaderWatcher.h"
 #include "RHI/RHI.h"
 #include "Renderer/RendererService.h"
+#include "UI/UIService.h"
 #include "Utils/File/FileUtils.h"
 #include "Utils/File/PlatformPaths.h"
 #include "Utils/MulticastDelegate.h"
@@ -84,6 +85,9 @@ namespace carrot {
         _audio_module->shutdown();
         _audio_module.reset();
 
+        _ui_module->shutdown();
+        _ui_module.reset();
+
         _renderer.reset();
         window::destroy_all_windows();
         core::logger_t::shutdown();
@@ -132,6 +136,10 @@ namespace carrot {
         // RENDERER
         _renderer = std::make_unique<renderer::renderer_t>(_vfs, config.graphics, main_window_id);
         renderer::renderer_service_t::provide(_renderer.get());
+
+        // UI
+        _ui_module = std::make_unique<ui::ui_module_t>();
+        ui::ui_service_t::provide(_ui_module.get());
 
         // CAMERA (test code)
         renderer::camera_2d_t camera{ };

@@ -20,3 +20,4 @@
 #include "World/Controllers/PlayerController.h"
 #include "World/SceneLoader.h"
 #include "World/TriggerQuery.h"
+#include "UI/UIService.h"

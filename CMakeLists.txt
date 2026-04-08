@@ -347,6 +347,13 @@ set(CARROT_ENGINE_SOURCES
         # Shaders
         # ========================================
         shaders/ShaderCommon.h
+        src/Engine/UI/UIModule.cpp
+        src/Engine/UI/UIModule.h
+        src/Engine/UI/UIWidget.cpp
+        src/Engine/UI/UIWidget.h
+        src/Engine/UI/UIRootWidget.h
+        src/Engine/UI/UIService.cpp
+        src/Engine/UI/UIService.h
 )
 
 # ------------------------------------------------------------------------

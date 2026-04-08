@@ -17,6 +17,8 @@
 
 #include <vector>
 
+#include "UI/UIModule.h"
+
 namespace carrot {
     namespace rhi {
         class rhi_context_t;
@@ -49,14 +51,19 @@ namespace carrot {
 
         void request_quit() noexcept { _should_quit = true; }
         [[nodiscard]] bool should_quit() const noexcept { return _should_quit; }
+
         [[nodiscard]] float get_delta_time() const noexcept { return _delta_time; }
         [[nodiscard]] uint32_t get_fps() const noexcept { return _current_fps; }
+
         [[nodiscard]] assets::asset_manager_t& asset_manager() noexcept { return *_asset_manager; }
         [[nodiscard]] const assets::asset_manager_t& asset_manager() const noexcept { return *_asset_manager; }
+
         [[nodiscard]] renderer::renderer_t& renderer() noexcept { return *_renderer; }
         [[nodiscard]] const renderer::renderer_t& renderer() const noexcept { return *_renderer; }
+
         [[nodiscard]] world::world_t& world() noexcept { return _world; }
         [[nodiscard]] const world::world_t& world() const noexcept { return _world; }
+
         [[nodiscard]] io::virtual_file_system_t& vfs() noexcept { return _vfs; }
         [[nodiscard]] const io::virtual_file_system_t& vfs() const noexcept { return _vfs; }
 
@@ -119,6 +126,7 @@ namespace carrot {
 
         std::unique_ptr<renderer::renderer_t>               _renderer{ nullptr };
         std::unique_ptr<audio::audio_module_t>              _audio_module{ nullptr };
+        std::unique_ptr<ui::ui_module_t>                    _ui_module{ nullptr };
 
         io::virtual_file_system_t                           _vfs;
         std::unique_ptr<assets::asset_manager_t>            _asset_manager{ nullptr };

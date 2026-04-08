@@ -90,7 +90,7 @@ namespace sandbox {
 
             return digital_move_vector(actions);
         }
-    }
+    } // anonymous namespace
 
     void sandbox_t::configure_fallback_input_actions()
     {
@@ -148,19 +148,6 @@ namespace sandbox {
 
         LOG_CORE_WARN("Falling back to built-in sandbox input bindings");
         configure_fallback_input_actions();
-    }
-
-    void sandbox_t::refresh_scene_bindings() noexcept
-    {
-        if (!_game)
-            return;
-
-        _active_trigger_ids.clear();
-        _pending_trigger_events.clear();
-        _player_controller.set_controlled_object(find_player(_game->world));
-        _interaction_controller.set_actor(_player_controller.controlled_object());
-        apply_scene_camera_defaults();
-        center_camera_on_initial_target();
     }
 
     void sandbox_t::apply_scene_camera_defaults() noexcept
@@ -233,6 +220,19 @@ namespace sandbox {
 
             _game->view.set_center_world_position(_game->world, desired_center);
         }
+    }
+
+    void sandbox_t::refresh_scene_bindings() noexcept
+    {
+        if (!_game)
+            return;
+
+        _active_trigger_ids.clear();
+        _pending_trigger_events.clear();
+        _player_controller.set_controlled_object(find_player(_game->world));
+        _interaction_controller.set_actor(_player_controller.controlled_object());
+        apply_scene_camera_defaults();
+        center_camera_on_initial_target();
     }
 
     void sandbox_t::refresh_scene_music()

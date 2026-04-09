@@ -18,7 +18,7 @@ namespace carrot::tests {
     namespace {
         [[nodiscard]] std::filesystem::path game_assets_root()
         {
-            return std::filesystem::path{ CARROT_SOURCE_ROOT } / "src" / "Game" / "assets";
+            return std::filesystem::path{ CARROT_SOURCE_ROOT } / "src" / "Sandbox" / "assets";
         }
 
         void test_action_map_tracks_pressed_state()

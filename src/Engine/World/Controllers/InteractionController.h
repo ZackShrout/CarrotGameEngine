@@ -6,6 +6,7 @@
 #pragma once
 
 #include "Core/GameContext.h"
+#include "World/AuthoredInteractions.h"
 #include "World/World.h"
 
 namespace carrot::world {
@@ -25,13 +26,15 @@ namespace carrot::world {
         [[nodiscard]] bool has_candidate(const world_t& world) const noexcept;
         [[nodiscard]] std::optional<float> candidate_distance(const world_t& world) const noexcept;
         bool try_interact(core::game_context_t& game);
+        [[nodiscard]] std::optional<authored::interaction_outcome_t> consume_pending_interaction() noexcept;
 
     protected:
         [[nodiscard]] virtual bool is_interactable_candidate(const world_object_t& object) const noexcept;
-        virtual void on_interact(core::game_context_t& game, const world_object_t& object) = 0;
+        virtual void on_interact(core::game_context_t& game, const world_object_t& object);
 
     private:
         world_object_t* _actor{ nullptr };
         float _interaction_radius{ 3.0f };
+        std::optional<authored::interaction_outcome_t> _pending_interaction;
     };
 } // namespace carrot::world

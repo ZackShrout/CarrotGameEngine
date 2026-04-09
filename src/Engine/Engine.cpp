@@ -798,9 +798,9 @@ namespace carrot {
 
         const std::filesystem::path engine_root{ *repo_root / "assets" };
         const std::filesystem::path& engine_src{ *repo_root };
-        const std::filesystem::path game_root{ *repo_root / "src" / "Game" / "assets" };
-        const std::filesystem::path source_root{ *repo_root / "src" / "Game" / "source" };
-        const std::filesystem::path save_root{ *repo_root / "src" / "Game" / "saved" };
+        const std::filesystem::path game_root{ *repo_root / "src" / "Sandbox" / "assets" };
+        const std::filesystem::path source_root{ *repo_root / "src" / "Sandbox" / "source" };
+        const std::filesystem::path save_root{ *repo_root / "src" / "Sandbox" / "saved" };
 
         if (std::filesystem::exists(engine_root))
             paths.engine_root = std::filesystem::weakly_canonical(engine_root);

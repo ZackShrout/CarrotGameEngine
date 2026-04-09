@@ -39,7 +39,7 @@ game://config/input_actions.json
 
 Current authored file:
 
-[`src/Game/assets/config/input_actions.json`](/Users/zshrout/dev/CarrotGameEngine/src/Game/assets/config/input_actions.json)
+[`src/Sandbox/assets/config/input_actions.json`](/Users/zshrout/dev/CarrotGameEngine/src/Sandbox/assets/config/input_actions.json)
 
 If the file is missing or invalid, the sandbox falls back to built-in defaults.
 

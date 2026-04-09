@@ -1,11 +1,11 @@
 //
-// Created by zshrout on 4/4/26.
+// Created by Zack Shrout on 4/9/26.
 // Copyright (c) 2026 BunnySoft. All rights reserved.
 //
 
 #include "Core/Pch.h"
 
-#include "TransitionRuntimeState.h"
+#include "GameplayRuntimeState.h"
 
 #include "Assets/Tilemap/TypedObjectConventions.h"
 
@@ -45,13 +45,13 @@ namespace sandbox {
 
             return std::format("runtime:{}", object.id);
         }
-    } // namespace
 
-    std::string make_scene_runtime_object_key(const std::string_view scene_id,
-                                              const carrot::world::world_object_t& object)
-    {
-        return std::format("{}::{}", scene_id, build_object_identity(object));
-    }
+        [[nodiscard]] std::string make_scene_runtime_object_key(const std::string_view scene_id,
+                                                                const carrot::world::world_object_t& object)
+        {
+            return std::format("{}::{}", scene_id, build_object_identity(object));
+        }
+    } // namespace
 
     void capture_player_runtime_state(gameplay_runtime_state_t& runtime_state,
                                       const carrot::world::player_controller_t& player_controller) noexcept

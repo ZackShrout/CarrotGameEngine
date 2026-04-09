@@ -2,7 +2,7 @@
 
 **BunnySoft**
 **Version 2.0**
-**Last Updated: April 4, 2026**
+**Last Updated: April 9, 2026**
 
 ---
 
@@ -137,11 +137,11 @@ Carrot uses **native windowing backends** rather than a third-party abstraction 
 Current / planned platform windowing support:
 
 * **Win32** on Windows
-* **Wayland** on Linux (primary)
+* **Wayland** on Linux (current supported backend)
 * **Cocoa** on macOS
-* **X11** on Linux (planned fallback / additional backend)
+* **X11** on Linux (planned fallback / additional backend, not implemented yet)
 
-Wayland is currently the preferred Linux path, but X11 is still considered an important long-term compatibility target and is intended to be supported as the engine matures.
+Wayland is currently the supported Linux path. X11 is still considered an important long-term compatibility target, but it should not currently be assumed available until that backend is implemented.
 
 ### Graphics Backend Strategy
 
@@ -187,6 +187,7 @@ Core systems provide the foundational engine infrastructure.
 These include:
 
 * engine lifecycle / module ownership
+* application host and game-runtime framework boundaries
 * logging
 * config loading
 * event dispatch
@@ -197,6 +198,14 @@ These include:
 * hot-reload support
 
 These systems should remain lightweight, dependable, and broadly reusable across the engine.
+
+Current runtime-framework direction inside core systems includes:
+
+* `ce_application_t` as the low-level engine-facing application host boundary
+* `game_runtime_t` as the engine-owned root for game-runtime-lifetime ownership
+* `igame_state_t` as the explicit state seam between the runtime root and active gameplay/menu/pause/loading states
+
+This structure is intended to keep application-shell responsibilities, game-runtime responsibilities, and gameplay-session responsibilities from collapsing into one object.
 
 ### 5.3 RHI Layer
 

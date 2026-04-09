@@ -1,3 +1,8 @@
+//
+// Created by Zack Shrout on 4/9/26.
+// Copyright (c) 2026 BunnySoft. All rights reserved.
+//
+
 #pragma once
 
 #include "World/Controllers/PlayerController.h"
@@ -15,8 +20,6 @@ namespace sandbox {
         std::unordered_set<std::string> opened_containers;
     };
 
-    [[nodiscard]] std::string make_scene_runtime_object_key(std::string_view scene_id,
-                                                            const carrot::world::world_object_t& object);
     void capture_player_runtime_state(gameplay_runtime_state_t& runtime_state,
                                       const carrot::world::player_controller_t& player_controller) noexcept;
     void apply_runtime_state_to_player(const gameplay_runtime_state_t& runtime_state,

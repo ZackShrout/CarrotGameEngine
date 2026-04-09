@@ -63,6 +63,95 @@ namespace carrot::world {
             player.sprite_animator->animator.set_sprite(&player_sprite);
             player.sprite_animator->animator.play("idle_down");
         }
+
+        [[nodiscard]] bool build_scene_world(world_t& world,
+                                             assets::asset_manager_t& assets,
+                                             const std::string_view scene_id,
+                                             const std::string_view spawn_marker_override)
+        {
+            const assets::scene_asset_record_t* scene_record{ assets.scenes().registry().find(scene_id) };
+            if (!scene_record)
+            {
+                LOG_ASSET_ERROR("Scene asset '{}' was not found", scene_id);
+                return false;
+            }
+
+            const assets::scene_asset_t& scene{ scene_record->scene };
+            const assets::loaded_tilemap_asset_t* tilemap{ assets.tilemaps().get(scene.tilemap_id) };
+            if (!tilemap)
+            {
+                LOG_ASSET_ERROR("Scene '{}' failed to load tilemap '{}'", scene_id, scene.tilemap_id);
+                return false;
+            }
+
+            const assets::loaded_sprite_asset_t* player_sprite{ assets.sprites().get(scene.player_sprite_id) };
+            if (!player_sprite || !player_sprite->valid())
+            {
+                LOG_ASSET_ERROR("Scene '{}' failed to load player sprite '{}'", scene_id, scene.player_sprite_id);
+                return false;
+            }
+
+            world.clear();
+            world.set_presentation_origin_px(scene.presentation_origin_px);
+            world.set_presentation_pixels_per_unit(world_units_t::default_pixels_per_unit);
+
+            create_player(world, scene, *player_sprite);
+
+            world_object_t& map_object{ world.create_object() };
+            map_object.name = scene.map_object_name;
+            map_object.type = "Tilemap";
+            map_object.transform = transform_component_t{
+                .position = scene.tilemap_world_position
+            };
+            map_object.tilemap = tilemap_component_t{
+                .tilemap = tilemap,
+                .include_object_layers = false,
+                .layer = renderer::render_layer_t::world_back,
+                .order_in_layer = -100,
+                .sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp,
+                .color = 0xFFFFFFFFu
+            };
+
+            const import::tilemap_world_bridge_result_t bridge_result{
+                import::import_tilemap_objects(world, *tilemap, scene.tilemap_world_position)
+            };
+            LOG_ASSET_INFO("Scene '{}': imported {} marker object(s), {} tile object(s), {} static collider(s), {} trigger(s)",
+                           scene_id,
+                           bridge_result.markers_created,
+                           bridge_result.tile_objects_created,
+                           bridge_result.static_colliders_created,
+                           bridge_result.triggers_created);
+
+            const std::string_view effective_spawn_marker{
+                !spawn_marker_override.empty() ? spawn_marker_override : std::string_view{ scene.player_spawn_marker }
+            };
+
+            world_object_t* player{ world.find_object_by_name(scene.player_name) };
+            const world_object_t* spawn_marker{ find_marker(world, effective_spawn_marker) };
+            if (!player || !player->transform)
+            {
+                LOG_ASSET_ERROR("Scene '{}' could not resolve player object '{}'", scene_id, scene.player_name);
+                return false;
+            }
+
+            if (!spawn_marker || !spawn_marker->transform)
+            {
+                LOG_ASSET_ERROR("Scene '{}' could not find required spawn marker '{}'",
+                                scene_id,
+                                effective_spawn_marker);
+                return false;
+            }
+
+            player->transform->position = spawn_marker->transform->position;
+
+            LOG_ASSET_INFO("Loaded scene '{}': tilemap='{}', player='{}', spawn='{}', map_object='{}'",
+                           scene_id,
+                           scene.tilemap_id,
+                           scene.player_name,
+                           effective_spawn_marker,
+                           scene.map_object_name);
+            return true;
+        }
     } // namespace
 
     bool scene_loader_t::load_scene(core::game_context_t& game,
@@ -77,89 +166,11 @@ namespace carrot::world {
                                     const std::string_view scene_id,
                                     const std::string_view spawn_marker_override)
     {
-        const assets::scene_asset_record_t* scene_record{ assets.scenes().registry().find(scene_id) };
-        if (!scene_record)
-        {
-            LOG_ASSET_ERROR("Scene asset '{}' was not found", scene_id);
+        world_t staged_world;
+        if (!build_scene_world(staged_world, assets, scene_id, spawn_marker_override))
             return false;
-        }
 
-        const assets::scene_asset_t& scene{ scene_record->scene };
-        const assets::loaded_tilemap_asset_t* tilemap{ assets.tilemaps().get(scene.tilemap_id) };
-        if (!tilemap)
-        {
-            LOG_ASSET_ERROR("Scene '{}' failed to load tilemap '{}'", scene_id, scene.tilemap_id);
-            return false;
-        }
-
-        const assets::loaded_sprite_asset_t* player_sprite{ assets.sprites().get(scene.player_sprite_id) };
-        if (!player_sprite || !player_sprite->valid())
-        {
-            LOG_ASSET_ERROR("Scene '{}' failed to load player sprite '{}'", scene_id, scene.player_sprite_id);
-            return false;
-        }
-
-        world.clear();
-        world.set_presentation_origin_px(scene.presentation_origin_px);
-        world.set_presentation_pixels_per_unit(world_units_t::default_pixels_per_unit);
-
-        create_player(world, scene, *player_sprite);
-
-        world_object_t& map_object{ world.create_object() };
-        map_object.name = scene.map_object_name;
-        map_object.type = "Tilemap";
-        map_object.transform = transform_component_t{
-            .position = scene.tilemap_world_position
-        };
-        map_object.tilemap = tilemap_component_t{
-            .tilemap = tilemap,
-            .include_object_layers = false,
-            .layer = renderer::render_layer_t::world_back,
-            .order_in_layer = -100,
-            .sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp,
-            .color = 0xFFFFFFFFu
-        };
-
-        const import::tilemap_world_bridge_result_t bridge_result{
-            import::import_tilemap_objects(world, *tilemap, scene.tilemap_world_position)
-        };
-        LOG_ASSET_INFO("Scene '{}': imported {} marker object(s), {} tile object(s), {} static collider(s), {} trigger(s)",
-                       scene_id,
-                       bridge_result.markers_created,
-                       bridge_result.tile_objects_created,
-                       bridge_result.static_colliders_created,
-                       bridge_result.triggers_created);
-
-        const std::string_view effective_spawn_marker{
-            !spawn_marker_override.empty() ? spawn_marker_override : std::string_view{ scene.player_spawn_marker }
-        };
-
-        world_object_t* player{ world.find_object_by_name(scene.player_name) };
-        const world_object_t* spawn_marker{ find_marker(world, effective_spawn_marker) };
-        if (!player || !player->transform)
-        {
-            LOG_ASSET_ERROR("Scene '{}' could not resolve player object '{}'", scene_id, scene.player_name);
-            return false;
-        }
-
-        if (!spawn_marker || !spawn_marker->transform)
-        {
-            LOG_ASSET_ERROR("Scene '{}' could not find required spawn marker '{}'",
-                            scene_id,
-                            effective_spawn_marker);
-            return false;
-        }
-        else
-        {
-            player->transform->position = spawn_marker->transform->position;
-        }
-
-        LOG_ASSET_INFO("Loaded scene '{}': tilemap='{}', player='{}', spawn='{}', map_object='{}'",
-                       scene_id,
-                       scene.tilemap_id,
-                       scene.player_name,
-                       effective_spawn_marker,
-                       scene.map_object_name);
+        world = std::move(staged_world);
         return true;
     }
 } // namespace carrot::world

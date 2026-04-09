@@ -79,8 +79,48 @@ namespace carrot::world {
         return true;
     }
 
+    std::optional<authored::interaction_outcome_t> interaction_controller_t::consume_pending_interaction() noexcept
+    {
+        std::optional<authored::interaction_outcome_t> outcome{ std::move(_pending_interaction) };
+        _pending_interaction.reset();
+        return outcome;
+    }
+
     bool interaction_controller_t::is_interactable_candidate(const world_object_t& object) const noexcept
     {
         return object.get_bool_property("interactable").value_or(false);
+    }
+
+    void interaction_controller_t::on_interact(core::game_context_t& game, const world_object_t& object)
+    {
+        const std::optional<authored::interaction_outcome_t> outcome{
+            authored::resolve_interaction_outcome(game.assets, object)
+        };
+        if (!outcome)
+        {
+            LOG_CORE_INFO("Interact '{}' of type '{}'", object.name, object.type);
+            return;
+        }
+
+        switch (outcome->kind)
+        {
+            case authored::interaction_outcome_kind_t::sign:
+                LOG_CORE_INFO("Interact Sign '{}' -> message_id='{}'", object.name, outcome->message_id);
+                break;
+            case authored::interaction_outcome_kind_t::scene_transition:
+                LOG_CORE_INFO("Interact Door '{}' -> target_scene='{}', target_marker='{}'",
+                              object.name,
+                              outcome->transition.scene_id,
+                              outcome->transition.marker_name);
+                break;
+            case authored::interaction_outcome_kind_t::container:
+                LOG_CORE_INFO("Interact Container '{}' -> loot_table='{}'", object.name, outcome->loot_table);
+                break;
+            default:
+                LOG_CORE_INFO("Interact '{}' of type '{}'", object.name, object.type);
+                break;
+        }
+
+        _pending_interaction = *outcome;
     }
 } // namespace carrot::world

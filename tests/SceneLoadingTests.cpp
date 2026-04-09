@@ -17,15 +17,17 @@
 #include "Assets/Tilemap/TilemapValidation.h"
 #include "Core/GameView.h"
 #include "Renderer/Renderer.h"
-#include "TransitionRuntimeState.h"
-#include "WorldInteractionHelpers.h"
+#include "Scene/Scene.h"
+#include "GameplayRuntimeState.h"
 #include "IO/VirtualFileSystem.h"
 #include "RHI/CommandQueue.h"
 #include "RHI/RHI.h"
 #include "Utils/JSON/Public/JsonDocument.h"
+#include "World/AuthoredInteractions.h"
 #include "World/Controllers/PlayerController.h"
 #include "World/Import/TilemapWorldBridge.h"
 #include "World/SceneLoader.h"
+#include "World/TriggerQuery.h"
 #include "World/World.h"
 #include "World/WorldLayering.h"
 
@@ -162,7 +164,7 @@ namespace carrot::tests {
 
         [[nodiscard]] std::filesystem::path game_assets_root()
         {
-            return std::filesystem::path{ CARROT_SOURCE_ROOT } / "src" / "Game" / "assets";
+            return std::filesystem::path{ CARROT_SOURCE_ROOT } / "src" / "Sandbox" / "assets";
         }
 
         [[nodiscard]] std::filesystem::path engine_assets_root()
@@ -240,6 +242,63 @@ namespace carrot::tests {
 
             const auto it{ std::find(manifests.scenes.begin(), manifests.scenes.end(), "game://scenes/test_overworld.scene.json") };
             CARROT_TEST_REQUIRE(it != manifests.scenes.end());
+        }
+
+        void test_asset_discovery_skips_missing_mount_root_without_throwing()
+        {
+            io::virtual_file_system_t vfs;
+            const std::filesystem::path missing_root{
+                std::filesystem::temp_directory_path() / "carrot_missing_mount_root_for_tests"
+            };
+            std::filesystem::remove_all(missing_root);
+            vfs.mount("game", missing_root, true);
+
+            bool threw{ false };
+            assets::discovered_asset_manifests_t manifests;
+
+            try
+            {
+                manifests = assets::asset_discovery_t::discover_supported_manifests(vfs);
+            }
+            catch (const std::filesystem::filesystem_error&)
+            {
+                threw = true;
+            }
+
+            CARROT_TEST_REQUIRE(!threw);
+            CARROT_TEST_REQUIRE(manifests.total_count() == 0u);
+        }
+
+        void test_asset_discovery_skips_file_mount_root_without_throwing()
+        {
+            io::virtual_file_system_t vfs;
+            const std::filesystem::path temp_root{
+                std::filesystem::temp_directory_path() / "carrot_asset_discovery_file_mount_root"
+            };
+            std::filesystem::create_directories(temp_root);
+            const std::filesystem::path file_root{ temp_root / "not_a_directory.txt" };
+            {
+                std::ofstream out{ file_root };
+                out << "carrot";
+            }
+            vfs.mount("game", file_root, true);
+
+            bool threw{ false };
+            assets::discovered_asset_manifests_t manifests;
+
+            try
+            {
+                manifests = assets::asset_discovery_t::discover_supported_manifests(vfs);
+            }
+            catch (const std::filesystem::filesystem_error&)
+            {
+                threw = true;
+            }
+
+            std::filesystem::remove_all(temp_root);
+
+            CARROT_TEST_REQUIRE(!threw);
+            CARROT_TEST_REQUIRE(manifests.total_count() == 0u);
         }
 
         void test_tilemap_world_bridge_imports_authored_objects()
@@ -1225,6 +1284,36 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(!world::scene_loader_t::load_scene(world, assets, "scene.test.overworld", "MissingMarker"));
         }
 
+        void test_scene_loader_preserves_existing_world_on_failed_spawn_override()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, static_cast<rhi::rhi_context_t&>(rhi) };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.test.overworld"));
+
+            const size_t object_count_before_failure{ world.objects().size() };
+            const world::world_object_t* player_before_failure{ world.find_object_by_name("Vraden") };
+            CARROT_TEST_REQUIRE(player_before_failure != nullptr);
+            CARROT_TEST_REQUIRE(player_before_failure->transform.has_value());
+            const chlm::float2 player_position_before_failure{ player_before_failure->transform->position };
+
+            CARROT_TEST_REQUIRE(!world::scene_loader_t::load_scene(world, assets, "scene.test.overworld", "MissingMarker"));
+
+            const world::world_object_t* player_after_failure{ world.find_object_by_name("Vraden") };
+            const world::world_object_t* spawn_after_failure{ world.find_object_by_name("PlayerSpawn") };
+            CARROT_TEST_REQUIRE(player_after_failure != nullptr);
+            CARROT_TEST_REQUIRE(spawn_after_failure != nullptr);
+            CARROT_TEST_REQUIRE(player_after_failure->transform.has_value());
+            CARROT_TEST_REQUIRE(world.objects().size() == object_count_before_failure);
+            CARROT_TEST_REQUIRE(player_after_failure->transform->position.x == player_position_before_failure.x);
+            CARROT_TEST_REQUIRE(player_after_failure->transform->position.y == player_position_before_failure.y);
+        }
+
         void test_scene_asset_importer_parses_camera_modes()
         {
             constexpr const char* manifest{
@@ -1382,8 +1471,8 @@ namespace carrot::tests {
                 assets::tilemap_property_t{ .name = "target_marker", .value = std::string{ "Entry" } }
             };
 
-            CARROT_TEST_REQUIRE(!sandbox::make_scene_transition_request(assets, door).has_value());
-            CARROT_TEST_REQUIRE(!sandbox::validate_scene_transition_target(assets, door));
+            CARROT_TEST_REQUIRE(!carrot::world::authored::make_scene_transition_request(assets, door).has_value());
+            CARROT_TEST_REQUIRE(!carrot::world::authored::validate_scene_transition_target(assets, door));
         }
 
         void test_door_transition_request_rejects_unresolved_legacy_target_map()
@@ -1403,8 +1492,8 @@ namespace carrot::tests {
                 assets::tilemap_property_t{ .name = "target_marker", .value = std::string{ "Entry" } }
             };
 
-            CARROT_TEST_REQUIRE(!sandbox::make_scene_transition_request(assets, door).has_value());
-            CARROT_TEST_REQUIRE(!sandbox::validate_scene_transition_target(assets, door));
+            CARROT_TEST_REQUIRE(!carrot::world::authored::make_scene_transition_request(assets, door).has_value());
+            CARROT_TEST_REQUIRE(!carrot::world::authored::validate_scene_transition_target(assets, door));
         }
 
         void test_door_transition_request_rejects_missing_target_marker()
@@ -1423,8 +1512,8 @@ namespace carrot::tests {
                 assets::tilemap_property_t{ .name = "target_scene", .value = std::string{ "scene.test.overworld" } }
             };
 
-            CARROT_TEST_REQUIRE(!sandbox::make_scene_transition_request(assets, door).has_value());
-            CARROT_TEST_REQUIRE(!sandbox::validate_scene_transition_target(assets, door));
+            CARROT_TEST_REQUIRE(!carrot::world::authored::make_scene_transition_request(assets, door).has_value());
+            CARROT_TEST_REQUIRE(!carrot::world::authored::validate_scene_transition_target(assets, door));
         }
 
         void test_validate_scene_transition_targets_rejects_invalid_door_in_world()
@@ -1447,7 +1536,7 @@ namespace carrot::tests {
                 assets::tilemap_property_t{ .name = "target_marker", .value = std::string{ "Entry" } }
             };
 
-            CARROT_TEST_REQUIRE(!sandbox::validate_scene_transition_targets(assets, world));
+            CARROT_TEST_REQUIRE(!carrot::world::authored::validate_scene_transition_targets(assets, world));
         }
 
         void test_validate_scene_transition_targets_rejects_missing_destination_marker()
@@ -1470,7 +1559,7 @@ namespace carrot::tests {
                 assets::tilemap_property_t{ .name = "target_marker", .value = std::string{ "MissingMarker" } }
             };
 
-            CARROT_TEST_REQUIRE(!sandbox::validate_scene_transition_targets(assets, world));
+            CARROT_TEST_REQUIRE(!carrot::world::authored::validate_scene_transition_targets(assets, world));
         }
 
         void test_sandbox_scene_transition_requests_connect_all_three_scenes()
@@ -1489,11 +1578,11 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(town_to_inn != nullptr);
             CARROT_TEST_REQUIRE(town_to_item_shop != nullptr);
 
-            const std::optional<sandbox::scene_transition_request_t> inn_request{
-                sandbox::make_scene_transition_request(assets, *town_to_inn)
+            const std::optional<carrot::scene::scene_transition_request_t> inn_request{
+                carrot::world::authored::make_scene_transition_request(assets, *town_to_inn)
             };
-            const std::optional<sandbox::scene_transition_request_t> item_shop_request{
-                sandbox::make_scene_transition_request(assets, *town_to_item_shop)
+            const std::optional<carrot::scene::scene_transition_request_t> item_shop_request{
+                carrot::world::authored::make_scene_transition_request(assets, *town_to_item_shop)
             };
             CARROT_TEST_REQUIRE(inn_request.has_value());
             CARROT_TEST_REQUIRE(item_shop_request.has_value());
@@ -1506,8 +1595,8 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(inn_world, assets, inn_request->scene_id, inn_request->marker_name));
             const world::world_object_t* inn_exit_door{ inn_world.find_object_by_name("DoorToTownFromInn") };
             CARROT_TEST_REQUIRE(inn_exit_door != nullptr);
-            const std::optional<sandbox::scene_transition_request_t> inn_exit_request{
-                sandbox::make_scene_transition_request(assets, *inn_exit_door)
+            const std::optional<carrot::scene::scene_transition_request_t> inn_exit_request{
+                carrot::world::authored::make_scene_transition_request(assets, *inn_exit_door)
             };
             CARROT_TEST_REQUIRE(inn_exit_request.has_value());
             CARROT_TEST_REQUIRE(inn_exit_request->scene_id == "scene.sandbox.town");
@@ -1517,8 +1606,8 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(item_shop_world, assets, item_shop_request->scene_id, item_shop_request->marker_name));
             const world::world_object_t* item_shop_exit_door{ item_shop_world.find_object_by_name("DoorToTownFromItemShop") };
             CARROT_TEST_REQUIRE(item_shop_exit_door != nullptr);
-            const std::optional<sandbox::scene_transition_request_t> item_shop_exit_request{
-                sandbox::make_scene_transition_request(assets, *item_shop_exit_door)
+            const std::optional<carrot::scene::scene_transition_request_t> item_shop_exit_request{
+                carrot::world::authored::make_scene_transition_request(assets, *item_shop_exit_door)
             };
             CARROT_TEST_REQUIRE(item_shop_exit_request.has_value());
             CARROT_TEST_REQUIRE(item_shop_exit_request->scene_id == "scene.sandbox.town");
@@ -1919,11 +2008,68 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(exited.exited.front()->id == trigger.id);
             CARROT_TEST_REQUIRE(active_trigger_ids.empty());
         }
+
+        void test_trigger_monitor_emits_authored_enter_and_exit_events()
+        {
+            world::world_t world;
+
+            world::world_object_t actor;
+            actor.id = 999;
+            actor.transform = world::transform_component_t{
+                .position = { 0.f, 0.f },
+                .scale = { 1.f, 1.f }
+            };
+            actor.collision = world::collision_component_t{
+                .half_extents = { 0.3f, 0.2f },
+                .offset = { 0.f, -0.2f }
+            };
+
+            world::world_object_t& trigger{ world.create_object() };
+            trigger.name = "TestTrigger";
+            trigger.type = "Trigger";
+            trigger.transform = world::transform_component_t{
+                .position = { 1.f, -1.f },
+                .scale = { 1.f, 1.f }
+            };
+            trigger.collision = world::collision_component_t{
+                .half_extents = { 0.5f, 1.f },
+                .offset = { 0.5f, 1.f }
+            };
+            trigger.trigger = world::trigger_component_t{
+                .trigger_id = "test.trigger",
+                .trigger_kind = "test_kind"
+            };
+
+            world::trigger_monitor_t monitor;
+
+            actor.transform->position = { 1.2f, 0.3f };
+            monitor.update(actor, world);
+            std::vector<world::trigger_event_t> events{ monitor.consume_pending_events() };
+            CARROT_TEST_REQUIRE(events.size() == 1u);
+            CARROT_TEST_REQUIRE(events.front().phase == world::trigger_event_phase_t::entered);
+            CARROT_TEST_REQUIRE(events.front().object_id == trigger.id);
+            CARROT_TEST_REQUIRE(events.front().trigger_id == "test.trigger");
+            CARROT_TEST_REQUIRE(events.front().trigger_kind == "test_kind");
+
+            monitor.update(actor, world);
+            CARROT_TEST_REQUIRE(monitor.consume_pending_events().empty());
+
+            actor.transform->position = { 3.f, 0.3f };
+            monitor.update(actor, world);
+            events = monitor.consume_pending_events();
+            CARROT_TEST_REQUIRE(events.size() == 1u);
+            CARROT_TEST_REQUIRE(events.front().phase == world::trigger_event_phase_t::exited);
+            CARROT_TEST_REQUIRE(events.front().object_id == trigger.id);
+        }
     } // namespace
 
     void register_scene_loading_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests)
     {
         tests.emplace_back("asset discovery finds scene manifests", test_asset_discovery_finds_scene_manifest);
+        tests.emplace_back("asset discovery skips missing mount root without throwing",
+                           test_asset_discovery_skips_missing_mount_root_without_throwing);
+        tests.emplace_back("asset discovery skips file mount root without throwing",
+                           test_asset_discovery_skips_file_mount_root_without_throwing);
         tests.emplace_back("tilemap world bridge imports authored objects", test_tilemap_world_bridge_imports_authored_objects);
         tests.emplace_back("tilemap world bridge imports tileset collision as static colliders",
                            test_tilemap_world_bridge_imports_tileset_collision_as_static_colliders);
@@ -1939,6 +2085,8 @@ namespace carrot::tests {
                            test_tiled_nested_group_properties_flow_to_child_layers);
         tests.emplace_back("world layering uses explicit visibility zones",
                            test_world_layering_uses_explicit_visibility_zones);
+        tests.emplace_back("trigger monitor emits authored enter and exit events",
+                           test_trigger_monitor_emits_authored_enter_and_exit_events);
         tests.emplace_back("tiled layer front properties import from latest town map",
                            test_tiled_layer_front_properties_import_from_latest_town_map);
         tests.emplace_back("world layering resolves conditional and always front",
@@ -1975,6 +2123,8 @@ namespace carrot::tests {
         tests.emplace_back("scene loader supports sandbox town spawn overrides",
                            test_scene_loader_supports_sandbox_town_spawn_overrides);
         tests.emplace_back("scene loader fails for missing spawn marker", test_scene_loader_fails_for_missing_spawn_marker);
+        tests.emplace_back("scene loader preserves existing world on failed spawn override",
+                           test_scene_loader_preserves_existing_world_on_failed_spawn_override);
         tests.emplace_back("scene asset importer parses camera modes", test_scene_asset_importer_parses_camera_modes);
         tests.emplace_back("scene asset importer rejects empty spawn marker", test_scene_asset_importer_rejects_empty_spawn_marker);
         tests.emplace_back("scene asset reference validation rejects missing tilemap", test_scene_asset_reference_validation_rejects_missing_tilemap);

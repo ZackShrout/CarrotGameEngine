@@ -2,7 +2,7 @@
 
 **BunnySoft**
 **Working architecture notes**
-**Last Updated: April 5, 2026**
+**Last Updated: April 9, 2026**
 
 ---
 
@@ -300,14 +300,14 @@ The platform layer is responsible for native OS-facing behavior.
 ### Current / Planned Backends
 
 * **Win32**
-* **Wayland**
+* **Wayland** (current Linux backend)
 * **Cocoa**
-* **X11** (planned)
+* **X11** (planned, not implemented yet)
 
 ### Notes
 
-* Wayland is currently the primary Linux target
-* X11 is intended to be brought up as an additional/fallback Linux backend later
+* Wayland is currently the supported Linux target
+* X11 is intended to be brought up as an additional/fallback Linux backend later, but should not currently be assumed available
 * platform code should stay localized rather than spreading platform conditionals throughout higher-level engine code
 
 The platform layer should expose stable engine-facing interfaces wherever practical, while still allowing native behavior to be handled correctly per OS.
@@ -342,6 +342,15 @@ Core systems should remain:
 * low-surprise
 
 They should avoid becoming a dumping ground for unrelated features.
+
+Current runtime-framework direction:
+
+* `ce_application_t` should stay the low-level engine-facing application host interface
+* `game_runtime_t` should provide the engine-owned root shape for game-runtime-lifetime ownership
+* `igame_state_t` should provide the explicit seam for active runtime states such as gameplay, menus, pause, loading, or debug modes
+* concrete game projects should supply their own thin app adapter and runtime/state implementations on top of those framework seams
+
+This is intentionally different from the earlier sandbox bring-up shape where one application subclass accumulated application-host, game-runtime, and gameplay-session responsibilities all at once.
 
 A good rule is:
 

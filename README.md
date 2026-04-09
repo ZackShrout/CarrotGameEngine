@@ -70,9 +70,9 @@ Carrot is being built around a few non-negotiable ideas:
 ### Windowing Backends
 
 * **Win32** (Windows)
-* **Wayland** (Linux primary)
+* **Wayland** (current Linux backend)
 * **Cocoa** (macOS)
-* **X11** (planned Linux fallback backend)
+* **X11** (planned Linux backend, not implemented yet)
 
 ### Graphics Backends
 
@@ -167,6 +167,15 @@ This is one of the reasons Carrot leans heavily into **JSON-based authored metad
     * asset definitions
     * runtime loaded assets
 
+### Runtime Framework
+
+* Engine-owned runtime framework including:
+  * `ce_application_t` as the low-level application host boundary
+  * `game_runtime_t` as the runtime-root shape for game-lifetime ownership
+  * `igame_state_t` as the explicit active-state seam for gameplay, menus, pause, loading, and future runtime modes
+* The example game now lives honestly under `src/Sandbox/`
+* Active gameplay responsibilities now live under a dedicated `gameplay_state_t` instead of hanging directly off the application adapter
+
 ### ECS / World Systems
 
 Carrot is intended to grow into a custom **ECS / world-driven architecture**, but that system is being introduced intentionally and at the right time rather than forced in before the engine actually needs it.
@@ -221,7 +230,7 @@ CarrotGameEngine/
 ├── shaders/
 ├── src/
 │   ├── Engine/
-│   └── Game/
+│   └── Sandbox/
 └── tools/
 ```
 
@@ -356,8 +365,9 @@ sudo apt install -y \
 
 ### Notes
 
-* Carrot currently targets **Wayland** as the primary Linux windowing backend
-* **X11 support is planned**, but should not currently be assumed as the primary path
+* Carrot currently supports **Wayland** as the Linux windowing backend
+* **X11 support is planned**, but it is **not implemented yet** and should not currently be assumed to work
+* On Linux, configuration currently expects Wayland development packages to be available
 * Vulkan development on Linux generally requires:
 
     * Vulkan headers / loader
@@ -376,6 +386,9 @@ sudo apt install -y \
 cmake -S . -B build
 cmake --build build
 ```
+
+> On Linux, CMake currently expects the Wayland development stack for windowing support.
+> If those packages are missing, configuration now fails fast instead of silently selecting an unimplemented X11 fallback.
 
 ### Debug build example
 
@@ -421,7 +434,7 @@ The goal is to avoid runtime dependency chaos.
 Current / planned dependency categories include:
 
 * **Vulkan SDK / system Vulkan headers**
-* **Wayland / Linux platform development headers**
+* **Wayland / Linux platform development headers** for the current Linux build path
 * **CarrotHLM** (custom math library)
 * **CarrotPNG** (custom PNG loader)
 * optional development / profiling / shader tooling where appropriate

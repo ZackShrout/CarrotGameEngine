@@ -136,7 +136,7 @@ namespace carrot::audio {
         audio_module_t& audio{ audio_service_t::get() };
         audio_command_t cmd{};
         cmd.type = audio_command_type::resume_voice;
-        cmd.pause_voice.handle = handle;
+        cmd.resume_voice.handle = handle;
 
         audio.engine().enqueue_command(cmd);
     }

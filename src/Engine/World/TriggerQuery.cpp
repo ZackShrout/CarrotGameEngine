@@ -23,6 +23,48 @@ namespace carrot::world {
         }
     } // namespace
 
+    void trigger_monitor_t::reset() noexcept
+    {
+        _active_trigger_ids.clear();
+        _pending_events.clear();
+    }
+
+    void trigger_monitor_t::update(const world_object_t& actor, const world_t& world)
+    {
+        const trigger_overlap_changes_t changes{ update_trigger_overlaps(actor, world, _active_trigger_ids) };
+
+        auto append_events = [this](const std::vector<const world_object_t*>& triggers,
+                                    const trigger_event_phase_t phase) noexcept
+        {
+            for (const world_object_t* trigger : triggers)
+            {
+                if (!trigger)
+                    continue;
+
+                const std::optional<authored::trigger_interaction_data_t> data{ authored::as_trigger(*trigger) };
+                if (!data)
+                    continue;
+
+                _pending_events.emplace_back(trigger_event_t{
+                    .object_id = trigger->id,
+                    .phase = phase,
+                    .trigger_id = std::string{ data->trigger_id },
+                    .trigger_kind = std::string{ data->trigger_kind }
+                });
+            }
+        };
+
+        append_events(changes.entered, trigger_event_phase_t::entered);
+        append_events(changes.exited, trigger_event_phase_t::exited);
+    }
+
+    std::vector<trigger_event_t> trigger_monitor_t::consume_pending_events() noexcept
+    {
+        std::vector<trigger_event_t> events{ std::move(_pending_events) };
+        _pending_events.clear();
+        return events;
+    }
+
     trigger_overlap_changes_t update_trigger_overlaps(const world_object_t& actor,
                                                       const world_t& world,
                                                       std::unordered_set<world_object_id_t>& active_trigger_ids)

@@ -25,8 +25,35 @@ namespace carrot::assets {
             if (!mount)
                 return;
 
-            for (const std::filesystem::recursive_directory_iterator it{ mount->root }, end; auto const& entry : it)
+            std::error_code status_error;
+            const bool root_exists{ std::filesystem::exists(mount->root, status_error) };
+            const bool root_is_directory{ root_exists && std::filesystem::is_directory(mount->root, status_error) };
+            if (status_error || !root_exists || !root_is_directory)
             {
+                LOG_ASSET_WARN("Asset discovery skipped mount '{}://': root '{}' is not a readable directory",
+                               scheme,
+                               mount->root.string());
+                return;
+            }
+
+            std::error_code iterate_error;
+            const std::filesystem::directory_options iterate_options{
+                std::filesystem::directory_options::skip_permission_denied
+            };
+            for (std::filesystem::recursive_directory_iterator it{ mount->root, iterate_options, iterate_error }, end;
+                 it != end;
+                 it.increment(iterate_error))
+            {
+                if (iterate_error)
+                {
+                    LOG_ASSET_WARN("Asset discovery stopped early for mount '{}://{}': {}",
+                                   scheme,
+                                   mount->root.string(),
+                                   iterate_error.message());
+                    break;
+                }
+
+                const auto& entry{ *it };
                 if (!entry.is_regular_file())
                     continue;
 

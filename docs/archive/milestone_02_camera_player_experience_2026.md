@@ -87,7 +87,7 @@ Suggested first authored scene additions:
 
 ### Likely Touch Points
 
-* [Game.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Game/Game.cpp)
+* [Sandbox.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Sandbox/Sandbox.cpp)
 * [GameView.h](/Users/zshrout/dev/CarrotGameEngine/src/Engine/Core/GameView.h)
 * [Camera2D.h](/Users/zshrout/dev/CarrotGameEngine/src/Engine/Renderer/Camera/Camera2D.h)
 * [SceneLoader.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Engine/World/SceneLoader.cpp)
@@ -144,8 +144,8 @@ Suggested first capabilities:
 
 * [ActionMap.h](/Users/zshrout/dev/CarrotGameEngine/src/Engine/Input/ActionMap.h)
 * [ActionMap.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Engine/Input/ActionMap.cpp)
-* [Game.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Game/Game.cpp)
-* possible new input config asset or runtime config file under `src/Game/assets/`
+* [Sandbox.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Sandbox/Sandbox.cpp)
+* possible new input config asset or runtime config file under `src/Sandbox/assets/`
 * test coverage under [/Users/zshrout/dev/CarrotGameEngine/tests/](/Users/zshrout/dev/CarrotGameEngine/tests/)
 
 ### Implementation Notes
@@ -201,7 +201,7 @@ Suggested first validations:
 
 * [SceneAssetManifestImporter.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Engine/Assets/Scene/SceneAssetManifestImporter.cpp)
 * [SceneLoader.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Engine/World/SceneLoader.cpp)
-* [WorldInteractionHelpers.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Game/WorldInteractionHelpers.cpp)
+* [WorldInteractionHelpers.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Sandbox/WorldInteractionHelpers.cpp)
 * [ActionMap.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Engine/Input/ActionMap.cpp)
 * [Logger.h](/Users/zshrout/dev/CarrotGameEngine/src/Engine/Core/Logger.h)
 * test coverage under [/Users/zshrout/dev/CarrotGameEngine/tests/](/Users/zshrout/dev/CarrotGameEngine/tests/)
@@ -250,8 +250,8 @@ Suggested first goals:
 
 ### Likely Touch Points
 
-* new assets under [/Users/zshrout/dev/CarrotGameEngine/src/Game/assets/scenes/](/Users/zshrout/dev/CarrotGameEngine/src/Game/assets/scenes/)
-* new tilemap content under [/Users/zshrout/dev/CarrotGameEngine/src/Game/assets/tilemaps/](/Users/zshrout/dev/CarrotGameEngine/src/Game/assets/tilemaps/)
+* new assets under [/Users/zshrout/dev/CarrotGameEngine/src/Sandbox/assets/scenes/](/Users/zshrout/dev/CarrotGameEngine/src/Sandbox/assets/scenes/)
+* new tilemap content under [/Users/zshrout/dev/CarrotGameEngine/src/Sandbox/assets/tilemaps/](/Users/zshrout/dev/CarrotGameEngine/src/Sandbox/assets/tilemaps/)
 * existing scene and interaction code paths
 * docs if any new authoring conventions are introduced
 
@@ -302,9 +302,9 @@ Keep this intentionally small.
 
 ### Likely Touch Points
 
-* [Game.h](/Users/zshrout/dev/CarrotGameEngine/src/Game/Game.h)
-* [Game.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Game/Game.cpp)
-* [SandboxInteractionController.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Game/SandboxInteractionController.cpp)
+* [Sandbox.h](/Users/zshrout/dev/CarrotGameEngine/src/Sandbox/Sandbox.h)
+* [Sandbox.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Sandbox/Sandbox.cpp)
+* [SandboxInteractionController.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Sandbox/SandboxInteractionController.cpp)
 * world object or interaction helper code as needed
 * possible future save/state helper structures
 

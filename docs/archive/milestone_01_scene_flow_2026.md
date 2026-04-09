@@ -36,7 +36,7 @@ This milestone focuses on that missing layer.
 
 Right now, the current overworld flow is real, but it is still glued together in game-side setup code in:
 
-* [SandboxSceneBootstrap.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Game/SandboxSceneBootstrap.cpp)
+* [SandboxSceneBootstrap.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Sandbox/SandboxSceneBootstrap.cpp)
 
 That is a good temporary step, but it is becoming the main structural limiter.
 
@@ -71,7 +71,7 @@ Suggested initial fields:
 * [AssetDiscovery.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Engine/Assets/AssetDiscovery.cpp)
 * [AssetManager.h](/Users/zshrout/dev/CarrotGameEngine/src/Engine/Assets/AssetManager.h)
 * New scene asset types under `/Users/zshrout/dev/CarrotGameEngine/src/Engine/Assets/Scene/`
-* [SandboxSceneBootstrap.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Game/SandboxSceneBootstrap.cpp)
+* [SandboxSceneBootstrap.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Sandbox/SandboxSceneBootstrap.cpp)
 
 ### Implementation Notes
 
@@ -114,7 +114,7 @@ The current interaction path already proves the authored-object model works:
 
 But door behavior currently stops at logging in:
 
-* [SandboxInteractionController.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Game/SandboxInteractionController.cpp)
+* [SandboxInteractionController.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Sandbox/SandboxInteractionController.cpp)
 
 That means the engine has object interaction semantics, but not yet actual scene flow.
 
@@ -134,8 +134,8 @@ Suggested first authored door fields:
 
 ### Likely Touch Points
 
-* [SandboxInteractionController.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Game/SandboxInteractionController.cpp)
-* [WorldInteractionHelpers.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Game/WorldInteractionHelpers.cpp)
+* [SandboxInteractionController.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Sandbox/SandboxInteractionController.cpp)
+* [WorldInteractionHelpers.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Sandbox/WorldInteractionHelpers.cpp)
 * New scene runtime service or loader entry point
 * [World.h](/Users/zshrout/dev/CarrotGameEngine/src/Engine/World/World.h) and related reset/clear helpers if needed
 
@@ -219,7 +219,7 @@ These tests should exercise the same public or semi-public paths the engine uses
 
 The current sandbox input path is still hardwired to specific keys in:
 
-* [Game.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Game/Game.cpp)
+* [Sandbox.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Sandbox/Sandbox.cpp)
 
 That is acceptable for a sandbox, but it becomes friction once scene flow and broader gameplay logic expand.
 
@@ -241,7 +241,7 @@ Suggested first actions:
 
 ### Likely Touch Points
 
-* [Game.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Game/Game.cpp)
+* [Sandbox.cpp](/Users/zshrout/dev/CarrotGameEngine/src/Sandbox/Sandbox.cpp)
 * Input system code under `/Users/zshrout/dev/CarrotGameEngine/src/Engine/Input/`
 * Config or authored mapping location if introduced
 

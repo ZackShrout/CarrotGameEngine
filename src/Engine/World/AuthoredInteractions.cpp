@@ -1,17 +1,18 @@
 //
-// Created by Zack Shrout on 4/2/26.
+// Created by Zack Shrout on 4/9/26.
 // Copyright (c) 2026 BunnySoft. All rights reserved.
 //
 
 #include "Core/Pch.h"
 
-#include "WorldInteractionHelpers.h"
+#include "AuthoredInteractions.h"
 
+#include "Assets/AssetManager.h"
 #include "Assets/Tilemap/TypedObjectConventions.h"
 
-namespace sandbox {
+namespace carrot::world::authored {
     namespace {
-        [[nodiscard]] std::string describe_world_object(const carrot::world::world_object_t& object)
+        [[nodiscard]] std::string describe_world_object(const world_object_t& object)
         {
             std::string description;
 
@@ -40,7 +41,7 @@ namespace sandbox {
         }
     } // namespace
 
-    interaction_kind_t interaction_kind_for(const carrot::world::world_object_t& object) noexcept
+    interaction_kind_t interaction_kind_for(const world_object_t& object) noexcept
     {
         if (object.type == "Sign")
             return interaction_kind_t::sign;
@@ -54,9 +55,9 @@ namespace sandbox {
         return interaction_kind_t::none;
     }
 
-    std::optional<sign_interaction_data_t> as_sign(const carrot::world::world_object_t& object) noexcept
+    std::optional<sign_interaction_data_t> as_sign(const world_object_t& object) noexcept
     {
-        if (const auto sign{ carrot::assets::as_typed_sign(object) })
+        if (const auto sign{ assets::as_typed_sign(object) })
         {
             return sign_interaction_data_t{
                 .message_id = sign->message_id
@@ -68,9 +69,9 @@ namespace sandbox {
         return std::nullopt;
     }
 
-    std::optional<door_interaction_data_t> as_door(const carrot::world::world_object_t& object) noexcept
+    std::optional<door_interaction_data_t> as_door(const world_object_t& object) noexcept
     {
-        if (const auto door{ carrot::assets::as_typed_door(object) })
+        if (const auto door{ assets::as_typed_door(object) })
         {
             return door_interaction_data_t{
                 .target_scene = door->target_scene,
@@ -101,9 +102,9 @@ namespace sandbox {
         return std::nullopt;
     }
 
-    std::optional<container_interaction_data_t> as_container(const carrot::world::world_object_t& object) noexcept
+    std::optional<container_interaction_data_t> as_container(const world_object_t& object) noexcept
     {
-        if (const auto container{ carrot::assets::as_typed_container(object) })
+        if (const auto container{ assets::as_typed_container(object) })
         {
             return container_interaction_data_t{
                 .loot_table = container->loot_table
@@ -115,9 +116,9 @@ namespace sandbox {
         return std::nullopt;
     }
 
-    std::optional<trigger_interaction_data_t> as_trigger(const carrot::world::world_object_t& object) noexcept
+    std::optional<trigger_interaction_data_t> as_trigger(const world_object_t& object) noexcept
     {
-        if (const auto trigger{ carrot::assets::as_typed_trigger(object) })
+        if (const auto trigger{ assets::as_typed_trigger(object) })
         {
             return trigger_interaction_data_t{
                 .trigger_id = trigger->trigger_id,
@@ -127,12 +128,53 @@ namespace sandbox {
 
         if (object.type != "Trigger" || !object.trigger)
             return std::nullopt;
+
+        return trigger_interaction_data_t{
+            .trigger_id = object.trigger->trigger_id,
+            .trigger_kind = object.trigger->trigger_kind
+        };
+    }
+
+    std::optional<interaction_outcome_t> resolve_interaction_outcome(const assets::asset_manager_t& assets,
+                                                                     const world_object_t& object)
+    {
+        if (const std::optional<sign_interaction_data_t> sign{ as_sign(object) })
+        {
+            return interaction_outcome_t{
+                .kind = interaction_outcome_kind_t::sign,
+                .message_id = std::string{ sign->message_id }
+            };
+        }
+
+        if (const std::optional<door_interaction_data_t> door{ as_door(object) })
+        {
+            const std::optional<scene::scene_transition_request_t> request{
+                make_scene_transition_request(assets, object)
+            };
+            if (!request)
+                return std::nullopt;
+
+            return interaction_outcome_t{
+                .kind = interaction_outcome_kind_t::scene_transition,
+                .transition = *request
+            };
+        }
+
+        if (const std::optional<container_interaction_data_t> container{ as_container(object) })
+        {
+            return interaction_outcome_t{
+                .kind = interaction_outcome_kind_t::container,
+                .object_id = object.id,
+                .loot_table = std::string{ container->loot_table }
+            };
+        }
+
         return std::nullopt;
     }
 
-    std::optional<scene_transition_request_t> make_scene_transition_request(
-        const carrot::assets::asset_manager_t& assets,
-        const carrot::world::world_object_t& object)
+    std::optional<scene::scene_transition_request_t> make_scene_transition_request(
+        const assets::asset_manager_t& assets,
+        const world_object_t& object)
     {
         const std::optional<door_interaction_data_t> door{ as_door(object) };
         if (!door)
@@ -142,7 +184,7 @@ namespace sandbox {
 
         if (!door->target_scene.empty())
         {
-            const carrot::assets::scene_asset_record_t* scene{ assets.scenes().registry().find(door->target_scene) };
+            const assets::scene_asset_record_t* scene{ assets.scenes().registry().find(door->target_scene) };
             if (!scene)
             {
                 LOG_CORE_WARN("Door '{}' references unknown target_scene '{}'",
@@ -155,7 +197,7 @@ namespace sandbox {
         }
         else if (!door->target_map.empty())
         {
-            const carrot::assets::scene_asset_record_t* scene{
+            const assets::scene_asset_record_t* scene{
                 assets.scenes().registry().find_first_by_tilemap(door->target_map)
             };
             if (!scene)
@@ -174,14 +216,14 @@ namespace sandbox {
             return std::nullopt;
         }
 
-        return scene_transition_request_t{
+        return scene::scene_transition_request_t{
             .scene_id = std::move(scene_id),
             .marker_name = std::string{ door->target_marker }
         };
     }
 
-    bool validate_scene_transition_target(const carrot::assets::asset_manager_t& assets,
-                                          const carrot::world::world_object_t& object) noexcept
+    bool validate_scene_transition_target(const assets::asset_manager_t& assets,
+                                          const world_object_t& object) noexcept
     {
         if (interaction_kind_for(object) != interaction_kind_t::door)
             return true;
@@ -189,18 +231,18 @@ namespace sandbox {
         return make_scene_transition_request(assets, object).has_value();
     }
 
-    bool validate_scene_transition_targets(carrot::assets::asset_manager_t& assets,
-                                           const carrot::world::world_t& world) noexcept
+    bool validate_scene_transition_targets(assets::asset_manager_t& assets,
+                                           const world_t& world) noexcept
     {
         return build_scene_validation_report(assets, world).valid();
     }
 
-    scene_validation_report_t build_scene_validation_report(carrot::assets::asset_manager_t& assets,
-                                                            const carrot::world::world_t& world) noexcept
+    scene_validation_report_t build_scene_validation_report(assets::asset_manager_t& assets,
+                                                            const world_t& world) noexcept
     {
         scene_validation_report_t report;
 
-        for (const carrot::world::world_object_t* object : world.find_objects_by_type("Door"))
+        for (const world_object_t* object : world.find_objects_by_type("Door"))
         {
             if (!object)
                 continue;
@@ -215,7 +257,7 @@ namespace sandbox {
 
             if (!door->target_scene.empty())
             {
-                const carrot::assets::scene_asset_record_t* destination_scene{
+                const assets::scene_asset_record_t* destination_scene{
                     assets.scenes().registry().find(door->target_scene)
                 };
                 if (!destination_scene)
@@ -226,7 +268,7 @@ namespace sandbox {
                 }
                 else
                 {
-                    const carrot::assets::loaded_tilemap_asset_t* destination_tilemap{
+                    const assets::loaded_tilemap_asset_t* destination_tilemap{
                         assets.tilemaps().get(destination_scene->scene.tilemap_id)
                     };
                     if (!destination_tilemap)
@@ -247,7 +289,7 @@ namespace sandbox {
             }
             else if (!door->target_map.empty())
             {
-                const carrot::assets::scene_asset_record_t* destination_scene{
+                const assets::scene_asset_record_t* destination_scene{
                     assets.scenes().registry().find_first_by_tilemap(door->target_map)
                 };
                 if (!destination_scene)
@@ -258,7 +300,7 @@ namespace sandbox {
                 }
                 else
                 {
-                    const carrot::assets::loaded_tilemap_asset_t* destination_tilemap{
+                    const assets::loaded_tilemap_asset_t* destination_tilemap{
                         assets.tilemaps().get(destination_scene->scene.tilemap_id)
                     };
                     if (!destination_tilemap)
@@ -286,4 +328,4 @@ namespace sandbox {
 
         return report;
     }
-} // namespace sandbox
+} // namespace carrot::world::authored

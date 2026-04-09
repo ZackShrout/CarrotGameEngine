@@ -49,6 +49,10 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Core/GameContext.h
         src/Engine/Core/GameView.cpp
         src/Engine/Core/GameView.h
+        src/Engine/Core/GameRuntime.cpp
+        src/Engine/Core/GameRuntime.h
+        src/Engine/Core/GameState.cpp
+        src/Engine/Core/GameState.h
         src/Engine/Core/LogSink.cpp
         src/Engine/Core/LogSink.h
         src/Engine/Core/Logger.cpp
@@ -72,6 +76,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Input/KeyCodes.h
         src/Engine/Input/ActionMap.cpp
         src/Engine/Input/ActionMap.h
+        src/Engine/Input/GameplayInputRouter.cpp
+        src/Engine/Input/GameplayInputRouter.h
         src/Engine/Input/ControllerManager.cpp
         src/Engine/Input/ControllerManager.h
         src/Engine/Input/ControllerState.h
@@ -104,6 +110,10 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Renderer/Renderer.h
         src/Engine/Renderer/RendererService.cpp
         src/Engine/Renderer/RendererService.h
+        src/Engine/Scene/Scene.cpp
+        src/Engine/Scene/Scene.h
+        src/Engine/World/AuthoredInteractions.cpp
+        src/Engine/World/AuthoredInteractions.h
         src/Engine/World/Components/CollisionComponent.h
         src/Engine/World/Components/SpriteComponent.h
         src/Engine/World/Components/SpriteAnimatorComponent.h
@@ -479,12 +489,16 @@ elseif (UNIX)
                 set(_backend Wayland)
                 message(STATUS "Auto: Wayland selected (dev packages detected)")
             else ()
-                set(_backend X11)
-                message(STATUS "Auto: X11 selected (Wayland dev packages missing)")
+                message(FATAL_ERROR
+                        "Linux auto-detection found no supported windowing backend. "
+                        "Wayland development packages are missing, and X11 support is not implemented yet. "
+                        "Install wayland-client, wayland-egl, and xkbcommon development packages, "
+                        "or retry once X11 backend support lands.")
             endif ()
         else ()
-            set(_backend X11)
-            message(STATUS "pkg-config not found → defaulting to X11")
+            message(FATAL_ERROR
+                    "pkg-config is required to detect the supported Linux windowing backend. "
+                    "Wayland support is the only implemented Linux backend today, and X11 support is not implemented yet.")
         endif ()
     else ()
         set(_backend ${CARROT_LINUX_WINDOWING})
@@ -495,8 +509,9 @@ elseif (UNIX)
         set(CARROT_PLATFORM_WAYLAND ON CACHE INTERNAL "")
         add_compile_definitions(CARROT_PLATFORM_WAYLAND=1)
     elseif (_backend STREQUAL "X11")
-        set(CARROT_PLATFORM_X11 ON CACHE INTERNAL "")
-        add_compile_definitions(CARROT_PLATFORM_X11=1)
+        message(FATAL_ERROR
+                "CARROT_LINUX_WINDOWING=X11 is not supported yet. "
+                "Please use Wayland for now; X11 backend work is still pending.")
     else ()
         message(FATAL_ERROR "Internal error: unexpected backend ${_backend}")
     endif ()
@@ -745,25 +760,22 @@ endif()
 # Sandbox / Game Executable
 # ------------------------------------------------------------------------
 set(CARROT_SANDBOX_SOURCES
-        src/Game/main.cpp
-        src/Game/Game.cpp
-        src/Game/Game.h
-        src/Game/SceneHelpers.cpp
-        src/Game/SceneHelpers.h
-        src/Game/SandboxInteractionController.cpp
-        src/Game/SandboxInteractionController.h
-        src/Game/SandboxSceneBootstrap.cpp
-        src/Game/SandboxSceneBootstrap.h
-        src/Game/TransitionRuntimeState.cpp
-        src/Game/TransitionRuntimeState.h
-        src/Game/WorldInteractionHelpers.cpp
-        src/Game/WorldInteractionHelpers.h
+        src/Sandbox/main.cpp
+        src/Sandbox/Sandbox.cpp
+        src/Sandbox/Sandbox.h
+        src/Sandbox/GameplayState.cpp
+        src/Sandbox/GameplayState.h
+        src/Sandbox/SandboxGame.cpp
+        src/Sandbox/SandboxGame.h
+        src/Sandbox/SandboxInputConfig.h
+        src/Sandbox/GameplayRuntimeState.cpp
+        src/Sandbox/GameplayRuntimeState.h
 )
 
 source_group(TREE ${CMAKE_SOURCE_DIR} FILES ${CARROT_SANDBOX_SOURCES})
 
 add_executable(CarrotSandbox ${CARROT_SANDBOX_SOURCES})  # Rename if you prefer "Game" or "Sandbox"
-target_include_directories(CarrotSandbox PRIVATE src/Game)
+target_include_directories(CarrotSandbox PRIVATE src/Sandbox)
 target_link_libraries(CarrotSandbox PRIVATE CarrotEngine)
 
 set(CARROT_TEST_SOURCES
@@ -775,13 +787,12 @@ set(CARROT_TEST_SOURCES
         tests/UITests.cpp
         tests/UILayoutTests.cpp
         tests/UINavigationTests.cpp
-        src/Game/TransitionRuntimeState.cpp
-        src/Game/WorldInteractionHelpers.cpp
+        src/Sandbox/GameplayRuntimeState.cpp
         tests/WindowSystemTests.cpp
 )
 
 add_executable(CarrotEngineTests ${CARROT_TEST_SOURCES})
-target_include_directories(CarrotEngineTests PRIVATE src/Game tests)
+target_include_directories(CarrotEngineTests PRIVATE src/Sandbox tests)
 target_link_libraries(CarrotEngineTests PRIVATE CarrotEngine)
 target_compile_definitions(CarrotEngineTests PRIVATE CARROT_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
 

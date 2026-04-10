@@ -25,12 +25,122 @@
 
 namespace carrot::core::platform {
     namespace {
+        struct shared_wayland_state_t
+        {
+            wl_display* display{ nullptr };
+            wl_registry* registry{ nullptr };
+            wl_compositor* compositor{ nullptr };
+            xdg_wm_base* xdg_wm_base{ nullptr };
+            uint32_t seat_name{ 0 };
+            uint32_t seat_version{ 0 };
+            zxdg_decoration_manager_v1* decoration_manager{ nullptr };
+#ifdef CARROT_HAS_LIBDECOR
+            libdecor* libdecor_context{ nullptr };
+#endif
+            uint32_t ref_count{ 0 };
+            uint64_t poll_generation{ 0 };
+            uint64_t last_pumped_generation{ 0 };
+            std::vector<wayland_window_t*> windows;
+        };
+
+        shared_wayland_state_t g_shared_wayland;
+
         void xdg_wm_base_ping(void*, xdg_wm_base* shell, const uint32_t serial)
         {
             xdg_wm_base_pong(shell, serial);
         }
 
         constexpr xdg_wm_base_listener xdg_wm_base_listener{ .ping = xdg_wm_base_ping };
+
+        [[nodiscard]] bool acquire_shared_wayland_state()
+        {
+            if (g_shared_wayland.ref_count++ > 0)
+                return g_shared_wayland.display != nullptr && g_shared_wayland.registry != nullptr;
+
+            g_shared_wayland = shared_wayland_state_t{ };
+            g_shared_wayland.ref_count = 1;
+            g_shared_wayland.display = wl_display_connect(nullptr);
+            if (!g_shared_wayland.display)
+                return false;
+
+            g_shared_wayland.registry = wl_display_get_registry(g_shared_wayland.display);
+            if (!g_shared_wayland.registry)
+                return false;
+
+            return true;
+        }
+
+        void release_shared_wayland_state() noexcept
+        {
+            if (g_shared_wayland.ref_count == 0)
+                return;
+
+            if (--g_shared_wayland.ref_count > 0)
+                return;
+
+#ifdef CARROT_HAS_LIBDECOR
+            if (g_shared_wayland.libdecor_context)
+            {
+                libdecor_unref(g_shared_wayland.libdecor_context);
+                g_shared_wayland.libdecor_context = nullptr;
+            }
+#endif
+
+            if (g_shared_wayland.decoration_manager)
+            {
+                zxdg_decoration_manager_v1_destroy(g_shared_wayland.decoration_manager);
+                g_shared_wayland.decoration_manager = nullptr;
+            }
+
+            if (g_shared_wayland.xdg_wm_base)
+            {
+                xdg_wm_base_destroy(g_shared_wayland.xdg_wm_base);
+                g_shared_wayland.xdg_wm_base = nullptr;
+            }
+
+            if (g_shared_wayland.compositor)
+            {
+                wl_compositor_destroy(g_shared_wayland.compositor);
+                g_shared_wayland.compositor = nullptr;
+            }
+
+            if (g_shared_wayland.registry)
+            {
+                wl_registry_destroy(g_shared_wayland.registry);
+                g_shared_wayland.registry = nullptr;
+            }
+
+            if (g_shared_wayland.display)
+            {
+                wl_display_disconnect(g_shared_wayland.display);
+                g_shared_wayland.display = nullptr;
+            }
+
+            g_shared_wayland = shared_wayland_state_t{ };
+        }
+
+        void register_wayland_window(wayland_window_t* window)
+        {
+            if (!window)
+                return;
+
+            if (std::find(g_shared_wayland.windows.begin(), g_shared_wayland.windows.end(), window) == g_shared_wayland.windows.end())
+                g_shared_wayland.windows.push_back(window);
+        }
+
+        void unregister_wayland_window(wayland_window_t* window)
+        {
+            std::erase(g_shared_wayland.windows, window);
+        }
+
+        void mark_all_wayland_windows_should_close() noexcept
+        {
+            for (wayland_window_t* window : g_shared_wayland.windows)
+            {
+                if (window)
+                    window->set_should_close(true);
+            }
+        }
 
         [[nodiscard]] bool check_wayland_display_error(wl_display* display, std::string_view context)
         {
@@ -530,64 +640,90 @@ namespace carrot::core::platform {
         };
 #endif
 
-        void registry_global(void* data, wl_registry* registry, const uint32_t name,
-                             const char* interface, uint32_t) noexcept
+        void shared_registry_global(void*, wl_registry* registry, const uint32_t name,
+                                    const char* interface, const uint32_t version) noexcept
         {
-            wayland_window_t* win{ static_cast<wayland_window_t *>(data) };
-
             if (std::strcmp(interface, wl_compositor_interface.name) == 0)
             {
-                win->set_compositor(static_cast<wl_compositor *>(
-                    wl_registry_bind(registry, name, &wl_compositor_interface, 4)));
+                g_shared_wayland.compositor = static_cast<wl_compositor*>(
+                    wl_registry_bind(registry, name, &wl_compositor_interface, std::min(version, 4u))
+                );
             }
             else if (std::strcmp(interface, xdg_wm_base_interface.name) == 0)
             {
-                auto* base = static_cast<xdg_wm_base *>(
-                    wl_registry_bind(registry, name, &xdg_wm_base_interface, 1));
-                win->set_xdg_wm_base(base);
-                xdg_wm_base_add_listener(base, &xdg_wm_base_listener, nullptr);
+                g_shared_wayland.xdg_wm_base = static_cast<xdg_wm_base*>(
+                    wl_registry_bind(registry, name, &xdg_wm_base_interface, 1)
+                );
+                xdg_wm_base_add_listener(g_shared_wayland.xdg_wm_base, &xdg_wm_base_listener, nullptr);
             }
             else if (std::strcmp(interface, wl_seat_interface.name) == 0)
             {
-                win->set_seat(static_cast<wl_seat *>(wl_registry_bind(registry, name, &wl_seat_interface, 4)));
-                wl_seat_add_listener(win->get_wl_seat(), &seat_listener, win);
+                g_shared_wayland.seat_name = name;
+                g_shared_wayland.seat_version = std::min(version, 4u);
             }
             else if (std::strcmp(interface, zxdg_decoration_manager_v1_interface.name) == 0)
             {
                 LOG_CORE_INFO("Wayland compositor advertises xdg-decoration");
-                auto* mgr = static_cast<zxdg_decoration_manager_v1*>(
-                    wl_registry_bind(registry, name, &zxdg_decoration_manager_v1_interface, 1));
-                win->set_decoration_manager(mgr);
+                g_shared_wayland.decoration_manager = static_cast<zxdg_decoration_manager_v1*>(
+                    wl_registry_bind(registry, name, &zxdg_decoration_manager_v1_interface, 1)
+                );
             }
         }
 
-        void registry_global_remove(void*, wl_registry*, uint32_t) noexcept {}
+        void shared_registry_global_remove(void*, wl_registry*, uint32_t) noexcept {}
 
-        constexpr wl_registry_listener registry_listener{
-            .global = registry_global,
-            .global_remove = registry_global_remove,
+        constexpr wl_registry_listener shared_registry_listener{
+            .global = shared_registry_global,
+            .global_remove = shared_registry_global_remove,
         };
     } // anonymous
+
+    void wayland_window_t::begin_poll_cycle() noexcept
+    {
+        ++g_shared_wayland.poll_generation;
+    }
 
     wayland_window_t::wayland_window_t(const uint32_t width, const uint32_t height,
                                        const std::string_view title) noexcept
     {
         _width = width;
         _height = height;
-        _display = wl_display_connect(nullptr);
-        if (!_display)
+        if (!acquire_shared_wayland_state())
             return;
 
-        wl_registry* registry{ wl_display_get_registry(_display) };
-        wl_registry_add_listener(registry, &registry_listener, this);
-        wl_display_roundtrip(_display);
+        register_wayland_window(this);
+
+        if (g_shared_wayland.windows.size() == 1 &&
+            (g_shared_wayland.compositor == nullptr || g_shared_wayland.xdg_wm_base == nullptr))
+        {
+            wl_registry_add_listener(g_shared_wayland.registry, &shared_registry_listener, nullptr);
+            wl_display_roundtrip(g_shared_wayland.display);
+        }
+
+        _display = g_shared_wayland.display;
+        _compositor = g_shared_wayland.compositor;
+        _xdg_wm_base = g_shared_wayland.xdg_wm_base;
+        _decoration_manager = g_shared_wayland.decoration_manager;
 
         if (!_compositor)
             return;
 
         _surface = wl_compositor_create_surface(_compositor);
+
+        if (g_shared_wayland.seat_name != 0 && g_shared_wayland.registry)
+        {
+            _seat = static_cast<wl_seat*>(
+                wl_registry_bind(g_shared_wayland.registry, g_shared_wayland.seat_name, &wl_seat_interface,
+                                 g_shared_wayland.seat_version)
+            );
+            if (_seat)
+                wl_seat_add_listener(_seat, &seat_listener, this);
+        }
 #ifdef CARROT_HAS_LIBDECOR
-        _libdecor_context = libdecor_new(_display, &libdecor_listener);
+        if (!g_shared_wayland.libdecor_context)
+            g_shared_wayland.libdecor_context = libdecor_new(_display, &libdecor_listener);
+
+        _libdecor_context = g_shared_wayland.libdecor_context;
         if (_libdecor_context)
         {
             _libdecor_frame = libdecor_decorate(_libdecor_context, _surface, &libdecor_frame_listener, this);
@@ -602,7 +738,6 @@ namespace carrot::core::platform {
             else
             {
                 LOG_CORE_WARN("libdecor was available but failed to decorate the Wayland surface; falling back to xdg-shell");
-                libdecor_unref(_libdecor_context);
                 _libdecor_context = nullptr;
             }
         }
@@ -641,7 +776,6 @@ namespace carrot::core::platform {
             wl_surface_commit(_surface);
             wl_display_roundtrip(_display);
         }
-        wl_registry_destroy(registry);
     }
 
     wayland_window_t::~wayland_window_t() noexcept
@@ -653,98 +787,98 @@ namespace carrot::core::platform {
         if (_xkb_keymap) xkb_keymap_unref(_xkb_keymap);
         if (_xkb_context) xkb_context_unref(_xkb_context);
 
-        if (_seat) wl_seat_destroy(_seat);
-
         if (_toplevel_decoration) zxdg_toplevel_decoration_v1_destroy(_toplevel_decoration);
-        if (_decoration_manager) zxdg_decoration_manager_v1_destroy(_decoration_manager);
 
 #ifdef CARROT_HAS_LIBDECOR
         if (_libdecor_frame) libdecor_frame_unref(_libdecor_frame);
-        if (_libdecor_context) libdecor_unref(_libdecor_context);
 #endif
 
+        if (_seat) wl_seat_destroy(_seat);
         if (_xdg_toplevel) xdg_toplevel_destroy(_xdg_toplevel);
         if (_xdg_surface) xdg_surface_destroy(_xdg_surface);
         if (_surface) wl_surface_destroy(_surface);
-
-        if (_xdg_wm_base) xdg_wm_base_destroy(_xdg_wm_base);
-        if (_compositor) wl_compositor_destroy(_compositor);
-        if (_display) wl_display_disconnect(_display);
+        unregister_wayland_window(this);
+        release_shared_wayland_state();
     }
 
     void wayland_window_t::poll_events() noexcept
     {
         if (!_display) return;
 
-        // 1. Drain already-queued events first.
-        if (wl_display_dispatch_pending(_display) < 0)
+        if (g_shared_wayland.last_pumped_generation != g_shared_wayland.poll_generation)
         {
-            if (check_wayland_display_error(_display, "dispatch_pending(initial)"))
-                _should_close = true;
-            return;
-        }
+            g_shared_wayland.last_pumped_generation = g_shared_wayland.poll_generation;
 
-#ifdef CARROT_HAS_LIBDECOR
-        if (_using_libdecor && _libdecor_context)
-            libdecor_dispatch(_libdecor_context, 0);
-#endif
-        wl_display_flush(_display);
-
-        // 2. Non-blocking read/dispatch of new compositor events.
-        while (wl_display_prepare_read(_display) != 0)
-        {
-            if (check_wayland_display_error(_display, "prepare_read"))
-            {
-                _should_close = true;
-                return;
-            }
-
+            // 1. Drain already-queued events first.
             if (wl_display_dispatch_pending(_display) < 0)
             {
-                if (check_wayland_display_error(_display, "dispatch_pending(prepare_read loop)"))
-                    _should_close = true;
+                if (check_wayland_display_error(_display, "dispatch_pending(initial)"))
+                    mark_all_wayland_windows_should_close();
                 return;
             }
-        }
 
-        pollfd pfd{ };
-        pfd.fd = wl_display_get_fd(_display);
-        pfd.events = POLLIN;
+#ifdef CARROT_HAS_LIBDECOR
+            if (g_shared_wayland.libdecor_context)
+                libdecor_dispatch(g_shared_wayland.libdecor_context, 0);
+#endif
+            wl_display_flush(_display);
 
-        const int poll_result{ poll(&pfd, 1, 0) };
-        if (poll_result > 0 && (pfd.revents & POLLIN))
-        {
-            if (wl_display_read_events(_display) == 0)
+            // 2. Non-blocking read/dispatch of new compositor events.
+            while (wl_display_prepare_read(_display) != 0)
             {
-                if (wl_display_dispatch_pending(_display) < 0)
+                if (check_wayland_display_error(_display, "prepare_read"))
                 {
-                    if (check_wayland_display_error(_display, "dispatch_pending(after read_events)"))
-                        _should_close = true;
+                    mark_all_wayland_windows_should_close();
                     return;
                 }
 
+                if (wl_display_dispatch_pending(_display) < 0)
+                {
+                    if (check_wayland_display_error(_display, "dispatch_pending(prepare_read loop)"))
+                        mark_all_wayland_windows_should_close();
+                    return;
+                }
+            }
+
+            pollfd pfd{ };
+            pfd.fd = wl_display_get_fd(_display);
+            pfd.events = POLLIN;
+
+            const int poll_result{ poll(&pfd, 1, 0) };
+            if (poll_result > 0 && (pfd.revents & POLLIN))
+            {
+                if (wl_display_read_events(_display) == 0)
+                {
+                    if (wl_display_dispatch_pending(_display) < 0)
+                    {
+                        if (check_wayland_display_error(_display, "dispatch_pending(after read_events)"))
+                            mark_all_wayland_windows_should_close();
+                        return;
+                    }
+
 #ifdef CARROT_HAS_LIBDECOR
-                if (_using_libdecor && _libdecor_context)
-                    libdecor_dispatch(_libdecor_context, 0);
+                    if (g_shared_wayland.libdecor_context)
+                        libdecor_dispatch(g_shared_wayland.libdecor_context, 0);
 #endif
+                }
+                else
+                {
+                    wl_display_cancel_read(_display);
+                    if (check_wayland_display_error(_display, "read_events"))
+                        mark_all_wayland_windows_should_close();
+                    return;
+                }
             }
             else
             {
                 wl_display_cancel_read(_display);
-                if (check_wayland_display_error(_display, "read_events"))
-                    _should_close = true;
-                return;
-            }
-        }
-        else
-        {
-            wl_display_cancel_read(_display);
-            if (poll_result < 0 && errno != EINTR)
-                LOG_CORE_WARN("Wayland poll returned error: errno={} ({})", errno, std::strerror(errno));
-            if (check_wayland_display_error(_display, "poll/cancel_read"))
-            {
-                _should_close = true;
-                return;
+                if (poll_result < 0 && errno != EINTR)
+                    LOG_CORE_WARN("Wayland poll returned error: errno={} ({})", errno, std::strerror(errno));
+                if (check_wayland_display_error(_display, "poll/cancel_read"))
+                {
+                    mark_all_wayland_windows_should_close();
+                    return;
+                }
             }
         }
 

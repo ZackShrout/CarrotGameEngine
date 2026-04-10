@@ -91,7 +91,6 @@ namespace carrot::rhi::vulkan {
             k_max_frames_in_flight * k_initial_textured_quad_descriptor_sets_per_frame
         };
 
-        constexpr uint64_t k_swapchain_recreate_settle_delay_ms{ 100 };
     } // anonymous namespace
 
     // PUBLIC
@@ -197,23 +196,6 @@ namespace carrot::rhi::vulkan {
 
         if (_swapchain_dirty)
         {
-            const uint64_t now_ms{ current_time_ms() };
-            const bool resize_settling{
-                _last_resize_request_time_ms != 0 &&
-                (now_ms - _last_resize_request_time_ms) < k_swapchain_recreate_settle_delay_ms
-            };
-
-            if (window::is_resizing(_presentation_window_id) || resize_settling)
-            {
-                LOG_GRAPHICS_INFO("Deferring main swapchain recreation: resizing={} settling={} pending={}x{}",
-                                  window::is_resizing(_presentation_window_id),
-                                  resize_settling,
-                                  _pending_resize_width,
-                                  _pending_resize_height);
-                _skip_frame = true;
-                return;
-            }
-
             LOG_GRAPHICS_INFO("Recreating main swapchain resources at begin_frame with pending size {}x{}",
                               _pending_resize_width,
                               _pending_resize_height);
@@ -464,7 +446,6 @@ namespace carrot::rhi::vulkan {
 
         if (present_result == VK_ERROR_OUT_OF_DATE_KHR || present_result == VK_SUBOPTIMAL_KHR)
         {
-            _last_resize_request_time_ms = current_time_ms();
             _swapchain_dirty = true;
             skip_auxiliary_present_for_main_resize = true;
             LOG_GRAPHICS_WARN("Present suboptimal/out of date");
@@ -539,7 +520,6 @@ namespace carrot::rhi::vulkan {
 
     void vulkan_rhi_context_t::resize(const uint32_t width, const uint32_t height)
     {
-        _last_resize_request_time_ms = current_time_ms();
         LOG_GRAPHICS_INFO("Main presentation resize requested to {}x{}", width, height);
 
         if (width == 0 || height == 0)

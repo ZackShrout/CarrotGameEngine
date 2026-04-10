@@ -160,6 +160,7 @@ namespace carrot::rhi::vulkan {
         uint32_t _current_image_index{ 0 };
         uint32_t _pending_resize_width{ 0 };
         uint32_t _pending_resize_height{ 0 };
+        uint64_t _last_resize_request_time_ms{ 0 };
         std::array<uint32_t, k_max_frames_in_flight> _textured_quad_descriptor_set_cursor{ };
 
         // ── Deferred actions and lifecycle flags ──

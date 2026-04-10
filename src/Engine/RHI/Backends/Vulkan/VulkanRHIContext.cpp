@@ -22,6 +22,12 @@
 
 namespace carrot::rhi::vulkan {
     namespace {
+        [[nodiscard]] uint64_t current_time_ms() noexcept
+        {
+            return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count());
+        }
+
         [[nodiscard]] VkBufferUsageFlags to_vk_buffer_usage(const buffer_usage_t usage) noexcept
         {
             using enum buffer_usage_t;
@@ -79,6 +85,8 @@ namespace carrot::rhi::vulkan {
         constexpr uint32_t k_max_textured_quad_descriptor_sets{
             k_max_frames_in_flight * k_initial_textured_quad_descriptor_sets_per_frame
         };
+
+        constexpr uint64_t k_swapchain_recreate_settle_delay_ms{ 100 };
     } // anonymous namespace
 
     // PUBLIC
@@ -175,6 +183,18 @@ namespace carrot::rhi::vulkan {
 
         if (_swapchain_dirty)
         {
+            const uint64_t now_ms{ current_time_ms() };
+            const bool resize_settling{
+                _last_resize_request_time_ms != 0 &&
+                (now_ms - _last_resize_request_time_ms) < k_swapchain_recreate_settle_delay_ms
+            };
+
+            if (window::is_resizing(_presentation_window_id) || resize_settling)
+            {
+                _skip_frame = true;
+                return;
+            }
+
             recreate_swapchain_dependent_resources();
             _swapchain_dirty = false;
             _skip_frame = true;
@@ -413,6 +433,7 @@ namespace carrot::rhi::vulkan {
 
         if (present_result == VK_ERROR_OUT_OF_DATE_KHR || present_result == VK_SUBOPTIMAL_KHR)
         {
+            _last_resize_request_time_ms = current_time_ms();
             _swapchain_dirty = true;
             skip_auxiliary_present_for_main_resize = true;
             LOG_GRAPHICS_WARN("Present suboptimal/out of date");
@@ -481,6 +502,8 @@ namespace carrot::rhi::vulkan {
 
     void vulkan_rhi_context_t::resize(const uint32_t width, const uint32_t height)
     {
+        _last_resize_request_time_ms = current_time_ms();
+
         if (width == 0 || height == 0)
         {
             _pending_resize_width = 0;

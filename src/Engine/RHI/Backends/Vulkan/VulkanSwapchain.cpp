@@ -76,9 +76,6 @@ namespace carrot::rhi::vulkan {
             return;
         }
 
-        // Wait for GPU to finish using the current swapchain
-        vkDeviceWaitIdle(_device->vk_device());
-
         // Store old swapchain handle for handover
         VkSwapchainKHR old_swapchain{ _swapchain.swapchain };
 
@@ -94,9 +91,6 @@ namespace carrot::rhi::vulkan {
 
     void vulkan_swapchain_t::recreate()
     {
-        // Safety wait
-        vkDeviceWaitIdle(_device->vk_device());
-
         // Query current surface capabilities (compositor tells us the truth)
         VkSurfaceCapabilitiesKHR caps{ };
         VK_CHECK_FATAL(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(

@@ -1508,7 +1508,15 @@ namespace carrot::rhi::vulkan {
             return;
         }
 
-        vkDeviceWaitIdle(_device->vk_device());
+        std::array<VkFence, k_max_frames_in_flight> in_flight_fences{ };
+        for (uint32_t i{ 0 }; i < k_max_frames_in_flight; ++i)
+            in_flight_fences[i] = _frames[i].in_flight;
+
+        VK_CHECK_FATAL(vkWaitForFences(_device->vk_device(),
+                                       static_cast<uint32_t>(in_flight_fences.size()),
+                                       in_flight_fences.data(),
+                                       VK_TRUE,
+                                       UINT64_MAX));
 
         _framebuffers = framebuffer_array_t{ _device->vk_device() };
 

@@ -34,6 +34,8 @@ namespace carrot::core::platform {
     class wayland_window_t final : public window_t
     {
     public:
+        static void begin_poll_cycle() noexcept;
+
         explicit wayland_window_t(uint32_t width, uint32_t height, std::string_view title) noexcept;
         ~wayland_window_t() noexcept override;
 

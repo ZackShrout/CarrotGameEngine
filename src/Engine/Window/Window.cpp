@@ -150,9 +150,6 @@ namespace carrot::window {
     void poll_events() noexcept
     {
         const std::vector<window_id_t> window_ids{ g_state.window_order };
-#ifdef CARROT_PLATFORM_WAYLAND
-        core::platform::wayland_window_t::begin_poll_cycle();
-#endif
         for (const window_id_t id : window_ids)
         {
             core::platform::window_t* window{ get_window(id) };

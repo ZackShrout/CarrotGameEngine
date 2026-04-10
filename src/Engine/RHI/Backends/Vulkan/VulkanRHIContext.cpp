@@ -402,15 +402,24 @@ namespace carrot::rhi::vulkan {
         present_info.pImageIndices = &_current_image_index;
 
         const VkResult present_result{ vkQueuePresentKHR(_device->graphics_queue(), &present_info) };
+        bool skip_auxiliary_present_for_main_resize{ false };
 
         if (present_result == VK_ERROR_OUT_OF_DATE_KHR || present_result == VK_SUBOPTIMAL_KHR)
         {
             _swapchain_dirty = true;
+            skip_auxiliary_present_for_main_resize = true;
             LOG_GRAPHICS_WARN("Present suboptimal/out of date");
         }
         else if (present_result != VK_SUCCESS)
         {
             VK_CHECK_FATAL(present_result);
+        }
+
+        if (skip_auxiliary_present_for_main_resize)
+        {
+            _current_frame = (_current_frame + 1) % k_max_frames_in_flight;
+            _frame_active = false;
+            return;
         }
 
         for (auxiliary_surface_t* aux_surface : acquired_aux_surfaces)

@@ -1049,6 +1049,8 @@ namespace carrot::core::platform {
         if (!_surface || !_display || _frame_callback != nullptr || !_ready_for_present)
             return;
 
+        // Wayland expects clients to pace presentation with wl_surface_frame rather than
+        // continuously pushing frames during resize/maximize churn.
         _frame_callback = wl_surface_frame(_surface);
         if (!_frame_callback)
             return;

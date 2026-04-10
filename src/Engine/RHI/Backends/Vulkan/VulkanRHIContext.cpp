@@ -411,6 +411,8 @@ namespace carrot::rhi::vulkan {
         {
             wait_semaphores.push_back(aux_surface->image_acquire[_current_frame]);
             wait_stages.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+            // Presentation can keep a signal semaphore alive until that specific swapchain image is
+            // re-acquired, so these must be tracked per image rather than per frame-in-flight.
             signal_semaphores.push_back(aux_surface->render_finished[aux_surface->current_image_index]);
         }
 
@@ -1540,6 +1542,8 @@ namespace carrot::rhi::vulkan {
     {
         if (!_render_finished_semaphores.empty())
         {
+            // Presentation may still reference semaphores from the old swapchain after frame fences
+            // signal, so defer destruction until a full device-idle cleanup point.
             std::move(_render_finished_semaphores.begin(),
                       _render_finished_semaphores.end(),
                       std::back_inserter(_retired_render_finished_semaphores));

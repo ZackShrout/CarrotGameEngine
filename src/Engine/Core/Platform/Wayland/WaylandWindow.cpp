@@ -25,6 +25,12 @@
 
 namespace carrot::core::platform {
     namespace {
+        [[nodiscard]] uint64_t current_time_ms() noexcept
+        {
+            return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count());
+        }
+
         struct shared_wayland_state_t
         {
             wl_display* display{ nullptr };
@@ -66,6 +72,10 @@ namespace carrot::core::platform {
             g_shared_wayland.registry = wl_display_get_registry(g_shared_wayland.display);
             if (!g_shared_wayland.registry)
                 return false;
+
+            LOG_CORE_INFO("Wayland shared state created: display={} registry={}",
+                          static_cast<const void*>(g_shared_wayland.display),
+                          static_cast<const void*>(g_shared_wayland.registry));
 
             return true;
         }
@@ -227,6 +237,14 @@ namespace carrot::core::platform {
             win->set_wayland_maximized_state(maximized);
             win->set_wayland_resizing_state(resizing);
             win->set_wayland_focused_state(activated);
+            LOG_CORE_INFO("Wayland xdg_toplevel configure: window={} size={}x{} fullscreen={} maximized={} resizing={} activated={}",
+                          static_cast<const void*>(win),
+                          width,
+                          height,
+                          fullscreen,
+                          maximized,
+                          resizing,
+                          activated);
 
             if (width > 0 && height > 0)
             {
@@ -589,6 +607,13 @@ namespace carrot::core::platform {
             win->set_wayland_focused_state(has_window_state && (window_state & LIBDECOR_WINDOW_STATE_ACTIVE) != 0);
             win->set_pending_focus(win->is_focused());
             win->set_configure_pending(true);
+            LOG_CORE_INFO("Wayland libdecor configure: window={} content={}x{} fullscreen={} maximized={} active={}",
+                          static_cast<const void*>(win),
+                          width,
+                          height,
+                          (window_state & LIBDECOR_WINDOW_STATE_FULLSCREEN) != 0,
+                          (window_state & LIBDECOR_WINDOW_STATE_MAXIMIZED) != 0,
+                          has_window_state && (window_state & LIBDECOR_WINDOW_STATE_ACTIVE) != 0);
 
             libdecor_state* state{
                 libdecor_state_new(static_cast<int>(win->get_pending_width()),
@@ -696,14 +721,27 @@ namespace carrot::core::platform {
         if (g_shared_wayland.windows.size() == 1 &&
             (g_shared_wayland.compositor == nullptr || g_shared_wayland.xdg_wm_base == nullptr))
         {
+            const uint64_t roundtrip_start_ms{ current_time_ms() };
             wl_registry_add_listener(g_shared_wayland.registry, &shared_registry_listener, nullptr);
             wl_display_roundtrip(g_shared_wayland.display);
+            LOG_CORE_INFO("Wayland initial registry roundtrip completed in {} ms: compositor={} xdg_wm_base={} seat_name={} decoration_manager={}",
+                          current_time_ms() - roundtrip_start_ms,
+                          static_cast<const void*>(g_shared_wayland.compositor),
+                          static_cast<const void*>(g_shared_wayland.xdg_wm_base),
+                          g_shared_wayland.seat_name,
+                          static_cast<const void*>(g_shared_wayland.decoration_manager));
         }
 
         _display = g_shared_wayland.display;
         _compositor = g_shared_wayland.compositor;
         _xdg_wm_base = g_shared_wayland.xdg_wm_base;
         _decoration_manager = g_shared_wayland.decoration_manager;
+        LOG_CORE_INFO("Creating Wayland window instance={} display={} compositor={} xdg_wm_base={} decoration_manager={}",
+                      static_cast<const void*>(this),
+                      static_cast<const void*>(_display),
+                      static_cast<const void*>(_compositor),
+                      static_cast<const void*>(_xdg_wm_base),
+                      static_cast<const void*>(_decoration_manager));
 
         if (!_compositor)
             return;
@@ -733,7 +771,11 @@ namespace carrot::core::platform {
                 libdecor_frame_set_app_id(_libdecor_frame, "bunnysoft.carrot");
                 libdecor_frame_set_title(_libdecor_frame, std::string(title).c_str());
                 libdecor_frame_map(_libdecor_frame);
+                const uint64_t libdecor_map_start_ms{ current_time_ms() };
                 wl_display_roundtrip(_display);
+                LOG_CORE_INFO("Wayland libdecor map roundtrip completed in {} ms for window={}",
+                              current_time_ms() - libdecor_map_start_ms,
+                              static_cast<const void*>(this));
             }
             else
             {
@@ -774,7 +816,11 @@ namespace carrot::core::platform {
             xdg_toplevel_set_title(_xdg_toplevel, std::string(title).c_str());
 
             wl_surface_commit(_surface);
+            const uint64_t xdg_map_start_ms{ current_time_ms() };
             wl_display_roundtrip(_display);
+            LOG_CORE_INFO("Wayland xdg-shell map roundtrip completed in {} ms for window={}",
+                          current_time_ms() - xdg_map_start_ms,
+                          static_cast<const void*>(this));
         }
     }
 
@@ -948,6 +994,11 @@ namespace carrot::core::platform {
 
     void wayland_window_t::minimize() noexcept
     {
+        LOG_CORE_INFO("Wayland minimize requested: window={} using_libdecor={} current={}x{}",
+                      static_cast<const void*>(this),
+                      _using_libdecor,
+                      _width,
+                      _height);
         if (_using_libdecor)
         {
 #ifdef CARROT_HAS_LIBDECOR
@@ -971,6 +1022,14 @@ namespace carrot::core::platform {
 
     void wayland_window_t::maximize() noexcept
     {
+        LOG_CORE_INFO("Wayland maximize requested: window={} using_libdecor={} current={}x{} maximized={} fullscreen={} resizing={}",
+                      static_cast<const void*>(this),
+                      _using_libdecor,
+                      _width,
+                      _height,
+                      _is_maximized,
+                      _is_fullscreen,
+                      _is_resizing);
         if (_using_libdecor)
         {
 #ifdef CARROT_HAS_LIBDECOR
@@ -993,6 +1052,14 @@ namespace carrot::core::platform {
 
     void wayland_window_t::restore() noexcept
     {
+        LOG_CORE_INFO("Wayland restore requested: window={} using_libdecor={} current={}x{} maximized={} fullscreen={} resizing={}",
+                      static_cast<const void*>(this),
+                      _using_libdecor,
+                      _width,
+                      _height,
+                      _is_maximized,
+                      _is_fullscreen,
+                      _is_resizing);
         if (_using_libdecor)
         {
 #ifdef CARROT_HAS_LIBDECOR
@@ -1019,6 +1086,11 @@ namespace carrot::core::platform {
 
     void wayland_window_t::request_focus() noexcept
     {
+        LOG_CORE_INFO("Wayland request_focus requested: window={} current={}x{} focused={}",
+                      static_cast<const void*>(this),
+                      _width,
+                      _height,
+                      _is_focused);
         if (!_surface || !_display)
             return;
 
@@ -1039,6 +1111,12 @@ namespace carrot::core::platform {
 
     void wayland_window_t::set_fullscreen(const bool fullscreen) noexcept
     {
+        LOG_CORE_INFO("Wayland set_fullscreen requested: window={} target={} current_fullscreen={} maximized={} resizing={}",
+                      static_cast<const void*>(this),
+                      fullscreen,
+                      _is_fullscreen,
+                      _is_maximized,
+                      _is_resizing);
         if (_using_libdecor)
         {
 #ifdef CARROT_HAS_LIBDECOR
@@ -1085,6 +1163,8 @@ namespace carrot::core::platform {
         if (!_configure_pending)
             return;
 
+        const uint64_t configure_start_ms{ current_time_ms() };
+
         const bool old_focused = _is_focused;
         const uint32_t old_width = _width;
         const uint32_t old_height = _height;
@@ -1098,10 +1178,42 @@ namespace carrot::core::platform {
 
         _configure_pending = false;
 
+        LOG_CORE_INFO("Applying Wayland configure: window={} old={}x{} pending={}x{} new={}x{} focused={} pending_focus={} resizing={} maximized={} fullscreen={}",
+                      static_cast<const void*>(this),
+                      old_width,
+                      old_height,
+                      _pending_width,
+                      _pending_height,
+                      _width,
+                      _height,
+                      old_focused,
+                      _pending_focus,
+                      _is_resizing,
+                      _is_maximized,
+                      _is_fullscreen);
+
         if (_width != old_width || _height != old_height)
+        {
+            LOG_CORE_INFO("Broadcasting Wayland resize event: window={} {}x{} -> {}x{}",
+                          static_cast<const void*>(this),
+                          old_width,
+                          old_height,
+                          _width,
+                          _height);
             on_window_resized(events::window_resized_t{ _width, _height });
+        }
 
         if (_pending_focus != old_focused)
+        {
+            LOG_CORE_INFO("Broadcasting Wayland focus event: window={} {} -> {}",
+                          static_cast<const void*>(this),
+                          old_focused,
+                          _pending_focus);
             on_window_focus_changed(events::window_focused_t{ _is_focused });
+        }
+
+        LOG_CORE_INFO("Finished applying Wayland configure in {} ms for window={}",
+                      current_time_ms() - configure_start_ms,
+                      static_cast<const void*>(this));
     }
 } // namespace carrot::core::platform

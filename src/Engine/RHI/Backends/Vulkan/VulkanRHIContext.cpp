@@ -28,6 +28,11 @@ namespace carrot::rhi::vulkan {
                 std::chrono::steady_clock::now().time_since_epoch()).count());
         }
 
+        [[nodiscard]] uint64_t elapsed_ms(const uint64_t start_ms) noexcept
+        {
+            return current_time_ms() - start_ms;
+        }
+
         [[nodiscard]] VkBufferUsageFlags to_vk_buffer_usage(const buffer_usage_t usage) noexcept
         {
             using enum buffer_usage_t;
@@ -191,10 +196,18 @@ namespace carrot::rhi::vulkan {
 
             if (window::is_resizing(_presentation_window_id) || resize_settling)
             {
+                LOG_GRAPHICS_INFO("Deferring main swapchain recreation: resizing={} settling={} pending={}x{}",
+                                  window::is_resizing(_presentation_window_id),
+                                  resize_settling,
+                                  _pending_resize_width,
+                                  _pending_resize_height);
                 _skip_frame = true;
                 return;
             }
 
+            LOG_GRAPHICS_INFO("Recreating main swapchain resources at begin_frame with pending size {}x{}",
+                              _pending_resize_width,
+                              _pending_resize_height);
             recreate_swapchain_dependent_resources();
             _swapchain_dirty = false;
             _skip_frame = true;
@@ -204,7 +217,11 @@ namespace carrot::rhi::vulkan {
         const frame_resources_t& frame{ _frames[_current_frame] };
 
         // Wait for the previous use of this frame to finish
+        const uint64_t wait_start_ms{ current_time_ms() };
         VK_CHECK_FATAL(vkWaitForFences(_device->vk_device(), 1, &frame.in_flight, VK_TRUE, UINT64_MAX));
+        LOG_GRAPHICS_INFO("vkWaitForFences(begin_frame frame={}) completed in {} ms",
+                          _current_frame,
+                          elapsed_ms(wait_start_ms));
 
         // Hot-reload check: safe here because previous frames are done
         if (_pending_pipeline_reload)
@@ -430,6 +447,10 @@ namespace carrot::rhi::vulkan {
 
         const VkResult present_result{ vkQueuePresentKHR(_device->graphics_queue(), &present_info) };
         bool skip_auxiliary_present_for_main_resize{ false };
+        LOG_GRAPHICS_INFO("Main vkQueuePresentKHR returned {} for image {} on frame {}",
+                          static_cast<int>(present_result),
+                          _current_image_index,
+                          _current_frame);
 
         if (present_result == VK_ERROR_OUT_OF_DATE_KHR || present_result == VK_SUBOPTIMAL_KHR)
         {
@@ -465,6 +486,11 @@ namespace carrot::rhi::vulkan {
             aux_present_info.pImageIndices = &aux_image_index;
 
             const VkResult aux_present_result{ vkQueuePresentKHR(_device->graphics_queue(), &aux_present_info) };
+            LOG_GRAPHICS_INFO("Aux vkQueuePresentKHR returned {} for window {} image {} on frame {}",
+                              static_cast<int>(aux_present_result),
+                              static_cast<unsigned long long>(aux_surface->id),
+                              aux_image_index,
+                              _current_frame);
             if (aux_present_result == VK_ERROR_OUT_OF_DATE_KHR || aux_present_result == VK_SUBOPTIMAL_KHR)
             {
                 aux_surface->swapchain_dirty = true;
@@ -503,6 +529,7 @@ namespace carrot::rhi::vulkan {
     void vulkan_rhi_context_t::resize(const uint32_t width, const uint32_t height)
     {
         _last_resize_request_time_ms = current_time_ms();
+        LOG_GRAPHICS_INFO("Main presentation resize requested to {}x{}", width, height);
 
         if (width == 0 || height == 0)
         {
@@ -1501,6 +1528,12 @@ namespace carrot::rhi::vulkan {
         _frame_active = false;
         _render_pass_active = false;
         _skip_frame = true;
+        const uint64_t recreate_start_ms{ current_time_ms() };
+        LOG_GRAPHICS_INFO("Begin main swapchain recreation: pending={}x{} current={}x{}",
+                          _pending_resize_width,
+                          _pending_resize_height,
+                          _swapchain ? _swapchain->get_width() : 0,
+                          _swapchain ? _swapchain->get_height() : 0);
 
         if (window::should_close(_presentation_window_id))
         {
@@ -1512,11 +1545,14 @@ namespace carrot::rhi::vulkan {
         for (uint32_t i{ 0 }; i < k_max_frames_in_flight; ++i)
             in_flight_fences[i] = _frames[i].in_flight;
 
+        const uint64_t fences_start_ms{ current_time_ms() };
         VK_CHECK_FATAL(vkWaitForFences(_device->vk_device(),
                                        static_cast<uint32_t>(in_flight_fences.size()),
                                        in_flight_fences.data(),
                                        VK_TRUE,
                                        UINT64_MAX));
+        LOG_GRAPHICS_INFO("vkWaitForFences(recreate_swapchain_dependent_resources) completed in {} ms",
+                          elapsed_ms(fences_start_ms));
 
         _framebuffers = framebuffer_array_t{ _device->vk_device() };
 
@@ -1529,7 +1565,10 @@ namespace carrot::rhi::vulkan {
 
         _framebuffers = _swapchain->create_framebuffers(_render_pass->vk_render_pass());
 
-        LOG_GRAPHICS_INFO("Swapchain & framebuffers recreated after resize");
+        LOG_GRAPHICS_INFO("Swapchain & framebuffers recreated after resize in {} ms (new size {}x{})",
+                          elapsed_ms(recreate_start_ms),
+                          _swapchain ? _swapchain->get_width() : 0,
+                          _swapchain ? _swapchain->get_height() : 0);
     }
 
     void vulkan_rhi_context_t::recreate_render_finished_semaphores()

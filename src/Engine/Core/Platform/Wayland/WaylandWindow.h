@@ -49,6 +49,7 @@ namespace carrot::core::platform {
         [[nodiscard]] bool is_maximized() const noexcept override { return _is_maximized; }
         [[nodiscard]] bool is_minimized() const noexcept override { return _is_minimized; }
         [[nodiscard]] bool is_focused() const noexcept override { return _is_focused; }
+        [[nodiscard]] bool is_resizing() const noexcept override { return _is_resizing; }
         [[nodiscard]] native_window_handle_t get_native_handle() const noexcept override;
 
         void set_fullscreen(bool fullscreen) noexcept override;

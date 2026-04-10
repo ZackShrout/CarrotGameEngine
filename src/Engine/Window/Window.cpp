@@ -219,10 +219,22 @@ namespace carrot::window {
         return main_window ? main_window->is_minimized() : true;
     }
 
+    bool is_resizing() noexcept
+    {
+        core::platform::window_t* main_window{ get_window(g_state.main_window_id) };
+        return main_window ? main_window->is_resizing() : false;
+    }
+
     bool is_minimized(const window_id_t id) noexcept
     {
         core::platform::window_t* window{ get_window(id) };
         return window ? window->is_minimized() : true;
+    }
+
+    bool is_resizing(const window_id_t id) noexcept
+    {
+        core::platform::window_t* window{ get_window(id) };
+        return window ? window->is_resizing() : false;
     }
 
     core::platform::native_window_handle_t get_native_handle() noexcept

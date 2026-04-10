@@ -26,6 +26,7 @@ namespace carrot::core::platform {
 
         [[nodiscard]] virtual bool is_maximized() const noexcept { return false; }
         [[nodiscard]] virtual bool is_focused() const noexcept { return true; }
+        [[nodiscard]] virtual bool is_resizing() const noexcept { return false; }
 
         [[nodiscard]] virtual bool should_close() const noexcept { return _should_close; }
         [[nodiscard]] virtual uint32_t get_width()  const noexcept { return _width; }

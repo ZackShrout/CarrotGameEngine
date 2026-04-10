@@ -89,6 +89,7 @@ namespace carrot::rhi::vulkan {
             std::array<VkSemaphore, k_max_frames_in_flight> render_finished{ };
             uint32_t last_width{ 0 };
             uint32_t last_height{ 0 };
+            bool swapchain_dirty{ false };
         };
 
         struct recorded_stage_t

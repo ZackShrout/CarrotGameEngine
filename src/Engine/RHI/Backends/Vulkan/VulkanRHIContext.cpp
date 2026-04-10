@@ -293,7 +293,12 @@ namespace carrot::rhi::vulkan {
         std::vector<auxiliary_surface_t*> acquired_aux_surfaces;
         // Engine policy: when the main presentation surface is fullscreen, auxiliary windows are not
         // visible in typical gameplay mode, so skip auxiliary rendering/presentation work.
-        const bool allow_auxiliary_presentation{ !window::is_fullscreen(_presentation_window_id) };
+        const bool main_window_resizing{ window::is_resizing(_presentation_window_id) };
+        const bool allow_auxiliary_presentation{
+            !window::is_fullscreen(_presentation_window_id) &&
+            !main_window_resizing &&
+            !_swapchain_dirty
+        };
 
         // 1. End render pass (if not already ended in record_frame)
         if (_render_pass_active)
@@ -308,6 +313,9 @@ namespace carrot::rhi::vulkan {
                 break;
 
             if (!window::has_window(aux_surface.id))
+                continue;
+
+            if (window::is_resizing(aux_surface.id) || aux_surface.swapchain_dirty)
                 continue;
 
             const VkResult acquire_result{
@@ -325,8 +333,7 @@ namespace carrot::rhi::vulkan {
 
             if (acquire_result == VK_ERROR_OUT_OF_DATE_KHR || acquire_result == VK_SUBOPTIMAL_KHR)
             {
-                aux_surface.swapchain->recreate();
-                aux_surface.framebuffers = aux_surface.swapchain->create_framebuffers(_render_pass->vk_render_pass());
+                aux_surface.swapchain_dirty = true;
                 continue;
             }
 
@@ -439,8 +446,7 @@ namespace carrot::rhi::vulkan {
             const VkResult aux_present_result{ vkQueuePresentKHR(_device->graphics_queue(), &aux_present_info) };
             if (aux_present_result == VK_ERROR_OUT_OF_DATE_KHR || aux_present_result == VK_SUBOPTIMAL_KHR)
             {
-                aux_surface->swapchain->recreate();
-                aux_surface->framebuffers = aux_surface->swapchain->create_framebuffers(_render_pass->vk_render_pass());
+                aux_surface->swapchain_dirty = true;
             }
             else if (aux_present_result != VK_SUCCESS)
             {
@@ -1030,12 +1036,28 @@ namespace carrot::rhi::vulkan {
 
             const uint32_t width{ window::get_width(it->id) };
             const uint32_t height{ window::get_height(it->id) };
-            if (width > 0 && height > 0 && (width != it->last_width || height != it->last_height))
+            const bool resizing{ window::is_resizing(it->id) };
+            const bool size_changed{ width > 0 && height > 0 && (width != it->last_width || height != it->last_height) };
+
+            if (resizing)
             {
-                it->swapchain->resize(width, height);
+                if (size_changed)
+                    it->swapchain_dirty = true;
+                ++it;
+                continue;
+            }
+
+            if (width > 0 && height > 0 && (size_changed || it->swapchain_dirty))
+            {
+                if (size_changed)
+                    it->swapchain->resize(width, height);
+                else
+                    it->swapchain->recreate();
+
                 it->framebuffers = it->swapchain->create_framebuffers(_render_pass->vk_render_pass());
                 it->last_width = width;
                 it->last_height = height;
+                it->swapchain_dirty = false;
             }
 
             ++it;

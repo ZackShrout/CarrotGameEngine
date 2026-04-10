@@ -10,6 +10,35 @@
 #include "VulkanDevice.h"
 
 namespace carrot::rhi::vulkan {
+    namespace {
+        [[nodiscard]] VkSurfaceFormatKHR choose_surface_format(VkPhysicalDevice physical_device, VkSurfaceKHR surface)
+        {
+            uint32_t format_count{ 0 };
+            VK_CHECK_FATAL(vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface, &format_count, nullptr));
+
+            CE_ASSERT(format_count > 0 && "Surface must advertise at least one swapchain format");
+
+            std::vector<VkSurfaceFormatKHR> formats(format_count);
+            VK_CHECK_FATAL(vkGetPhysicalDeviceSurfaceFormatsKHR(
+                physical_device,
+                surface,
+                &format_count,
+                formats.data()
+            ));
+
+            for (const VkSurfaceFormatKHR& format : formats)
+            {
+                if (format.format == VK_FORMAT_B8G8R8A8_SRGB &&
+                    format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+                {
+                    return format;
+                }
+            }
+
+            return formats.front();
+        }
+    } // anonymous namespace
+
     vulkan_swapchain_t::vulkan_swapchain_t(vulkan_device_t* device, VkSurfaceKHR surface,
                                            const uint32_t width, const uint32_t height,
                                            VkSwapchainKHR old_swapchain/* = VK_NULL_HANDLE*/)
@@ -159,6 +188,7 @@ namespace carrot::rhi::vulkan {
     {
         VkDevice device = _device->vk_device();
         VkPhysicalDevice phys = _device->physical_device();
+        const VkSurfaceFormatKHR surface_format{ choose_surface_format(phys, _surface) };
 
         VkSurfaceCapabilitiesKHR caps{ };
         VK_CHECK_FATAL(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phys, _surface, &caps));
@@ -184,8 +214,8 @@ namespace carrot::rhi::vulkan {
         info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
         info.surface = _surface;
         info.minImageCount = image_count;
-        info.imageFormat = VK_FORMAT_B8G8R8A8_SRGB;
-        info.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+        info.imageFormat = surface_format.format;
+        info.imageColorSpace = surface_format.colorSpace;
         info.imageExtent = extent;
         info.imageArrayLayers = 1;
         info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
@@ -221,7 +251,7 @@ namespace carrot::rhi::vulkan {
             view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
             view_info.image = _images[i];
             view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-            view_info.format = VK_FORMAT_B8G8R8A8_SRGB;
+            view_info.format = surface_format.format;
             view_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
             view_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
             view_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -235,7 +265,7 @@ namespace carrot::rhi::vulkan {
             _image_views[i] = view;
         }
 
-        _format = VK_FORMAT_B8G8R8A8_SRGB;
+        _format = surface_format.format;
         _extent = extent;
         _image_count = image_count;
 

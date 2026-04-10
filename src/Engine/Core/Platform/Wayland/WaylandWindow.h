@@ -15,6 +15,8 @@
 struct xdg_wm_base;
 struct xdg_surface;
 struct xdg_toplevel;
+struct libdecor;
+struct libdecor_frame;
 struct zxdg_decoration_manager_v1;
 struct zxdg_toplevel_decoration_v1;
 
@@ -72,6 +74,9 @@ namespace carrot::core::platform {
         [[nodiscard]] zxdg_decoration_manager_v1* get_decoration_manager() const noexcept { return _decoration_manager; }
         [[nodiscard]] zxdg_toplevel_decoration_v1* get_toplevel_decoration() const noexcept { return _toplevel_decoration; }
         [[nodiscard]] bool has_server_side_decorations() const noexcept { return _server_side_decorations; }
+        [[nodiscard]] bool uses_libdecor() const noexcept { return _using_libdecor; }
+        [[nodiscard]] libdecor* get_libdecor_context() const noexcept { return _libdecor_context; }
+        [[nodiscard]] libdecor_frame* get_libdecor_frame() const noexcept { return _libdecor_frame; }
 
         void set_compositor(wl_compositor* c) noexcept { _compositor = c; }
         void set_xdg_wm_base(xdg_wm_base* base) noexcept { _xdg_wm_base = base; }
@@ -100,6 +105,9 @@ namespace carrot::core::platform {
         void set_decoration_manager(zxdg_decoration_manager_v1* mgr) noexcept { _decoration_manager = mgr; }
         void set_toplevel_decoration(zxdg_toplevel_decoration_v1* deco) noexcept { _toplevel_decoration = deco; }
         void set_server_side_decorations(bool value) noexcept { _server_side_decorations = value; }
+        void set_using_libdecor(bool value) noexcept { _using_libdecor = value; }
+        void set_libdecor_context(libdecor* context) noexcept { _libdecor_context = context; }
+        void set_libdecor_frame(libdecor_frame* frame) noexcept { _libdecor_frame = frame; }
 
         void set_wayland_fullscreen_state(const bool value) noexcept { _is_fullscreen = value; }
         void set_wayland_maximized_state(const bool value) noexcept { _is_maximized = value; }
@@ -137,5 +145,8 @@ namespace carrot::core::platform {
         zxdg_decoration_manager_v1* _decoration_manager{ nullptr };
         zxdg_toplevel_decoration_v1* _toplevel_decoration{ nullptr };
         bool _server_side_decorations{ false };
+        libdecor* _libdecor_context{ nullptr };
+        libdecor_frame* _libdecor_frame{ nullptr };
+        bool _using_libdecor{ false };
     };
 } // namespace carrot::core::platform

@@ -1448,6 +1448,12 @@ namespace carrot::rhi::vulkan {
         _render_pass_active = false;
         _skip_frame = true;
 
+        if (window::should_close(_presentation_window_id))
+        {
+            LOG_GRAPHICS_INFO("Skipping swapchain recreation because the presentation window is closing");
+            return;
+        }
+
         vkDeviceWaitIdle(_device->vk_device());
 
         _framebuffers = framebuffer_array_t{ _device->vk_device() };

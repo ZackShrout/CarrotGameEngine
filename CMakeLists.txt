@@ -722,6 +722,7 @@ elseif(UNIX)
     )
     pkg_check_modules(LIBUDEV REQUIRED IMPORTED_TARGET libudev)
     pkg_check_modules(LIBEVDEV REQUIRED IMPORTED_TARGET libevdev)
+    pkg_check_modules(LIBDECOR QUIET IMPORTED_TARGET libdecor-0)
 
     # Apply libc++ only to C++ compilation and linking
     target_compile_options(CarrotEngine PUBLIC
@@ -741,6 +742,10 @@ elseif(UNIX)
 
     target_compile_definitions(CarrotEngine PUBLIC VK_USE_PLATFORM_WAYLAND_KHR)
 
+    if (LIBDECOR_FOUND)
+        target_compile_definitions(CarrotEngine PUBLIC CARROT_HAS_LIBDECOR=1)
+    endif ()
+
     target_link_libraries(CarrotEngine PRIVATE
             Vulkan::Vulkan
             ALSA::ALSA
@@ -754,6 +759,10 @@ elseif(UNIX)
             dl
             pthread
     )
+
+    if (LIBDECOR_FOUND)
+        target_link_libraries(CarrotEngine PRIVATE PkgConfig::LIBDECOR)
+    endif ()
 endif()
 
 # ------------------------------------------------------------------------

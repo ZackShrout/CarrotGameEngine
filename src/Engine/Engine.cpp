@@ -250,6 +250,10 @@ namespace carrot {
         {
             window::poll_events();
             destroy_closed_auxiliary_windows();
+
+            if (_should_quit || window::should_close(main_window_id))
+                break;
+
             hot_reload::shader_watcher_t::poll();
             tick();
 

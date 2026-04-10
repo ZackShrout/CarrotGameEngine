@@ -18,6 +18,10 @@
 #include <sys/mman.h>
 #include <wayland-client-protocol.h>
 
+#ifdef CARROT_HAS_LIBDECOR
+#include <libdecor.h>
+#endif
+
 namespace carrot::core::platform {
     namespace {
         [[nodiscard]] bool check_wayland_display_error(wl_display* display, std::string_view context)
@@ -432,6 +436,99 @@ namespace carrot::core::platform {
             .configure = toplevel_decoration_configure
         };
 
+#ifdef CARROT_HAS_LIBDECOR
+        void libdecor_error(libdecor*, const libdecor_error error, const char* message)
+        {
+            LOG_CORE_ERROR("libdecor error {}: {}", static_cast<int>(error), message ? message : "unknown");
+        }
+
+        libdecor_interface libdecor_listener{
+            .error = libdecor_error,
+            .reserved0 = nullptr,
+            .reserved1 = nullptr,
+            .reserved2 = nullptr,
+            .reserved3 = nullptr,
+            .reserved4 = nullptr,
+            .reserved5 = nullptr,
+            .reserved6 = nullptr,
+            .reserved7 = nullptr,
+            .reserved8 = nullptr,
+            .reserved9 = nullptr,
+        };
+
+        void handle_libdecor_frame_configure(libdecor_frame* frame,
+                                             libdecor_configuration* configuration,
+                                             void* user_data)
+        {
+            auto* win = static_cast<wayland_window_t*>(user_data);
+
+            int width{ static_cast<int>(win->get_width()) };
+            int height{ static_cast<int>(win->get_height()) };
+            (void)libdecor_configuration_get_content_size(configuration, frame, &width, &height);
+
+            enum libdecor_window_state window_state{ LIBDECOR_WINDOW_STATE_NONE };
+            const bool has_window_state{
+                libdecor_configuration_get_window_state(configuration, &window_state)
+            };
+
+            win->set_pending_width(static_cast<uint32_t>(std::max(width, 1)));
+            win->set_pending_height(static_cast<uint32_t>(std::max(height, 1)));
+            win->set_wayland_fullscreen_state((window_state & LIBDECOR_WINDOW_STATE_FULLSCREEN) != 0);
+            win->set_wayland_maximized_state((window_state & LIBDECOR_WINDOW_STATE_MAXIMIZED) != 0);
+            win->set_wayland_focused_state(has_window_state && (window_state & LIBDECOR_WINDOW_STATE_ACTIVE) != 0);
+            win->set_pending_focus(win->is_focused());
+            win->set_configure_pending(true);
+
+            libdecor_state* state{
+                libdecor_state_new(static_cast<int>(win->get_pending_width()),
+                                   static_cast<int>(win->get_pending_height()))
+            };
+            if (!state)
+            {
+                LOG_CORE_ERROR("Failed to allocate libdecor state");
+                return;
+            }
+
+            libdecor_frame_commit(frame, state, configuration);
+            libdecor_state_free(state);
+            win->apply_pending_configure();
+        }
+
+        void handle_libdecor_frame_close(libdecor_frame*, void* user_data)
+        {
+            auto* win = static_cast<wayland_window_t*>(user_data);
+            win->set_should_close(true);
+        }
+
+        void handle_libdecor_frame_commit(libdecor_frame*, void* user_data)
+        {
+            auto* win = static_cast<wayland_window_t*>(user_data);
+            if (!win->get_wl_surface())
+                return;
+
+            wl_surface_commit(win->get_wl_surface());
+            if (win->get_wl_display())
+                wl_display_flush(win->get_wl_display());
+        }
+
+        libdecor_frame_interface libdecor_frame_listener{
+            .configure = handle_libdecor_frame_configure,
+            .close = handle_libdecor_frame_close,
+            .commit = handle_libdecor_frame_commit,
+            .dismiss_popup = nullptr,
+            .reserved0 = nullptr,
+            .reserved1 = nullptr,
+            .reserved2 = nullptr,
+            .reserved3 = nullptr,
+            .reserved4 = nullptr,
+            .reserved5 = nullptr,
+            .reserved6 = nullptr,
+            .reserved7 = nullptr,
+            .reserved8 = nullptr,
+            .reserved9 = nullptr,
+        };
+#endif
+
         void registry_global(void* data, wl_registry* registry, const uint32_t name,
                              const char* interface, uint32_t) noexcept
         {
@@ -477,42 +574,72 @@ namespace carrot::core::platform {
         _width = width;
         _height = height;
         _display = wl_display_connect(nullptr);
-        if (!_display) return;
+        if (!_display)
+            return;
 
         wl_registry* registry{ wl_display_get_registry(_display) };
         wl_registry_add_listener(registry, &registry_listener, this);
         wl_display_roundtrip(_display);
 
-        if (!_compositor || !_xdg_wm_base) return;
+        if (!_compositor)
+            return;
 
         _surface = wl_compositor_create_surface(_compositor);
-        _xdg_surface = xdg_wm_base_get_xdg_surface(_xdg_wm_base, _surface);
-        xdg_surface_add_listener(_xdg_surface, &xdg_surface_listener, this);
-
-        _xdg_toplevel = xdg_surface_get_toplevel(_xdg_surface);
-        xdg_toplevel_add_listener(_xdg_toplevel, &xdg_toplevel_listener, this);
-
-        if (_decoration_manager)
+#ifdef CARROT_HAS_LIBDECOR
+        _libdecor_context = libdecor_new(_display, &libdecor_listener);
+        if (_libdecor_context)
         {
-            _toplevel_decoration =
-                zxdg_decoration_manager_v1_get_toplevel_decoration(_decoration_manager, _xdg_toplevel);
-
-            zxdg_toplevel_decoration_v1_add_listener(
-                _toplevel_decoration,
-                &toplevel_decoration_listener,
-                this
-            );
-
-            zxdg_toplevel_decoration_v1_set_mode(
-                _toplevel_decoration,
-                ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE
-            );
+            _libdecor_frame = libdecor_decorate(_libdecor_context, _surface, &libdecor_frame_listener, this);
+            if (_libdecor_frame)
+            {
+                _using_libdecor = true;
+                libdecor_frame_set_app_id(_libdecor_frame, "bunnysoft.carrot");
+                libdecor_frame_set_title(_libdecor_frame, std::string(title).c_str());
+                libdecor_frame_map(_libdecor_frame);
+                wl_display_roundtrip(_display);
+            }
+            else
+            {
+                LOG_CORE_WARN("libdecor was available but failed to decorate the Wayland surface; falling back to xdg-shell");
+                libdecor_unref(_libdecor_context);
+                _libdecor_context = nullptr;
+            }
         }
+#endif
 
-        xdg_toplevel_set_title(_xdg_toplevel, std::string(title).c_str());
+        if (!_using_libdecor)
+        {
+            if (!_xdg_wm_base)
+                return;
 
-        wl_surface_commit(_surface);
-        wl_display_roundtrip(_display);
+            _xdg_surface = xdg_wm_base_get_xdg_surface(_xdg_wm_base, _surface);
+            xdg_surface_add_listener(_xdg_surface, &xdg_surface_listener, this);
+
+            _xdg_toplevel = xdg_surface_get_toplevel(_xdg_surface);
+            xdg_toplevel_add_listener(_xdg_toplevel, &xdg_toplevel_listener, this);
+
+            if (_decoration_manager)
+            {
+                _toplevel_decoration =
+                    zxdg_decoration_manager_v1_get_toplevel_decoration(_decoration_manager, _xdg_toplevel);
+
+                zxdg_toplevel_decoration_v1_add_listener(
+                    _toplevel_decoration,
+                    &toplevel_decoration_listener,
+                    this
+                );
+
+                zxdg_toplevel_decoration_v1_set_mode(
+                    _toplevel_decoration,
+                    ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE
+                );
+            }
+
+            xdg_toplevel_set_title(_xdg_toplevel, std::string(title).c_str());
+
+            wl_surface_commit(_surface);
+            wl_display_roundtrip(_display);
+        }
 
         wl_registry_destroy(registry);
     }
@@ -530,6 +657,11 @@ namespace carrot::core::platform {
 
         if (_toplevel_decoration) zxdg_toplevel_decoration_v1_destroy(_toplevel_decoration);
         if (_decoration_manager) zxdg_decoration_manager_v1_destroy(_decoration_manager);
+
+#ifdef CARROT_HAS_LIBDECOR
+        if (_libdecor_frame) libdecor_frame_unref(_libdecor_frame);
+        if (_libdecor_context) libdecor_unref(_libdecor_context);
+#endif
 
         if (_xdg_toplevel) xdg_toplevel_destroy(_xdg_toplevel);
         if (_xdg_surface) xdg_surface_destroy(_xdg_surface);
@@ -551,6 +683,11 @@ namespace carrot::core::platform {
                 _should_close = true;
             return;
         }
+
+#ifdef CARROT_HAS_LIBDECOR
+        if (_using_libdecor && _libdecor_context)
+            libdecor_dispatch(_libdecor_context, 0);
+#endif
         wl_display_flush(_display);
 
         // 2. Non-blocking read/dispatch of new compositor events.
@@ -585,6 +722,11 @@ namespace carrot::core::platform {
                         _should_close = true;
                     return;
                 }
+
+#ifdef CARROT_HAS_LIBDECOR
+                if (_using_libdecor && _libdecor_context)
+                    libdecor_dispatch(_libdecor_context, 0);
+#endif
             }
             else
             {
@@ -650,6 +792,19 @@ namespace carrot::core::platform {
 
     void wayland_window_t::set_title(std::string_view title) noexcept
     {
+        if (_using_libdecor)
+        {
+#ifdef CARROT_HAS_LIBDECOR
+            if (!_libdecor_frame)
+                return;
+
+            libdecor_frame_set_title(_libdecor_frame, std::string(title).c_str());
+            if (_display)
+                wl_display_flush(_display);
+#endif
+            return;
+        }
+
         if (!_xdg_toplevel)
             return;
 
@@ -659,6 +814,20 @@ namespace carrot::core::platform {
 
     void wayland_window_t::minimize() noexcept
     {
+        if (_using_libdecor)
+        {
+#ifdef CARROT_HAS_LIBDECOR
+            if (!_libdecor_frame)
+                return;
+
+            libdecor_frame_set_minimized(_libdecor_frame);
+            _is_minimized = true;
+            if (_display)
+                wl_display_flush(_display);
+#endif
+            return;
+        }
+
         if (!_xdg_toplevel || !_surface)
             return;
 
@@ -668,6 +837,19 @@ namespace carrot::core::platform {
 
     void wayland_window_t::maximize() noexcept
     {
+        if (_using_libdecor)
+        {
+#ifdef CARROT_HAS_LIBDECOR
+            if (!_libdecor_frame)
+                return;
+
+            libdecor_frame_set_maximized(_libdecor_frame);
+            if (_display)
+                wl_display_flush(_display);
+#endif
+            return;
+        }
+
         if (!_xdg_toplevel || !_surface)
             return;
 
@@ -677,6 +859,21 @@ namespace carrot::core::platform {
 
     void wayland_window_t::restore() noexcept
     {
+        if (_using_libdecor)
+        {
+#ifdef CARROT_HAS_LIBDECOR
+            if (!_libdecor_frame)
+                return;
+
+            libdecor_frame_unset_fullscreen(_libdecor_frame);
+            libdecor_frame_unset_maximized(_libdecor_frame);
+            _is_minimized = false;
+            if (_display)
+                wl_display_flush(_display);
+#endif
+            return;
+        }
+
         if (!_xdg_toplevel || !_surface)
             return;
 
@@ -708,6 +905,27 @@ namespace carrot::core::platform {
 
     void wayland_window_t::set_fullscreen(const bool fullscreen) noexcept
     {
+        if (_using_libdecor)
+        {
+#ifdef CARROT_HAS_LIBDECOR
+            if (!_libdecor_frame)
+                return;
+
+            if (fullscreen == _is_fullscreen)
+                return;
+
+            if (fullscreen)
+                libdecor_frame_set_fullscreen(_libdecor_frame, nullptr);
+            else
+                libdecor_frame_unset_fullscreen(_libdecor_frame);
+
+            _is_fullscreen = fullscreen;
+            if (_display)
+                wl_display_flush(_display);
+#endif
+            return;
+        }
+
         if (!_xdg_toplevel || !_surface)
             return;
 

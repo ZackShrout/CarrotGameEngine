@@ -142,7 +142,9 @@ namespace carrot::world::authored {
         {
             return interaction_outcome_t{
                 .kind = interaction_outcome_kind_t::sign,
-                .message_id = std::string{ sign->message_id }
+                .message_id = std::string{ sign->message_id },
+                .transition = {},
+                .loot_table = {}
             };
         }
 
@@ -156,7 +158,9 @@ namespace carrot::world::authored {
 
             return interaction_outcome_t{
                 .kind = interaction_outcome_kind_t::scene_transition,
-                .transition = *request
+                .message_id = {},
+                .transition = *request,
+                .loot_table = {}
             };
         }
 
@@ -164,6 +168,8 @@ namespace carrot::world::authored {
         {
             return interaction_outcome_t{
                 .kind = interaction_outcome_kind_t::container,
+                .message_id = {},
+                .transition = {},
                 .object_id = object.id,
                 .loot_table = std::string{ container->loot_table }
             };

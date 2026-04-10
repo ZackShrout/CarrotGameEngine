@@ -9,25 +9,8 @@
 
 #include "VulkanDevice.h"
 
-#include <type_traits>
-
 namespace carrot::rhi::vulkan {
     namespace {
-        template<typename T>
-        [[nodiscard]] uint64_t handle_log_value(const T handle) noexcept
-        {
-            if constexpr (std::is_pointer_v<T>)
-                return static_cast<uint64_t>(reinterpret_cast<uintptr_t>(handle));
-            else
-                return static_cast<uint64_t>(handle);
-        }
-
-        [[nodiscard]] uint64_t current_time_ms() noexcept
-        {
-            return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now().time_since_epoch()).count());
-        }
-
         [[nodiscard]] VkSurfaceFormatKHR choose_surface_format(VkPhysicalDevice physical_device, VkSurfaceKHR surface)
         {
             uint32_t format_count{ 0 };
@@ -72,13 +55,6 @@ namespace carrot::rhi::vulkan {
 
     void vulkan_swapchain_t::resize(uint32_t width, uint32_t height)
     {
-        const uint64_t resize_start_ms{ current_time_ms() };
-        LOG_GRAPHICS_INFO("Swapchain resize requested: requested={}x{} current={}x{} surface={}",
-                          width,
-                          height,
-                          _extent.width,
-                          _extent.height,
-                          handle_log_value(_surface));
         // Prevent invalid/zero size (common during minimize)
         if (width == 0 || height == 0)
         {
@@ -109,17 +85,10 @@ namespace carrot::rhi::vulkan {
 
         // Re-create the swapchain (pass the old one for efficient handover)
         create_or_recreate(old_swapchain, width, height);
-
-        LOG_GRAPHICS_INFO("Swapchain resized to {}x{} in {} ms", width, height, current_time_ms() - resize_start_ms);
     }
 
     void vulkan_swapchain_t::recreate()
     {
-        const uint64_t recreate_start_ms{ current_time_ms() };
-        LOG_GRAPHICS_INFO("Swapchain recreate requested for current extent {}x{} surface={}",
-                          _extent.width,
-                          _extent.height,
-                          handle_log_value(_surface));
         // Query current surface capabilities (compositor tells us the truth)
         VkSurfaceCapabilitiesKHR caps{ };
         VK_CHECK_FATAL(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
@@ -135,7 +104,6 @@ namespace carrot::rhi::vulkan {
         {
             width = caps.currentExtent.width;
             height = caps.currentExtent.height;
-            LOG_GRAPHICS_INFO("Using compositor-provided extent for recreation: {}x{}", width, height);
         }
         else
         {
@@ -154,7 +122,6 @@ namespace carrot::rhi::vulkan {
 
         // Now just call the existing resize() with the discovered size
         resize(width, height);
-        LOG_GRAPHICS_INFO("Swapchain recreate finished in {} ms", current_time_ms() - recreate_start_ms);
     }
 
     framebuffer_array_t vulkan_swapchain_t::create_framebuffers(VkRenderPass render_pass) const
@@ -181,7 +148,6 @@ namespace carrot::rhi::vulkan {
             ));
         }
 
-        LOG_GRAPHICS_INFO("Created {} framebuffers for swapchain", framebuffers.size());
         return framebuffers;
     }
 
@@ -210,7 +176,6 @@ namespace carrot::rhi::vulkan {
 
     void vulkan_swapchain_t::create_or_recreate(VkSwapchainKHR old_swapchain, uint32_t width, uint32_t height)
     {
-        const uint64_t create_start_ms{ current_time_ms() };
         VkDevice device = _device->vk_device();
         VkPhysicalDevice phys = _device->physical_device();
         const VkSurfaceFormatKHR surface_format{ choose_surface_format(phys, _surface) };
@@ -252,15 +217,7 @@ namespace carrot::rhi::vulkan {
         info.oldSwapchain = old_swapchain;
 
         VkSwapchainKHR new_swapchain;
-        LOG_GRAPHICS_INFO("Calling vkCreateSwapchainKHR: requested={}x{} actual={}x{} old_swapchain={} surface={}",
-                          width,
-                          height,
-                          extent.width,
-                          extent.height,
-                          handle_log_value(old_swapchain),
-                          handle_log_value(_surface));
         VK_CHECK_FATAL(vkCreateSwapchainKHR(device, &info, nullptr, &new_swapchain));
-        LOG_GRAPHICS_INFO("vkCreateSwapchainKHR completed in {} ms", current_time_ms() - create_start_ms);
 
         // Clean up old first if recreating
         if (old_swapchain != VK_NULL_HANDLE)

@@ -86,7 +86,8 @@ namespace carrot::rhi::vulkan {
             framebuffer_array_t framebuffers;
             uint32_t current_image_index{ 0 };
             std::array<VkSemaphore, k_max_frames_in_flight> image_acquire{ };
-            std::array<VkSemaphore, k_max_frames_in_flight> render_finished{ };
+            std::vector<VkSemaphore> render_finished;
+            std::vector<VkSemaphore> retired_render_finished;
             uint32_t last_width{ 0 };
             uint32_t last_height{ 0 };
             bool swapchain_dirty{ false };
@@ -102,6 +103,7 @@ namespace carrot::rhi::vulkan {
         void init(const rhi_desc_t& desc);
         void recreate_swapchain_dependent_resources();
         void recreate_render_finished_semaphores();
+        void collect_retired_present_semaphores() noexcept;
         bool create_surface_for_window(window::window_id_t window_id, VkSurfaceKHR& out_surface) const;
         bool create_auxiliary_surface(window::window_id_t window_id, uint32_t presentation_channel_mask);
         void destroy_auxiliary_surface(auxiliary_surface_t& surface) noexcept;
@@ -150,6 +152,7 @@ namespace carrot::rhi::vulkan {
         // ── Per-frame GPU resources ──
         std::array<frame_resources_t, k_max_frames_in_flight>   _frames;
         std::vector<VkSemaphore>                                _render_finished_semaphores;
+        std::vector<VkSemaphore>                                _retired_render_finished_semaphores;
 
         // ── Textured quad GPU state ──
         textured_quad_state_t                                                                   _textured_quad;

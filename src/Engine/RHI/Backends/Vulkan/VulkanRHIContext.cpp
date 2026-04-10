@@ -22,15 +22,32 @@
 
 namespace carrot::rhi::vulkan {
     namespace {
-        [[nodiscard]] uint64_t current_time_ms() noexcept
+        void destroy_semaphores(const VkDevice device, std::vector<VkSemaphore>& semaphores) noexcept
         {
-            return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now().time_since_epoch()).count());
+            for (VkSemaphore& semaphore : semaphores)
+            {
+                if (semaphore != VK_NULL_HANDLE)
+                {
+                    vkDestroySemaphore(device, semaphore, nullptr);
+                    semaphore = VK_NULL_HANDLE;
+                }
+            }
+
+            semaphores.clear();
         }
 
-        [[nodiscard]] uint64_t elapsed_ms(const uint64_t start_ms) noexcept
+        void create_semaphore_vector(const VkDevice device,
+                                     const uint32_t count,
+                                     std::vector<VkSemaphore>& out_semaphores)
         {
-            return current_time_ms() - start_ms;
+            VkSemaphoreCreateInfo sem_info{ };
+            sem_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+            out_semaphores.clear();
+            out_semaphores.resize(count, VK_NULL_HANDLE);
+
+            for (uint32_t i{ 0 }; i < count; ++i)
+                VK_CHECK_FATAL(vkCreateSemaphore(device, &sem_info, nullptr, &out_semaphores[i]));
         }
 
         [[nodiscard]] VkBufferUsageFlags to_vk_buffer_usage(const buffer_usage_t usage) noexcept
@@ -133,12 +150,8 @@ namespace carrot::rhi::vulkan {
 
         if (_swapchain)
         {
-            for (uint32_t i{ 0 }; i < _swapchain->get_image_count(); ++i)
-            {
-                if (_render_finished_semaphores[i])
-                    vkDestroySemaphore(device, _render_finished_semaphores[i], nullptr);
-            }
-
+            destroy_semaphores(device, _render_finished_semaphores);
+            destroy_semaphores(device, _retired_render_finished_semaphores);
             _swapchain.reset();
         }
 
@@ -186,8 +199,6 @@ namespace carrot::rhi::vulkan {
 
         if (!window::is_ready_for_present(_presentation_window_id))
         {
-            LOG_GRAPHICS_INFO("Skipping frame because presentation window {} is waiting for Wayland frame callback",
-                              static_cast<unsigned long long>(_presentation_window_id));
             _skip_frame = true;
             return;
         }
@@ -196,9 +207,6 @@ namespace carrot::rhi::vulkan {
 
         if (_swapchain_dirty)
         {
-            LOG_GRAPHICS_INFO("Recreating main swapchain resources at begin_frame with pending size {}x{}",
-                              _pending_resize_width,
-                              _pending_resize_height);
             recreate_swapchain_dependent_resources();
             _swapchain_dirty = false;
             _skip_frame = true;
@@ -208,23 +216,16 @@ namespace carrot::rhi::vulkan {
         const frame_resources_t& frame{ _frames[_current_frame] };
 
         // Wait for the previous use of this frame to finish
-        const uint64_t wait_start_ms{ current_time_ms() };
         VK_CHECK_FATAL(vkWaitForFences(_device->vk_device(), 1, &frame.in_flight, VK_TRUE, UINT64_MAX));
-        LOG_GRAPHICS_INFO("vkWaitForFences(begin_frame frame={}) completed in {} ms",
-                          _current_frame,
-                          elapsed_ms(wait_start_ms));
 
         // Hot-reload check: safe here because previous frames are done
         if (_pending_pipeline_reload)
         {
-            LOG_GRAPHICS_INFO("Safe reload point reached — destroying old pipeline");
             _textured_quad_pipeline.reset();
-            LOG_GRAPHICS_INFO("Old pipeline destroyed");
 
             _textured_quad_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
                 _device.get(), _render_pass->vk_render_pass(), _shader_files);
             _pending_pipeline_reload = false;
-            LOG_GRAPHICS_INFO("Pipeline hot-reloaded (safe point)");
         }
 
         // Acquire next swapchain image
@@ -410,7 +411,7 @@ namespace carrot::rhi::vulkan {
         {
             wait_semaphores.push_back(aux_surface->image_acquire[_current_frame]);
             wait_stages.push_back(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
-            signal_semaphores.push_back(aux_surface->render_finished[_current_frame]);
+            signal_semaphores.push_back(aux_surface->render_finished[aux_surface->current_image_index]);
         }
 
         VkSubmitInfo submit_info{ };
@@ -439,10 +440,6 @@ namespace carrot::rhi::vulkan {
 
         const VkResult present_result{ vkQueuePresentKHR(_device->graphics_queue(), &present_info) };
         bool skip_auxiliary_present_for_main_resize{ false };
-        LOG_GRAPHICS_INFO("Main vkQueuePresentKHR returned {} for image {} on frame {}",
-                          static_cast<int>(present_result),
-                          _current_image_index,
-                          _current_frame);
 
         if (present_result == VK_ERROR_OUT_OF_DATE_KHR || present_result == VK_SUBOPTIMAL_KHR)
         {
@@ -467,7 +464,7 @@ namespace carrot::rhi::vulkan {
             window::prepare_for_present(aux_surface->id);
             VkSwapchainKHR aux_swapchain{ aux_surface->swapchain->vk_swapchain() };
             const uint32_t aux_image_index{ aux_surface->current_image_index };
-            const VkSemaphore aux_wait{ aux_surface->render_finished[_current_frame] };
+            const VkSemaphore aux_wait{ aux_surface->render_finished[aux_image_index] };
 
             VkPresentInfoKHR aux_present_info{ };
             aux_present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -478,11 +475,6 @@ namespace carrot::rhi::vulkan {
             aux_present_info.pImageIndices = &aux_image_index;
 
             const VkResult aux_present_result{ vkQueuePresentKHR(_device->graphics_queue(), &aux_present_info) };
-            LOG_GRAPHICS_INFO("Aux vkQueuePresentKHR returned {} for window {} image {} on frame {}",
-                              static_cast<int>(aux_present_result),
-                              static_cast<unsigned long long>(aux_surface->id),
-                              aux_image_index,
-                              _current_frame);
             if (aux_present_result == VK_ERROR_OUT_OF_DATE_KHR || aux_present_result == VK_SUBOPTIMAL_KHR)
             {
                 aux_surface->swapchain_dirty = true;
@@ -520,8 +512,6 @@ namespace carrot::rhi::vulkan {
 
     void vulkan_rhi_context_t::resize(const uint32_t width, const uint32_t height)
     {
-        LOG_GRAPHICS_INFO("Main presentation resize requested to {}x{}", width, height);
-
         if (width == 0 || height == 0)
         {
             _pending_resize_width = 0;
@@ -938,7 +928,10 @@ namespace carrot::rhi::vulkan {
     void vulkan_rhi_context_t::wait_idle()
     {
         if (_device)
+        {
             VK_CHECK_FATAL(vkDeviceWaitIdle(_device->vk_device()));
+            collect_retired_present_semaphores();
+        }
     }
 
     bool vulkan_rhi_context_t::create_surface_for_window(const window::window_id_t window_id, VkSurfaceKHR& out_surface) const
@@ -1004,8 +997,9 @@ namespace carrot::rhi::vulkan {
             VkSemaphoreCreateInfo sem_info{ };
             sem_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
             VK_CHECK_FATAL(vkCreateSemaphore(_device->vk_device(), &sem_info, nullptr, &surface.image_acquire[i]));
-            VK_CHECK_FATAL(vkCreateSemaphore(_device->vk_device(), &sem_info, nullptr, &surface.render_finished[i]));
         }
+
+        create_semaphore_vector(_device->vk_device(), surface.swapchain->get_image_count(), surface.render_finished);
 
         _auxiliary_surfaces.push_back(std::move(surface));
         return true;
@@ -1027,14 +1021,8 @@ namespace carrot::rhi::vulkan {
             }
         }
 
-        for (VkSemaphore& sem : surface.render_finished)
-        {
-            if (sem)
-            {
-                vkDestroySemaphore(device, sem, nullptr);
-                sem = VK_NULL_HANDLE;
-            }
-        }
+        destroy_semaphores(device, surface.render_finished);
+        destroy_semaphores(device, surface.retired_render_finished);
 
         surface.framebuffers = framebuffer_array_t{ device };
         surface.swapchain.reset();
@@ -1090,11 +1078,20 @@ namespace carrot::rhi::vulkan {
 
             if (width > 0 && height > 0 && (size_changed || it->swapchain_dirty))
             {
+                if (!it->render_finished.empty())
+                {
+                    std::move(it->render_finished.begin(),
+                              it->render_finished.end(),
+                              std::back_inserter(it->retired_render_finished));
+                    it->render_finished.clear();
+                }
+
                 if (size_changed)
                     it->swapchain->resize(width, height);
                 else
                     it->swapchain->recreate();
 
+                create_semaphore_vector(_device->vk_device(), it->swapchain->get_image_count(), it->render_finished);
                 it->framebuffers = it->swapchain->create_framebuffers(_render_pass->vk_render_pass());
                 it->last_width = width;
                 it->last_height = height;
@@ -1466,15 +1463,7 @@ namespace carrot::rhi::vulkan {
         // ── 6. Create Swapchain ───────────────────────────────────────────────────
         _swapchain = std::make_unique<vulkan_swapchain_t>(_device.get(), _vk_surface, desc.width, desc.height);
 
-        uint32_t image_count{ _swapchain->get_image_count() };
-        _render_finished_semaphores.resize(image_count);
-
-        for (uint32_t i{ 0 }; i < image_count; ++i)
-        {
-            VK_CHECK_FATAL(
-                vkCreateSemaphore(_device->vk_device(), &sem_info, nullptr, &_render_finished_semaphores[i])
-            );
-        }
+        create_semaphore_vector(_device->vk_device(), _swapchain->get_image_count(), _render_finished_semaphores);
 
         // ── 7. Create Render Pass ─────────────────────────────────────────────────
         _render_pass = std::make_unique<vulkan_render_pass_t>(_device.get(), _swapchain->format());
@@ -1519,16 +1508,9 @@ namespace carrot::rhi::vulkan {
         _frame_active = false;
         _render_pass_active = false;
         _skip_frame = true;
-        const uint64_t recreate_start_ms{ current_time_ms() };
-        LOG_GRAPHICS_INFO("Begin main swapchain recreation: pending={}x{} current={}x{}",
-                          _pending_resize_width,
-                          _pending_resize_height,
-                          _swapchain ? _swapchain->get_width() : 0,
-                          _swapchain ? _swapchain->get_height() : 0);
 
         if (window::should_close(_presentation_window_id))
         {
-            LOG_GRAPHICS_INFO("Skipping swapchain recreation because the presentation window is closing");
             return;
         }
 
@@ -1536,14 +1518,11 @@ namespace carrot::rhi::vulkan {
         for (uint32_t i{ 0 }; i < k_max_frames_in_flight; ++i)
             in_flight_fences[i] = _frames[i].in_flight;
 
-        const uint64_t fences_start_ms{ current_time_ms() };
         VK_CHECK_FATAL(vkWaitForFences(_device->vk_device(),
                                        static_cast<uint32_t>(in_flight_fences.size()),
                                        in_flight_fences.data(),
                                        VK_TRUE,
                                        UINT64_MAX));
-        LOG_GRAPHICS_INFO("vkWaitForFences(recreate_swapchain_dependent_resources) completed in {} ms",
-                          elapsed_ms(fences_start_ms));
 
         _framebuffers = framebuffer_array_t{ _device->vk_device() };
 
@@ -1555,34 +1534,31 @@ namespace carrot::rhi::vulkan {
         recreate_render_finished_semaphores();
 
         _framebuffers = _swapchain->create_framebuffers(_render_pass->vk_render_pass());
-
-        LOG_GRAPHICS_INFO("Swapchain & framebuffers recreated after resize in {} ms (new size {}x{})",
-                          elapsed_ms(recreate_start_ms),
-                          _swapchain ? _swapchain->get_width() : 0,
-                          _swapchain ? _swapchain->get_height() : 0);
     }
 
     void vulkan_rhi_context_t::recreate_render_finished_semaphores()
     {
-        for (const VkSemaphore& sem: _render_finished_semaphores)
+        if (!_render_finished_semaphores.empty())
         {
-            if (sem)
-                vkDestroySemaphore(_device->vk_device(), sem, nullptr);
+            std::move(_render_finished_semaphores.begin(),
+                      _render_finished_semaphores.end(),
+                      std::back_inserter(_retired_render_finished_semaphores));
+            _render_finished_semaphores.clear();
         }
-        _render_finished_semaphores.clear();
 
-        VkSemaphoreCreateInfo sem_info{ };
-        sem_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        create_semaphore_vector(_device->vk_device(), _swapchain->get_image_count(), _render_finished_semaphores);
+    }
 
-        const uint32_t image_count{ _swapchain->get_image_count() };
-        _render_finished_semaphores.resize(image_count);
+    void vulkan_rhi_context_t::collect_retired_present_semaphores() noexcept
+    {
+        if (!_device)
+            return;
 
-        for (uint32_t i{ 0 }; i < image_count; ++i)
-        {
-            VK_CHECK_FATAL(
-                vkCreateSemaphore(_device->vk_device(), &sem_info, nullptr, &_render_finished_semaphores[i])
-            );
-        }
+        const VkDevice device{ _device->vk_device() };
+        destroy_semaphores(device, _retired_render_finished_semaphores);
+
+        for (auxiliary_surface_t& surface : _auxiliary_surfaces)
+            destroy_semaphores(device, surface.retired_render_finished);
     }
 
     uint32_t vulkan_rhi_context_t::find_memory_type(const uint32_t type_filter,

@@ -228,6 +228,19 @@ namespace carrot::window {
         return main_window ? main_window->is_resizing() : false;
     }
 
+    bool is_ready_for_present() noexcept
+    {
+        core::platform::window_t* main_window{ get_window(g_state.main_window_id) };
+        return main_window ? main_window->is_ready_for_present() : false;
+    }
+
+    void prepare_for_present() noexcept
+    {
+        core::platform::window_t* main_window{ get_window(g_state.main_window_id) };
+        if (main_window)
+            main_window->prepare_for_present();
+    }
+
     bool is_minimized(const window_id_t id) noexcept
     {
         core::platform::window_t* window{ get_window(id) };
@@ -238,6 +251,19 @@ namespace carrot::window {
     {
         core::platform::window_t* window{ get_window(id) };
         return window ? window->is_resizing() : false;
+    }
+
+    bool is_ready_for_present(const window_id_t id) noexcept
+    {
+        core::platform::window_t* window{ get_window(id) };
+        return window ? window->is_ready_for_present() : false;
+    }
+
+    void prepare_for_present(const window_id_t id) noexcept
+    {
+        core::platform::window_t* window{ get_window(id) };
+        if (window)
+            window->prepare_for_present();
     }
 
     core::platform::native_window_handle_t get_native_handle() noexcept

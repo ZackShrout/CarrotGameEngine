@@ -15,6 +15,7 @@
 struct xdg_wm_base;
 struct xdg_surface;
 struct xdg_toplevel;
+struct wl_callback;
 struct libdecor;
 struct libdecor_frame;
 struct zxdg_decoration_manager_v1;
@@ -47,11 +48,13 @@ namespace carrot::core::platform {
         void maximize() noexcept override;
         void restore() noexcept override;
         void request_focus() noexcept override;
+        void prepare_for_present() noexcept override;
 
         [[nodiscard]] bool is_maximized() const noexcept override { return _is_maximized; }
         [[nodiscard]] bool is_minimized() const noexcept override { return _is_minimized; }
         [[nodiscard]] bool is_focused() const noexcept override { return _is_focused; }
         [[nodiscard]] bool is_resizing() const noexcept override { return _is_resizing; }
+        [[nodiscard]] bool is_ready_for_present() const noexcept override { return _ready_for_present; }
         [[nodiscard]] native_window_handle_t get_native_handle() const noexcept override;
 
         void set_fullscreen(bool fullscreen) noexcept override;
@@ -63,6 +66,7 @@ namespace carrot::core::platform {
         [[nodiscard]] wl_seat* get_wl_seat() const noexcept { return _seat; }
         [[nodiscard]] wl_keyboard* get_wl_keyboard() const noexcept { return _keyboard; }
         [[nodiscard]] wl_pointer* get_wl_pointer() const noexcept { return _pointer; }
+        [[nodiscard]] wl_callback* get_frame_callback() const noexcept { return _frame_callback; }
         [[nodiscard]] xkb_context* get_xkb_context() const noexcept { return _xkb_context; }
         [[nodiscard]] xkb_keymap* get_xkb_keymap() const noexcept { return _xkb_keymap; }
         [[nodiscard]] xkb_state* get_xkb_state() const noexcept { return _xkb_state; }
@@ -86,6 +90,7 @@ namespace carrot::core::platform {
         void set_seat(wl_seat* seat) noexcept { _seat = seat; }
         void set_keyboard(wl_keyboard* keyboard) noexcept { _keyboard = keyboard; }
         void set_pointer(wl_pointer* pointer) noexcept { _pointer = pointer; }
+        void set_frame_callback(wl_callback* callback) noexcept { _frame_callback = callback; }
         void set_xkb_context(xkb_context* context) noexcept { _xkb_context = context; }
         void set_xkb_keymap(xkb_keymap* keymap) noexcept { _xkb_keymap = keymap; }
         void set_xkb_state(xkb_state* state) noexcept { _xkb_state = state; }
@@ -104,6 +109,7 @@ namespace carrot::core::platform {
         void set_repeat_state_last_time(const uint32_t value) noexcept { _repeat_state._last_time_ms = value; }
         void set_repeat_state_delay(const uint32_t value) noexcept { _repeat_state._delay_ms = value; }
         void set_repeat_state_rate(const uint32_t value) noexcept { _repeat_state._rate_ms = value; }
+        void set_ready_for_present(const bool ready) noexcept { _ready_for_present = ready; }
 
         void set_decoration_manager(zxdg_decoration_manager_v1* mgr) noexcept { _decoration_manager = mgr; }
         void set_toplevel_decoration(zxdg_toplevel_decoration_v1* deco) noexcept { _toplevel_decoration = deco; }
@@ -128,6 +134,7 @@ namespace carrot::core::platform {
         wl_seat* _seat{ nullptr };
         wl_keyboard* _keyboard{ nullptr };
         wl_pointer* _pointer{ nullptr };
+        wl_callback* _frame_callback{ nullptr };
         xkb_context* _xkb_context{ nullptr };
         xkb_keymap* _xkb_keymap{ nullptr };
         xkb_state* _xkb_state{ nullptr };
@@ -144,6 +151,7 @@ namespace carrot::core::platform {
         uint8_t _keyboard_mods{ 0 };
         key_repeat_state_t _repeat_state;
         bool _repeat_enabled{ true };
+        bool _ready_for_present{ true };
 
         zxdg_decoration_manager_v1* _decoration_manager{ nullptr };
         zxdg_toplevel_decoration_v1* _toplevel_decoration{ nullptr };

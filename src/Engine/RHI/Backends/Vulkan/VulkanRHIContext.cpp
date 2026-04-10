@@ -184,6 +184,15 @@ namespace carrot::rhi::vulkan {
         _render_pass_active = false;
         _recorded_stages.clear();
         _textured_quad_descriptor_set_cursor[_current_frame] = 0;
+
+        if (!window::is_ready_for_present(_presentation_window_id))
+        {
+            LOG_GRAPHICS_INFO("Skipping frame because presentation window {} is waiting for Wayland frame callback",
+                              static_cast<unsigned long long>(_presentation_window_id));
+            _skip_frame = true;
+            return;
+        }
+
         sync_auxiliary_surface_sizes();
 
         if (_swapchain_dirty)
@@ -352,7 +361,7 @@ namespace carrot::rhi::vulkan {
             if (!window::has_window(aux_surface.id))
                 continue;
 
-            if (window::is_resizing(aux_surface.id) || aux_surface.swapchain_dirty)
+            if (window::is_resizing(aux_surface.id) || aux_surface.swapchain_dirty || !window::is_ready_for_present(aux_surface.id))
                 continue;
 
             const VkResult acquire_result{
@@ -435,6 +444,7 @@ namespace carrot::rhi::vulkan {
         VK_CHECK_FATAL(vkQueueSubmit(_device->graphics_queue(), 1, &submit_info, frame.in_flight));
 
         // 4. Present
+        window::prepare_for_present(_presentation_window_id);
         VkSwapchainKHR current_swapchain{ _swapchain->vk_swapchain() };
 
         VkPresentInfoKHR present_info{ };
@@ -473,6 +483,7 @@ namespace carrot::rhi::vulkan {
 
         for (auxiliary_surface_t* aux_surface : acquired_aux_surfaces)
         {
+            window::prepare_for_present(aux_surface->id);
             VkSwapchainKHR aux_swapchain{ aux_surface->swapchain->vk_swapchain() };
             const uint32_t aux_image_index{ aux_surface->current_image_index };
             const VkSemaphore aux_wait{ aux_surface->render_finished[_current_frame] };

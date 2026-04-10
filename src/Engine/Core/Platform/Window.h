@@ -23,10 +23,12 @@ namespace carrot::core::platform {
         virtual void maximize() noexcept {}
         virtual void restore() noexcept {}
         virtual void request_focus() noexcept {}
+        virtual void prepare_for_present() noexcept {}
 
         [[nodiscard]] virtual bool is_maximized() const noexcept { return false; }
         [[nodiscard]] virtual bool is_focused() const noexcept { return true; }
         [[nodiscard]] virtual bool is_resizing() const noexcept { return false; }
+        [[nodiscard]] virtual bool is_ready_for_present() const noexcept { return true; }
 
         [[nodiscard]] virtual bool should_close() const noexcept { return _should_close; }
         [[nodiscard]] virtual uint32_t get_width()  const noexcept { return _width; }

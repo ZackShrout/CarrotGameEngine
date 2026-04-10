@@ -328,6 +328,28 @@ namespace carrot::core::platform {
             .axis_relative_direction = nullptr
         };
 
+        void surface_frame_done(void* data, wl_callback* callback, uint32_t time)
+        {
+            auto* win = static_cast<wayland_window_t*>(data);
+            LOG_CORE_INFO("Wayland frame callback done: window={} callback={} time={}",
+                          static_cast<const void*>(win),
+                          static_cast<const void*>(callback),
+                          time);
+
+            if (callback)
+                wl_callback_destroy(callback);
+
+            if (win)
+            {
+                win->set_frame_callback(nullptr);
+                win->set_ready_for_present(true);
+            }
+        }
+
+        constexpr wl_callback_listener surface_frame_listener{
+            .done = surface_frame_done
+        };
+
         bool is_repeatable_key(const input::key_code key)
         {
             switch (key)
@@ -828,6 +850,7 @@ namespace carrot::core::platform {
     {
         if (_keyboard) wl_keyboard_destroy(_keyboard);
         if (_pointer) wl_pointer_destroy(_pointer);
+        if (_frame_callback) wl_callback_destroy(_frame_callback);
 
         if (_xkb_state) xkb_state_unref(_xkb_state);
         if (_xkb_keymap) xkb_keymap_unref(_xkb_keymap);
@@ -1098,6 +1121,22 @@ namespace carrot::core::platform {
         // Best effort here is to commit/flush surface state and let compositor policy decide.
         wl_surface_commit(_surface);
         wl_display_flush(_display);
+    }
+
+    void wayland_window_t::prepare_for_present() noexcept
+    {
+        if (!_surface || !_display || _frame_callback != nullptr || !_ready_for_present)
+            return;
+
+        _frame_callback = wl_surface_frame(_surface);
+        if (!_frame_callback)
+            return;
+
+        wl_callback_add_listener(_frame_callback, &surface_frame_listener, this);
+        _ready_for_present = false;
+        LOG_CORE_INFO("Wayland frame callback armed: window={} callback={}",
+                      static_cast<const void*>(this),
+                      static_cast<const void*>(_frame_callback));
     }
 
     native_window_handle_t wayland_window_t::get_native_handle() const noexcept

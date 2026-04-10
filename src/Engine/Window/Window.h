@@ -46,6 +46,8 @@ namespace carrot::window {
     [[nodiscard]] uint32_t                                  get_height() noexcept;
     [[nodiscard]] bool                                      is_minimized() noexcept;
     [[nodiscard]] bool                                      is_resizing() noexcept;
+    [[nodiscard]] bool                                      is_ready_for_present() noexcept;
+    void                                                    prepare_for_present() noexcept;
     [[nodiscard]] core::platform::native_window_handle_t    get_native_handle() noexcept;
     [[nodiscard]] bool                                      should_close(window_id_t id) noexcept;
     void                                                    set_should_close(window_id_t id, bool should_close) noexcept;
@@ -53,6 +55,8 @@ namespace carrot::window {
     [[nodiscard]] uint32_t                                  get_height(window_id_t id) noexcept;
     [[nodiscard]] bool                                      is_minimized(window_id_t id) noexcept;
     [[nodiscard]] bool                                      is_resizing(window_id_t id) noexcept;
+    [[nodiscard]] bool                                      is_ready_for_present(window_id_t id) noexcept;
+    void                                                    prepare_for_present(window_id_t id) noexcept;
     [[nodiscard]] core::platform::native_window_handle_t    get_native_handle(window_id_t id) noexcept;
 
     [[nodiscard]] bool                                      is_fullscreen() noexcept;

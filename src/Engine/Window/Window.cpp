@@ -12,6 +12,8 @@
 
 #ifdef CARROT_PLATFORM_WIN32
 #include "Core/Platform/Win32/Win32Window.h"
+#elif defined(CARROT_PLATFORM_X11)
+#include "Core/Platform/X11/X11Window.h"
 #elif defined(CARROT_PLATFORM_WAYLAND)
 #include "Core/Platform/Wayland/WaylandWindow.h"
 #elif defined(CARROT_PLATFORM_COCOA)
@@ -36,6 +38,8 @@ namespace carrot::window {
         {
 #ifdef CARROT_PLATFORM_WIN32
             return std::make_unique<core::platform::win32_window_t>(width, height, title.data());
+#elif defined(CARROT_PLATFORM_X11)
+            return std::make_unique<core::platform::x11_window_t>(width, height, title.data());
 #elif defined(CARROT_PLATFORM_WAYLAND)
             return std::make_unique<core::platform::wayland_window_t>(width, height, title.data());
 #elif defined(CARROT_PLATFORM_COCOA)
@@ -152,6 +156,8 @@ namespace carrot::window {
         const std::vector<window_id_t> window_ids{ g_state.window_order };
 #ifdef CARROT_PLATFORM_WAYLAND
         core::platform::wayland_window_t::begin_poll_cycle();
+#elif defined(CARROT_PLATFORM_X11)
+        core::platform::x11_window_t::begin_poll_cycle();
 #endif
         for (const window_id_t id : window_ids)
         {

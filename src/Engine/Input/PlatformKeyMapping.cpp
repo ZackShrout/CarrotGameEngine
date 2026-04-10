@@ -95,6 +95,116 @@ namespace carrot::input {
                 }
             }
 
+            case core::platform::platform_type::x11:
+            {
+                switch (platform_code)
+                {
+                    case 0x0041:
+                    case 0x0061: return key_code::a;           // XK_A / XK_a
+                    case 0x0042:
+                    case 0x0062: return key_code::b;           // XK_B / XK_b
+                    case 0x0043:
+                    case 0x0063: return key_code::c;           // XK_C / XK_c
+                    case 0x0044:
+                    case 0x0064: return key_code::d;           // XK_D / XK_d
+                    case 0x0045:
+                    case 0x0065: return key_code::e;           // XK_E / XK_e
+                    case 0x0046:
+                    case 0x0066: return key_code::f;           // XK_F / XK_f
+                    case 0x0047:
+                    case 0x0067: return key_code::g;           // XK_G / XK_g
+                    case 0x0048:
+                    case 0x0068: return key_code::h;           // XK_H / XK_h
+                    case 0x0049:
+                    case 0x0069: return key_code::i;           // XK_I / XK_i
+                    case 0x004A:
+                    case 0x006A: return key_code::j;           // XK_J / XK_j
+                    case 0x004B:
+                    case 0x006B: return key_code::k;           // XK_K / XK_k
+                    case 0x004C:
+                    case 0x006C: return key_code::l;           // XK_L / XK_l
+                    case 0x004D:
+                    case 0x006D: return key_code::m;           // XK_M / XK_m
+                    case 0x004E:
+                    case 0x006E: return key_code::n;           // XK_N / XK_n
+                    case 0x004F:
+                    case 0x006F: return key_code::o;           // XK_O / XK_o
+                    case 0x0050:
+                    case 0x0070: return key_code::p;           // XK_P / XK_p
+                    case 0x0051:
+                    case 0x0071: return key_code::q;           // XK_Q / XK_q
+                    case 0x0052:
+                    case 0x0072: return key_code::r;           // XK_R / XK_r
+                    case 0x0053:
+                    case 0x0073: return key_code::s;           // XK_S / XK_s
+                    case 0x0054:
+                    case 0x0074: return key_code::t;           // XK_T / XK_t
+                    case 0x0055:
+                    case 0x0075: return key_code::u;           // XK_U / XK_u
+                    case 0x0056:
+                    case 0x0076: return key_code::v;           // XK_V / XK_v
+                    case 0x0057:
+                    case 0x0077: return key_code::w;           // XK_W / XK_w
+                    case 0x0058:
+                    case 0x0078: return key_code::x;           // XK_X / XK_x
+                    case 0x0059:
+                    case 0x0079: return key_code::y;           // XK_Y / XK_y
+                    case 0x005A:
+                    case 0x007A: return key_code::z;           // XK_Z / XK_z
+
+                    case 0x0030: return key_code::digit0;      // XK_0
+                    case 0x0031: return key_code::digit1;      // XK_1
+                    case 0x0032: return key_code::digit2;      // XK_2
+                    case 0x0033: return key_code::digit3;      // XK_3
+                    case 0x0034: return key_code::digit4;      // XK_4
+                    case 0x0035: return key_code::digit5;      // XK_5
+                    case 0x0036: return key_code::digit6;      // XK_6
+                    case 0x0037: return key_code::digit7;      // XK_7
+                    case 0x0038: return key_code::digit8;      // XK_8
+                    case 0x0039: return key_code::digit9;      // XK_9
+
+                    case 0xFFBE: return key_code::f1;          // XK_F1
+                    case 0xFFBF: return key_code::f2;          // XK_F2
+                    case 0xFFC0: return key_code::f3;          // XK_F3
+                    case 0xFFC1: return key_code::f4;          // XK_F4
+                    case 0xFFC2: return key_code::f5;          // XK_F5
+                    case 0xFFC3: return key_code::f6;          // XK_F6
+                    case 0xFFC4: return key_code::f7;          // XK_F7
+                    case 0xFFC5: return key_code::f8;          // XK_F8
+                    case 0xFFC6: return key_code::f9;          // XK_F9
+                    case 0xFFC7: return key_code::f10;         // XK_F10
+                    case 0xFFC8: return key_code::f11;         // XK_F11
+                    case 0xFFC9: return key_code::f12;         // XK_F12
+
+                    case 0xFF1B: return key_code::escape;      // XK_Escape
+                    case 0xFF0D:
+                    case 0xFF8D: return key_code::enter;       // XK_Return / XK_KP_Enter
+                    case 0xFF09: return key_code::tab;         // XK_Tab
+                    case 0xFF08: return key_code::backspace;   // XK_BackSpace
+                    case 0x0020: return key_code::space;       // XK_space
+                    case 0xFFFF: return key_code::del;         // XK_Delete
+                    case 0xFF63: return key_code::insert;      // XK_Insert
+
+                    case 0xFF51: return key_code::left;        // XK_Left
+                    case 0xFF53: return key_code::right;       // XK_Right
+                    case 0xFF52: return key_code::up;          // XK_Up
+                    case 0xFF54: return key_code::down;        // XK_Down
+
+                    case 0xFFE1: return key_code::left_shift;  // XK_Shift_L
+                    case 0xFFE2: return key_code::right_shift; // XK_Shift_R
+                    case 0xFFE3: return key_code::left_control;// XK_Control_L
+                    case 0xFFE4: return key_code::right_control;// XK_Control_R
+                    case 0xFFE9:
+                    case 0xFFE7: return key_code::left_alt;    // XK_Alt_L / XK_Meta_L
+                    case 0xFFEA:
+                    case 0xFFE8: return key_code::right_alt;   // XK_Alt_R / XK_Meta_R
+                    case 0xFFEB: return key_code::left_super;  // XK_Super_L
+                    case 0xFFEC: return key_code::right_super; // XK_Super_R
+
+                    default: return key_code::unknown;
+                }
+            }
+
             case core::platform::platform_type::win32:
             {
                 switch (platform_code)
@@ -270,6 +380,15 @@ namespace carrot::input {
                 if (platform_button == 0x110) return mouse_button::left; // BTN_LEFT
                 if (platform_button == 0x111) return mouse_button::right; // BTN_RIGHT
                 if (platform_button == 0x112) return mouse_button::middle; // BTN_MIDDLE
+                if (platform_button == 0x113) return mouse_button::button4;
+                if (platform_button == 0x114) return mouse_button::button5;
+                break;
+            case core::platform::platform_type::x11:
+                if (platform_button == 0x01) return mouse_button::left;
+                if (platform_button == 0x02) return mouse_button::middle;
+                if (platform_button == 0x03) return mouse_button::right;
+                if (platform_button == 0x08) return mouse_button::button4;
+                if (platform_button == 0x09) return mouse_button::button5;
                 break;
             case core::platform::platform_type::win32:
             case core::platform::platform_type::cocoa:

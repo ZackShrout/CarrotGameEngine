@@ -13,11 +13,19 @@ struct wl_display;
 struct wl_surface;
 #endif // #ifdef CARROT_PLATFORM_WAYLAND
 
+#ifdef CARROT_PLATFORM_X11
+struct _XDisplay;
+using Display = _XDisplay;
+using XID = unsigned long;
+using Window = XID;
+#endif // #ifdef CARROT_PLATFORM_X11
+
 namespace carrot::core::platform {
     enum class platform_type : std::uint8_t
     {
         win32,
         wayland,
+        x11,
         cocoa,
         unknown,
         // future: Xcb, Headless, ...
@@ -27,6 +35,8 @@ namespace carrot::core::platform {
     {
 #if defined(CARROT_PLATFORM_WAYLAND)
         return platform_type::wayland;
+#elif defined(CARROT_PLATFORM_X11)
+        return platform_type::x11;
 #elif defined(CARROT_PLATFORM_WIN32)
         return platform_type::win32;
 #elif defined(CARROT_PLATFORM_COCOA)
@@ -46,6 +56,12 @@ namespace carrot::core::platform {
             wl_display* display;
             wl_surface* surface;
         } wayland_t;
+#elif defined(CARROT_PLATFORM_X11)
+        struct
+        {
+            Display* display;
+            Window window;
+        } x11_t;
 #elif defined(CARROT_PLATFORM_WIN32)
         struct
         {

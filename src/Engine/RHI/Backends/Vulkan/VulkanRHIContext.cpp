@@ -22,6 +22,25 @@
 
 namespace carrot::rhi::vulkan {
     namespace {
+        [[nodiscard]] bool has_instance_layer(const char* layer_name)
+        {
+            uint32_t layer_count{ 0 };
+            if (vkEnumerateInstanceLayerProperties(&layer_count, nullptr) != VK_SUCCESS || layer_count == 0)
+                return false;
+
+            std::vector<VkLayerProperties> layers(layer_count);
+            if (vkEnumerateInstanceLayerProperties(&layer_count, layers.data()) != VK_SUCCESS)
+                return false;
+
+            return std::ranges::any_of(
+                layers,
+                [layer_name](const VkLayerProperties& layer)
+                {
+                    return std::strcmp(layer.layerName, layer_name) == 0;
+                }
+            );
+        }
+
         void destroy_semaphores(const VkDevice device, std::vector<VkSemaphore>& semaphores) noexcept
         {
             for (VkSemaphore& semaphore : semaphores)
@@ -949,6 +968,12 @@ namespace carrot::rhi::vulkan {
         surf_info.display = handle.wayland_t.display;
         surf_info.surface = handle.wayland_t.surface;
         return vkCreateWaylandSurfaceKHR(_vk_instance, &surf_info, nullptr, &out_surface) == VK_SUCCESS;
+#elif defined(CARROT_PLATFORM_X11)
+        VkXlibSurfaceCreateInfoKHR surf_info{ };
+        surf_info.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
+        surf_info.dpy = handle.x11_t.display;
+        surf_info.window = handle.x11_t.window;
+        return vkCreateXlibSurfaceKHR(_vk_instance, &surf_info, nullptr, &out_surface) == VK_SUCCESS;
 #elif defined(CARROT_PLATFORM_WIN32)
         VkWin32SurfaceCreateInfoKHR surf_info{ };
         surf_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
@@ -1048,17 +1073,17 @@ namespace carrot::rhi::vulkan {
         if (!_render_pass)
             return;
 
-        bool needs_idle_for_destroy{ false };
+        bool needs_idle_for_auxiliary_rebuild{ false };
         for (auto it = _auxiliary_surfaces.begin(); it != _auxiliary_surfaces.end();)
         {
             if (!window::has_window(it->id))
             {
-                if (!needs_idle_for_destroy)
+                if (!needs_idle_for_auxiliary_rebuild)
                 {
                     // Closed windows can disappear between frames while previous submissions still
                     // reference their sync/framebuffer objects.
                     wait_idle();
-                    needs_idle_for_destroy = true;
+                    needs_idle_for_auxiliary_rebuild = true;
                 }
                 destroy_auxiliary_surface(*it);
                 it = _auxiliary_surfaces.erase(it);
@@ -1080,6 +1105,15 @@ namespace carrot::rhi::vulkan {
 
             if (width > 0 && height > 0 && (size_changed || it->swapchain_dirty))
             {
+                if (!needs_idle_for_auxiliary_rebuild)
+                {
+                    // Auxiliary surfaces share the same submitted command buffers/fences as the main
+                    // surface, so old auxiliary framebuffers and swapchain image views may still be
+                    // referenced by in-flight GPU work when a resize arrives.
+                    wait_idle();
+                    needs_idle_for_auxiliary_rebuild = true;
+                }
+
                 if (!it->render_finished.empty())
                 {
                     std::move(it->render_finished.begin(),
@@ -1286,6 +1320,8 @@ namespace carrot::rhi::vulkan {
             VK_KHR_SURFACE_EXTENSION_NAME,
 #if defined(CARROT_PLATFORM_WAYLAND)
             VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME
+#elif defined(CARROT_PLATFORM_X11)
+            VK_KHR_XLIB_SURFACE_EXTENSION_NAME
 #elif defined(CARROT_PLATFORM_WIN32)
             VK_KHR_WIN32_SURFACE_EXTENSION_NAME
 #elif defined(CARROT_PLATFORM_COCOA)
@@ -1321,8 +1357,16 @@ namespace carrot::rhi::vulkan {
         if (desc.enable_debug_layers)
         {
             const char* validation_layer{ "VK_LAYER_KHRONOS_validation" };
-            inst_info.enabledLayerCount = 1;
-            inst_info.ppEnabledLayerNames = &validation_layer;
+            if (has_instance_layer(validation_layer))
+            {
+                inst_info.enabledLayerCount = 1;
+                inst_info.ppEnabledLayerNames = &validation_layer;
+            }
+            else
+            {
+                LOG_GRAPHICS_WARN("Requested Vulkan validation layers, but '{}' is not installed. Continuing without validation layers.",
+                                  validation_layer);
+            }
         }
 #endif
 
@@ -1335,6 +1379,12 @@ namespace carrot::rhi::vulkan {
         surf_info.display = handle.wayland_t.display;
         surf_info.surface = handle.wayland_t.surface;
         VK_CHECK_FATAL(vkCreateWaylandSurfaceKHR(_vk_instance, &surf_info, nullptr, &_vk_surface));
+#elif defined(CARROT_PLATFORM_X11)
+        VkXlibSurfaceCreateInfoKHR surf_info{ };
+        surf_info.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
+        surf_info.dpy = handle.x11_t.display;
+        surf_info.window = handle.x11_t.window;
+        VK_CHECK_FATAL(vkCreateXlibSurfaceKHR(_vk_instance, &surf_info, nullptr, &_vk_surface));
 #elif defined(CARROT_PLATFORM_WIN32)
         VkWin32SurfaceCreateInfoKHR surf_info{ };
         surf_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;

@@ -484,21 +484,23 @@ elseif (UNIX)
             pkg_check_modules(WL_CLIENT QUIET wayland-client)
             pkg_check_modules(WL_EGL QUIET wayland-egl)
             pkg_check_modules(XKB QUIET xkbcommon)
+            pkg_check_modules(X11_PKG QUIET x11)
 
             if (WL_CLIENT_FOUND AND WL_EGL_FOUND AND XKB_FOUND)
                 set(_backend Wayland)
                 message(STATUS "Auto: Wayland selected (dev packages detected)")
+            elseif (X11_PKG_FOUND)
+                set(_backend X11)
+                message(STATUS "Auto: X11 selected (dev packages detected)")
             else ()
                 message(FATAL_ERROR
                         "Linux auto-detection found no supported windowing backend. "
-                        "Wayland development packages are missing, and X11 support is not implemented yet. "
-                        "Install wayland-client, wayland-egl, and xkbcommon development packages, "
-                        "or retry once X11 backend support lands.")
+                        "Install Wayland development packages (wayland-client, wayland-egl, xkbcommon) "
+                        "or X11 development packages (x11).")
             endif ()
         else ()
             message(FATAL_ERROR
-                    "pkg-config is required to detect the supported Linux windowing backend. "
-                    "Wayland support is the only implemented Linux backend today, and X11 support is not implemented yet.")
+                    "pkg-config is required to detect the supported Linux windowing backend.")
         endif ()
     else ()
         set(_backend ${CARROT_LINUX_WINDOWING})
@@ -509,9 +511,8 @@ elseif (UNIX)
         set(CARROT_PLATFORM_WAYLAND ON CACHE INTERNAL "")
         add_compile_definitions(CARROT_PLATFORM_WAYLAND=1)
     elseif (_backend STREQUAL "X11")
-        message(FATAL_ERROR
-                "CARROT_LINUX_WINDOWING=X11 is not supported yet. "
-                "Please use Wayland for now; X11 backend work is still pending.")
+        set(CARROT_PLATFORM_X11 ON CACHE INTERNAL "")
+        add_compile_definitions(CARROT_PLATFORM_X11=1)
     else ()
         message(FATAL_ERROR "Internal error: unexpected backend ${_backend}")
     endif ()
@@ -531,7 +532,8 @@ elseif (UNIX)
 
     if (CARROT_PLATFORM_X11)
         list(APPEND CARROT_ENGINE_SOURCES
-                # ... X11 windowing .cpp / .h files here ...
+                src/Engine/Core/Platform/X11/X11Window.cpp
+                src/Engine/Core/Platform/X11/X11Window.h
         )
     endif ()
 
@@ -724,6 +726,10 @@ elseif(UNIX)
     pkg_check_modules(LIBEVDEV REQUIRED IMPORTED_TARGET libevdev)
     pkg_check_modules(LIBDECOR QUIET IMPORTED_TARGET libdecor-0)
 
+    if (CARROT_PLATFORM_X11)
+        find_package(X11 REQUIRED)
+    endif ()
+
     # Apply libc++ only to C++ compilation and linking
     target_compile_options(CarrotEngine PUBLIC
             $<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>
@@ -740,7 +746,11 @@ elseif(UNIX)
             $<$<LINK_LANGUAGE:CXX>:-stdlib=libc++>
     )
 
-    target_compile_definitions(CarrotEngine PUBLIC VK_USE_PLATFORM_WAYLAND_KHR)
+    if (CARROT_PLATFORM_WAYLAND)
+        target_compile_definitions(CarrotEngine PUBLIC VK_USE_PLATFORM_WAYLAND_KHR)
+    elseif (CARROT_PLATFORM_X11)
+        target_compile_definitions(CarrotEngine PUBLIC VK_USE_PLATFORM_XLIB_KHR)
+    endif ()
 
     if (LIBDECOR_FOUND)
         target_compile_definitions(CarrotEngine PUBLIC CARROT_HAS_LIBDECOR=1)
@@ -752,13 +762,20 @@ elseif(UNIX)
             PkgConfig::PULSEAUDIO
             PkgConfig::LIBUDEV
             PkgConfig::LIBEVDEV
-            wayland-client
-            wayland-cursor
-            wayland-egl
-            xkbcommon
             dl
             pthread
     )
+
+    if (CARROT_PLATFORM_WAYLAND)
+        target_link_libraries(CarrotEngine PRIVATE
+                wayland-client
+                wayland-cursor
+                wayland-egl
+                xkbcommon
+        )
+    elseif (CARROT_PLATFORM_X11)
+        target_link_libraries(CarrotEngine PRIVATE X11::X11)
+    endif ()
 
     if (LIBDECOR_FOUND)
         target_link_libraries(CarrotEngine PRIVATE PkgConfig::LIBDECOR)

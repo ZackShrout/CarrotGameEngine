@@ -137,11 +137,11 @@ Carrot uses **native windowing backends** rather than a third-party abstraction 
 Current / planned platform windowing support:
 
 * **Win32** on Windows
-* **Wayland** on Linux (current supported backend)
+* **Wayland** on Linux
 * **Cocoa** on macOS
-* **X11** on Linux (planned fallback / additional backend, not implemented yet)
+* **X11** on Linux
 
-Wayland is currently the supported Linux path. X11 is still considered an important long-term compatibility target, but it should not currently be assumed available until that backend is implemented.
+Linux now supports both Wayland and X11 native windowing backends. Wayland remains the preferred/default Linux path when available, while X11 serves as the compatibility fallback backend.
 
 ### Graphics Backend Strategy
 

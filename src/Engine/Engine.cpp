@@ -323,7 +323,7 @@ namespace carrot {
         const renderer::resolved_camera_2d_t resolved_camera{ _renderer->resolve_camera_2d() };
         const input::controller_debug_snapshot_t controller_snapshot{ _controller_manager.debug_snapshot() };
 
-        debug::text(16.f, 16.f, "Carrot Debug Text V1");
+        debug::text(16.f, 16.f, "Carrot Debug Text V2");
         debug::text(16.f, 44.f, "Backend: %s", rhi::graphics_api_to_string(_renderer->get_graphics_api()).data());
         debug::text(16.f, 72.f, "Camera: %s", renderer::camera_2d_sizing_mode_to_string(active_camera.sizing_mode));
         debug::text(16.f, 100.f, "Viewport: %u,%u %ux%u",

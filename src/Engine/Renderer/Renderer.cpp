@@ -198,6 +198,13 @@ namespace carrot::renderer {
             stage_state.indices_cpu.clear();
             stage_state.batches.clear();
         }
+        for (textured_quad_state_t& stage_state : _stage_text_quads)
+        {
+            stage_state.submissions.clear();
+            stage_state.vertices_cpu.clear();
+            stage_state.indices_cpu.clear();
+            stage_state.batches.clear();
+        }
 
         _stats = { };
         _fullscreen_overlay_enabled = false;
@@ -250,6 +257,26 @@ namespace carrot::renderer {
     void renderer_t::draw_log_console_textured_quad(const textured_quad_draw_info_t& quad)
     {
         submit_textured_quad(frame_stage_kind_t::log_console, quad);
+    }
+
+    void renderer_t::draw_text_quad(const textured_quad_draw_info_t& quad)
+    {
+        submit_text_quad(frame_stage_kind_t::world, quad);
+    }
+
+    void renderer_t::draw_overlay_text_quad(const textured_quad_draw_info_t& quad)
+    {
+        submit_text_quad(frame_stage_kind_t::overlay_debug, quad);
+    }
+
+    void renderer_t::draw_ui_text_quad(const textured_quad_draw_info_t& quad)
+    {
+        submit_text_quad(frame_stage_kind_t::ui, quad);
+    }
+
+    void renderer_t::draw_log_console_text_quad(const textured_quad_draw_info_t& quad)
+    {
+        submit_text_quad(frame_stage_kind_t::log_console, quad);
     }
 
     void renderer_t::draw_solid_quad(const solid_quad_draw_info_t& quad)
@@ -326,6 +353,23 @@ namespace carrot::renderer {
             .color = quad.color,
             .sampler_preset = quad.sampler_preset
         });
+    }
+
+    void renderer_t::submit_text_quad(const frame_stage_kind_t stage, const textured_quad_draw_info_t& quad)
+    {
+        if (quad.texture == nullptr)
+        {
+            LOG_GRAPHICS_WARN("draw_text_quad called with null texture");
+            return;
+        }
+
+        textured_quad_state_t& stage_state{ _stage_text_quads[frame_stage_index(stage)] };
+        stage_state.submissions.push_back({
+            .quad = quad,
+            .submission_index = static_cast<uint64_t>(stage_state.submissions.size())
+        });
+
+        _stats.textured_quad_count++;
     }
 
     void renderer_t::draw_sprite(const sprite_draw_info_t& info)
@@ -983,7 +1027,9 @@ namespace carrot::renderer {
                 .y = quad.y,
                 .u = quad.u0,
                 .v = quad.v0,
-                .color = quad.color
+                .color = quad.color,
+                .effect_mode = quad.effect_mode,
+                .effect_param0 = quad.effect_param0
             });
 
             state.vertices_cpu.push_back(quad_vertex_t{
@@ -991,7 +1037,9 @@ namespace carrot::renderer {
                 .y = quad.y,
                 .u = quad.u1,
                 .v = quad.v0,
-                .color = quad.color
+                .color = quad.color,
+                .effect_mode = quad.effect_mode,
+                .effect_param0 = quad.effect_param0
             });
 
             state.vertices_cpu.push_back(quad_vertex_t{
@@ -999,7 +1047,9 @@ namespace carrot::renderer {
                 .y = quad.y + quad.height,
                 .u = quad.u1,
                 .v = quad.v1,
-                .color = quad.color
+                .color = quad.color,
+                .effect_mode = quad.effect_mode,
+                .effect_param0 = quad.effect_param0
             });
 
             state.vertices_cpu.push_back(quad_vertex_t{
@@ -1007,7 +1057,9 @@ namespace carrot::renderer {
                 .y = quad.y + quad.height,
                 .u = quad.u0,
                 .v = quad.v1,
-                .color = quad.color
+                .color = quad.color,
+                .effect_mode = quad.effect_mode,
+                .effect_param0 = quad.effect_param0
             });
 
             state.indices_cpu.push_back(base_vertex + 0);
@@ -1023,36 +1075,48 @@ namespace carrot::renderer {
 
     void renderer_t::execute_frame_stage(const frame_stage_plan_t& stage_plan)
     {
-        textured_quad_state_t& stage_state{ _stage_textured_quads[frame_stage_index(stage_plan.kind)] };
-        build_textured_quad_batches(stage_state);
-
-        if (stage_state.batches.empty())
-            return;
-
-        ensure_textured_quad_frame_buffers(stage_state);
-        upload_textured_quad_frame_data(stage_state);
-
-        const auto& frame_buffers{ current_frame_buffers(stage_state) };
-        if (!frame_buffers.vertex_buffer || !frame_buffers.index_buffer)
-            return;
-
         const stage_execution_context_t stage_context{ resolve_stage_execution_context(stage_plan) };
-        _rhi->record_textured_quad_stage({
-            .stage_slot = static_cast<uint32_t>(stage_plan.kind),
-            .vertex_buffer = frame_buffers.vertex_buffer.get(),
-            .index_buffer = frame_buffers.index_buffer.get(),
-            .batches = stage_state.batches,
-            .view_projection = stage_context.view_projection,
-            .viewport = stage_context.viewport,
-            .presentation_mask = stage_plan.kind == frame_stage_kind_t::log_console
-                                     ? rhi::presentation_channel_log_console
-                                     : rhi::presentation_channel_gameplay
-        });
+        const uint32_t presentation_mask{ stage_plan.kind == frame_stage_kind_t::log_console
+                                              ? rhi::presentation_channel_log_console
+                                              : rhi::presentation_channel_gameplay };
 
-        _stats.vertex_count += static_cast<uint32_t>(stage_state.vertices_cpu.size());
-        _stats.index_count += static_cast<uint32_t>(stage_state.indices_cpu.size());
-        _stats.textured_quad_batch_count += static_cast<uint32_t>(stage_state.batches.size());
-        _stats.draw_calls += static_cast<uint32_t>(stage_state.batches.size());
+        auto record_stage = [&](textured_quad_state_t& stage_state, const bool is_text)
+        {
+            build_textured_quad_batches(stage_state);
+
+            if (stage_state.batches.empty())
+                return;
+
+            ensure_textured_quad_frame_buffers(stage_state);
+            upload_textured_quad_frame_data(stage_state);
+
+            const auto& frame_buffers{ current_frame_buffers(stage_state) };
+            if (!frame_buffers.vertex_buffer || !frame_buffers.index_buffer)
+                return;
+
+            const rhi::textured_quad_stage_record_t record{
+                .stage_slot = static_cast<uint32_t>(stage_plan.kind),
+                .vertex_buffer = frame_buffers.vertex_buffer.get(),
+                .index_buffer = frame_buffers.index_buffer.get(),
+                .batches = stage_state.batches,
+                .view_projection = stage_context.view_projection,
+                .viewport = stage_context.viewport,
+                .presentation_mask = presentation_mask
+            };
+
+            if (is_text)
+                _rhi->record_text_quad_stage(record);
+            else
+                _rhi->record_textured_quad_stage(record);
+
+            _stats.vertex_count += static_cast<uint32_t>(stage_state.vertices_cpu.size());
+            _stats.index_count += static_cast<uint32_t>(stage_state.indices_cpu.size());
+            _stats.textured_quad_batch_count += static_cast<uint32_t>(stage_state.batches.size());
+            _stats.draw_calls += static_cast<uint32_t>(stage_state.batches.size());
+        };
+
+        record_stage(_stage_textured_quads[frame_stage_index(stage_plan.kind)], false);
+        record_stage(_stage_text_quads[frame_stage_index(stage_plan.kind)], true);
     }
 
     void renderer_t::execute_frame_stages()
@@ -1086,7 +1150,7 @@ namespace carrot::renderer {
 
     void renderer_t::release_frame_resources()
     {
-        for (textured_quad_state_t& stage_state : _stage_textured_quads)
+        auto release_stage_buffers = [](textured_quad_state_t& stage_state)
         {
             stage_state.submissions.clear();
             stage_state.vertices_cpu.clear();
@@ -1099,7 +1163,13 @@ namespace carrot::renderer {
                 frame_buffers.vertex_capacity = 0;
                 frame_buffers.index_capacity = 0;
             }
-        }
+        };
+
+        for (textured_quad_state_t& stage_state : _stage_textured_quads)
+            release_stage_buffers(stage_state);
+
+        for (textured_quad_state_t& stage_state : _stage_text_quads)
+            release_stage_buffers(stage_state);
 
         _stats = { };
     }

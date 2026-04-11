@@ -16,6 +16,7 @@ namespace carrot::assets {
     struct discovered_asset_manifests_t
     {
         std::vector<std::string> audio;
+        std::vector<std::string> fonts;
         std::vector<std::string> textures;
         std::vector<std::string> sprites;
         std::vector<std::string> tilemaps;
@@ -23,7 +24,7 @@ namespace carrot::assets {
 
         [[nodiscard]] size_t total_count() const noexcept
         {
-            return audio.size() + textures.size() + sprites.size() + tilemaps.size() + scenes.size();
+            return audio.size() + fonts.size() + textures.size() + sprites.size() + tilemaps.size() + scenes.size();
         }
     };
 

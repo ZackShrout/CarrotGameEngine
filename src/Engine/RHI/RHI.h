@@ -91,6 +91,7 @@ namespace carrot::rhi {
 
         virtual void begin_frame() = 0;
         virtual void record_textured_quad_stage(const textured_quad_stage_record_t& stage) = 0;
+        virtual void record_text_quad_stage(const textured_quad_stage_record_t& stage) = 0;
         virtual void end_frame() = 0;
 
         virtual void release_asset_references() = 0;

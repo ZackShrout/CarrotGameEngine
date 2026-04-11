@@ -8,6 +8,7 @@
 #include "Assets/AssetDiscovery.h"
 #include "Assets/AssetManager.h"
 #include "Assets/Audio/AudioAssetManifestImporter.h"
+#include "Assets/Font/FontAssetManifestImporter.h"
 #include "Assets/Scene/SceneAssetManifestImporter.h"
 #include "Assets/Sprite/SpriteAssetManifestImporter.h"
 #include "Assets/Texture/TextureAssetManifestImporter.h"
@@ -102,6 +103,7 @@ namespace carrot::tests {
         public:
             void begin_frame() override {}
             void record_textured_quad_stage([[maybe_unused]] const rhi::textured_quad_stage_record_t& stage) override {}
+            void record_text_quad_stage([[maybe_unused]] const rhi::textured_quad_stage_record_t& stage) override {}
             void end_frame() override {}
             void release_asset_references() override {}
             void resize([[maybe_unused]] uint32_t width, [[maybe_unused]] uint32_t height) override {}
@@ -196,6 +198,12 @@ namespace carrot::tests {
             {
                 utils::json::json_document_t doc{ parse_json(vfs, manifest) };
                 CARROT_TEST_REQUIRE(assets::audio_asset_manifest_importer_t::import(doc, assets.audio().registry(), vfs));
+            }
+
+            for (const std::string& manifest : manifests.fonts)
+            {
+                utils::json::json_document_t doc{ parse_json(vfs, manifest) };
+                CARROT_TEST_REQUIRE(assets::font_asset_manifest_importer_t::import(doc, assets.fonts().registry(), vfs, manifest));
             }
 
             for (const std::string& manifest : manifests.textures)

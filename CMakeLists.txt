@@ -256,6 +256,21 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/Audio/AudioAssetRegistry.h
         src/Engine/Assets/Audio/AudioAssetSystem.cpp
         src/Engine/Assets/Audio/AudioAssetSystem.h
+        src/Engine/Assets/Font/FontAsset.h
+        src/Engine/Assets/Font/CookedFont.cpp
+        src/Engine/Assets/Font/CookedFont.h
+        src/Engine/Assets/Font/FontAssetLoader.cpp
+        src/Engine/Assets/Font/FontAssetLoader.h
+        src/Engine/Assets/Font/MSDFAtlasWrapper.cpp
+        src/Engine/Assets/Font/MSDFAtlasWrapper.h
+        src/Engine/Assets/Font/FontAssetManifestImporter.cpp
+        src/Engine/Assets/Font/FontAssetManifestImporter.h
+        src/Engine/Assets/Font/FontAssetRegistry.cpp
+        src/Engine/Assets/Font/FontAssetRegistry.h
+        src/Engine/Assets/Font/FontAssetSystem.cpp
+        src/Engine/Assets/Font/FontAssetSystem.h
+        src/Engine/Assets/Font/TextLayout.cpp
+        src/Engine/Assets/Font/TextLayout.h
         src/Engine/Assets/Image/ImageAsset.h
         src/Engine/Assets/Image/ImageAssetImporter.cpp
         src/Engine/Assets/Image/ImageAssetImporter.h
@@ -556,6 +571,26 @@ endif()
 # ------------------------------------------------------------------------
 add_subdirectory(deps/CarrotPNG)
 
+set(MSDF_ATLAS_BUILD_STANDALONE OFF CACHE BOOL "" FORCE)
+set(MSDF_ATLAS_USE_VCPKG OFF CACHE BOOL "" FORCE)
+set(MSDF_ATLAS_USE_SKIA OFF CACHE BOOL "" FORCE)
+set(MSDF_ATLAS_NO_ARTERY_FONT ON CACHE BOOL "" FORCE)
+set(MSDFGEN_BUILD_STANDALONE OFF CACHE BOOL "" FORCE)
+set(MSDFGEN_USE_VCPKG OFF CACHE BOOL "" FORCE)
+set(MSDFGEN_USE_SKIA OFF CACHE BOOL "" FORCE)
+set(MSDFGEN_DISABLE_SVG ON CACHE BOOL "" FORCE)
+set(MSDFGEN_DISABLE_PNG ON CACHE BOOL "" FORCE)
+add_subdirectory(deps/msdf-atlas-gen)
+
+# msdf-atlas-gen and msdfgen publish their own include directories through
+# linked target interfaces. Mark those dependency targets as system so their
+# transitive headers are emitted as -isystem/-external:I for consumers.
+set_property(TARGET msdf-atlas-gen PROPERTY SYSTEM ON)
+set_property(TARGET msdfgen-core PROPERTY SYSTEM ON)
+if(TARGET msdfgen-ext)
+    set_property(TARGET msdfgen-ext PROPERTY SYSTEM ON)
+endif()
+
 # ------------------------------------------------------------------------
 # Engine Static Library
 # ------------------------------------------------------------------------
@@ -573,6 +608,7 @@ target_include_directories(CarrotEngine PRIVATE
 
 target_link_libraries(CarrotEngine PRIVATE
         CarrotPNG
+        msdf-atlas-gen::msdf-atlas-gen
 )
 
 # ------------------------------------------------------------------------
@@ -602,7 +638,6 @@ target_include_directories(CarrotEngine PUBLIC
 target_include_directories(CarrotEngine SYSTEM PUBLIC
         deps
         deps/CarrotHLM/include
-        deps/stb
         deps/spdlog/include
         deps/tracy/public
         ${Vulkan_INCLUDE_DIRS}
@@ -809,6 +844,7 @@ set(CARROT_TEST_SOURCES
         tests/ActionMapTests.cpp
         tests/ControllerTests.cpp
         tests/CollisionWorldTests.cpp
+        tests/FontAssetTests.cpp
         tests/SceneLoadingTests.cpp
         tests/UITests.cpp
         tests/UILayoutTests.cpp

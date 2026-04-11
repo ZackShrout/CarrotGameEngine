@@ -6,10 +6,12 @@
 #pragma once
 
 #include <cstdio>
+#include <span>
 #include <filesystem>
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #if !defined(_WIN32)
@@ -106,6 +108,20 @@ namespace carrot::utils::file {
     [[nodiscard]] std::optional<std::vector<std::uint8_t>> load_binary_file(const std::filesystem::path& path) noexcept;
 
     /**
+     * @brief Writes a complete binary blob to disk.
+     *
+     * Creates parent directories when needed, opens the file in binary truncation mode,
+     * and writes the provided bytes exactly as given.
+     *
+     * @param path Destination filesystem path.
+     * @param data Byte span to write.
+     *
+     * @return `true` on success, otherwise `false`.
+     */
+    [[nodiscard]] bool write_binary_file(const std::filesystem::path& path,
+                                         std::span<const std::uint8_t> data) noexcept;
+
+    /**
      * @brief Reads the entire contents of a file into a std::string.
      *
      * Loads the file using `load_binary_file()` and converts the resulting byte
@@ -126,6 +142,222 @@ namespace carrot::utils::file {
      * @see load_binary_file()
      */
     [[nodiscard]] std::optional<std::string> load_file_to_string(const std::filesystem::path& path) noexcept;
+
+    /**
+     * @brief Incrementally builds a contiguous binary blob in memory.
+     *
+     * Provides a small utility for writing serialized binary data into an owned
+     * `std::vector<std::uint8_t>`. The writer supports appending raw bytes,
+     * zero-padding, alignment, little-endian primitive emission, and in-place
+     * patching of previously written fields.
+     *
+     * This is intended for cooked asset formats and other engine-side binary
+     * serialization code where deterministic layout matters and random-access
+     * patching of offsets or sizes is useful.
+     *
+     * @note Integer values are written in little-endian byte order regardless of
+     *       host platform endianness.
+     * @note The return value of each write method is the byte offset where that
+     *       value or block begins within the blob.
+     * @note This type only accumulates bytes in memory; it does not write to disk
+     *       directly. Use `write_binary_file()` to persist the final blob.
+     */
+    class binary_blob_writer_t
+    {
+    public:
+        /**
+         * @brief Returns the current size of the blob in bytes.
+         *
+         * @return Number of bytes currently stored.
+         */
+        [[nodiscard]] size_t size() const noexcept { return _data.size(); }
+
+        /**
+         * @brief Returns whether the blob currently contains no bytes.
+         *
+         * @return `true` when `size() == 0`, otherwise `false`.
+         */
+        [[nodiscard]] bool empty() const noexcept { return _data.empty(); }
+
+        /**
+         * @brief Returns a read-only view of the accumulated binary data.
+         *
+         * @return A span over the current blob contents.
+         *
+         * @note The returned span is invalidated by any subsequent operation that
+         *       resizes or reallocates the underlying storage.
+         */
+        [[nodiscard]] std::span<const std::uint8_t> data() const noexcept { return _data; }
+
+        /**
+         * @brief Clears all accumulated bytes while retaining allocated capacity.
+         */
+        void clear() noexcept { _data.clear(); }
+
+        /**
+         * @brief Reserves storage for at least the requested number of bytes.
+         *
+         * @param byte_count Minimum total capacity to reserve.
+         *
+         * @note This can reduce reallocations when the final blob size is known or
+         *       can be estimated up front.
+         */
+        void reserve(const size_t byte_count) { _data.reserve(byte_count); }
+
+        /**
+         * @brief Appends a raw sequence of bytes to the blob.
+         *
+         * @param bytes Byte span to append.
+         *
+         * @return The starting byte offset of the appended block.
+         */
+        [[nodiscard]] size_t write_bytes(std::span<const std::uint8_t> bytes);
+
+        /**
+         * @brief Appends a run of zero-valued bytes to the blob.
+         *
+         * @param byte_count Number of zero bytes to append.
+         *
+         * @return The starting byte offset of the zero-filled block.
+         */
+        [[nodiscard]] size_t write_zeroes(size_t byte_count);
+
+        /**
+         * @brief Pads the blob to the next boundary of the requested alignment.
+         *
+         * Appends `fill` bytes until `size()` is evenly divisible by `alignment`.
+         * If the blob is already aligned, no bytes are added.
+         *
+         * @param alignment Required byte alignment. Values less than or equal to
+         *                  `1` result in no padding.
+         * @param fill Byte value used for padding.
+         *
+         * @return The byte offset where padding began, or the current size if no
+         *         padding was required.
+         */
+        [[nodiscard]] size_t align(size_t alignment, std::uint8_t fill = 0u);
+
+        /**
+         * @brief Writes an unsigned 8-bit integer.
+         *
+         * @param value Value to append.
+         *
+         * @return The starting byte offset of the written value.
+         */
+        [[nodiscard]] size_t write_u8(std::uint8_t value);
+
+        /**
+         * @brief Writes an unsigned 16-bit integer in little-endian order.
+         *
+         * @param value Value to append.
+         *
+         * @return The starting byte offset of the written value.
+         */
+        [[nodiscard]] size_t write_u16(std::uint16_t value);
+
+        /**
+         * @brief Writes an unsigned 32-bit integer in little-endian order.
+         *
+         * @param value Value to append.
+         *
+         * @return The starting byte offset of the written value.
+         */
+        [[nodiscard]] size_t write_u32(std::uint32_t value);
+
+        /**
+         * @brief Writes an unsigned 64-bit integer in little-endian order.
+         *
+         * @param value Value to append.
+         *
+         * @return The starting byte offset of the written value.
+         */
+        [[nodiscard]] size_t write_u64(std::uint64_t value);
+
+        /**
+         * @brief Writes a 32-bit floating-point value using its raw IEEE-754 bits.
+         *
+         * @param value Value to append.
+         *
+         * @return The starting byte offset of the written value.
+         */
+        [[nodiscard]] size_t write_f32(float value);
+
+        /**
+         * @brief Overwrites an existing 32-bit unsigned integer in-place.
+         *
+         * @param offset Byte offset at which the value begins.
+         * @param value Replacement value to write in little-endian order.
+         *
+         * @return `true` on success, or `false` if the offset would extend past the
+         *         end of the blob.
+         */
+        [[nodiscard]] bool patch_u32(size_t offset, std::uint32_t value) noexcept;
+
+        /**
+         * @brief Overwrites an existing 64-bit unsigned integer in-place.
+         *
+         * @param offset Byte offset at which the value begins.
+         * @param value Replacement value to write in little-endian order.
+         *
+         * @return `true` on success, or `false` if the offset would extend past the
+         *         end of the blob.
+         */
+        [[nodiscard]] bool patch_u64(size_t offset, std::uint64_t value) noexcept;
+
+        /**
+         * @brief Overwrites an existing 32-bit floating-point value in-place.
+         *
+         * @param offset Byte offset at which the value begins.
+         * @param value Replacement value to write using its raw IEEE-754 bits.
+         *
+         * @return `true` on success, or `false` if the offset would extend past the
+         *         end of the blob.
+         */
+        [[nodiscard]] bool patch_f32(size_t offset, float value) noexcept;
+
+        /**
+         * @brief Moves the owned byte vector out of the writer.
+         *
+         * @return The accumulated blob as a `std::vector<std::uint8_t>`.
+         *
+         * @note This method is rvalue-qualified to make transfer of ownership
+         *       explicit at the call site.
+         */
+        [[nodiscard]] std::vector<std::uint8_t> take() && noexcept { return std::move(_data); }
+
+    private:
+        template<typename UInt>
+        [[nodiscard]] size_t write_unsigned_le(UInt value)
+        {
+            static_assert(std::is_unsigned_v<UInt>, "write_unsigned_le requires an unsigned integer type");
+
+            constexpr size_t byte_count{ sizeof(UInt) };
+            const size_t offset{ _data.size() };
+            _data.resize(offset + byte_count);
+
+            for (size_t i{ 0 }; i < byte_count; ++i)
+                _data[offset + i] = static_cast<std::uint8_t>((value >> (i * 8u)) & static_cast<UInt>(0xFFu));
+
+            return offset;
+        }
+
+        template<typename UInt>
+        [[nodiscard]] bool patch_unsigned_le(const size_t offset, UInt value) noexcept
+        {
+            static_assert(std::is_unsigned_v<UInt>, "patch_unsigned_le requires an unsigned integer type");
+
+            constexpr size_t byte_count{ sizeof(UInt) };
+            if (offset + byte_count > _data.size())
+                return false;
+
+            for (size_t i{ 0 }; i < byte_count; ++i)
+                _data[offset + i] = static_cast<std::uint8_t>((value >> (i * 8u)) & static_cast<UInt>(0xFFu));
+
+            return true;
+        }
+
+        std::vector<std::uint8_t> _data;
+    };
 
     /**
      * @brief Converts a filesystem path into a UTF-8 string suitable for logging.

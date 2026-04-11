@@ -2,7 +2,7 @@
 
 **BunnySoft**
 **Working architecture notes**
-**Last Updated: April 9, 2026**
+**Last Updated: April 10, 2026**
 
 ---
 
@@ -106,40 +106,38 @@ Carrot should periodically audit which current assumptions are acceptable sandbo
 * whether future games want a broader shared controller base beyond the current default movement and interaction helpers
 * render-pipeline refactoring so world, debug, UI, and future composite work no longer compete inside a one-pass frame model
 
-### 2.6 Current Post-Milestone-04 Priority Stack
+### 2.6 Current Priority Stack
 
-After Milestone 04, the engine no longer has collision-less authored worlds as a major structural ceiling.
+Several older priority items have now moved from "next" into "implemented first-pass foundation":
 
-The current proposed engine-growth order is:
+* 2D layering and visibility-zone behavior
+* controller/device support and action-map-based gameplay input
+* in-game UI foundation and navigation
+* richer Tiled authored-data support
+* engine extraction of recurring gameplay-side movement/interaction patterns
+* multi-window runtime ownership
 
-1. 2D layering and depth-sort behavior
-2. gamepad input support
-3. in-game UI foundation and API
-4. richer Tiled feature coverage
-5. continued engine extraction of recurring gameplay-side boilerplate
+The current proposed engine-growth order is now:
 
-This ordering reflects two ideas:
+1. docs and architectural alignment
+2. runtime UI usability led by stronger text rendering
+3. imported/cooked asset artifact pipeline
+4. user-facing input rebinding and broader gameplay input routing growth
+5. scene/runtime polish and broader gameplay-facing runtime APIs
 
-* some missing features are direct architectural ceilings
-* others are important, but depend on those ceilings being lifted first
+This ordering reflects the current state of the codebase:
 
-Notable later work that should stay visible but is not the current top priority:
+* the engine already has enough foundations that docs drift now matters
+* runtime UI quality is currently gated more by text/presentation than by missing navigation/layout basics
+* imported/cooked artifacts now solve a real startup/load-time problem rather than a hypothetical one
 
-* richer Tiled feature support such as animated tiles
+Notable later work that should stay visible but is not the immediate top priority:
+
 * screen-transition presentation effects
-* broader optional gameplay modules
+* richer optional gameplay modules
 * lighting and shadows
 * hybrid 2D/3D rendering growth
 * animated 3D model workflows
-
-The Tiled pipeline has since become a more explicit authored-data contract than this early priority note reflects.
-
-Current direction is not just "support more Tiled fields," but:
-
-* treat Tiled as a first-class 2D world authoring tool for Carrot
-* keep a small engine-owned typed object set for common semantics
-* preserve unknown typed objects cleanly for game-side extension
-* prefer explicit object types, layer class usage, and documented properties over name-based heuristics
 
 ### 2.6.1 Current Physics / Collision Direction
 
@@ -211,6 +209,10 @@ After the first Milestone 03 render-pipeline refactor pass, Carrot’s frame sta
   * diagnostics and engine debug overlays
   * uses resolved viewport-local pixel space so it stays inside letterboxed world presentation when applicable
   * renders after `ui` and `composite` so debug information remains visible above all game content
+* `log_console`
+  * runtime log-console presentation surface
+  * uses render-target pixel space
+  * remains separate from gameplay/UI composition work
 
 Current stage order:
 
@@ -218,6 +220,7 @@ Current stage order:
 2. `ui`
 3. `composite`
 4. `overlay_debug`
+5. `log_console`
 
 This is an execution contract, not just a naming preference.
 
@@ -297,17 +300,18 @@ The platform layer is responsible for native OS-facing behavior.
 * platform-specific hooks required by rendering or audio systems
 * fullscreen, focus, resize, and related window behavior
 
-### Current / Planned Backends
+### Current Backends
 
 * **Win32**
-* **Wayland** (current Linux backend)
+* **Wayland**
+* **X11**
 * **Cocoa**
-* **X11** (planned, not implemented yet)
 
 ### Notes
 
-* Wayland is currently the supported Linux target
-* X11 is intended to be brought up as an additional/fallback Linux backend later, but should not currently be assumed available
+* Linux now supports both Wayland and X11 native windowing backends
+* Wayland remains the preferred Linux backend when available
+* X11 exists as an important compatibility backend rather than a future placeholder
 * platform code should stay localized rather than spreading platform conditionals throughout higher-level engine code
 
 The platform layer should expose stable engine-facing interfaces wherever practical, while still allowing native behavior to be handled correctly per OS.

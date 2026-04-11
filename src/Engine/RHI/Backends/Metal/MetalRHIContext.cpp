@@ -108,11 +108,29 @@ namespace carrot::rhi::metal {
         _swapchain = std::make_unique<metal_swapchain_t>(mtl_device, _metal_layer, desc.width, desc.height);
 
         _textured_quad_pipeline = std::make_unique<metal_textured_quad_pipeline_t>(
-            *_device, *desc.shader_files, MTL::PixelFormatBGRA8Unorm_sRGB);
+            *_device,
+            *desc.shader_files,
+            MTL::PixelFormatBGRA8Unorm_sRGB,
+            "engine://shaders/metal/textured_quad.vert.metallib",
+            "engine://shaders/metal/textured_quad.frag.metallib",
+            "textured quad");
+
+        _text_quad_pipeline = std::make_unique<metal_textured_quad_pipeline_t>(
+            *_device,
+            *desc.shader_files,
+            MTL::PixelFormatBGRA8Unorm_sRGB,
+            "engine://shaders/metal/text_quad.vert.metallib",
+            "engine://shaders/metal/text_quad.frag.metallib",
+            "text quad");
 
         if (!_textured_quad_pipeline || !_textured_quad_pipeline->is_valid())
         {
             LOG_GRAPHICS_FATAL("Failed to create Metal textured quad pipeline");
+            return;
+        }
+        if (!_text_quad_pipeline || !_text_quad_pipeline->is_valid())
+        {
+            LOG_GRAPHICS_FATAL("Failed to create Metal text quad pipeline");
             return;
         }
 
@@ -211,14 +229,35 @@ namespace carrot::rhi::metal {
         if (!is_frame_active())
             return;
 
-        _recorded_stages.push_back(stage);
+        _recorded_stages.push_back({
+            .stage = stage,
+            .pipeline_kind = quad_pipeline_kind_t::textured
+        });
 
         MTL::RenderCommandEncoder* encoder{ _render_encoder.encoder() };
         if (!encoder)
             return;
 
         if (presentation_mask_includes(stage.presentation_mask, presentation_channel_gameplay))
-            encode_textured_quad_stage(encoder, stage);
+            encode_quad_stage(encoder, stage, quad_pipeline_kind_t::textured);
+    }
+
+    void metal_rhi_context_t::record_text_quad_stage(const textured_quad_stage_record_t& stage)
+    {
+        if (!is_frame_active())
+            return;
+
+        _recorded_stages.push_back({
+            .stage = stage,
+            .pipeline_kind = quad_pipeline_kind_t::text
+        });
+
+        MTL::RenderCommandEncoder* encoder{ _render_encoder.encoder() };
+        if (!encoder)
+            return;
+
+        if (presentation_mask_includes(stage.presentation_mask, presentation_channel_gameplay))
+            encode_quad_stage(encoder, stage, quad_pipeline_kind_t::text);
     }
 
     void metal_rhi_context_t::end_frame()
@@ -237,11 +276,12 @@ namespace carrot::rhi::metal {
             auxiliary_encoder.begin(_active_command_buffer, surface.drawable, MTL::ClearColor(0.02, 0.02, 0.04, 1.0));
             if (MTL::RenderCommandEncoder* encoder{ auxiliary_encoder.encoder() })
             {
-                for (const textured_quad_stage_record_t& stage : _recorded_stages)
+                for (const recorded_stage_t& recorded_stage : _recorded_stages)
                 {
+                    const textured_quad_stage_record_t& stage{ recorded_stage.stage };
                     if (!presentation_mask_includes(stage.presentation_mask, surface.presentation_channel_mask))
                         continue;
-                    encode_textured_quad_stage(encoder, stage);
+                    encode_quad_stage(encoder, stage, recorded_stage.pipeline_kind);
                 }
             }
             auxiliary_encoder.end();
@@ -502,10 +542,15 @@ namespace carrot::rhi::metal {
             surface.drawable = nullptr;
     }
 
-    void metal_rhi_context_t::encode_textured_quad_stage(MTL::RenderCommandEncoder* encoder,
-                                                         const textured_quad_stage_record_t& stage)
+    void metal_rhi_context_t::encode_quad_stage(MTL::RenderCommandEncoder* encoder,
+                                                const textured_quad_stage_record_t& stage,
+                                                const quad_pipeline_kind_t pipeline_kind)
     {
-        if (!encoder || !_textured_quad_pipeline || !_textured_quad_pipeline->is_valid())
+        metal_textured_quad_pipeline_t* pipeline{
+            pipeline_kind == quad_pipeline_kind_t::text ? _text_quad_pipeline.get() : _textured_quad_pipeline.get()
+        };
+
+        if (!encoder || !pipeline || !pipeline->is_valid())
             return;
 
         const metal_buffer_t* vertex_buffer{ dynamic_cast<const metal_buffer_t*>(stage.vertex_buffer) };
@@ -540,7 +585,7 @@ namespace carrot::rhi::metal {
         scissor.height = viewport_rect.size.y;
         encoder->setScissorRect(scissor);
 
-        encoder->setRenderPipelineState(_textured_quad_pipeline->state());
+        encoder->setRenderPipelineState(pipeline->state());
         encoder->setVertexBuffer(vertex_buffer->mtl_buffer(), 0, 0);
 
         renderer::textured_quad_camera_uniform_t camera_uniform{ };

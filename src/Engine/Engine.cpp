@@ -10,6 +10,7 @@
 #include "Assets/AssetDiscovery.h"
 #include "Assets/AssetService.h"
 #include "Assets/Audio/AudioAssetManifestImporter.h"
+#include "Assets/Font/FontAssetManifestImporter.h"
 #include "Assets/Scene/SceneAssetManifestImporter.h"
 #include "Assets/Sprite/SpriteAssetManifestImporter.h"
 #include "Assets/Texture/TextureAssetManifestImporter.h"
@@ -875,9 +876,10 @@ namespace carrot {
         };
 
         LOG_ASSET_INFO(
-            "Discovered {} asset manifest(s): audio={}, textures={}, sprites={}, tilemaps={}, scenes={}",
+            "Discovered {} asset manifest(s): audio={}, fonts={}, textures={}, sprites={}, tilemaps={}, scenes={}",
             manifests.total_count(),
             manifests.audio.size(),
+            manifests.fonts.size(),
             manifests.textures.size(),
             manifests.sprites.size(),
             manifests.tilemaps.size(),
@@ -888,6 +890,9 @@ namespace carrot {
 
         for (const std::string& manifest: manifests.audio)
             all_registered = register_audio_asset_manifest(manifest) && all_registered;
+
+        for (const std::string& manifest: manifests.fonts)
+            all_registered = register_font_asset_manifest(manifest) && all_registered;
 
         for (const std::string& manifest: manifests.textures)
             all_registered = register_texture_asset_manifest(manifest) && all_registered;
@@ -918,6 +923,28 @@ namespace carrot {
         }
 
         return assets::audio_asset_manifest_importer_t::import(doc, _asset_manager->audio().registry(), _vfs);
+    }
+
+    bool engine_t::register_font_asset_manifest(std::string_view manifest_uri)
+    {
+        const std::optional<std::filesystem::path> native_path{
+            _asset_manager->vfs().resolve_native_path(manifest_uri)
+        };
+
+        if (!native_path)
+        {
+            LOG_ASSET_ERROR("Failed to resolve font asset manifest '{}'", manifest_uri);
+            return false;
+        }
+
+        utils::json::json_document_t doc;
+        if (!doc.parse_from_file(native_path->string().c_str()))
+        {
+            LOG_ASSET_ERROR("Failed to parse font asset manifest '{}'", manifest_uri);
+            return false;
+        }
+
+        return assets::font_asset_manifest_importer_t::import(doc, _asset_manager->fonts().registry(), _vfs, manifest_uri);
     }
 
     bool engine_t::register_texture_asset_manifest(std::string_view manifest_uri)

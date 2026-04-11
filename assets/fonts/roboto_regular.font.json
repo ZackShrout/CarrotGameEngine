@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "id": "font.engine.roboto_regular",
+  "source": "engine://fonts/Roboto-Regular.ttf",
+  "charset": {
+    "preset": "BasicLatin"
+  },
+  "msdf": {
+    "atlas_width": 1024,
+    "atlas_height": 1024,
+    "pixel_range": 8,
+    "include_kerning": true
+  },
+  "defaults": {
+    "line_height_scale": 1.0
+  }
+}

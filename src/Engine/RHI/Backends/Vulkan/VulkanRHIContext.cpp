@@ -164,6 +164,7 @@ namespace carrot::rhi::vulkan {
 
         _sampler_cache.clear();
         _textured_quad_pipeline.reset();
+        _text_quad_pipeline.reset();
         _render_pass.reset();
         destroy_all_auxiliary_surfaces();
 
@@ -241,9 +242,22 @@ namespace carrot::rhi::vulkan {
         if (_pending_pipeline_reload)
         {
             _textured_quad_pipeline.reset();
+            _text_quad_pipeline.reset();
 
             _textured_quad_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
-                _device.get(), _render_pass->vk_render_pass(), _shader_files);
+                _device.get(),
+                _render_pass->vk_render_pass(),
+                _shader_files,
+                "engine://shaders/vulkan/textured_quad.vert.spv",
+                "engine://shaders/vulkan/textured_quad.frag.spv",
+                "textured quad");
+            _text_quad_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
+                _device.get(),
+                _render_pass->vk_render_pass(),
+                _shader_files,
+                "engine://shaders/vulkan/text_quad.vert.spv",
+                "engine://shaders/vulkan/text_quad.frag.spv",
+                "text quad");
             _pending_pipeline_reload = false;
         }
 
@@ -313,7 +327,7 @@ namespace carrot::rhi::vulkan {
             return;
 
         uint32_t batch_count{ 0 };
-        const uint32_t descriptor_set_offset{ prepare_textured_quad_stage_descriptors(stage, batch_count) };
+        const uint32_t descriptor_set_offset{ prepare_quad_stage_descriptors(stage, batch_count) };
         if (batch_count == 0)
             return;
 
@@ -321,14 +335,43 @@ namespace carrot::rhi::vulkan {
         recorded_stage.stage = stage;
         recorded_stage.descriptor_set_offset = descriptor_set_offset;
         recorded_stage.descriptor_set_count = batch_count;
+        recorded_stage.pipeline_kind = quad_pipeline_kind_t::textured;
         _recorded_stages.push_back(recorded_stage);
 
         if (presentation_mask_includes(stage.presentation_mask, presentation_channel_gameplay))
         {
-            encode_textured_quad_stage_to_command_buffer(_frames[_current_frame].command_buffer,
-                                                         stage,
-                                                         descriptor_set_offset,
-                                                         batch_count);
+            encode_quad_stage_to_command_buffer(_frames[_current_frame].command_buffer,
+                                                stage,
+                                                descriptor_set_offset,
+                                                batch_count,
+                                                quad_pipeline_kind_t::textured);
+        }
+    }
+
+    void vulkan_rhi_context_t::record_text_quad_stage(const textured_quad_stage_record_t& stage)
+    {
+        if (_skip_frame || !_frame_active)
+            return;
+
+        uint32_t batch_count{ 0 };
+        const uint32_t descriptor_set_offset{ prepare_quad_stage_descriptors(stage, batch_count) };
+        if (batch_count == 0)
+            return;
+
+        recorded_stage_t recorded_stage{ };
+        recorded_stage.stage = stage;
+        recorded_stage.descriptor_set_offset = descriptor_set_offset;
+        recorded_stage.descriptor_set_count = batch_count;
+        recorded_stage.pipeline_kind = quad_pipeline_kind_t::text;
+        _recorded_stages.push_back(recorded_stage);
+
+        if (presentation_mask_includes(stage.presentation_mask, presentation_channel_gameplay))
+        {
+            encode_quad_stage_to_command_buffer(_frames[_current_frame].command_buffer,
+                                                stage,
+                                                descriptor_set_offset,
+                                                batch_count,
+                                                quad_pipeline_kind_t::text);
         }
     }
 
@@ -408,10 +451,11 @@ namespace carrot::rhi::vulkan {
                 if (!presentation_mask_includes(recorded_stage.stage.presentation_mask,
                                                 aux_surface.presentation_channel_mask))
                     continue;
-                encode_textured_quad_stage_to_command_buffer(frame.command_buffer,
-                                                             recorded_stage.stage,
-                                                             recorded_stage.descriptor_set_offset,
-                                                             recorded_stage.descriptor_set_count);
+                encode_quad_stage_to_command_buffer(frame.command_buffer,
+                                                    recorded_stage.stage,
+                                                    recorded_stage.descriptor_set_offset,
+                                                    recorded_stage.descriptor_set_count,
+                                                    recorded_stage.pipeline_kind);
             }
             vkCmdEndRenderPass(frame.command_buffer);
 
@@ -1138,8 +1182,8 @@ namespace carrot::rhi::vulkan {
         }
     }
 
-    uint32_t vulkan_rhi_context_t::prepare_textured_quad_stage_descriptors(const textured_quad_stage_record_t& stage,
-                                                                           uint32_t& out_batch_count)
+    uint32_t vulkan_rhi_context_t::prepare_quad_stage_descriptors(const textured_quad_stage_record_t& stage,
+                                                                  uint32_t& out_batch_count)
     {
         out_batch_count = 0;
 
@@ -1207,14 +1251,19 @@ namespace carrot::rhi::vulkan {
         return descriptor_set_offset;
     }
 
-    void vulkan_rhi_context_t::encode_textured_quad_stage_to_command_buffer(const VkCommandBuffer command_buffer,
-                                                                            const textured_quad_stage_record_t& stage,
-                                                                            const uint32_t descriptor_set_offset,
-                                                                            const uint32_t batch_count)
+    void vulkan_rhi_context_t::encode_quad_stage_to_command_buffer(const VkCommandBuffer command_buffer,
+                                                                   const textured_quad_stage_record_t& stage,
+                                                                   const uint32_t descriptor_set_offset,
+                                                                   const uint32_t batch_count,
+                                                                   const quad_pipeline_kind_t pipeline_kind)
     {
-        if (_textured_quad_pipeline == nullptr)
+        vulkan_textured_quad_pipeline_t* pipeline{
+            pipeline_kind == quad_pipeline_kind_t::text ? _text_quad_pipeline.get() : _textured_quad_pipeline.get()
+        };
+
+        if (pipeline == nullptr)
         {
-            LOG_GRAPHICS_FATAL("Textured quad pipeline not initialized");
+            LOG_GRAPHICS_FATAL("Quad pipeline not initialized");
             return;
         }
 
@@ -1273,7 +1322,7 @@ namespace carrot::rhi::vulkan {
         vkCmdBindPipeline(
             command_buffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
-            _textured_quad_pipeline->vk_pipeline()
+            pipeline->vk_pipeline()
         );
 
         const VkBuffer vertex_buffers[]{ vertex_buffer->vk_buffer() };
@@ -1285,7 +1334,7 @@ namespace carrot::rhi::vulkan {
         VkDescriptorSet camera_descriptor_set{ _textured_quad.camera_descriptor_sets[_current_frame][stage.stage_slot] };
 
         vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                _textured_quad_pipeline->vk_layout(), 0, 1, &camera_descriptor_set, 0, nullptr);
+                                pipeline->vk_layout(), 0, 1, &camera_descriptor_set, 0, nullptr);
 
         for (uint32_t batch_index{ 0 }; batch_index < batch_count; ++batch_index)
         {
@@ -1297,7 +1346,7 @@ namespace carrot::rhi::vulkan {
             VkDescriptorSet descriptor_set{ frame_descriptor_sets[descriptor_set_offset + batch_index] };
 
             vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                    _textured_quad_pipeline->vk_layout(), 1, 1, &descriptor_set, 0, nullptr);
+                                    pipeline->vk_layout(), 1, 1, &descriptor_set, 0, nullptr);
 
             vkCmdDrawIndexed(command_buffer, batch.index_count, 1, batch.first_index, 0, 0);
         }
@@ -1522,7 +1571,19 @@ namespace carrot::rhi::vulkan {
 
         // ── 8. Create Graphics Pipelines ──────────────────────────────────────────
         _textured_quad_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
-            _device.get(), _render_pass->vk_render_pass(), _shader_files);
+            _device.get(),
+            _render_pass->vk_render_pass(),
+            _shader_files,
+            "engine://shaders/vulkan/textured_quad.vert.spv",
+            "engine://shaders/vulkan/textured_quad.frag.spv",
+            "textured quad");
+        _text_quad_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
+            _device.get(),
+            _render_pass->vk_render_pass(),
+            _shader_files,
+            "engine://shaders/vulkan/text_quad.vert.spv",
+            "engine://shaders/vulkan/text_quad.frag.spv",
+            "text quad");
 
         create_descriptor_pool();
 

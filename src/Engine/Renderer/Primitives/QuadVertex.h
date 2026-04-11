@@ -15,7 +15,9 @@ namespace carrot::renderer {
         float u{ 0.f };
         float v{ 0.f };
         uint32_t color{ 0xFFFFFFFF }; // ABGR
+        float effect_mode{ 0.f };
+        float effect_param0{ 0.f };
     };
 
-    static_assert(sizeof(quad_vertex_t) == 20);
+    static_assert(sizeof(quad_vertex_t) == 28);
 } // namespace carrot::renderer

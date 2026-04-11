@@ -27,7 +27,10 @@ namespace carrot::rhi::metal {
 
     metal_textured_quad_pipeline_t::metal_textured_quad_pipeline_t(const metal_device_t& device,
                                                                    const assets::shader_file_provider_t& shader_files,
-                                                                   const MTL::PixelFormat color_format)
+                                                                   const MTL::PixelFormat color_format,
+                                                                   const std::string_view vertex_shader_path,
+                                                                   const std::string_view fragment_shader_path,
+                                                                   const std::string_view debug_name)
     {
         MTL::Device* mtl_device{ device.mtl_device() };
         if (!mtl_device)
@@ -44,10 +47,10 @@ namespace carrot::rhi::metal {
         }
 
         MTL::Library* vs_lib{
-            load_library(mtl_device, shader_files, "engine://shaders/metal/textured_quad.vert.metallib")
+            load_library(mtl_device, shader_files, vertex_shader_path)
         };
         MTL::Library* fs_lib{
-            load_library(mtl_device, shader_files, "engine://shaders/metal/textured_quad.frag.metallib")
+            load_library(mtl_device, shader_files, fragment_shader_path)
         };
 
         if (!vs_lib || !fs_lib)
@@ -104,7 +107,7 @@ namespace carrot::rhi::metal {
 
         _state = make_mtl_shared(state);
 
-        LOG_GRAPHICS_INFO("Metal textured quad pipeline created");
+        LOG_GRAPHICS_INFO("Metal {} pipeline created", debug_name);
     }
 
     // PRIVATE
@@ -136,6 +139,16 @@ namespace carrot::rhi::metal {
         col->setFormat(MTL::VertexFormatUChar4Normalized);
         col->setOffset(offsetof(renderer::quad_vertex_t, color));
         col->setBufferIndex(0);
+
+        MTL::VertexAttributeDescriptor* effect_mode{ desc->attributes()->object(14) };
+        effect_mode->setFormat(MTL::VertexFormatFloat);
+        effect_mode->setOffset(offsetof(renderer::quad_vertex_t, effect_mode));
+        effect_mode->setBufferIndex(0);
+
+        MTL::VertexAttributeDescriptor* effect_param0{ desc->attributes()->object(15) };
+        effect_param0->setFormat(MTL::VertexFormatFloat);
+        effect_param0->setOffset(offsetof(renderer::quad_vertex_t, effect_param0));
+        effect_param0->setBufferIndex(0);
 
         return desc;
     }

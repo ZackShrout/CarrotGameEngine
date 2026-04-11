@@ -2,7 +2,7 @@
 
 **BunnySoft**
 **System Design Document**
-**Last Updated: April 2026**
+**Last Updated: April 10, 2026**
 
 ---
 
@@ -152,21 +152,19 @@ They are not raw JSON, and they are not just file paths.
 
 ---
 
-### 4.4 Optional Future Cooked / Cached Artifacts
+### 4.4 Imported / Cooked / Cached Artifacts
 
-These are machine-generated, engine-native derived outputs that may become useful later.
+These are machine-generated, engine-native derived outputs that Carrot is now expected to introduce as the next major asset-pipeline expansion.
 
 Examples:
 
-* preprocessed texture caches
-* pre-resampled audio caches
-* atlas outputs
-* animation caches
-* platform-specific derived asset data
+* `.ctex`
+* `.caud`
+* `.csprite`
+* `.cmap`
+* other platform- or importer-specific derived data
 
-These are **not required today**.
-
-Carrot should only introduce cooked formats such as `.ctex`, `.caud`, or similar formats when they solve a real problem such as:
+Carrot should introduce these artifacts only when they solve a real problem such as:
 
 * startup cost
 * repeated import cost
@@ -175,6 +173,13 @@ Carrot should only introduce cooked formats such as `.ctex`, `.caud`, or similar
 * runtime simplification
 
 Carrot should not introduce cooked formats merely to feel “engine-like.”
+
+Important rule:
+
+* authored JSON remains the source of truth
+* imported/cooked artifacts remain machine-generated derived outputs
+* runtime systems should prefer valid imported artifacts when available
+* stale or missing imported artifacts should be regenerated automatically
 
 ---
 

@@ -95,6 +95,7 @@ namespace carrot {
 
         bool discover_and_register_assets();
         bool register_audio_asset_manifest(std::string_view manifest_uri);
+        bool register_font_asset_manifest(std::string_view manifest_uri);
         bool register_texture_asset_manifest(std::string_view manifest_uri);
         bool register_sprite_asset_manifest(std::string_view manifest_uri);
         bool register_tilemap_asset_manifest(std::string_view manifest_uri);

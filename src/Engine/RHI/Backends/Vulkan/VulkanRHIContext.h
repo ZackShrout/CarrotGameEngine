@@ -52,6 +52,7 @@ namespace carrot::rhi::vulkan {
 
         void begin_frame() override;
         void record_textured_quad_stage(const textured_quad_stage_record_t& stage) override;
+        void record_text_quad_stage(const textured_quad_stage_record_t& stage) override;
         void end_frame() override;
 
         void release_asset_references() override;
@@ -77,6 +78,12 @@ namespace carrot::rhi::vulkan {
         void wait_idle() override;
 
     private:
+        enum class quad_pipeline_kind_t : uint8_t
+        {
+            textured = 0,
+            text
+        };
+
         struct auxiliary_surface_t
         {
             window::window_id_t id{ window::invalid_window_id };
@@ -98,6 +105,7 @@ namespace carrot::rhi::vulkan {
             textured_quad_stage_record_t stage;
             uint32_t descriptor_set_offset{ 0 };
             uint32_t descriptor_set_count{ 0 };
+            quad_pipeline_kind_t pipeline_kind{ quad_pipeline_kind_t::textured };
         };
 
         void init(const rhi_desc_t& desc);
@@ -109,11 +117,12 @@ namespace carrot::rhi::vulkan {
         void destroy_auxiliary_surface(auxiliary_surface_t& surface) noexcept;
         void destroy_all_auxiliary_surfaces() noexcept;
         void sync_auxiliary_surface_sizes();
-        uint32_t prepare_textured_quad_stage_descriptors(const textured_quad_stage_record_t& stage, uint32_t& out_batch_count);
-        void encode_textured_quad_stage_to_command_buffer(VkCommandBuffer command_buffer,
-                                                          const textured_quad_stage_record_t& stage,
-                                                          uint32_t descriptor_set_offset,
-                                                          uint32_t batch_count);
+        uint32_t prepare_quad_stage_descriptors(const textured_quad_stage_record_t& stage, uint32_t& out_batch_count);
+        void encode_quad_stage_to_command_buffer(VkCommandBuffer command_buffer,
+                                                 const textured_quad_stage_record_t& stage,
+                                                 uint32_t descriptor_set_offset,
+                                                 uint32_t batch_count,
+                                                 quad_pipeline_kind_t pipeline_kind);
         [[nodiscard]] uint32_t find_memory_type(uint32_t type_filter, VkMemoryPropertyFlags properties) const;
         [[nodiscard]] VkCommandBuffer begin_single_time_commands() const;
         void end_single_time_commands(VkCommandBuffer cmd) const;
@@ -147,6 +156,7 @@ namespace carrot::rhi::vulkan {
         std::unique_ptr<vulkan_command_queue_t>             _graphics_queue;
         std::unique_ptr<vulkan_render_pass_t>               _render_pass;
         std::unique_ptr<vulkan_textured_quad_pipeline_t>    _textured_quad_pipeline;
+        std::unique_ptr<vulkan_textured_quad_pipeline_t>    _text_quad_pipeline;
         framebuffer_array_t                                 _framebuffers;
 
         // ── Per-frame GPU resources ──

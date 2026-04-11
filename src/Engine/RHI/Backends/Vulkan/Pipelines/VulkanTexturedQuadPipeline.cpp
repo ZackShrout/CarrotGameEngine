@@ -22,9 +22,9 @@ namespace carrot::rhi::vulkan {
             return binding;
         }
 
-        [[nodiscard]] std::array<VkVertexInputAttributeDescription, 3> make_vertex_attribute_descriptions() noexcept
+        [[nodiscard]] std::array<VkVertexInputAttributeDescription, 5> make_vertex_attribute_descriptions() noexcept
         {
-            std::array<VkVertexInputAttributeDescription, 3> attributes{ };
+            std::array<VkVertexInputAttributeDescription, 5> attributes{ };
 
             // float x, y
             attributes[0].location = 0;
@@ -44,17 +44,29 @@ namespace carrot::rhi::vulkan {
             attributes[2].format = VK_FORMAT_R8G8B8A8_UNORM;
             attributes[2].offset = offsetof(renderer::quad_vertex_t, color);
 
+            attributes[3].location = 3;
+            attributes[3].binding = 0;
+            attributes[3].format = VK_FORMAT_R32_SFLOAT;
+            attributes[3].offset = offsetof(renderer::quad_vertex_t, effect_mode);
+
+            attributes[4].location = 4;
+            attributes[4].binding = 0;
+            attributes[4].format = VK_FORMAT_R32_SFLOAT;
+            attributes[4].offset = offsetof(renderer::quad_vertex_t, effect_param0);
+
             return attributes;
         }
     } // namespace
 
     vulkan_textured_quad_pipeline_t::vulkan_textured_quad_pipeline_t(const vulkan_device_t* device,
                                                                      VkRenderPass render_pass,
-                                                                     assets::shader_file_provider_t*
-                                                                     shader_files) : _device{ device }
+                                                                     assets::shader_file_provider_t* shader_files,
+                                                                     const std::string_view vertex_shader_path,
+                                                                     const std::string_view fragment_shader_path,
+                                                                     const std::string_view debug_name) : _device{ device }
     {
-        const auto vert_path{ shader_files->resolve("engine://shaders/vulkan/textured_quad.vert.spv") };
-        const auto frag_path{ shader_files->resolve("engine://shaders/vulkan/textured_quad.frag.spv") };
+        const auto vert_path{ shader_files->resolve(vertex_shader_path) };
+        const auto frag_path{ shader_files->resolve(fragment_shader_path) };
 
         if (!vert_path || !frag_path)
         {
@@ -235,7 +247,7 @@ namespace carrot::rhi::vulkan {
         vkDestroyShaderModule(_device->vk_device(), vert_module, nullptr);
         vkDestroyShaderModule(_device->vk_device(), frag_module, nullptr);
 
-        LOG_GRAPHICS_INFO("Textured quad pipeline created successfully");
+        LOG_GRAPHICS_INFO("{} pipeline created successfully", debug_name);
     }
 
     vulkan_textured_quad_pipeline_t::~vulkan_textured_quad_pipeline_t()

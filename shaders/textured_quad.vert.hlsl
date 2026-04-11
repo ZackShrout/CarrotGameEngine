@@ -11,6 +11,8 @@ struct VSInput
     float2 position : POSITION;
     float2 uv       : TEXCOORD0;
     float4 color    : COLOR0;
+    float effect_mode : TEXCOORD1;
+    float effect_param0 : TEXCOORD2;
 };
 
 struct VSOutput
@@ -18,6 +20,8 @@ struct VSOutput
     float4 position : SV_Position;
     float2 uv       : TEXCOORD0;
     float4 color    : COLOR0;
+    float effect_mode : TEXCOORD1;
+    float effect_param0 : TEXCOORD2;
 };
 
 CARROT_ROOT_SIGNATURE(CARROT_RS_TEXTURED_QUAD)
@@ -31,6 +35,8 @@ VSOutput main(VSInput input)
     output.position = clip;
     output.uv = input.uv;
     output.color = input.color;
+    output.effect_mode = input.effect_mode;
+    output.effect_param0 = input.effect_param0;
 
     return output;
 }

@@ -65,6 +65,10 @@ namespace carrot::assets {
                 {
                     manifests.audio.emplace_back(virtual_path);
                 }
+                else if (ends_with(relative_generic, ".font.json"))
+                {
+                    manifests.fonts.emplace_back(virtual_path);
+                }
                 else if (ends_with(relative_generic, ".texture.json"))
                 {
                     manifests.textures.emplace_back(virtual_path);
@@ -99,6 +103,7 @@ namespace carrot::assets {
             discover_manifests_in_scheme(manifests, vfs, scheme);
 
         sort_manifest_group(manifests.audio);
+        sort_manifest_group(manifests.fonts);
         sort_manifest_group(manifests.textures);
         sort_manifest_group(manifests.sprites);
         sort_manifest_group(manifests.tilemaps);

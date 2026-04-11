@@ -17,7 +17,10 @@ namespace carrot::rhi::vulkan {
     {
     public:
         vulkan_textured_quad_pipeline_t(const vulkan_device_t* device, VkRenderPass render_pass,
-                                        assets::shader_file_provider_t* shader_files);
+                                        assets::shader_file_provider_t* shader_files,
+                                        std::string_view vertex_shader_path,
+                                        std::string_view fragment_shader_path,
+                                        std::string_view debug_name);
         ~vulkan_textured_quad_pipeline_t();
 
         [[nodiscard]] VkPipeline vk_pipeline() const noexcept { return _pipeline; }

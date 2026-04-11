@@ -17,7 +17,9 @@
 
 namespace carrot::rhi::dx12 {
     dx12_textured_quad_pipeline_t::dx12_textured_quad_pipeline_t(ID3D12Device* device,
-                                                                 assets::shader_file_provider_t& shader_files)
+                                                                 assets::shader_file_provider_t& shader_files,
+                                                                 const std::string_view vertex_shader_path,
+                                                                 const std::string_view fragment_shader_path)
         : _device{ device }
     {
         if (!_device)
@@ -112,8 +114,8 @@ namespace carrot::rhi::dx12 {
             error_blob = nullptr;
         }
 
-        const auto vs_path{ shader_files.resolve("engine://shaders/dx12/textured_quad.vert.dxil") };
-        const auto ps_path{ shader_files.resolve("engine://shaders/dx12/textured_quad.frag.dxil") };
+        const auto vs_path{ shader_files.resolve(vertex_shader_path) };
+        const auto ps_path{ shader_files.resolve(fragment_shader_path) };
 
         if (!vs_path || !ps_path)
             LOG_GRAPHICS_FATAL("Failed to resolve DX12 textured quad shader paths");
@@ -136,6 +138,8 @@ namespace carrot::rhi::dx12 {
             { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
             { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 8, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
             { "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 16, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+            { "TEXCOORD", 1, DXGI_FORMAT_R32_FLOAT, 0, 20, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+            { "TEXCOORD", 2, DXGI_FORMAT_R32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
         };
 
         D3D12_RASTERIZER_DESC rasterizer{ };

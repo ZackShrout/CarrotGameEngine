@@ -1,8 +1,8 @@
 # Carrot Game Engine – Master Plan
 
 **BunnySoft**
-**Version 2.0**
-**Last Updated: April 9, 2026**
+**Version 2.1**
+**Last Updated: April 10, 2026**
 
 ---
 
@@ -134,7 +134,7 @@ These three platforms are considered the primary long-term targets.
 
 Carrot uses **native windowing backends** rather than a third-party abstraction layer.
 
-Current / planned platform windowing support:
+Current platform windowing support:
 
 * **Win32** on Windows
 * **Wayland** on Linux
@@ -176,7 +176,7 @@ Responsible for:
 This includes systems such as:
 
 * Win32 windowing
-* Wayland / future X11 Linux windowing
+* Wayland / X11 Linux windowing
 * Cocoa windowing
 * platform-specific file and executable path utilities
 
@@ -207,6 +207,13 @@ Current runtime-framework direction inside core systems includes:
 
 This structure is intended to keep application-shell responsibilities, game-runtime responsibilities, and gameplay-session responsibilities from collapsing into one object.
 
+Recent engine/runtime growth also now includes:
+
+* engine-owned multi-window runtime roles
+* scene assets and scene runtime transition support
+* default gameplay-facing controller helpers
+* first-pass in-game UI runtime foundation
+
 ### 5.3 RHI Layer
 
 The RHI is the low-level graphics abstraction boundary.
@@ -236,7 +243,7 @@ Near-term renderer priorities include:
 * batching
 * backend parity
 * camera / projection support
-* explicit frame stages for world, UI, composite, and debug responsibilities
+* explicit frame stages for world, UI, composite, debug, and runtime log-console responsibilities
 * gameplay-facing presentation policies such as fixed-aspect letterboxing
 * sprite rendering
 * stable layered 2D draw ordering
@@ -244,11 +251,33 @@ Near-term renderer priorities include:
 * debug rendering and text
 * engine-level full-screen composite overlays for future fades/flashes/tints
 * engine-owned diagnostics overlays built on top of the existing 2D renderer
+* higher-quality runtime text rendering as a near-term engine priority
+* engine-owned in-game runtime UI built on top of the existing retained widget/navigation foundation
 * world-aware scene rendering where tilemap backdrops, actors, and Tiled-authored scene objects can all be consumed through the world/object layer
 * sandbox-driven movement, camera follow, and authored-object interaction built on top of the world/object layer rather than engine bootstrap code
 * reusable default controller support where the engine provides common movement and proximity-interaction mechanics while the game layer keeps semantic control
 
 Over time, the renderer should evolve from “test scene rendering” into a world-aware rendering system that can support actual gameplay-driven rendering flows.
+
+### 5.4.1 Current Runtime UI Direction
+
+Carrot now has a real first-pass in-game UI foundation:
+
+* retained widget tree ownership
+* layout primitives
+* focus and directional navigation
+* UI input ownership policy
+* renderer-stage integration
+
+The next UI priority is not a giant widget explosion.
+
+The next priority is:
+
+* better engine-owned text rendering quality
+* stronger text layout/measurement primitives
+* a smaller set of genuinely usable runtime UI widgets
+
+The sandbox should validate this work, but the implementation should remain primarily engine-owned.
 
 ### 5.5 Physics / Collision Direction
 

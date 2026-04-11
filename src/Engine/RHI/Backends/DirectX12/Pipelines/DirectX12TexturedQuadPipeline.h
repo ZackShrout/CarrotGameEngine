@@ -65,7 +65,9 @@ namespace carrot::rhi::dx12 {
     class dx12_textured_quad_pipeline_t final
     {
     public:
-        dx12_textured_quad_pipeline_t(ID3D12Device* device, assets::shader_file_provider_t& shader_files);
+        dx12_textured_quad_pipeline_t(ID3D12Device* device, assets::shader_file_provider_t& shader_files,
+                                      std::string_view vertex_shader_path,
+                                      std::string_view fragment_shader_path);
         ~dx12_textured_quad_pipeline_t();
 
         [[nodiscard]] bool is_valid() const noexcept

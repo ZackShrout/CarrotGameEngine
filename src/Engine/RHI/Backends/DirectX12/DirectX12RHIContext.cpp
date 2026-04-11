@@ -85,10 +85,20 @@ namespace carrot::rhi::dx12 {
             D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 
         _textured_quad_pipeline = std::make_unique<dx12_textured_quad_pipeline_t>(
-            _device->id3d12_device(), *desc.shader_files);
+            _device->id3d12_device(),
+            *desc.shader_files,
+            "engine://shaders/dx12/textured_quad.vert.dxil",
+            "engine://shaders/dx12/textured_quad.frag.dxil");
+        _text_quad_pipeline = std::make_unique<dx12_textured_quad_pipeline_t>(
+            _device->id3d12_device(),
+            *desc.shader_files,
+            "engine://shaders/dx12/text_quad.vert.dxil",
+            "engine://shaders/dx12/text_quad.frag.dxil");
 
         if (!_textured_quad_pipeline || !_textured_quad_pipeline->is_valid())
             LOG_GRAPHICS_FATAL("Failed to create DX12 textured quad pipeline");
+        if (!_text_quad_pipeline || !_text_quad_pipeline->is_valid())
+            LOG_GRAPHICS_FATAL("Failed to create DX12 text quad pipeline");
 
         _rtv_descriptor_stride = _device->id3d12_device()->GetDescriptorHandleIncrementSize(
             D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
@@ -173,12 +183,16 @@ namespace carrot::rhi::dx12 {
         cmd->ClearRenderTargetView(rtv, clear, 0, nullptr);
     }
 
-    void dx12_rhi_context_t::record_textured_quad_stage_to_active_target(const textured_quad_stage_record_t& stage)
+    void dx12_rhi_context_t::record_quad_stage_to_active_target(const textured_quad_stage_record_t& stage,
+                                                                const quad_pipeline_kind_t pipeline_kind)
     {
         ID3D12GraphicsCommandList* cmd{ _frames[_frame_index].command_list->id3d12_graphics_command_list() };
+        dx12_textured_quad_pipeline_t* pipeline{
+            pipeline_kind == quad_pipeline_kind_t::text ? _text_quad_pipeline.get() : _textured_quad_pipeline.get()
+        };
 
-        if (_textured_quad_pipeline &&
-            _textured_quad_pipeline->is_valid() &&
+        if (pipeline &&
+            pipeline->is_valid() &&
             stage.vertex_buffer != nullptr &&
             stage.index_buffer != nullptr &&
             !stage.batches.empty())
@@ -242,15 +256,28 @@ namespace carrot::rhi::dx12 {
                 .sampler_provider = this
             };
 
-            _textured_quad_pipeline->draw(draw_context, descriptor_context);
+            pipeline->draw(draw_context, descriptor_context);
         }
     }
 
     void dx12_rhi_context_t::record_textured_quad_stage(const textured_quad_stage_record_t& stage)
     {
-        _recorded_stages.push_back(stage);
+        _recorded_stages.push_back({
+            .stage = stage,
+            .pipeline_kind = quad_pipeline_kind_t::textured
+        });
         if (presentation_mask_includes(stage.presentation_mask, presentation_channel_gameplay))
-            record_textured_quad_stage_to_active_target(stage);
+            record_quad_stage_to_active_target(stage, quad_pipeline_kind_t::textured);
+    }
+
+    void dx12_rhi_context_t::record_text_quad_stage(const textured_quad_stage_record_t& stage)
+    {
+        _recorded_stages.push_back({
+            .stage = stage,
+            .pipeline_kind = quad_pipeline_kind_t::text
+        });
+        if (presentation_mask_includes(stage.presentation_mask, presentation_channel_gameplay))
+            record_quad_stage_to_active_target(stage, quad_pipeline_kind_t::text);
     }
 
     void dx12_rhi_context_t::end_frame()
@@ -288,11 +315,12 @@ namespace carrot::rhi::dx12 {
             cmd->OMSetRenderTargets(1, &aux_rtv, FALSE, nullptr);
             cmd->ClearRenderTargetView(aux_rtv, clear, 0, nullptr);
 
-            for (const textured_quad_stage_record_t& stage : _recorded_stages)
+            for (const recorded_stage_t& recorded_stage : _recorded_stages)
             {
+                const textured_quad_stage_record_t& stage{ recorded_stage.stage };
                 if (!presentation_mask_includes(stage.presentation_mask, surface.presentation_channel_mask))
                     continue;
-                record_textured_quad_stage_to_active_target(stage);
+                record_quad_stage_to_active_target(stage, recorded_stage.pipeline_kind);
             }
 
             D3D12_RESOURCE_BARRIER aux_to_present{ };

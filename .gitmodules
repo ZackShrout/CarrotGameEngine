@@ -1,9 +1,9 @@
-[submodule "deps/stb"]
-	path = deps/stb
-	url = https://github.com/nothings/stb.git
 [submodule "deps/CarrotHLM"]
 	path = deps/CarrotHLM
 	url = https://github.com/ZackShrout/CarrotHLM
 [submodule "deps/CarrotPNG"]
 	path = deps/CarrotPNG
 	url = https://github.com/ZackShrout/CarrotPNG
+[submodule "deps/msdf-atlas-gen"]
+	path = deps/msdf-atlas-gen
+	url = https://github.com/Chlumsky/msdf-atlas-gen.git

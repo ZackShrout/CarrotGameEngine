@@ -11,6 +11,7 @@ namespace carrot::assets {
     void asset_manager_t::clear()
     {
         _audio.clear_all();
+        _fonts.clear_all();
         _textures.clear_all();
         _sprites.clear_all();
         _tilemaps.clear_all();

@@ -28,7 +28,10 @@ namespace carrot::rhi::metal {
     {
     public:
         metal_textured_quad_pipeline_t(const metal_device_t& device, const assets::shader_file_provider_t& shader_files,
-                                       MTL::PixelFormat color_format);
+                                       MTL::PixelFormat color_format,
+                                       std::string_view vertex_shader_path,
+                                       std::string_view fragment_shader_path,
+                                       std::string_view debug_name);
 
         ~metal_textured_quad_pipeline_t() = default;
 

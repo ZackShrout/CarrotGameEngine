@@ -48,6 +48,8 @@ namespace carrot::renderer {
         float sort_reference_y{ 0.f };
 
         uint32_t color{ 0xFFFFFFFF }; // ABGR
+        float effect_mode{ 0.0f };
+        float effect_param0{ 0.0f };
 
         quad_sampler_preset_t sampler_preset{ quad_sampler_preset_t::smooth_clamp };
     };

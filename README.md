@@ -70,9 +70,9 @@ Carrot is being built around a few non-negotiable ideas:
 ### Windowing Backends
 
 * **Win32** (Windows)
-* **Wayland** (current Linux backend)
+* **Wayland** (preferred Linux backend)
+* **X11** (Linux compatibility backend)
 * **Cocoa** (macOS)
-* **X11** (planned Linux backend, not implemented yet)
 
 ### Graphics Backends
 
@@ -134,10 +134,25 @@ This is one of the reasons Carrot leans heavily into **JSON-based authored metad
   * `interaction_controller_t` for reusable proximity interaction queries and interaction attempt flow
   * game-side override points so gameplay meaning remains outside engine internals
 * Engine-owned debug text / overlay support for runtime renderer diagnostics
+* Multi-window runtime support including:
+  * gameplay main window
+  * gameplay mirror window
+  * log console window
+* First-pass in-game UI foundation including:
+  * retained widget tree
+  * layout primitives
+  * focus/navigation model
+  * UI input ownership policy
+* Scene runtime foundation including:
+  * scene assets and validation
+  * spawn markers and scene transitions
+  * scene camera defaults/follow behavior
+  * scene-owned music bootstrap
 * Future direction includes:
 
-    * animation
-    * UI layers
+    * higher-quality runtime text rendering
+    * more usable engine-owned game UI
+    * richer presentation/composite effects
 
 ### Audio
 
@@ -160,12 +175,16 @@ This is one of the reasons Carrot leans heavily into **JSON-based authored metad
 
     * `*.audio.json`
     * `*.texture.json`
+    * `*.sprite.json`
+    * `*.tilemap.json`
+    * `*.scene.json`
 * Importer / loader split
 * Clear separation between:
 
     * source files
     * asset definitions
     * runtime loaded assets
+    * future imported/cooked cache artifacts
 
 ### Runtime Framework
 
@@ -357,6 +376,8 @@ sudo apt install -y \
     wayland-protocols \
     libwayland-dev \
     libxkbcommon-dev \
+    libx11-dev \
+    libdecor-0-dev \
     libvulkan-dev \
     vulkan-validationlayers-dev \
     libasound2-dev \
@@ -365,9 +386,9 @@ sudo apt install -y \
 
 ### Notes
 
-* Carrot currently supports **Wayland** as the Linux windowing backend
-* **X11 support is planned**, but it is **not implemented yet** and should not currently be assumed to work
-* On Linux, configuration currently expects Wayland development packages to be available
+* Carrot currently supports both **Wayland** and **X11** as Linux windowing backends
+* CMake prefers **Wayland** automatically when the Wayland development stack is available
+* If Wayland dependencies are not present but X11 development headers are, CMake can target **X11**
 * Vulkan development on Linux generally requires:
 
     * Vulkan headers / loader
@@ -387,8 +408,8 @@ cmake -S . -B build
 cmake --build build
 ```
 
-> On Linux, CMake currently expects the Wayland development stack for windowing support.
-> If those packages are missing, configuration now fails fast instead of silently selecting an unimplemented X11 fallback.
+> On Linux, CMake supports both Wayland and X11 native backends.
+> Auto-detection currently prefers Wayland when its development stack is available.
 
 ### Debug build example
 

@@ -51,6 +51,7 @@ namespace carrot::rhi::dx12 {
 
         void begin_frame() override;
         void record_textured_quad_stage(const textured_quad_stage_record_t& stage) override;
+        void record_text_quad_stage(const textured_quad_stage_record_t& stage) override;
         void end_frame() override;
 
         void release_asset_references() override {}
@@ -75,6 +76,12 @@ namespace carrot::rhi::dx12 {
         void wait_idle() override;
 
     private:
+        enum class quad_pipeline_kind_t : uint8_t
+        {
+            textured = 0,
+            text
+        };
+
         struct auxiliary_surface_t
         {
             window::window_id_t id{ window::invalid_window_id };
@@ -84,7 +91,14 @@ namespace carrot::rhi::dx12 {
             uint32_t last_height{ 0 };
         };
 
-        void record_textured_quad_stage_to_active_target(const textured_quad_stage_record_t& stage);
+        struct recorded_stage_t
+        {
+            textured_quad_stage_record_t stage;
+            quad_pipeline_kind_t pipeline_kind{ quad_pipeline_kind_t::textured };
+        };
+
+        void record_quad_stage_to_active_target(const textured_quad_stage_record_t& stage,
+                                                quad_pipeline_kind_t pipeline_kind);
         void sync_auxiliary_surface_sizes();
         bool create_auxiliary_surface(window::window_id_t window_id, uint32_t presentation_channel_mask);
         void destroy_auxiliary_surface(auxiliary_surface_t& surface) noexcept;
@@ -96,13 +110,14 @@ namespace carrot::rhi::dx12 {
         std::unique_ptr<dx12_command_queue_t>             _graphics_queue;
         std::unique_ptr<dx12_swapchain_t>                 _swapchain;
         std::unique_ptr<dx12_textured_quad_pipeline_t>    _textured_quad_pipeline;
+        std::unique_ptr<dx12_textured_quad_pipeline_t>    _text_quad_pipeline;
 
         // ── Per-frame GPU resources and frame progression ──
         std::array<dx12_frame_t, k_max_frames_in_flight>  _frames;
         uint32_t                                          _frame_index{ 0 };
         window::window_id_t                               _presentation_window_id{ window::invalid_window_id };
         std::vector<auxiliary_surface_t>                  _auxiliary_surfaces;
-        std::vector<textured_quad_stage_record_t>         _recorded_stages;
+        std::vector<recorded_stage_t>                     _recorded_stages;
 
         // ── Swapchain / render-target descriptor bookkeeping ──
         uint32_t                                          _rtv_descriptor_stride{ 0 };

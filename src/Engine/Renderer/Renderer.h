@@ -156,6 +156,10 @@ namespace carrot::renderer {
         void draw_overlay_textured_quad(const textured_quad_draw_info_t& quad);
         void draw_ui_textured_quad(const textured_quad_draw_info_t& quad);
         void draw_log_console_textured_quad(const textured_quad_draw_info_t& quad);
+        void draw_text_quad(const textured_quad_draw_info_t& quad);
+        void draw_overlay_text_quad(const textured_quad_draw_info_t& quad);
+        void draw_ui_text_quad(const textured_quad_draw_info_t& quad);
+        void draw_log_console_text_quad(const textured_quad_draw_info_t& quad);
         void draw_solid_quad(const solid_quad_draw_info_t& quad);
         void draw_overlay_solid_quad(const solid_quad_draw_info_t& quad);
         void draw_ui_solid_quad(const solid_quad_draw_info_t& quad);
@@ -201,6 +205,7 @@ namespace carrot::renderer {
         [[nodiscard]] stage_execution_context_t resolve_stage_execution_context(const frame_stage_plan_t& stage_plan) const noexcept;
         void queue_fullscreen_overlay_if_needed();
         void submit_textured_quad(frame_stage_kind_t stage, const textured_quad_draw_info_t& quad);
+        void submit_text_quad(frame_stage_kind_t stage, const textured_quad_draw_info_t& quad);
         void submit_solid_quad(frame_stage_kind_t stage, const solid_quad_draw_info_t& quad);
         void build_textured_quad_batches(textured_quad_state_t& state) const;
         void execute_frame_stage(const frame_stage_plan_t& stage_plan);
@@ -241,6 +246,7 @@ namespace carrot::renderer {
 
         // ── Renderer path state: textured quads ───────────────────────────────────
         std::array<textured_quad_state_t, static_cast<size_t>(frame_stage_kind_t::count)> _stage_textured_quads;
+        std::array<textured_quad_state_t, static_cast<size_t>(frame_stage_kind_t::count)> _stage_text_quads;
         std::array<frame_stage_plan_t, static_cast<size_t>(frame_stage_kind_t::count)> _frame_stage_plan{
             frame_stage_plan_t{ .kind = frame_stage_kind_t::world, .space = frame_stage_space_t::world_camera },
             frame_stage_plan_t{ .kind = frame_stage_kind_t::ui, .space = frame_stage_space_t::render_target_pixels },

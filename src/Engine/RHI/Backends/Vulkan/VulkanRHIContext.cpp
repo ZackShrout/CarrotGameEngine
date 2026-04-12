@@ -326,13 +326,23 @@ namespace carrot::rhi::vulkan {
         if (_skip_frame || !_frame_active)
             return;
 
+        const uint32_t stage_slot{ static_cast<uint32_t>(_recorded_stages.size()) };
+        if (stage_slot >= k_max_textured_quad_stage_slots_per_frame)
+        {
+            LOG_GRAPHICS_FATAL("Vulkan textured quad stage slot {} exceeds max supported stage slots {}",
+                               stage_slot,
+                               k_max_textured_quad_stage_slots_per_frame);
+            return;
+        }
+
         uint32_t batch_count{ 0 };
-        const uint32_t descriptor_set_offset{ prepare_quad_stage_descriptors(stage, batch_count) };
+        const uint32_t descriptor_set_offset{ prepare_quad_stage_descriptors(stage, stage_slot, batch_count) };
         if (batch_count == 0)
             return;
 
         recorded_stage_t recorded_stage{ };
         recorded_stage.stage = stage;
+        recorded_stage.stage_slot = stage_slot;
         recorded_stage.descriptor_set_offset = descriptor_set_offset;
         recorded_stage.descriptor_set_count = batch_count;
         recorded_stage.pipeline_kind = quad_pipeline_kind_t::textured;
@@ -342,6 +352,7 @@ namespace carrot::rhi::vulkan {
         {
             encode_quad_stage_to_command_buffer(_frames[_current_frame].command_buffer,
                                                 stage,
+                                                stage_slot,
                                                 descriptor_set_offset,
                                                 batch_count,
                                                 quad_pipeline_kind_t::textured);
@@ -353,13 +364,23 @@ namespace carrot::rhi::vulkan {
         if (_skip_frame || !_frame_active)
             return;
 
+        const uint32_t stage_slot{ static_cast<uint32_t>(_recorded_stages.size()) };
+        if (stage_slot >= k_max_textured_quad_stage_slots_per_frame)
+        {
+            LOG_GRAPHICS_FATAL("Vulkan textured quad stage slot {} exceeds max supported stage slots {}",
+                               stage_slot,
+                               k_max_textured_quad_stage_slots_per_frame);
+            return;
+        }
+
         uint32_t batch_count{ 0 };
-        const uint32_t descriptor_set_offset{ prepare_quad_stage_descriptors(stage, batch_count) };
+        const uint32_t descriptor_set_offset{ prepare_quad_stage_descriptors(stage, stage_slot, batch_count) };
         if (batch_count == 0)
             return;
 
         recorded_stage_t recorded_stage{ };
         recorded_stage.stage = stage;
+        recorded_stage.stage_slot = stage_slot;
         recorded_stage.descriptor_set_offset = descriptor_set_offset;
         recorded_stage.descriptor_set_count = batch_count;
         recorded_stage.pipeline_kind = quad_pipeline_kind_t::text;
@@ -369,6 +390,7 @@ namespace carrot::rhi::vulkan {
         {
             encode_quad_stage_to_command_buffer(_frames[_current_frame].command_buffer,
                                                 stage,
+                                                stage_slot,
                                                 descriptor_set_offset,
                                                 batch_count,
                                                 quad_pipeline_kind_t::text);
@@ -453,6 +475,7 @@ namespace carrot::rhi::vulkan {
                     continue;
                 encode_quad_stage_to_command_buffer(frame.command_buffer,
                                                     recorded_stage.stage,
+                                                    recorded_stage.stage_slot,
                                                     recorded_stage.descriptor_set_offset,
                                                     recorded_stage.descriptor_set_count,
                                                     recorded_stage.pipeline_kind);
@@ -1183,6 +1206,7 @@ namespace carrot::rhi::vulkan {
     }
 
     uint32_t vulkan_rhi_context_t::prepare_quad_stage_descriptors(const textured_quad_stage_record_t& stage,
+                                                                  const uint32_t stage_slot,
                                                                   uint32_t& out_batch_count)
     {
         out_batch_count = 0;
@@ -1196,23 +1220,24 @@ namespace carrot::rhi::vulkan {
         if (stage.batches.empty())
             return 0;
 
-        if (stage.stage_slot >= k_max_textured_quad_stage_records_per_frame)
+        if (stage_slot >= k_max_textured_quad_stage_slots_per_frame)
         {
-            LOG_GRAPHICS_FATAL("Vulkan textured quad stage slot {} exceeds max supported stage slots {}", stage.stage_slot,
-                               k_max_textured_quad_stage_records_per_frame);
+            LOG_GRAPHICS_FATAL("Vulkan textured quad stage slot {} exceeds max supported stage slots {}",
+                               stage_slot,
+                               k_max_textured_quad_stage_slots_per_frame);
             return 0;
         }
 
         renderer::textured_quad_camera_uniform_t camera_uniform{ };
         camera_uniform.view_projection = stage.view_projection;
-        if (!_textured_quad.camera_uniform_buffers[_current_frame][stage.stage_slot] ||
-            !_textured_quad.camera_uniform_buffers[_current_frame][stage.stage_slot]->write(&camera_uniform,
+        if (!_textured_quad.camera_uniform_buffers[_current_frame][stage_slot] ||
+            !_textured_quad.camera_uniform_buffers[_current_frame][stage_slot]->write(&camera_uniform,
                                                                                             sizeof(camera_uniform), 0))
         {
             LOG_GRAPHICS_FATAL("Failed to upload Vulkan textured quad camera uniform");
             return 0;
         }
-        write_textured_quad_camera_descriptor_set(_current_frame, stage.stage_slot);
+        write_textured_quad_camera_descriptor_set(_current_frame, stage_slot);
 
         const uint32_t batch_count{ static_cast<uint32_t>(stage.batches.size()) };
         const uint32_t descriptor_set_offset{ _textured_quad_descriptor_set_cursor[_current_frame] };
@@ -1253,6 +1278,7 @@ namespace carrot::rhi::vulkan {
 
     void vulkan_rhi_context_t::encode_quad_stage_to_command_buffer(const VkCommandBuffer command_buffer,
                                                                    const textured_quad_stage_record_t& stage,
+                                                                   const uint32_t stage_slot,
                                                                    const uint32_t descriptor_set_offset,
                                                                    const uint32_t batch_count,
                                                                    const quad_pipeline_kind_t pipeline_kind)
@@ -1278,10 +1304,11 @@ namespace carrot::rhi::vulkan {
         if (batch_count == 0)
             return;
 
-        if (stage.stage_slot >= k_max_textured_quad_stage_records_per_frame)
+        if (stage_slot >= k_max_textured_quad_stage_slots_per_frame)
         {
-            LOG_GRAPHICS_FATAL("Vulkan textured quad stage slot {} exceeds max supported stage slots {}", stage.stage_slot,
-                               k_max_textured_quad_stage_records_per_frame);
+            LOG_GRAPHICS_FATAL("Vulkan textured quad stage slot {} exceeds max supported stage slots {}",
+                               stage_slot,
+                               k_max_textured_quad_stage_slots_per_frame);
             return;
         }
 
@@ -1331,7 +1358,7 @@ namespace carrot::rhi::vulkan {
         vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
         vkCmdBindIndexBuffer(command_buffer, index_buffer->vk_buffer(), 0, VK_INDEX_TYPE_UINT32);
 
-        VkDescriptorSet camera_descriptor_set{ _textured_quad.camera_descriptor_sets[_current_frame][stage.stage_slot] };
+        VkDescriptorSet camera_descriptor_set{ _textured_quad.camera_descriptor_sets[_current_frame][stage_slot] };
 
         vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 pipeline->vk_layout(), 0, 1, &camera_descriptor_set, 0, nullptr);
@@ -1588,7 +1615,7 @@ namespace carrot::rhi::vulkan {
         create_descriptor_pool();
 
         for (uint32_t frame_index{ 0 }; frame_index < k_max_frames_in_flight; ++frame_index)
-            for (uint32_t stage_slot{ 0 }; stage_slot < k_max_textured_quad_stage_records_per_frame; ++stage_slot)
+            for (uint32_t stage_slot{ 0 }; stage_slot < k_max_textured_quad_stage_slots_per_frame; ++stage_slot)
                 _textured_quad.camera_uniform_buffers[frame_index][stage_slot] = create_buffer({
                     .size_bytes = sizeof(renderer::textured_quad_camera_uniform_t),
                     .usage = buffer_usage_t::uniform,
@@ -1774,7 +1801,7 @@ namespace carrot::rhi::vulkan {
 
         // Set 0: one camera UBO per frame-in-flight stage slot
         pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        pool_sizes[0].descriptorCount = k_max_frames_in_flight * k_max_textured_quad_stage_records_per_frame;
+        pool_sizes[0].descriptorCount = k_max_frames_in_flight * k_max_textured_quad_stage_slots_per_frame;
 
         // Set 1, binding 0: sampled image per textured-quad descriptor set
         pool_sizes[1].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
@@ -1789,7 +1816,7 @@ namespace carrot::rhi::vulkan {
         pool_info.poolSizeCount = static_cast<uint32_t>(pool_sizes.size());
         pool_info.pPoolSizes = pool_sizes.data();
         pool_info.maxSets =
-            (k_max_frames_in_flight * k_max_textured_quad_stage_records_per_frame) + k_max_textured_quad_descriptor_sets;
+            (k_max_frames_in_flight * k_max_textured_quad_stage_slots_per_frame) + k_max_textured_quad_descriptor_sets;
 
         VK_CHECK_FATAL(vkCreateDescriptorPool(_device->vk_device(), &pool_info, nullptr, &_descriptor_pool));
 
@@ -1944,7 +1971,7 @@ namespace carrot::rhi::vulkan {
         }
 
         constexpr uint32_t k_camera_descriptor_set_count{
-            k_max_frames_in_flight * k_max_textured_quad_stage_records_per_frame
+            k_max_frames_in_flight * k_max_textured_quad_stage_slots_per_frame
         };
 
         std::array<VkDescriptorSetLayout, k_camera_descriptor_set_count> layouts{ };
@@ -1965,7 +1992,7 @@ namespace carrot::rhi::vulkan {
 
         uint32_t descriptor_index{ 0 };
         for (uint32_t frame_index{ 0 }; frame_index < k_max_frames_in_flight; ++frame_index)
-            for (uint32_t stage_slot{ 0 }; stage_slot < k_max_textured_quad_stage_records_per_frame; ++stage_slot)
+            for (uint32_t stage_slot{ 0 }; stage_slot < k_max_textured_quad_stage_slots_per_frame; ++stage_slot)
                 _textured_quad.camera_descriptor_sets[frame_index][stage_slot] = descriptor_sets[descriptor_index++];
     }
 

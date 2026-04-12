@@ -16,6 +16,10 @@
 #include <utility>
 #include <vector>
 
+namespace carrot::renderer {
+    class renderer_t;
+}
+
 namespace carrot::ui {
     using ui_widget_id_t = uint64_t;
     using ui_widget_flags_t = uint32_t;
@@ -157,6 +161,7 @@ namespace carrot::ui {
 
         void tick_tree(float delta_time) noexcept;
         void layout_tree(const ui_rect_t& bounds) noexcept;
+        void render_tree(renderer::renderer_t& renderer) const noexcept;
 
         void attach_to_tree() noexcept;
         void detach_from_tree() noexcept;
@@ -172,6 +177,7 @@ namespace carrot::ui {
         virtual void on_attached_to_tree() noexcept {}
         virtual void on_detached_from_tree() noexcept {}
         virtual void on_layout_updated(const ui_rect_t& bounds) noexcept { (void)bounds; }
+        virtual void on_render(renderer::renderer_t& renderer) const noexcept { (void)renderer; }
         virtual void arrange_children(const ui_rect_t& bounds) noexcept;
         virtual void on_focus_gained() noexcept {}
         virtual void on_focus_lost() noexcept {}

@@ -16,8 +16,6 @@
 #include <vector>
 
 namespace carrot::rhi::metal {
-    constexpr uint32_t k_max_textured_quad_stage_records_per_frame{ 8 };
-
     class metal_swapchain_t;
     class metal_command_queue_t;
     class metal_device_t;
@@ -76,6 +74,7 @@ namespace carrot::rhi::metal {
         struct recorded_stage_t
         {
             textured_quad_stage_record_t stage;
+            uint32_t stage_slot{ 0 };
             quad_pipeline_kind_t pipeline_kind{ quad_pipeline_kind_t::textured };
         };
 
@@ -85,6 +84,7 @@ namespace carrot::rhi::metal {
         void release_auxiliary_drawables() noexcept;
         void encode_quad_stage(MTL::RenderCommandEncoder* encoder,
                                const textured_quad_stage_record_t& stage,
+                               uint32_t stage_slot,
                                quad_pipeline_kind_t pipeline_kind);
 
         void ensure_textured_quad_argument_capacity(uint32_t stage_slot, size_t batch_count);
@@ -115,24 +115,24 @@ namespace carrot::rhi::metal {
         std::vector<auxiliary_surface_t>                _auxiliary_surfaces;
         std::vector<recorded_stage_t>                   _recorded_stages;
 
-        std::array<std::unique_ptr<metal_buffer_t>, k_max_textured_quad_stage_records_per_frame>
+        std::array<std::unique_ptr<metal_buffer_t>, k_max_textured_quad_stage_slots_per_frame>
                                                       _textured_quad_camera_uniform_buffers;
 
         // ── Dynamic per-batch argument / root signature data ──
-        std::array<std::unique_ptr<metal_buffer_t>, k_max_textured_quad_stage_records_per_frame>
+        std::array<std::unique_ptr<metal_buffer_t>, k_max_textured_quad_stage_slots_per_frame>
                                                       _textured_quad_root_argument_buffers;
-        std::array<std::unique_ptr<metal_buffer_t>, k_max_textured_quad_stage_records_per_frame>
+        std::array<std::unique_ptr<metal_buffer_t>, k_max_textured_quad_stage_slots_per_frame>
                                                       _textured_quad_cbv_descriptor_tables;
-        std::array<std::unique_ptr<metal_buffer_t>, k_max_textured_quad_stage_records_per_frame>
+        std::array<std::unique_ptr<metal_buffer_t>, k_max_textured_quad_stage_slots_per_frame>
                                                       _textured_quad_srv_descriptor_tables;
-        std::array<std::unique_ptr<metal_buffer_t>, k_max_textured_quad_stage_records_per_frame>
+        std::array<std::unique_ptr<metal_buffer_t>, k_max_textured_quad_stage_slots_per_frame>
                                                       _textured_quad_sampler_descriptor_tables;
 
         size_t                                          _textured_quad_root_stride{ 0 };
         size_t                                          _textured_quad_cbv_stride{ 0 };
         size_t                                          _textured_quad_srv_stride{ 0 };
         size_t                                          _textured_quad_sampler_stride{ 0 };
-        std::array<size_t, k_max_textured_quad_stage_records_per_frame> _textured_quad_argument_capacities{ };
+        std::array<size_t, k_max_textured_quad_stage_slots_per_frame> _textured_quad_argument_capacities{ };
 
         // ── Sampler caching ──
         std::unordered_map<sampler_desc_t, std::unique_ptr<rhi_sampler_t>, sampler_desc_hash_t> _sampler_cache;

@@ -1095,7 +1095,6 @@ namespace carrot::renderer {
                 return;
 
             const rhi::textured_quad_stage_record_t record{
-                .stage_slot = static_cast<uint32_t>(stage_plan.kind),
                 .vertex_buffer = frame_buffers.vertex_buffer.get(),
                 .index_buffer = frame_buffers.index_buffer.get(),
                 .batches = stage_state.batches,

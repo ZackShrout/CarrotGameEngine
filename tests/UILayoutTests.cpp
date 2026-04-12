@@ -101,6 +101,23 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(stable_child.layout_update_count == 1u);
         }
 
+        void test_panel_applies_padding_to_child_layout()
+        {
+            ui::ui_panel_t panel;
+            ui::ui_panel_style_t style{ };
+            style.padding = { .left = 12.f, .top = 14.f, .right = 16.f, .bottom = 18.f };
+            panel.set_style(style);
+
+            layout_probe_widget_t& child{ panel.emplace_child<layout_probe_widget_t>(ui::ui_size_t{ 25.f, 25.f }) };
+            panel.layout_tree({ .x = 20.f, .y = 30.f, .width = 200.f, .height = 100.f });
+
+            const ui::ui_rect_t& bounds{ child.get_layout_bounds() };
+            CARROT_TEST_REQUIRE(nearly_equal(bounds.x, 32.f));
+            CARROT_TEST_REQUIRE(nearly_equal(bounds.y, 44.f));
+            CARROT_TEST_REQUIRE(nearly_equal(bounds.width, 172.f));
+            CARROT_TEST_REQUIRE(nearly_equal(bounds.height, 68.f));
+        }
+
         void test_vertical_stack_distributes_remaining_space_to_flex_children()
         {
             ui::ui_stack_t root{ ui::ui_stack_orientation_t::vertical };
@@ -239,6 +256,8 @@ namespace carrot::tests {
                            test_vertical_stack_center_alignment_uses_desired_cross_size);
         tests.emplace_back("ui layout invalidation relayouts only dirty subtree",
                            test_layout_invalidation_relayouts_only_dirty_subtree);
+        tests.emplace_back("ui panel applies padding to child layout",
+                           test_panel_applies_padding_to_child_layout);
         tests.emplace_back("ui layout vertical stack flex children consume remaining space",
                            test_vertical_stack_distributes_remaining_space_to_flex_children);
         tests.emplace_back("ui layout horizontal stack flex children split remaining width",

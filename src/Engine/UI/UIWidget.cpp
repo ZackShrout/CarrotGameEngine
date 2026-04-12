@@ -7,6 +7,8 @@
 
 #include "UIWidget.h"
 
+#include "Renderer/Renderer.h"
+
 #include <atomic>
 #include <cmath>
 #include <iterator>
@@ -269,6 +271,20 @@ namespace carrot::ui {
     void ui_widget_t::layout_tree(const ui_rect_t& bounds) noexcept
     {
         layout_subtree(bounds, false);
+    }
+
+    void ui_widget_t::render_tree(renderer::renderer_t& renderer) const noexcept
+    {
+        if (!is_visible())
+            return;
+
+        on_render(renderer);
+
+        for (const auto& child : _children)
+        {
+            if (child)
+                child->render_tree(renderer);
+        }
     }
 
     void ui_widget_t::attach_to_tree() noexcept

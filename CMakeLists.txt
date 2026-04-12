@@ -384,6 +384,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/UI/Widgets/UIButton.h
         src/Engine/UI/Widgets/UIFocusScope.cpp
         src/Engine/UI/Widgets/UIFocusScope.h
+        src/Engine/UI/Widgets/UILabel.cpp
+        src/Engine/UI/Widgets/UILabel.h
         src/Engine/UI/Widgets/UIPanel.cpp
         src/Engine/UI/Widgets/UIPanel.h
         src/Engine/UI/Widgets/UIStack.cpp

@@ -39,7 +39,6 @@ namespace carrot::rhi {
 
     struct textured_quad_stage_record_t
     {
-        uint32_t stage_slot{ 0 };
         const rhi_buffer_t* vertex_buffer{ nullptr };
         const rhi_buffer_t* index_buffer{ nullptr };
         std::span<const renderer::textured_quad_batch_t> batches{ };
@@ -47,6 +46,8 @@ namespace carrot::rhi {
         render_viewport_t viewport{ };
         uint32_t presentation_mask{ 1u };
     };
+
+    constexpr uint32_t k_max_textured_quad_stage_slots_per_frame{ 16u };
 
     enum presentation_channel_bits_t : uint32_t
     {

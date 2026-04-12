@@ -12,6 +12,12 @@
 
 namespace sandbox {
     namespace {
+        constexpr std::string_view k_dialogue_lorem_ipsum{
+            "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus finibus, nibh sed "
+            "tristique fermentum, augue urna malesuada nibh, vel hendrerit lacus libero sit amet "
+            "erat. Integer facilisis nisl non sem placerat, quis efficitur ipsum vulputate."
+        };
+
         [[nodiscard]] const char* ui_feedback_event_to_string(const carrot::ui::ui_feedback_event_t event) noexcept
         {
             switch (event)
@@ -101,17 +107,68 @@ namespace sandbox {
                 return;
 
             root->remove_all_children();
-            carrot::ui::ui_stack_t& stack{ root->emplace_child<carrot::ui::ui_stack_t>(carrot::ui::ui_stack_orientation_t::vertical) };
-            stack.set_padding({ .left = 24.f, .top = 24.f, .right = 24.f, .bottom = 24.f });
-            stack.set_spacing(12.f);
-            stack.set_cross_alignment(carrot::ui::ui_stack_cross_alignment_t::start);
-            auto& item_a{ stack.emplace_child<carrot::ui::ui_button_t>("Start Game") };
-            auto& item_b{ stack.emplace_child<carrot::ui::ui_button_t>("Options") };
-            auto& item_c{ stack.emplace_child<carrot::ui::ui_button_t>("Exit") };
+            carrot::ui::ui_stack_t& screen{ root->emplace_child<carrot::ui::ui_stack_t>(carrot::ui::ui_stack_orientation_t::vertical) };
+            screen.set_padding({ .left = 24.f, .top = 24.f, .right = 32.f, .bottom = 24.f });
+            screen.set_spacing(24.f);
+            screen.set_cross_alignment(carrot::ui::ui_stack_cross_alignment_t::stretch);
+
+            carrot::ui::ui_stack_t& top_row{
+                screen.emplace_child<carrot::ui::ui_stack_t>(carrot::ui::ui_stack_orientation_t::horizontal)
+            };
+            top_row.set_cross_alignment(carrot::ui::ui_stack_cross_alignment_t::start);
+            top_row.set_main_axis_size_rule(carrot::ui::ui_main_axis_size_rule_t::desired);
+
+            carrot::ui::ui_panel_t& top_spacer{ top_row.emplace_child<carrot::ui::ui_panel_t>() };
+            top_spacer.set_visibility(carrot::ui::ui_widget_visibility_t::hidden);
+            top_spacer.set_main_axis_size_rule(carrot::ui::ui_main_axis_size_rule_t::flex);
+
+            carrot::ui::ui_stack_t& menu{ top_row.emplace_child<carrot::ui::ui_stack_t>(carrot::ui::ui_stack_orientation_t::vertical) };
+            menu.set_spacing(10.f);
+            menu.set_cross_alignment(carrot::ui::ui_stack_cross_alignment_t::end);
+
+            auto& title{ menu.emplace_child<carrot::ui::ui_label_t>("Runtime Menu") };
+            title.set_font_size(32.0f);
+            title.set_color(0xFFFFD86Bu);
+            title.set_horizontal_alignment(carrot::ui::ui_label_horizontal_alignment_t::end);
+            auto& item_a{ menu.emplace_child<carrot::ui::ui_button_t>("Start Game") };
+            auto& item_b{ menu.emplace_child<carrot::ui::ui_button_t>("Options") };
+            auto& item_c{ menu.emplace_child<carrot::ui::ui_button_t>("Exit") };
             item_a.set_navigation_target(carrot::ui::ui_navigation_direction_t::down, &item_b);
             item_b.set_navigation_target(carrot::ui::ui_navigation_direction_t::up, &item_a);
             item_b.set_navigation_target(carrot::ui::ui_navigation_direction_t::down, &item_c);
             item_c.set_navigation_target(carrot::ui::ui_navigation_direction_t::up, &item_b);
+
+            carrot::ui::ui_panel_t& middle_spacer{ screen.emplace_child<carrot::ui::ui_panel_t>() };
+            middle_spacer.set_visibility(carrot::ui::ui_widget_visibility_t::hidden);
+            middle_spacer.set_main_axis_size_rule(carrot::ui::ui_main_axis_size_rule_t::flex);
+
+            carrot::ui::ui_panel_t& dialogue_panel{ screen.emplace_child<carrot::ui::ui_panel_t>() };
+            dialogue_panel.set_desired_size({ 720.f, 184.f });
+            dialogue_panel.set_min_size({ 360.f, 160.f });
+
+            carrot::ui::ui_panel_style_t dialogue_style{ };
+            dialogue_style.fill_color = 0xE61C2333u;
+            dialogue_style.border_color = 0xFF8DA4C2u;
+            dialogue_style.border_thickness = 3.0f;
+            dialogue_style.padding = { 22.f, 18.f, 22.f, 18.f };
+            dialogue_panel.set_style(dialogue_style);
+
+            carrot::ui::ui_stack_t& dialogue_content{
+                dialogue_panel.emplace_child<carrot::ui::ui_stack_t>(carrot::ui::ui_stack_orientation_t::vertical)
+            };
+            dialogue_content.set_spacing(10.f);
+            dialogue_content.set_cross_alignment(carrot::ui::ui_stack_cross_alignment_t::stretch);
+
+            auto& speaker{ dialogue_content.emplace_child<carrot::ui::ui_label_t>("Archivist") };
+            speaker.set_font_size(20.0f);
+            speaker.set_color(0xFFFFD86Bu);
+
+            auto& body{ dialogue_content.emplace_child<carrot::ui::ui_label_t>(std::string{ k_dialogue_lorem_ipsum }) };
+            body.set_font_size(22.0f);
+            body.set_color(0xFFF4F0E8u);
+            body.set_wrap_width(676.0f);
+            body.set_main_axis_size_rule(carrot::ui::ui_main_axis_size_rule_t::flex);
+
             (void)ui_module->focus_first();
         }
     }

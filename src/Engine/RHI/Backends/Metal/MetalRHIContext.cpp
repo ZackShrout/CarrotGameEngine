@@ -139,7 +139,7 @@ namespace carrot::rhi::metal {
         _textured_quad_srv_stride = align_up(sizeof(descriptor_table_entry_t));
         _textured_quad_sampler_stride = align_up(sizeof(descriptor_table_entry_t));
 
-        for (uint32_t stage_slot{ 0 }; stage_slot < k_max_textured_quad_stage_records_per_frame; ++stage_slot)
+        for (uint32_t stage_slot{ 0 }; stage_slot < k_max_textured_quad_stage_slots_per_frame; ++stage_slot)
         {
             ensure_textured_quad_argument_capacity(stage_slot, 16);
 
@@ -231,15 +231,24 @@ namespace carrot::rhi::metal {
 
         _recorded_stages.push_back({
             .stage = stage,
+            .stage_slot = static_cast<uint32_t>(_recorded_stages.size()),
             .pipeline_kind = quad_pipeline_kind_t::textured
         });
+        if (_recorded_stages.back().stage_slot >= k_max_textured_quad_stage_slots_per_frame)
+        {
+            LOG_GRAPHICS_FATAL("Metal textured quad stage slot {} exceeds max supported stage slots {}",
+                               _recorded_stages.back().stage_slot,
+                               k_max_textured_quad_stage_slots_per_frame);
+            _recorded_stages.pop_back();
+            return;
+        }
 
         MTL::RenderCommandEncoder* encoder{ _render_encoder.encoder() };
         if (!encoder)
             return;
 
         if (presentation_mask_includes(stage.presentation_mask, presentation_channel_gameplay))
-            encode_quad_stage(encoder, stage, quad_pipeline_kind_t::textured);
+            encode_quad_stage(encoder, stage, _recorded_stages.back().stage_slot, quad_pipeline_kind_t::textured);
     }
 
     void metal_rhi_context_t::record_text_quad_stage(const textured_quad_stage_record_t& stage)
@@ -249,15 +258,24 @@ namespace carrot::rhi::metal {
 
         _recorded_stages.push_back({
             .stage = stage,
+            .stage_slot = static_cast<uint32_t>(_recorded_stages.size()),
             .pipeline_kind = quad_pipeline_kind_t::text
         });
+        if (_recorded_stages.back().stage_slot >= k_max_textured_quad_stage_slots_per_frame)
+        {
+            LOG_GRAPHICS_FATAL("Metal textured quad stage slot {} exceeds max supported stage slots {}",
+                               _recorded_stages.back().stage_slot,
+                               k_max_textured_quad_stage_slots_per_frame);
+            _recorded_stages.pop_back();
+            return;
+        }
 
         MTL::RenderCommandEncoder* encoder{ _render_encoder.encoder() };
         if (!encoder)
             return;
 
         if (presentation_mask_includes(stage.presentation_mask, presentation_channel_gameplay))
-            encode_quad_stage(encoder, stage, quad_pipeline_kind_t::text);
+            encode_quad_stage(encoder, stage, _recorded_stages.back().stage_slot, quad_pipeline_kind_t::text);
     }
 
     void metal_rhi_context_t::end_frame()
@@ -281,7 +299,7 @@ namespace carrot::rhi::metal {
                     const textured_quad_stage_record_t& stage{ recorded_stage.stage };
                     if (!presentation_mask_includes(stage.presentation_mask, surface.presentation_channel_mask))
                         continue;
-                    encode_quad_stage(encoder, stage, recorded_stage.pipeline_kind);
+                    encode_quad_stage(encoder, stage, recorded_stage.stage_slot, recorded_stage.pipeline_kind);
                 }
             }
             auxiliary_encoder.end();
@@ -544,6 +562,7 @@ namespace carrot::rhi::metal {
 
     void metal_rhi_context_t::encode_quad_stage(MTL::RenderCommandEncoder* encoder,
                                                 const textured_quad_stage_record_t& stage,
+                                                const uint32_t stage_slot,
                                                 const quad_pipeline_kind_t pipeline_kind)
     {
         metal_textured_quad_pipeline_t* pipeline{
@@ -558,14 +577,15 @@ namespace carrot::rhi::metal {
         if (!vertex_buffer || !index_buffer || stage.batches.empty())
             return;
 
-        if (stage.stage_slot >= k_max_textured_quad_stage_records_per_frame)
+        if (stage_slot >= k_max_textured_quad_stage_slots_per_frame)
         {
-            LOG_GRAPHICS_FATAL("Metal textured quad stage slot {} exceeds max supported stage slots {}", stage.stage_slot,
-                               k_max_textured_quad_stage_records_per_frame);
+            LOG_GRAPHICS_FATAL("Metal textured quad stage slot {} exceeds max supported stage slots {}",
+                               stage_slot,
+                               k_max_textured_quad_stage_slots_per_frame);
             return;
         }
 
-        ensure_textured_quad_argument_capacity(stage.stage_slot, stage.batches.size());
+        ensure_textured_quad_argument_capacity(stage_slot, stage.batches.size());
 
         const chlm::uint_rect viewport_rect{ stage.viewport.rect_px };
 
@@ -591,8 +611,8 @@ namespace carrot::rhi::metal {
         renderer::textured_quad_camera_uniform_t camera_uniform{ };
         camera_uniform.view_projection = stage.view_projection;
 
-        if (!_textured_quad_camera_uniform_buffers[stage.stage_slot] ||
-            !_textured_quad_camera_uniform_buffers[stage.stage_slot]->write(&camera_uniform, sizeof(camera_uniform), 0))
+        if (!_textured_quad_camera_uniform_buffers[stage_slot] ||
+            !_textured_quad_camera_uniform_buffers[stage_slot]->write(&camera_uniform, sizeof(camera_uniform), 0))
         {
             LOG_GRAPHICS_WARN("Failed to upload Metal textured quad camera uniform");
             return;
@@ -610,23 +630,23 @@ namespace carrot::rhi::metal {
             }
 
             size_t root_ab_offset{ 0 };
-            encode_textured_quad_argument_buffers(*texture, stage.stage_slot, i, batch, root_ab_offset);
-            encoder->setVertexBuffer(_textured_quad_root_argument_buffers[stage.stage_slot]->mtl_buffer(),
+            encode_textured_quad_argument_buffers(*texture, stage_slot, i, batch, root_ab_offset);
+            encoder->setVertexBuffer(_textured_quad_root_argument_buffers[stage_slot]->mtl_buffer(),
                                      root_ab_offset,
                                      k_textured_quad_root_argument_buffer_index);
-            encoder->setFragmentBuffer(_textured_quad_root_argument_buffers[stage.stage_slot]->mtl_buffer(),
+            encoder->setFragmentBuffer(_textured_quad_root_argument_buffers[stage_slot]->mtl_buffer(),
                                        root_ab_offset,
                                        k_textured_quad_root_argument_buffer_index);
 
-            encoder->useResource(_textured_quad_cbv_descriptor_tables[stage.stage_slot]->mtl_buffer(), MTL::ResourceUsageRead,
+            encoder->useResource(_textured_quad_cbv_descriptor_tables[stage_slot]->mtl_buffer(), MTL::ResourceUsageRead,
                                  MTL::RenderStageVertex);
-            encoder->useResource(_textured_quad_camera_uniform_buffers[stage.stage_slot]->mtl_buffer(), MTL::ResourceUsageRead,
+            encoder->useResource(_textured_quad_camera_uniform_buffers[stage_slot]->mtl_buffer(), MTL::ResourceUsageRead,
                                  MTL::RenderStageVertex);
 
-            encoder->useResource(_textured_quad_srv_descriptor_tables[stage.stage_slot]->mtl_buffer(), MTL::ResourceUsageRead,
+            encoder->useResource(_textured_quad_srv_descriptor_tables[stage_slot]->mtl_buffer(), MTL::ResourceUsageRead,
                                  MTL::RenderStageFragment);
 
-            encoder->useResource(_textured_quad_sampler_descriptor_tables[stage.stage_slot]->mtl_buffer(), MTL::ResourceUsageRead,
+            encoder->useResource(_textured_quad_sampler_descriptor_tables[stage_slot]->mtl_buffer(), MTL::ResourceUsageRead,
                                  MTL::RenderStageFragment);
 
             encoder->useResource(texture->mtl_texture(), MTL::ResourceUsageRead, MTL::RenderStageFragment);

@@ -1,9 +1,9 @@
 # Carrot Game Engine - Milestone 11
 
-**Last Updated:** April 10, 2026
-**Title:** Runtime UI Usability and Native MSDF Text Rendering
-**Status:** Proposed
-**Focus:** Turn Carrot's first-pass UI foundation into a genuinely usable engine-owned runtime UI layer, led by a Carrot-native MSDF text pipeline and stronger layout quality rather than sandbox-specific feature work.
+**Last Updated:** April 11, 2026
+**Title:** Runtime UI Usability and MSDF Text Rendering
+**Status:** Complete
+**Focus:** Turn Carrot's first-pass UI foundation into a genuinely usable engine-owned runtime UI layer, led by an engine-owned wrapper around `msdf-atlas-gen`, Carrot-owned cooked font assets, and stronger layout quality rather than sandbox-specific feature work.
 
 ---
 
@@ -33,7 +33,7 @@ This milestone is about fixing that ceiling in an **engine-first** way.
 
 The proposed primary text direction for this milestone is:
 
-* **Carrot-native MSDF text rendering**
+* **engine-owned MSDF text rendering built through a native wrapper around `msdf-atlas-gen`**
 * **Carrot-owned cooked font assets**
 * **portable vertex/fragment shader baseline across Vulkan, Metal, and DirectX 12**
 
@@ -55,7 +55,7 @@ Milestone 11 is **not**:
 
 Milestone 11 **is**:
 
-* a Carrot-native MSDF text milestone
+* an engine-owned MSDF text milestone
 * a native cooked font asset milestone
 * a text layout and measurement milestone
 * a runtime UI rendering usability milestone
@@ -111,11 +111,37 @@ It also establishes a text path that fits Carrot's engine values:
 
 ---
 
+## Closeout Summary (April 11, 2026)
+
+Milestone 11 is now considered complete.
+
+Delivered outcomes:
+
+* engine-owned cooked font assets with manifest discovery, cooking, cache reuse, runtime loading, and focused test coverage
+* engine-owned wrapper-based MSDF text generation through `msdf-atlas-gen`
+* explicit cross-backend text rendering pipelines across Vulkan, Metal, and DirectX 12
+* engine-owned text layout primitives for measurement, wrapping, kerning, glyph placement, and baseline-aware bounds
+* engine-owned `ui_label_t`, styled `ui_button_t`, and styled `ui_panel_t` widgets
+* clearer renderer architecture with text split from generic textured quads and UI debug visuals split from normal UI rendering
+* sandbox proof surfaces built from engine widgets:
+  * runtime menu
+  * dialogue panel with wrapped text
+
+Out of scope by design (deferred):
+
+* rich text/markup
+* editable text fields
+* a full theming/skinning framework
+* localization pipeline work
+* a generalized imported/cooked artifact architecture across all asset classes
+
+---
+
 ## Definition of Done (Milestone-Level)
 
 Milestone 11 is successful when all of the following are true:
 
-1. Carrot has a native MSDF text rendering path that supports multiple practical UI sizes cleanly.
+1. Carrot has an engine-owned MSDF text rendering path that supports multiple practical UI sizes cleanly.
 2. UI code can measure, align, and wrap text through engine APIs rather than ad-hoc sandbox helpers.
 3. Carrot has a native cooked font asset path suitable for runtime UI text rendering.
 4. The engine exposes enough widget/rendering primitives to build a real pause/dialogue/settings proof without custom sandbox rendering hacks.
@@ -127,7 +153,8 @@ Milestone 11 is successful when all of the following are true:
 ## Ticket 1 - Carrot-Native MSDF Text Pipeline
 
 **Priority:** P0
-**Outcome:** Carrot has a native MSDF-based text rendering path suitable for runtime UI.
+**Status:** Complete
+**Outcome:** Carrot has an engine-owned MSDF-based text rendering path suitable for runtime UI.
 
 ### Why
 
@@ -136,7 +163,7 @@ MSDF is the chosen direction because it provides crisp scaling while fitting Car
 
 ### Scope
 
-Design and implement a Carrot-owned MSDF text path with:
+Design and implement a Carrot-owned MSDF text path, using an engine-owned wrapper around `msdf-atlas-gen`, with:
 
 * MSDF atlas sampling in the renderer
 * glyph metrics and baseline-aware placement
@@ -158,6 +185,7 @@ Optional geometry-shader experiments may happen later, but they are not part of 
 ## Ticket 2 - Native Cooked Font Asset and Import Path
 
 **Priority:** P0
+**Status:** Complete
 **Outcome:** Carrot has an engine-owned cooked font asset suitable for MSDF runtime text rendering.
 
 ### Why
@@ -170,10 +198,11 @@ It wants a real asset format carrying atlas data and glyph metrics.
 Design and implement a native cooked font path, likely along the lines of:
 
 * a Carrot-owned cooked font asset format such as `.cfont`
-* native font import/generation code owned by Carrot
+* engine-owned font import/generation orchestration owned by Carrot
 * atlas, glyph metric, and layout metadata output required by the runtime text path
 
-The goal is to keep the implementation Carrot-native rather than leaning on a third-party runtime text framework.
+The goal is to keep the runtime-facing path Carrot-owned and explicit rather than leaning on a third-party runtime text framework.
+Using `msdf-atlas-gen` behind an engine wrapper is acceptable for this milestone.
 
 ### Acceptance Criteria
 
@@ -209,6 +238,7 @@ Important first-pass rule:
 ## Ticket 3 - Introduce Engine-Owned Text Layout Primitives
 
 **Priority:** P0
+**Status:** Complete
 **Outcome:** UI systems can measure and arrange text as a first-class engine capability.
 
 ### Why
@@ -236,6 +266,7 @@ Add engine APIs for:
 ## Ticket 4 - Strengthen Core Runtime UI Widgets Around Text
 
 **Priority:** P1
+**Status:** Complete
 **Outcome:** The UI layer becomes materially more usable without sprawling into a giant widget library.
 
 ### Why
@@ -262,6 +293,7 @@ Improve or add the minimum set of engine widgets needed for real runtime UI proo
 ## Ticket 5 - Sandbox Proof: Real Runtime UI, Minimal Game-Specific Logic
 
 **Priority:** P1
+**Status:** Complete
 **Outcome:** The milestone is validated by a practical runtime proof without becoming a sandbox-heavy feature spree.
 
 ### Why
@@ -295,6 +327,7 @@ Use this proof to validate:
 ## Ticket 6 - Regression Coverage for Text and UI Presentation
 
 **Priority:** P1
+**Status:** Complete
 **Outcome:** Text and UI quality gains are protected by automated checks where practical.
 
 ### Why
@@ -333,6 +366,11 @@ The following should stay out of Milestone 11 unless a later review explicitly p
 * geometry shaders as a required part of Carrot's text architecture
 * reliance on a third-party runtime text rendering framework
 
+Clarification:
+
+* using `msdf-atlas-gen` behind a Carrot-owned import/generation wrapper is in scope
+* handing runtime text rendering ownership over to a third-party UI/text runtime is out of scope
+
 ---
 
 ## Review Questions
@@ -350,8 +388,22 @@ These are the main review questions this milestone document is intended to settl
 
 If implementation started directly from this draft, the recommended first pass would be:
 
-1. Define `.cfont` and the native font import/generation path.
+1. Define `.cfont` and the engine-owned font import/generation path.
 2. Add the renderer-side MSDF shader and atlas sampling path.
 3. Add text measurement/layout APIs.
 4. Strengthen label/button text rendering through engine widgets.
 5. Validate with a small sandbox pause/dialogue/settings proof.
+
+## Final Notes
+
+Milestone 11 closed with the intended engine-first shape:
+
+1. the font and text stack lives in engine systems rather than sandbox-local rendering code
+2. the sandbox proves usability through engine widgets rather than one-off draw calls
+3. the work leaves a clean seam for future replacement of `msdf-atlas-gen` behind the existing engine-owned wrapper
+
+Natural follow-on work belongs in Milestone 12 and later:
+
+* broaden the cooked/imported artifact model beyond fonts
+* deepen widget styling into a fuller theme system
+* add more UI surfaces and higher-level widgets without collapsing back into sandbox-owned rendering paths

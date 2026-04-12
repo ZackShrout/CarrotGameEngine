@@ -10,5 +10,6 @@
 #include "UIRootWidget.h"
 #include "Widgets/UIButton.h"
 #include "Widgets/UIFocusScope.h"
+#include "Widgets/UILabel.h"
 #include "Widgets/UIPanel.h"
 #include "Widgets/UIStack.h"

@@ -69,7 +69,7 @@ namespace carrot::rhi::dx12 {
             camera_buffer_info.usage = buffer_usage_t::uniform;
             camera_buffer_info.cpu_writable = true;
 
-            for (uint32_t stage_slot{ 0 }; stage_slot < k_max_textured_quad_stage_records_per_frame; ++stage_slot)
+            for (uint32_t stage_slot{ 0 }; stage_slot < k_max_textured_quad_stage_slots_per_frame; ++stage_slot)
             {
                 frame.textured_quad_camera_uniform_buffers[stage_slot] = std::make_unique<dx12_buffer_t>(
                     _device->id3d12_device(),
@@ -184,6 +184,7 @@ namespace carrot::rhi::dx12 {
     }
 
     void dx12_rhi_context_t::record_quad_stage_to_active_target(const textured_quad_stage_record_t& stage,
+                                                                const uint32_t stage_slot,
                                                                 const quad_pipeline_kind_t pipeline_kind)
     {
         ID3D12GraphicsCommandList* cmd{ _frames[_frame_index].command_list->id3d12_graphics_command_list() };
@@ -197,10 +198,11 @@ namespace carrot::rhi::dx12 {
             stage.index_buffer != nullptr &&
             !stage.batches.empty())
         {
-            if (stage.stage_slot >= k_max_textured_quad_stage_records_per_frame)
+            if (stage_slot >= k_max_textured_quad_stage_slots_per_frame)
             {
-                LOG_GRAPHICS_FATAL("DX12 textured quad stage slot {} exceeds max supported stage slots {}", stage.stage_slot,
-                                   k_max_textured_quad_stage_records_per_frame);
+                LOG_GRAPHICS_FATAL("DX12 textured quad stage slot {} exceeds max supported stage slots {}",
+                                   stage_slot,
+                                   k_max_textured_quad_stage_slots_per_frame);
                 return;
             }
 
@@ -228,8 +230,8 @@ namespace carrot::rhi::dx12 {
             renderer::textured_quad_camera_uniform_t camera_uniform{ };
             camera_uniform.view_projection = stage.view_projection;
 
-            if (!frame.textured_quad_camera_uniform_buffers[stage.stage_slot] ||
-                !frame.textured_quad_camera_uniform_buffers[stage.stage_slot]->write(&camera_uniform,
+            if (!frame.textured_quad_camera_uniform_buffers[stage_slot] ||
+                !frame.textured_quad_camera_uniform_buffers[stage_slot]->write(&camera_uniform,
                                                                                      sizeof(camera_uniform), 0))
             {
                 LOG_GRAPHICS_FATAL("Failed to upload DX12 textured quad camera uniform");
@@ -246,11 +248,11 @@ namespace carrot::rhi::dx12 {
 
             const descriptor_context_t descriptor_context{
                 .tables{
-                    .srv_heap = frame.textured_quad_srv_heaps[stage.stage_slot],
+                    .srv_heap = frame.textured_quad_srv_heaps[stage_slot],
                     .srv_descriptor_size = _srv_descriptor_stride,
-                    .camera_cbv_handle = frame.textured_quad_srv_heaps[stage.stage_slot]->GetGPUDescriptorHandleForHeapStart(),
+                    .camera_cbv_handle = frame.textured_quad_srv_heaps[stage_slot]->GetGPUDescriptorHandleForHeapStart(),
                     .first_batch_srv_index = 1,
-                    .sampler_heap = frame.textured_quad_sampler_heaps[stage.stage_slot],
+                    .sampler_heap = frame.textured_quad_sampler_heaps[stage_slot],
                     .sampler_descriptor_size = _sampler_descriptor_stride
                 },
                 .sampler_provider = this
@@ -264,20 +266,38 @@ namespace carrot::rhi::dx12 {
     {
         _recorded_stages.push_back({
             .stage = stage,
+            .stage_slot = static_cast<uint32_t>(_recorded_stages.size()),
             .pipeline_kind = quad_pipeline_kind_t::textured
         });
+        if (_recorded_stages.back().stage_slot >= k_max_textured_quad_stage_slots_per_frame)
+        {
+            LOG_GRAPHICS_FATAL("DX12 textured quad stage slot {} exceeds max supported stage slots {}",
+                               _recorded_stages.back().stage_slot,
+                               k_max_textured_quad_stage_slots_per_frame);
+            _recorded_stages.pop_back();
+            return;
+        }
         if (presentation_mask_includes(stage.presentation_mask, presentation_channel_gameplay))
-            record_quad_stage_to_active_target(stage, quad_pipeline_kind_t::textured);
+            record_quad_stage_to_active_target(stage, _recorded_stages.back().stage_slot, quad_pipeline_kind_t::textured);
     }
 
     void dx12_rhi_context_t::record_text_quad_stage(const textured_quad_stage_record_t& stage)
     {
         _recorded_stages.push_back({
             .stage = stage,
+            .stage_slot = static_cast<uint32_t>(_recorded_stages.size()),
             .pipeline_kind = quad_pipeline_kind_t::text
         });
+        if (_recorded_stages.back().stage_slot >= k_max_textured_quad_stage_slots_per_frame)
+        {
+            LOG_GRAPHICS_FATAL("DX12 textured quad stage slot {} exceeds max supported stage slots {}",
+                               _recorded_stages.back().stage_slot,
+                               k_max_textured_quad_stage_slots_per_frame);
+            _recorded_stages.pop_back();
+            return;
+        }
         if (presentation_mask_includes(stage.presentation_mask, presentation_channel_gameplay))
-            record_quad_stage_to_active_target(stage, quad_pipeline_kind_t::text);
+            record_quad_stage_to_active_target(stage, _recorded_stages.back().stage_slot, quad_pipeline_kind_t::text);
     }
 
     void dx12_rhi_context_t::end_frame()
@@ -320,7 +340,7 @@ namespace carrot::rhi::dx12 {
                 const textured_quad_stage_record_t& stage{ recorded_stage.stage };
                 if (!presentation_mask_includes(stage.presentation_mask, surface.presentation_channel_mask))
                     continue;
-                record_quad_stage_to_active_target(stage, recorded_stage.pipeline_kind);
+                record_quad_stage_to_active_target(stage, recorded_stage.stage_slot, recorded_stage.pipeline_kind);
             }
 
             D3D12_RESOURCE_BARRIER aux_to_present{ };
@@ -713,7 +733,7 @@ namespace carrot::rhi::dx12 {
 
             frame.fence->wait(frame.fence_value);
 
-            for (uint32_t stage_slot{ 0 }; stage_slot < k_max_textured_quad_stage_records_per_frame; ++stage_slot)
+            for (uint32_t stage_slot{ 0 }; stage_slot < k_max_textured_quad_stage_slots_per_frame; ++stage_slot)
             {
                 if (frame.textured_quad_srv_heaps[stage_slot])
                 {

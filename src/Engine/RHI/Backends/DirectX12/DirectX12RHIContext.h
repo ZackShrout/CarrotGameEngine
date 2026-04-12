@@ -21,8 +21,6 @@
 #include <vector>
 
 namespace carrot::rhi::dx12 {
-    constexpr uint32_t k_max_textured_quad_stage_records_per_frame{ 8 };
-
     class dx12_device_t;
     class dx12_command_queue_t;
     class dx12_swapchain_t;
@@ -35,11 +33,11 @@ namespace carrot::rhi::dx12 {
         std::unique_ptr<dx12_command_list_t> command_list;
         std::unique_ptr<dx12_fence_t> fence;
         uint64_t fence_value{ 0 };
-        std::array<std::unique_ptr<dx12_buffer_t>, k_max_textured_quad_stage_records_per_frame>
+        std::array<std::unique_ptr<dx12_buffer_t>, k_max_textured_quad_stage_slots_per_frame>
             textured_quad_camera_uniform_buffers;
 
-        std::array<ID3D12DescriptorHeap*, k_max_textured_quad_stage_records_per_frame> textured_quad_srv_heaps{ };
-        std::array<ID3D12DescriptorHeap*, k_max_textured_quad_stage_records_per_frame> textured_quad_sampler_heaps{ };
+        std::array<ID3D12DescriptorHeap*, k_max_textured_quad_stage_slots_per_frame> textured_quad_srv_heaps{ };
+        std::array<ID3D12DescriptorHeap*, k_max_textured_quad_stage_slots_per_frame> textured_quad_sampler_heaps{ };
         uint32_t textured_quad_descriptor_capacity{ 0 };
     };
 
@@ -94,10 +92,12 @@ namespace carrot::rhi::dx12 {
         struct recorded_stage_t
         {
             textured_quad_stage_record_t stage;
+            uint32_t stage_slot{ 0 };
             quad_pipeline_kind_t pipeline_kind{ quad_pipeline_kind_t::textured };
         };
 
         void record_quad_stage_to_active_target(const textured_quad_stage_record_t& stage,
+                                                uint32_t stage_slot,
                                                 quad_pipeline_kind_t pipeline_kind);
         void sync_auxiliary_surface_sizes();
         bool create_auxiliary_surface(window::window_id_t window_id, uint32_t presentation_channel_mask);

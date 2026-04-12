@@ -20,8 +20,6 @@
 #include <vector>
 
 namespace carrot::rhi::vulkan {
-    constexpr uint32_t k_max_textured_quad_stage_records_per_frame{ 8 };
-
     class vulkan_buffer_t;
     class vulkan_textured_quad_pipeline_t;
     class vulkan_pipeline_t;
@@ -35,9 +33,9 @@ namespace carrot::rhi::vulkan {
         chlm::float4x4 view_projection{ chlm::float4x4::identity() };
         render_viewport_t viewport{ };
 
-        std::array<std::array<std::unique_ptr<rhi_buffer_t>, k_max_textured_quad_stage_records_per_frame>,
+        std::array<std::array<std::unique_ptr<rhi_buffer_t>, k_max_textured_quad_stage_slots_per_frame>,
                    k_max_frames_in_flight> camera_uniform_buffers;
-        std::array<std::array<VkDescriptorSet, k_max_textured_quad_stage_records_per_frame>,
+        std::array<std::array<VkDescriptorSet, k_max_textured_quad_stage_slots_per_frame>,
                    k_max_frames_in_flight> camera_descriptor_sets{ };
 
         std::vector<renderer::textured_quad_batch_t> batches;
@@ -103,6 +101,7 @@ namespace carrot::rhi::vulkan {
         struct recorded_stage_t
         {
             textured_quad_stage_record_t stage;
+            uint32_t stage_slot{ 0 };
             uint32_t descriptor_set_offset{ 0 };
             uint32_t descriptor_set_count{ 0 };
             quad_pipeline_kind_t pipeline_kind{ quad_pipeline_kind_t::textured };
@@ -117,9 +116,12 @@ namespace carrot::rhi::vulkan {
         void destroy_auxiliary_surface(auxiliary_surface_t& surface) noexcept;
         void destroy_all_auxiliary_surfaces() noexcept;
         void sync_auxiliary_surface_sizes();
-        uint32_t prepare_quad_stage_descriptors(const textured_quad_stage_record_t& stage, uint32_t& out_batch_count);
+        uint32_t prepare_quad_stage_descriptors(const textured_quad_stage_record_t& stage,
+                                                uint32_t stage_slot,
+                                                uint32_t& out_batch_count);
         void encode_quad_stage_to_command_buffer(VkCommandBuffer command_buffer,
                                                  const textured_quad_stage_record_t& stage,
+                                                 uint32_t stage_slot,
                                                  uint32_t descriptor_set_offset,
                                                  uint32_t batch_count,
                                                  quad_pipeline_kind_t pipeline_kind);

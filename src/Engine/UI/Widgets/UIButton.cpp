@@ -38,6 +38,12 @@ namespace carrot::ui {
         sync_label_style();
     }
 
+    void ui_button_t::set_text_style(const ui_button_text_style_t& style) noexcept
+    {
+        _text_style = style;
+        sync_label_style();
+    }
+
     std::string_view ui_button_t::get_debug_name() const noexcept
     {
         return _label;
@@ -150,7 +156,13 @@ namespace carrot::ui {
 
     void ui_button_t::sync_label_style() noexcept
     {
-        if (_label_widget)
-            _label_widget->set_color(resolve_label_color());
+        if (!_label_widget) return;
+
+        _label_widget->set_text(_label);
+        _label_widget->set_font_asset_id(_text_style.font_asset_id);
+        _label_widget->set_font_size(_text_style.font_size);
+        _label_widget->set_horizontal_alignment(_text_style.horizontal_alignment);
+        _label_widget->set_wrap_width(_text_style.wrap_width);
+        _label_widget->set_color(resolve_label_color());
     }
 } // namespace carrot::ui

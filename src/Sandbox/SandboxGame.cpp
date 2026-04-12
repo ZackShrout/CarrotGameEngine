@@ -134,6 +134,14 @@ namespace sandbox {
             auto& item_b{ menu.emplace_child<carrot::ui::ui_button_t>("Options") };
             auto& item_c{ menu.emplace_child<carrot::ui::ui_button_t>("Exit") };
             item_a.set_navigation_target(carrot::ui::ui_navigation_direction_t::down, &item_b);
+
+            carrot::ui::ui_button_text_style_t style{ };
+            style.font_asset_id = "font.engine.pixelnauts";
+
+            item_a.set_text_style(style);
+            item_b.set_text_style(style);
+            item_c.set_text_style(style);
+
             item_b.set_navigation_target(carrot::ui::ui_navigation_direction_t::up, &item_a);
             item_b.set_navigation_target(carrot::ui::ui_navigation_direction_t::down, &item_c);
             item_c.set_navigation_target(carrot::ui::ui_navigation_direction_t::up, &item_b);
@@ -162,12 +170,14 @@ namespace sandbox {
             auto& speaker{ dialogue_content.emplace_child<carrot::ui::ui_label_t>("Archivist") };
             speaker.set_font_size(20.0f);
             speaker.set_color(0xFFFFD86Bu);
+            speaker.set_font_asset_id("font.engine.pixelnauts");
 
             auto& body{ dialogue_content.emplace_child<carrot::ui::ui_label_t>(std::string{ k_dialogue_lorem_ipsum }) };
             body.set_font_size(22.0f);
             body.set_color(0xFFF4F0E8u);
             body.set_wrap_width(676.0f);
             body.set_main_axis_size_rule(carrot::ui::ui_main_axis_size_rule_t::flex);
+            body.set_font_asset_id("font.engine.pixelnauts");
 
             (void)ui_module->focus_first();
         }

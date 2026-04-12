@@ -22,6 +22,14 @@ namespace carrot::ui {
         std::string texture_asset_id;
     };
 
+    struct ui_button_text_style_t
+    {
+        std::string font_asset_id{ "font.engine.roboto_regular" };
+        float font_size{ 24.0f };
+        ui_label_horizontal_alignment_t horizontal_alignment{ ui_label_horizontal_alignment_t::center };
+        float wrap_width{ 0.0f };
+    };
+
     struct ui_button_style_t
     {
         ui_button_surface_style_t normal{ };
@@ -53,6 +61,9 @@ namespace carrot::ui {
         [[nodiscard]] const ui_button_style_t& get_style() const noexcept { return _style; }
         void set_style(const ui_button_style_t& style) noexcept;
 
+        [[nodiscard]] const ui_button_text_style_t& get_text_style() const noexcept { return _text_style; }
+        void set_text_style(const ui_button_text_style_t& style) noexcept;
+
         void set_on_focused(callback_t callback) noexcept { _on_focused = std::move(callback); }
         void set_on_focus_lost(callback_t callback) noexcept { _on_focus_lost = std::move(callback); }
         void set_on_pressed(callback_t callback) noexcept { _on_pressed = std::move(callback); }
@@ -78,6 +89,7 @@ namespace carrot::ui {
         ui_label_t* _label_widget{ nullptr };
         bool _is_focused{ false };
         ui_button_style_t _style{ };
+        ui_button_text_style_t _text_style{ };
         callback_t _on_focused;
         callback_t _on_focus_lost;
         callback_t _on_pressed;

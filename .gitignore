@@ -53,6 +53,7 @@ Makefile
 assets/compiled/
 assets/cache/
 assets/shaders
+saved/
 
 11 Hope for All Years.wav
 

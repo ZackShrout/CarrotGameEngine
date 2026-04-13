@@ -242,6 +242,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/AssetDiscovery.h
         src/Engine/Assets/AssetHandle.h
         src/Engine/Assets/AssetID.h
+        src/Engine/Assets/ImportedAssetCache.cpp
+        src/Engine/Assets/ImportedAssetCache.h
         src/Engine/Assets/AssetManager.cpp
         src/Engine/Assets/AssetManager.h
         src/Engine/Assets/AssetRegistry.h
@@ -250,6 +252,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/Audio/AudioAsset.h
         src/Engine/Assets/Audio/AudioAssetLoader.cpp
         src/Engine/Assets/Audio/AudioAssetLoader.h
+        src/Engine/Assets/Audio/CookedAudio.cpp
+        src/Engine/Assets/Audio/CookedAudio.h
         src/Engine/Assets/Audio/AudioAssetManifestImporter.cpp
         src/Engine/Assets/Audio/AudioAssetManifestImporter.h
         src/Engine/Assets/Audio/AudioAssetRegistry.cpp
@@ -287,6 +291,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/Shaders/VFSShaderFileProvider.h
         src/Engine/Assets/Sprite/AsepriteSpriteAssetImporter.cpp
         src/Engine/Assets/Sprite/AsepriteSpriteAssetImporter.h
+        src/Engine/Assets/Sprite/CookedSprite.cpp
+        src/Engine/Assets/Sprite/CookedSprite.h
         src/Engine/Assets/Sprite/LoadedSpriteAsset.cpp
         src/Engine/Assets/Sprite/LoadedSpriteAsset.h
         src/Engine/Assets/Sprite/NativeSpriteAssetImporter.cpp
@@ -307,6 +313,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/Sprite/SpriteFrame.h
         src/Engine/Assets/Tilemap/LoadedTilemapAsset.cpp
         src/Engine/Assets/Tilemap/LoadedTilemapAsset.h
+        src/Engine/Assets/Tilemap/CookedTilemap.cpp
+        src/Engine/Assets/Tilemap/CookedTilemap.h
         src/Engine/Assets/Tilemap/NativeTilemapAssetImporter.cpp
         src/Engine/Assets/Tilemap/NativeTilemapAssetImporter.h
         src/Engine/Assets/Tilemap/TiledTilemapAssetImporter.cpp
@@ -325,6 +333,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/Tilemap/TypedObjectConventions.cpp
         src/Engine/Assets/Tilemap/TypedObjectConventions.h
         src/Engine/Assets/Texture/TextureAsset.h
+        src/Engine/Assets/Texture/CookedTexture.cpp
+        src/Engine/Assets/Texture/CookedTexture.h
         src/Engine/Assets/Texture/TextureAssetLoader.cpp
         src/Engine/Assets/Texture/TextureAssetLoader.h
         src/Engine/Assets/Texture/TextureAssetManifestImporter.cpp
@@ -844,6 +854,7 @@ target_link_libraries(CarrotSandbox PRIVATE CarrotEngine)
 set(CARROT_TEST_SOURCES
         tests/TestMain.cpp
         tests/ActionMapTests.cpp
+        tests/AssetCookedPipelineTests.cpp
         tests/ControllerTests.cpp
         tests/CollisionWorldTests.cpp
         tests/FontAssetTests.cpp

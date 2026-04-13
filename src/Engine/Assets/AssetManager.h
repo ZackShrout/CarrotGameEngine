@@ -32,7 +32,7 @@ namespace carrot::assets {
     {
     public:
         explicit asset_manager_t(io::virtual_file_system_t& vfs, rhi::rhi_context_t& rhi) noexcept
-            : _vfs{ vfs }, _audio{ vfs }, _fonts{ vfs, rhi }, _textures{ vfs, rhi }, _sprites{ _textures }, _tilemaps{ vfs, rhi }, _scenes{} {}
+            : _vfs{ vfs }, _audio{ vfs }, _fonts{ vfs, rhi }, _textures{ vfs, rhi }, _sprites{ vfs, _textures }, _tilemaps{ vfs, rhi }, _scenes{} {}
 
         [[nodiscard]] const io::virtual_file_system_t& vfs() const noexcept { return _vfs; }
         [[nodiscard]] io::virtual_file_system_t& vfs() noexcept { return _vfs; }

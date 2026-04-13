@@ -23,7 +23,8 @@ namespace carrot::assets {
 
     bool tilemap_asset_manifest_importer_t::import(const utils::json::json_document_t& doc,
                                                    tilemap_asset_registry_t& registry,
-                                                   const io::virtual_file_system_t& vfs)
+                                                   const io::virtual_file_system_t& vfs,
+                                                   const std::string_view manifest_uri)
     {
         const utils::json::json_object_view_t root{ doc.root().as_object() };
 
@@ -64,6 +65,13 @@ namespace carrot::assets {
             return false;
         }
 
+        const std::uint32_t schema_version{ static_cast<std::uint32_t>(root.get_number_or("version", 1.0)) };
+        if (schema_version != 1u)
+        {
+            LOG_ASSET_ERROR("Tilemap asset '{}' uses unsupported schema version {}", id, schema_version);
+            return false;
+        }
+
         if (!vfs.exists(source))
         {
             LOG_ASSET_ERROR("Tilemap source not found '{}'", source);
@@ -85,12 +93,32 @@ namespace carrot::assets {
         }
 
         if (ends_with(source, ".tmj"))
-            return tiled_tilemap_asset_importer_t::import(imported_doc, registry, id, source);
+        {
+            const bool imported{ tiled_tilemap_asset_importer_t::import(imported_doc, registry, id, source) };
+            if (!imported)
+                return false;
+        }
+        else if (ends_with(source, ".ctilemap.json"))
+        {
+            const bool imported{ native_tilemap_asset_importer_t::import(imported_doc, registry, id, source) };
+            if (!imported)
+                return false;
+        }
+        else
+        {
+            LOG_ASSET_ERROR("Unsupported tilemap source format '{}'", source);
+            return false;
+        }
 
-        if (ends_with(source, ".ctilemap.json"))
-            return native_tilemap_asset_importer_t::import(imported_doc, registry, id, source);
+        tilemap_asset_record_t* record{ const_cast<tilemap_asset_record_t*>(registry.find(id)) };
+        if (!record)
+        {
+            LOG_ASSET_ERROR("Tilemap asset '{}' imported but was not found in the registry", id);
+            return false;
+        }
 
-        LOG_ASSET_ERROR("Unsupported tilemap source format '{}'", source);
-        return false;
+        record->manifest_uri = std::string{ manifest_uri };
+        record->schema_version = schema_version;
+        return true;
     }
 } // namespace carrot::assets

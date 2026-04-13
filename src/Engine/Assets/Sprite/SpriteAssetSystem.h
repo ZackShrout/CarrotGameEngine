@@ -11,14 +11,18 @@
 #include <string_view>
 #include <unordered_map>
 
+namespace carrot::io {
+    class virtual_file_system_t;
+}
+
 namespace carrot::assets {
     class texture_asset_system_t;
 
     class sprite_asset_system_t
     {
     public:
-        explicit sprite_asset_system_t(texture_asset_system_t& textures) noexcept
-            : _textures{ textures } {}
+        sprite_asset_system_t(io::virtual_file_system_t& vfs, texture_asset_system_t& textures) noexcept
+            : _vfs{ vfs }, _textures{ textures } {}
 
         [[nodiscard]] const sprite_asset_registry_t& registry() const noexcept { return _registry; }
         [[nodiscard]] sprite_asset_registry_t& registry() noexcept { return _registry; }
@@ -30,6 +34,7 @@ namespace carrot::assets {
         void clear_all();
 
     private:
+        io::virtual_file_system_t& _vfs;
         texture_asset_system_t& _textures;
         sprite_asset_registry_t _registry;
         std::unordered_map<asset_id_t, std::unique_ptr<loaded_sprite_asset_t>> _loaded;

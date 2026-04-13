@@ -20,8 +20,10 @@ namespace carrot::assets {
                 case tilemap_asset_load_error_t::invalid_record: return "invalid_record";
                 case tilemap_asset_load_error_t::resolve_failed: return "resolve_failed";
                 case tilemap_asset_load_error_t::source_not_found: return "source_not_found";
+                case tilemap_asset_load_error_t::manifest_not_found: return "manifest_not_found";
                 case tilemap_asset_load_error_t::decode_failed: return "decode_failed";
                 case tilemap_asset_load_error_t::texture_create_failed: return "texture_create_failed";
+                case tilemap_asset_load_error_t::cooked_write_failed: return "cooked_write_failed";
                 default: return "unknown";
             }
         }

@@ -23,6 +23,9 @@ namespace carrot::assets {
          * @param registry Audio asset registry to populate.
          * @return true on success, false on failure.
          */
-        [[nodiscard]] static bool import(const utils::json::json_document_t& doc, audio_asset_registry_t& registry, const io::virtual_file_system_t& vfs);
+        [[nodiscard]] static bool import(const utils::json::json_document_t& doc,
+                                         audio_asset_registry_t& registry,
+                                         const io::virtual_file_system_t& vfs,
+                                         std::string_view manifest_uri = {});
     };
 } // namespace carrot::assets

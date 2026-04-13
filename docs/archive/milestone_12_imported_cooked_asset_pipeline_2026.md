@@ -1,9 +1,37 @@
 # Carrot Game Engine - Milestone 12
 
-**Last Updated:** April 10, 2026
+**Last Updated:** April 13, 2026
 **Title:** Imported Cooked Asset Pipeline
-**Status:** Proposed
+**Status:** Complete
 **Focus:** Introduce engine-owned imported/cached asset artifacts such as `.ctex`, `.caud`, `.csprite`, `.cmap`, and related cooked formats so Carrot can avoid repeated expensive import work while preserving JSON-authored source-of-truth asset definitions.
+
+Archived in April 2026 after the imported/cooked asset pipeline landed in the engine with shared invalidation, cache regeneration, and first binary cooked formats across multiple asset classes.
+
+---
+
+## Closeout Summary (April 13, 2026)
+
+Milestone 12 is now considered complete.
+
+Delivered outcomes:
+
+* shared imported-artifact cache infrastructure with deterministic invalidation based on authored manifests, source dependencies, importer version, and cooked format version
+* automatic load-or-regenerate behavior for stale or missing cooked artifacts
+* first binary cooked low-level asset formats:
+  * `.ctex`
+  * `.caud`
+* binary cooked higher-level imported asset formats:
+  * `.csprite`
+  * `.cmap`
+* authored JSON remaining the source of truth while cooked artifacts stay machine-generated engine-owned outputs
+* regression coverage for cooked artifact round-trips, manifest metadata wiring, regeneration, and cache reuse
+
+Out of scope by design (deferred):
+
+* packaging/distribution bundles
+* encrypted or protected asset containers
+* editor-driven cook daemons or build-farm orchestration
+* scene-level cooked formats
 
 ---
 

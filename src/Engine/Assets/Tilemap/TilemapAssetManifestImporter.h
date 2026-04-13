@@ -18,6 +18,7 @@ namespace carrot::assets {
     public:
         [[nodiscard]] static bool import(const utils::json::json_document_t& doc,
                                          tilemap_asset_registry_t& registry,
-                                         const io::virtual_file_system_t& vfs);
+                                         const io::virtual_file_system_t& vfs,
+                                         std::string_view manifest_uri = {});
     };
 } // namespace carrot::assets

@@ -8,6 +8,8 @@
 #include "LoadedTilemapAsset.h"
 #include "TilemapAsset.h"
 
+#include <filesystem>
+
 namespace carrot::io {
     class virtual_file_system_t;
 }
@@ -23,8 +25,10 @@ namespace carrot::assets {
         invalid_record,
         resolve_failed,
         source_not_found,
+        manifest_not_found,
         decode_failed,
-        texture_create_failed
+        texture_create_failed,
+        cooked_write_failed
     };
 
     struct tilemap_asset_load_result_t
@@ -42,4 +46,6 @@ namespace carrot::assets {
     [[nodiscard]] tilemap_asset_load_result_t load_tilemap_asset(const tilemap_asset_record_t& record,
                                                                  const io::virtual_file_system_t& vfs,
                                                                  rhi::rhi_context_t& rhi) noexcept;
+    [[nodiscard]] std::filesystem::path cooked_tilemap_cache_path(std::string_view logical_id,
+                                                                  const io::virtual_file_system_t& vfs) noexcept;
 } // namespace carrot::assets

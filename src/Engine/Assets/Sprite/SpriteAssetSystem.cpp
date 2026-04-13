@@ -23,7 +23,7 @@ namespace carrot::assets {
             return nullptr;
         }
 
-        sprite_asset_load_result_t result{ load_sprite_asset(*record, _textures) };
+        sprite_asset_load_result_t result{ load_sprite_asset(*record, _vfs, _textures) };
         if (!result.success())
         {
             LOG_ASSET_ERROR(

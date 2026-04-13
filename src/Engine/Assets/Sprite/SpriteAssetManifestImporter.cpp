@@ -39,7 +39,10 @@ namespace carrot::assets {
         }
     }
 
-    bool sprite_asset_manifest_importer_t::import(const utils::json::json_document_t& doc, sprite_asset_registry_t& registry, const io::virtual_file_system_t& vfs)
+    bool sprite_asset_manifest_importer_t::import(const utils::json::json_document_t& doc,
+                                                  sprite_asset_registry_t& registry,
+                                                  const io::virtual_file_system_t& vfs,
+                                                  const std::string_view manifest_uri)
     {
         const utils::json::json_object_view_t root{ doc.root().as_object() };
 
@@ -87,6 +90,13 @@ namespace carrot::assets {
             return false;
         }
 
+        const std::uint32_t schema_version{ static_cast<std::uint32_t>(root.get_number_or("version", 1.0)) };
+        if (schema_version != 1u)
+        {
+            LOG_ASSET_ERROR("Sprite asset '{}' uses unsupported schema version {}", id, schema_version);
+            return false;
+        }
+
         if (!vfs.exists(source))
         {
             LOG_ASSET_ERROR("Sprite source not found '{}'", source);
@@ -119,18 +129,39 @@ namespace carrot::assets {
 
         if (ends_with(source, ".aseprite.json"))
         {
-            return aseprite_sprite_asset_importer_t::import(imported_doc_opt, registry, id, texture,
-                                                            pivot_override, pixels_per_unit_override);
+            const bool imported{
+                aseprite_sprite_asset_importer_t::import(imported_doc_opt, registry, id, texture,
+                                                         pivot_override, pixels_per_unit_override)
+            };
+            if (!imported)
+                return false;
         }
-
-        if (ends_with(source, ".csprite.json"))
+        else if (ends_with(source, ".csprite.json"))
         {
-            return native_sprite_asset_importer_t::import(imported_doc_opt, registry, id, texture,
-                                                          pivot_override, pixels_per_unit_override);
+            const bool imported{
+                native_sprite_asset_importer_t::import(imported_doc_opt, registry, id, texture,
+                                                       pivot_override, pixels_per_unit_override)
+            };
+            if (!imported)
+                return false;
+        }
+        else
+        {
+            LOG_ASSET_ERROR("Unsupported sprite source format '{}'", source);
+            return false;
         }
 
-        LOG_ASSET_ERROR("Unsupported sprite source format '{}'", source);
-        return false;
+        sprite_asset_record_t* record{ const_cast<sprite_asset_record_t*>(registry.find(id)) };
+        if (!record)
+        {
+            LOG_ASSET_ERROR("Sprite asset '{}' imported but was not found in the registry", id);
+            return false;
+        }
+
+        record->source_uri = std::string{ source };
+        record->manifest_uri = std::string{ manifest_uri };
+        record->schema_version = schema_version;
+        return true;
     }
 }
 

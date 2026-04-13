@@ -8,6 +8,7 @@
 #include "Assets/AssetID.h"
 #include "RHI/Texture.h"
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -17,6 +18,8 @@ namespace carrot::assets {
         asset_id_t id{ 0 };
         std::string logical_id;
         std::string source_uri;
+        std::string manifest_uri;
+        std::uint32_t schema_version{ 1u };
         bool srgb{ true };
     };
 

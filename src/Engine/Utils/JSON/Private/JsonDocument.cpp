@@ -57,7 +57,7 @@ namespace carrot::utils::json {
             _arena = new core::memory::arena_t(required_capacity);
         }
 
-        lexer_t lexer(data);
+        lexer_t lexer(std::string_view{ data, size });
         parser_t parser(lexer, *_arena);
 
         _root = parser.parse();

@@ -377,6 +377,8 @@ namespace carrot::assets {
         asset_id_t id{ 0 };
         std::string logical_id;
         std::string source_uri;
+        std::string manifest_uri;
+        std::uint32_t schema_version{ 1u };
         tilemap_asset_t tilemap;
     };
 } // namespace carrot::assets

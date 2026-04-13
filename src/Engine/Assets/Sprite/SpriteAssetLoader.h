@@ -8,6 +8,8 @@
 #include "LoadedSpriteAsset.h"
 #include "SpriteAsset.h"
 
+#include <filesystem>
+
 namespace carrot::io {
     class virtual_file_system_t;
 }
@@ -19,7 +21,11 @@ namespace carrot::assets {
     enum class sprite_asset_load_error_t
     {
         none = 0,
-        missing_texture_asset
+        invalid_record,
+        missing_texture_asset,
+        source_not_found,
+        manifest_not_found,
+        cooked_write_failed
     };
 
     struct sprite_asset_load_result_t
@@ -35,6 +41,10 @@ namespace carrot::assets {
 
     [[nodiscard]] sprite_asset_load_result_t load_sprite_asset(
         const sprite_asset_record_t& record,
+        const io::virtual_file_system_t& vfs,
         texture_asset_system_t& textures
     );
+
+    [[nodiscard]] std::filesystem::path cooked_sprite_cache_path(std::string_view logical_id,
+                                                                 const io::virtual_file_system_t& vfs) noexcept;
 } // namespace carrot::assets

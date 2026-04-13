@@ -945,7 +945,10 @@ namespace carrot {
             return false;
         }
 
-        return assets::audio_asset_manifest_importer_t::import(doc, _asset_manager->audio().registry(), _vfs);
+        return assets::audio_asset_manifest_importer_t::import(doc,
+                                                               _asset_manager->audio().registry(),
+                                                               _vfs,
+                                                               manifest_uri);
     }
 
     bool engine_t::register_font_asset_manifest(std::string_view manifest_uri)
@@ -989,7 +992,10 @@ namespace carrot {
             return false;
         }
 
-        return assets::texture_asset_manifest_importer_t::import(doc, _asset_manager->textures().registry(), _vfs);
+        return assets::texture_asset_manifest_importer_t::import(doc,
+                                                                 _asset_manager->textures().registry(),
+                                                                 _vfs,
+                                                                 manifest_uri);
     }
 
     bool engine_t::register_sprite_asset_manifest(std::string_view manifest_uri)
@@ -1011,7 +1017,10 @@ namespace carrot {
             return false;
         }
 
-        return assets::sprite_asset_manifest_importer_t::import(doc, _asset_manager->sprites().registry(), _vfs);
+        return assets::sprite_asset_manifest_importer_t::import(doc,
+                                                                _asset_manager->sprites().registry(),
+                                                                _vfs,
+                                                                manifest_uri);
     }
 
     bool engine_t::register_tilemap_asset_manifest(std::string_view manifest_uri)
@@ -1033,7 +1042,10 @@ namespace carrot {
             return false;
         }
 
-        return assets::tilemap_asset_manifest_importer_t::import(doc, _asset_manager->tilemaps().registry(), _vfs);
+        return assets::tilemap_asset_manifest_importer_t::import(doc,
+                                                                 _asset_manager->tilemaps().registry(),
+                                                                 _vfs,
+                                                                 manifest_uri);
     }
 
     bool engine_t::register_scene_asset_manifest(std::string_view manifest_uri)

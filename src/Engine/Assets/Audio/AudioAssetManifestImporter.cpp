@@ -12,7 +12,9 @@
 
 namespace carrot::assets {
     bool audio_asset_manifest_importer_t::import(const utils::json::json_document_t& doc,
-                                                 audio_asset_registry_t& registry, const io::virtual_file_system_t& vfs)
+                                                 audio_asset_registry_t& registry,
+                                                 const io::virtual_file_system_t& vfs,
+                                                 const std::string_view manifest_uri)
     {
         const utils::json::json_object_view_t root{ doc.root().as_object() };
 
@@ -54,6 +56,14 @@ namespace carrot::assets {
         audio_asset_record_t record{ };
         record.id = make_asset_id(id);
         record.logical_id = std::string{ id };
+        record.manifest_uri = std::string{ manifest_uri };
+        record.schema_version = static_cast<std::uint32_t>(root.get_number_or("version", 1.0));
+
+        if (record.schema_version != 1u)
+        {
+            LOG_ASSET_ERROR("Audio asset '{}' uses unsupported schema version {}", id, record.schema_version);
+            return false;
+        }
 
         if (registry.contains(record.id))
         {

@@ -29,6 +29,8 @@ namespace carrot::assets {
 
         /** @brief URI identifying the source location of the audio asset. */
         std::string source_uri;
+        std::string manifest_uri;
+        std::uint32_t schema_version{ 1u };
 
         /** @brief Output bus the sound is routed to. */
         audio::audio_bus_id bus{ audio::audio_bus_id::sfx };

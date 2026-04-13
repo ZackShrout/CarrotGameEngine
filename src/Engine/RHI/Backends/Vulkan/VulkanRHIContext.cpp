@@ -1228,13 +1228,20 @@ namespace carrot::rhi::vulkan {
             return 0;
         }
 
-        renderer::textured_quad_camera_uniform_t camera_uniform{ };
-        camera_uniform.view_projection = stage.view_projection;
+        renderer::world_forward_plus_uniform_t world_uniform{ };
+        world_uniform.view_projection = stage.view_projection;
+        world_uniform.ambient_color = stage.ambient_color;
+        world_uniform.forward_plus_grid_params = stage.forward_plus_grid_params;
+        world_uniform.forward_plus_tile_counts = stage.forward_plus_tile_counts;
+        world_uniform.point_light_counts[0] = stage.point_light_count;
+        world_uniform.point_lights = stage.point_lights;
+        world_uniform.forward_plus_tiles = stage.forward_plus_tiles;
+        world_uniform.forward_plus_light_indices = stage.forward_plus_light_indices;
         if (!_textured_quad.camera_uniform_buffers[_current_frame][stage_slot] ||
-            !_textured_quad.camera_uniform_buffers[_current_frame][stage_slot]->write(&camera_uniform,
-                                                                                            sizeof(camera_uniform), 0))
+            !_textured_quad.camera_uniform_buffers[_current_frame][stage_slot]->write(&world_uniform,
+                                                                                      sizeof(world_uniform), 0))
         {
-            LOG_GRAPHICS_FATAL("Failed to upload Vulkan textured quad camera uniform");
+            LOG_GRAPHICS_FATAL("Failed to upload Vulkan world forward+ uniform");
             return 0;
         }
         write_textured_quad_camera_descriptor_set(_current_frame, stage_slot);
@@ -1617,7 +1624,7 @@ namespace carrot::rhi::vulkan {
         for (uint32_t frame_index{ 0 }; frame_index < k_max_frames_in_flight; ++frame_index)
             for (uint32_t stage_slot{ 0 }; stage_slot < k_max_textured_quad_stage_slots_per_frame; ++stage_slot)
                 _textured_quad.camera_uniform_buffers[frame_index][stage_slot] = create_buffer({
-                    .size_bytes = sizeof(renderer::textured_quad_camera_uniform_t),
+                    .size_bytes = sizeof(renderer::world_forward_plus_uniform_t),
                     .usage = buffer_usage_t::uniform,
                     .cpu_writable = true
                 });
@@ -2004,14 +2011,14 @@ namespace carrot::rhi::vulkan {
 
         if (camera_buffer == nullptr)
         {
-            LOG_GRAPHICS_FATAL("Textured quad camera uniform buffer was not a Vulkan buffer");
+            LOG_GRAPHICS_FATAL("Textured quad world forward+ uniform buffer was not a Vulkan buffer");
             return;
         }
 
         VkDescriptorBufferInfo buffer_info{ };
         buffer_info.buffer = camera_buffer->vk_buffer();
         buffer_info.offset = 0;
-        buffer_info.range = sizeof(renderer::textured_quad_camera_uniform_t);
+        buffer_info.range = sizeof(renderer::world_forward_plus_uniform_t);
 
         VkWriteDescriptorSet write{ };
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;

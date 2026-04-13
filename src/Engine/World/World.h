@@ -58,6 +58,22 @@ namespace carrot::world {
         std::vector<layering_debug_layer_snapshot_t> layers;
     };
 
+    struct world_lighting_state_t
+    {
+        chlm::float4 ambient_color{ 1.f, 1.f, 1.f, 1.f };
+
+        struct point_light_t
+        {
+            chlm::float2 position_world{ 0.f, 0.f };
+            float radius_world{ 2.f };
+            float reserved0{ 0.f };
+            chlm::float4 color{ 1.f, 1.f, 1.f, 1.f };
+            float intensity{ 1.f };
+        };
+
+        std::vector<point_light_t> point_lights;
+    };
+
     class world_t
     {
     public:
@@ -93,6 +109,8 @@ namespace carrot::world {
         [[nodiscard]] collision_debug_view_t& collision_debug_view() noexcept { return _collision_debug_view; }
         [[nodiscard]] const layering_debug_view_t& layering_debug_view() const noexcept { return _layering_debug_view; }
         [[nodiscard]] layering_debug_view_t& layering_debug_view() noexcept { return _layering_debug_view; }
+        [[nodiscard]] const world_lighting_state_t& lighting() const noexcept { return _lighting; }
+        [[nodiscard]] world_lighting_state_t& lighting() noexcept { return _lighting; }
         [[nodiscard]] const layering_debug_snapshot_t& layering_debug_snapshot() const noexcept
         {
             return _layering_debug_snapshot;
@@ -107,6 +125,7 @@ namespace carrot::world {
         collision::collision_world_t _collision_world{ };
         collision_debug_view_t _collision_debug_view{ };
         layering_debug_view_t _layering_debug_view{ };
+        world_lighting_state_t _lighting{ };
         mutable layering_debug_snapshot_t _layering_debug_snapshot{ };
     };
 } // namespace carrot::world

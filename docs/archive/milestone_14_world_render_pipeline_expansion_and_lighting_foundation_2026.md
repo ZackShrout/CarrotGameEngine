@@ -2,8 +2,10 @@
 
 **Last Updated:** April 13, 2026
 **Title:** World Render Pipeline Expansion and Lighting Foundation
-**Status:** Planned
+**Status:** Completed and archived
 **Focus:** Move Carrot's world renderer across the architectural line into a first-pass forward+ path, then prove that path with a narrow but real 2D lighting slice built around ambient lighting and point lights.
+
+Archived in April 2026 after Carrot's world renderer crossed into a first-pass forward+ architecture with engine-owned ambient lighting, point lights, shared forward+ limits, and backend parity across Vulkan, Metal, and DirectX 12.
 
 ---
 
@@ -185,6 +187,43 @@ Important wording rule:
 
 Completion does **not** mean Carrot has "finished lighting."
 Completion **does** mean the renderer has crossed into the intended next architecture and proved it with a real first-pass lighting slice.
+
+---
+
+## Closeout Notes
+
+Milestone 14 is now complete.
+
+What landed:
+
+* the world stage now has a dedicated internal submission/execution path rather than sharing one flat generic quad flow
+* world batching now carries a world-facing material key instead of assuming `texture + sampler` is the only long-term batch identity
+* `world_t` owns ambient and point-light runtime data
+* the world renderer builds a first-pass forward+ tiled light list each frame
+* the world fragment path evaluates tile-local light lists instead of scanning every world light for every pixel
+* Vulkan, Metal, and DirectX 12 all support the milestone slice
+* shared forward+ limits now come from one generated config source for both C++ and shaders
+
+Current first-pass limits and intentional constraints:
+
+* the renderer remains CPU-submission-driven overall
+* forward+ tile/light list construction is still CPU-built in the first pass
+* point-light capacity is currently bounded by shared forward+ constants
+* the current path is intentionally ambient + point lights only
+* shadows, richer light types, authored light editing, and a broader GPU-driven submission model remain future work
+
+Current shared limits:
+
+* `CARROT_MAX_WORLD_POINT_LIGHTS = 16`
+* `CARROT_FORWARD_PLUS_TILE_SIZE_PX = 128`
+* `CARROT_MAX_FORWARD_PLUS_TILES_X = 32`
+* `CARROT_MAX_FORWARD_PLUS_TILES_Y = 18`
+
+Diagnostics added during closeout:
+
+* renderer debug stats now expose active world light count
+* renderer debug stats now expose forward+ tile count and tile-light reference count
+* renderer debug stats now expose dropped forward+ light references when capacity is exceeded
 
 ---
 

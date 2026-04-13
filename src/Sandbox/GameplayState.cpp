@@ -41,6 +41,53 @@ namespace sandbox {
             LOG_ASSET_INFO("Scene '{}' validation passed", scene_id);
             return true;
         }
+
+        void update_world_lighting(carrot::world::world_t& world,
+                                   const carrot::world::player_controller_t& player_controller) noexcept
+        {
+            auto& lighting{ world.lighting() };
+            lighting.ambient_color = { 0.36f, 0.38f, 0.44f, 1.f };
+            lighting.point_lights.clear();
+
+            if (const carrot::world::world_object_t* actor{ player_controller.controlled_object() };
+                actor && actor->transform)
+            {
+                lighting.point_lights.push_back({
+                    .position_world = {
+                        actor->transform->position.x,
+                        actor->transform->position.y - 0.15f
+                    },
+                    .radius_world = 3.25f,
+                    .reserved0 = 0.f,
+                    .color = { 1.0f, 0.82f, 0.58f, 1.f },
+                    .intensity = 1.15f
+                });
+            }
+
+            lighting.point_lights.push_back({
+                .position_world = { 69.8f, 57.6f },
+                .radius_world = 2.4f,
+                .reserved0 = 0.f,
+                .color = { 0.82f, 0.30f, 1.0f, 1.f },
+                .intensity = 1.05f
+            });
+
+            lighting.point_lights.push_back({
+                .position_world = { 72.4f, 52.9f },
+                .radius_world = 2.5f,
+                .reserved0 = 0.f,
+                .color = { 0.20f, 0.58f, 1.0f, 1.f },
+                .intensity = 1.0f
+            });
+
+            lighting.point_lights.push_back({
+                .position_world = { 64.9f, 52.2f },
+                .radius_world = 2.35f,
+                .reserved0 = 0.f,
+                .color = { 0.28f, 1.0f, 0.42f, 1.f },
+                .intensity = 0.95f
+            });
+        }
     } // namespace
 
     gameplay_state_t::gameplay_state_t(carrot::core::game_runtime_t& runtime,
@@ -108,6 +155,7 @@ namespace sandbox {
     void gameplay_state_t::finalize_scene_change(const carrot::scene::scene_runtime_context_t& current_context) noexcept
     {
         _trigger_monitor.reset();
+        update_world_lighting(current_context.world, _player_controller);
         apply_runtime_state_to_scene(current_context.scene_id, current_context.world, _runtime_state);
         apply_runtime_state_to_player(_runtime_state, _player_controller);
     }
@@ -201,6 +249,7 @@ namespace sandbox {
         consume_pending_runtime_events();
 
         _player_controller.update(game(), delta_time);
+        update_world_lighting(game().world, _player_controller);
         if (const carrot::world::world_object_t* actor{ _player_controller.controlled_object() })
             _trigger_monitor.update(*actor, game().world);
         update_camera_follow(delta_time);

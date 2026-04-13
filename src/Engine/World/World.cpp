@@ -167,6 +167,7 @@ namespace carrot::world {
         _objects.clear();
         _presentation = world_presentation_t{ };
         _collision_world.clear();
+        _lighting = world_lighting_state_t{ };
     }
 
     void world_t::update(const float delta_time) noexcept

@@ -429,7 +429,11 @@ The renderer sits above the RHI and is responsible for actual engine-facing rend
 
 Carrot is expected to converge on a **single long-term render architecture** rather than maintain separate foundational render paths for “simple 2D” and “2D/3D hybrid” games.
 
-The intended long-term direction is a **deferred-lighting-oriented world render path**, even though early milestones will implement only a subset of that pipeline.
+The current world-render foundation has now crossed into a **first-pass forward+ architecture**.
+That forward+ step is the current architectural boundary Carrot needed to cross so world lighting could become an engine-owned render concern rather than a future-plan placeholder.
+
+Longer term, this path may still evolve into richer multi-pass or hybrid world rendering where it makes sense.
+What should not happen is a reset back into a second unrelated “real lighting renderer” later.
 
 That direction is chosen because Carrot is meant to be:
 
@@ -437,14 +441,14 @@ That direction is chosen because Carrot is meant to be:
 * lean
 * strong at high-quality 2D and 2D/3D hybrid games
 
-This does **not** mean deferred lighting must be implemented immediately.
+This does **not** mean every future lighting step must land immediately.
 It does mean current render architecture work should avoid locking Carrot into a permanently flat forward-only model.
 
 Important implications:
 
 * frame-stage design should allow the world stage to grow into multiple internal passes later
 * debug, overlay, and UI work should remain clearly outside future world-lighting structure
-* present-day rendering cleanup should preserve a path toward future G-buffer, lighting, and composite work
+* present-day rendering cleanup should preserve a path toward future lighting, composite, and possible hybrid growth
 * the engine should grow one serious render path in stages rather than split into separate simple-vs-hybrid architectures
 
 ### Near-Term Direction
@@ -475,6 +479,16 @@ Key current priorities include:
 * frame lifecycle clarity
 * debug-friendly rendering flow
 * engine-owned debug text overlays for runtime renderer diagnostics
+* engine-owned ambient and point-light data on `world_t`
+* first-pass forward+ tiled light indexing for the world stage
+* shared shader/C++ forward+ configuration limits
+
+Current milestone-validated renderer notes:
+
+* world submissions now flow through a dedicated world-stage path instead of the generic stage queue
+* UI, composite, debug, and log-console responsibilities remain outside the world-lighting path
+* forward+ tile light lists are currently built on the CPU, while overall world submission remains CPU-owned in the first pass
+* active forward+ stats are now exposed through the engine debug overlay so current limits are visible during runtime
 
 This stage is intentionally about building a solid base, not about racing into every future rendering feature immediately.
 
@@ -539,6 +553,7 @@ The renderer is expected to evolve roughly along this path:
 5. camera / projection support and presentation policy
 6. debug overlays / text
 7. world-driven rendering flow
+8. first-pass forward+ world lighting
 
 The current debug overlay work belongs to step 6, but still in an intentionally lightweight form: text is rendered through the existing 2D renderer and anchored to the resolved presentation viewport rather than a dedicated UI system.
 

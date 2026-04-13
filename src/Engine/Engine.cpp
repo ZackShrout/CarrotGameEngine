@@ -62,91 +62,6 @@ namespace carrot {
             );
         }
 
-        struct ui_tree_debug_stats_t
-        {
-            uint32_t widget_count{ 0u };
-            uint32_t focusable_count{ 0u };
-            uint32_t max_depth{ 0u };
-        };
-
-        ui_tree_debug_stats_t render_ui_debug_visuals(renderer::renderer_t& renderer,
-                                                      const ui::ui_root_widget_t& root,
-                                                      const ui::ui_widget_t* focused_widget)
-        {
-            struct ui_stack_entry_t
-            {
-                const ui::ui_widget_t* widget{ nullptr };
-                uint32_t depth{ 0u };
-            };
-
-            std::vector<ui_stack_entry_t> stack;
-            stack.push_back({ .widget = &root, .depth = 0u });
-
-            ui_tree_debug_stats_t stats{ };
-            while (!stack.empty())
-            {
-                const ui_stack_entry_t entry{ stack.back() };
-                stack.pop_back();
-                const ui::ui_widget_t* widget{ entry.widget };
-
-                if (!widget)
-                    continue;
-
-                ++stats.widget_count;
-                stats.max_depth = std::max(stats.max_depth, entry.depth);
-                if (widget->can_receive_focus() && !widget->is_collapsed())
-                    ++stats.focusable_count;
-
-                for (const auto& child : widget->get_children())
-                {
-                    stack.push_back({
-                        .widget = child.get(),
-                        .depth = entry.depth + 1u
-                    });
-                }
-
-                if (widget == &root || widget->is_collapsed())
-                    continue;
-
-                const bool is_focused{ widget == focused_widget };
-                if (!widget->can_receive_focus() && !is_focused)
-                    continue;
-
-                const ui::ui_rect_t& bounds{ widget->get_layout_bounds() };
-                if (bounds.width <= 0.f || bounds.height <= 0.f)
-                    continue;
-
-                ui::ui_debug_visual_style_t visual_style;
-                if (!widget->get_debug_visual_style(visual_style))
-                    continue;
-
-                const float border_thickness{ std::max(0.f, visual_style.border_thickness) };
-                const uint32_t fill_color{ is_focused ? visual_style.focused_fill_color : visual_style.fill_color };
-                const uint32_t border_color{ is_focused ? visual_style.focused_border_color : visual_style.border_color };
-
-                renderer.draw_overlay_solid_quad({
-                    .x = bounds.x - border_thickness,
-                    .y = bounds.y - border_thickness,
-                    .width = bounds.width + (2.f * border_thickness),
-                    .height = bounds.height + (2.f * border_thickness),
-                    .layer = renderer::render_layer_t::debug,
-                    .color = border_color,
-                    .sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp
-                });
-
-                renderer.draw_overlay_solid_quad({
-                    .x = bounds.x,
-                    .y = bounds.y,
-                    .width = bounds.width,
-                    .height = bounds.height,
-                    .layer = renderer::render_layer_t::debug,
-                    .color = fill_color,
-                    .sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp
-                });
-            }
-
-            return stats;
-        }
     } // anonymous namespace
 
     // PUBLIC
@@ -398,11 +313,6 @@ namespace carrot {
 
     void engine_t::render_debug()
     {
-        ui_tree_debug_stats_t ui_debug_stats{ };
-        const ui::ui_widget_t* focused_widget{ nullptr };
-        ui::ui_input_ownership_mode_t ownership_mode{ ui::ui_input_ownership_mode_t::passthrough };
-        std::vector<std::string> nav_stream;
-
         // Initialize debug overlay AFTER the first swapchain image exists
         if (!_debug_overlay_initialized)
         {
@@ -411,48 +321,39 @@ namespace carrot {
         }
 
         const renderer::renderer_stats_t& stats{ _renderer->get_last_completed_stats() };
-        const renderer::camera_2d_t& active_camera{ _renderer->get_camera_2d() };
         const renderer::resolved_camera_2d_t resolved_camera{ _renderer->resolve_camera_2d() };
         const input::controller_debug_snapshot_t controller_snapshot{ _controller_manager.debug_snapshot() };
 
-        debug::text(16.f, 16.f, "Carrot Debug Text V2");
-        debug::text(16.f, 44.f, "Backend: %s", rhi::graphics_api_to_string(_renderer->get_graphics_api()).data());
-        debug::text(16.f, 72.f, "Camera: %s", renderer::camera_2d_sizing_mode_to_string(active_camera.sizing_mode));
-        debug::text(16.f, 100.f, "Viewport: %u,%u %ux%u",
-                    resolved_camera.viewport_rect_px.position.x,
-                    resolved_camera.viewport_rect_px.position.y,
-                    resolved_camera.viewport_rect_px.size.x,
-                    resolved_camera.viewport_rect_px.size.y);
-        debug::text(16.f, 128.f, "FPS: %u", _current_fps);
-        debug::text(16.f, 156.f, "Draw Calls: %u", stats.draw_calls);
-        debug::text(16.f, 184.f, "Quads: %u", stats.textured_quad_count);
-        debug::text(16.f, 212.f, "Batches: %u", stats.textured_quad_batch_count);
-        debug::text(16.f, 240.f, "Frame: %llu", static_cast<unsigned long long>(_renderer->get_frame_index()));
         debug::text(16.f,
-                    268.f,
-                    "Controllers: %u connected | Active Slot: %s",
+                    16.f,
+                    "Backend: %s | FPS: %u | Frame: %llu",
+                    rhi::graphics_api_to_string(_renderer->get_graphics_api()).data(),
+                    _current_fps,
+                    static_cast<unsigned long long>(_renderer->get_frame_index()));
+        debug::text(16.f,
+                    44.f,
+                    "World Lights: %u | F+ Tiles: %u | Tile Light Refs: %u",
+                    stats.world_point_light_count,
+                    stats.forward_plus_tile_count,
+                    stats.forward_plus_light_index_count);
+        debug::text(16.f,
+                    72.f,
+                    "F+ Dropped Refs: %u | Tile Size: %u px",
+                    stats.forward_plus_dropped_light_references,
+                    static_cast<unsigned>(renderer::k_forward_plus_tile_size_px));
+        debug::text(16.f,
+                    100.f,
+                    "Controllers: %u connected | Active Slot: %s | South: %s",
                     controller_snapshot.connected_gamepad_count,
                     controller_snapshot.active_gamepad_index.has_value()
                         ? std::to_string(*controller_snapshot.active_gamepad_index).c_str()
-                        : "None");
-        debug::text(16.f,
-                    296.f,
-                    "Stable Left Stick: %.2f, %.2f | South: %s",
-                    static_cast<double>(controller_snapshot.active_gamepad.left_stick().x),
-                    static_cast<double>(controller_snapshot.active_gamepad.left_stick().y),
+                        : "None",
                     controller_snapshot.active_gamepad.is_pressed(input::gamepad_button_t::south) ? "Down" : "Up");
-        debug::text(16.f,
-                    324.f,
-                    "Raw Left Stick: %.2f, %.2f | South: %s | Release Pending: %.3f s",
-                    static_cast<double>(controller_snapshot.raw_active_gamepad.left_stick().x),
-                    static_cast<double>(controller_snapshot.raw_active_gamepad.left_stick().y),
-                    controller_snapshot.raw_active_gamepad.is_pressed(input::gamepad_button_t::south) ? "Down" : "Up",
-                    static_cast<double>(controller_snapshot.south_release_pending_seconds));
 
         const world::world_presentation_t& presentation{ _world.presentation() };
         const world::collision_debug_view_t& debug_view{ _world.collision_debug_view() };
         const float viewport_height{ static_cast<float>(resolved_camera.viewport_rect_px.size.y) };
-        const float legend_y_start{ std::max(352.f, viewport_height - 72.f) };
+        const float legend_y_start{ std::max(128.f, viewport_height - 72.f) };
         const uint32_t object_legend_color{ 0xFF00FFFFu };
 
         debug::text_colored(16.f,
@@ -495,65 +396,6 @@ namespace carrot {
             }
         }
 
-        if (_ui_module && _renderer)
-        {
-            if (const ui::ui_root_widget_t* root{ _ui_module->get_root() })
-            {
-                focused_widget = _ui_module->get_focused_widget();
-                ownership_mode = _ui_module->get_effective_input_ownership_mode();
-                nav_stream = _ui_module->get_debug_navigation_events();
-                ui_debug_stats = render_ui_debug_visuals(*_renderer, *root, focused_widget);
-            }
-        }
-
-        const std::string focused_name{ focused_widget ? std::string{ focused_widget->get_debug_name() } : std::string{ "<none>" } };
-        const uint64_t focused_id{ focused_widget ? focused_widget->get_id() : 0ull };
-        const char* ownership_mode_text{ "unknown" };
-        switch (ownership_mode)
-        {
-            case ui::ui_input_ownership_mode_t::passthrough: ownership_mode_text = "passthrough"; break;
-            case ui::ui_input_ownership_mode_t::ui_priority: ownership_mode_text = "ui_priority"; break;
-            case ui::ui_input_ownership_mode_t::ui_exclusive: ownership_mode_text = "ui_exclusive"; break;
-            default: break;
-        }
-
-        constexpr float panel_x{ 16.f };
-        constexpr float panel_y{ 352.f };
-        constexpr float panel_width{ 420.f };
-        constexpr float line_height{ 18.f };
-        const float panel_height{ 116.f + (line_height * static_cast<float>(nav_stream.size())) };
-
-        _renderer->draw_overlay_solid_quad({
-            .x = panel_x,
-            .y = panel_y,
-            .width = panel_width,
-            .height = panel_height,
-            .layer = renderer::render_layer_t::debug,
-            .color = 0xCC141414u,
-            .sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp
-        });
-
-        debug::text_colored(panel_x + 8.f, panel_y + 8.f, 0xFF00D9FFu, "UI Debug");
-        debug::text_colored(panel_x + 8.f, panel_y + 28.f, 0xFFD8D8D8u, "Focus ID: %llu", focused_id);
-        debug::text_colored(panel_x + 8.f, panel_y + 46.f, 0xFFD8D8D8u, "Focus Name: %s", focused_name.c_str());
-        debug::text_colored(panel_x + 8.f,
-                            panel_y + 64.f,
-                            0xFFB6B6B6u,
-                            "Tree: widgets=%u focusable=%u max_depth=%u",
-                            ui_debug_stats.widget_count,
-                            ui_debug_stats.focusable_count,
-                            ui_debug_stats.max_depth);
-        debug::text_colored(panel_x + 8.f, panel_y + 82.f, 0xFFB6B6B6u, "Ownership: %s", ownership_mode_text);
-        debug::text_colored(panel_x + 8.f, panel_y + 100.f, 0xFF44D8FFu, "Nav Stream:");
-
-        for (size_t index{ 0u }; index < nav_stream.size(); ++index)
-        {
-            debug::text_colored(panel_x + 24.f,
-                                panel_y + 118.f + (line_height * static_cast<float>(index)),
-                                0xFF9AC0FFu,
-                                "%s",
-                                nav_stream[index].c_str());
-        }
     }
 
     void engine_t::render_ui()

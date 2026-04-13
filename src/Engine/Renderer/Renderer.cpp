@@ -54,6 +54,18 @@ namespace carrot::renderer {
             return false;
         }
 
+        [[nodiscard]] bool circle_overlaps_aabb(const chlm::float2 center,
+                                                const float radius,
+                                                const chlm::float2 aabb_min,
+                                                const chlm::float2 aabb_max) noexcept
+        {
+            const float clamped_x{ std::clamp(center.x, aabb_min.x, aabb_max.x) };
+            const float clamped_y{ std::clamp(center.y, aabb_min.y, aabb_max.y) };
+            const float dx{ center.x - clamped_x };
+            const float dy{ center.y - clamped_y };
+            return (dx * dx) + (dy * dy) <= (radius * radius);
+        }
+
         [[nodiscard]] const world::world_object_t* resolve_primary_visibility_anchor(const world::world_t& world) noexcept
         {
             for (const world::world_object_t& object : world.objects())
@@ -191,6 +203,16 @@ namespace carrot::renderer {
         _animated_tiles_elapsed_ms = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - _animated_tiles_clock_origin).count());
 
+        _world_textured_quads.submissions.clear();
+        _world_textured_quads.vertices_cpu.clear();
+        _world_textured_quads.indices_cpu.clear();
+        _world_textured_quads.batches.clear();
+
+        _world_text_quads.submissions.clear();
+        _world_text_quads.vertices_cpu.clear();
+        _world_text_quads.indices_cpu.clear();
+        _world_text_quads.batches.clear();
+
         for (textured_quad_state_t& stage_state : _stage_textured_quads)
         {
             stage_state.submissions.clear();
@@ -209,6 +231,13 @@ namespace carrot::renderer {
         _stats = { };
         _fullscreen_overlay_enabled = false;
         _fullscreen_overlay_color = 0x00000000u;
+        _world_ambient_color = { 1.f, 1.f, 1.f, 1.f };
+        _world_point_lights = { };
+        _world_point_light_count = 0u;
+        _world_forward_plus_grid_params = { 0.f, 0.f, static_cast<float>(k_forward_plus_tile_size_px), 0.f };
+        _world_forward_plus_tile_counts = { 0u, 0u, 0u, 0u };
+        _world_forward_plus_tiles = { };
+        _world_forward_plus_light_indices = { };
 
         _rhi->begin_frame();
     }
@@ -241,7 +270,7 @@ namespace carrot::renderer {
 
     void renderer_t::draw_textured_quad(const textured_quad_draw_info_t& quad)
     {
-        submit_textured_quad(frame_stage_kind_t::world, quad);
+        submit_world_textured_quad(quad);
     }
 
     void renderer_t::draw_overlay_textured_quad(const textured_quad_draw_info_t& quad)
@@ -261,7 +290,7 @@ namespace carrot::renderer {
 
     void renderer_t::draw_text_quad(const textured_quad_draw_info_t& quad)
     {
-        submit_text_quad(frame_stage_kind_t::world, quad);
+        submit_world_text_quad(quad);
     }
 
     void renderer_t::draw_overlay_text_quad(const textured_quad_draw_info_t& quad)
@@ -311,6 +340,26 @@ namespace carrot::renderer {
         _fullscreen_overlay_color = 0x00000000u;
     }
 
+    void renderer_t::submit_world_textured_quad(const textured_quad_draw_info_t& quad)
+    {
+        if (quad.texture == nullptr)
+        {
+            LOG_GRAPHICS_WARN("draw_textured_quad called with null texture");
+            return;
+        }
+
+        _world_textured_quads.submissions.push_back({
+            .quad = quad,
+            .world_material = {
+                .domain = world_material_domain_t::lit,
+                .feature_flags = 0u
+            },
+            .submission_index = static_cast<uint64_t>(_world_textured_quads.submissions.size())
+        });
+
+        _stats.textured_quad_count++;
+    }
+
     void renderer_t::submit_textured_quad(const frame_stage_kind_t stage, const textured_quad_draw_info_t& quad)
     {
         if (quad.texture == nullptr)
@@ -322,6 +371,10 @@ namespace carrot::renderer {
         textured_quad_state_t& stage_state{ _stage_textured_quads[frame_stage_index(stage)] };
         stage_state.submissions.push_back({
             .quad = quad,
+            .world_material = {
+                .domain = world_material_domain_t::unlit,
+                .feature_flags = 0u
+            },
             .submission_index = static_cast<uint64_t>(stage_state.submissions.size())
         });
 
@@ -355,6 +408,26 @@ namespace carrot::renderer {
         });
     }
 
+    void renderer_t::submit_world_text_quad(const textured_quad_draw_info_t& quad)
+    {
+        if (quad.texture == nullptr)
+        {
+            LOG_GRAPHICS_WARN("draw_text_quad called with null texture");
+            return;
+        }
+
+        _world_text_quads.submissions.push_back({
+            .quad = quad,
+            .world_material = {
+                .domain = world_material_domain_t::unlit,
+                .feature_flags = 0u
+            },
+            .submission_index = static_cast<uint64_t>(_world_text_quads.submissions.size())
+        });
+
+        _stats.textured_quad_count++;
+    }
+
     void renderer_t::submit_text_quad(const frame_stage_kind_t stage, const textured_quad_draw_info_t& quad)
     {
         if (quad.texture == nullptr)
@@ -366,6 +439,10 @@ namespace carrot::renderer {
         textured_quad_state_t& stage_state{ _stage_text_quads[frame_stage_index(stage)] };
         stage_state.submissions.push_back({
             .quad = quad,
+            .world_material = {
+                .domain = world_material_domain_t::unlit,
+                .feature_flags = 0u
+            },
             .submission_index = static_cast<uint64_t>(stage_state.submissions.size())
         });
 
@@ -736,6 +813,22 @@ namespace carrot::renderer {
     void renderer_t::draw_world(const world::world_t& world)
     {
         const world::world_presentation_t& presentation{ world.presentation() };
+        _world_ambient_color = world.lighting().ambient_color;
+        _world_point_lights = { };
+        _world_point_light_count = 0u;
+        for (const world::world_lighting_state_t::point_light_t& light : world.lighting().point_lights)
+        {
+            if (_world_point_light_count >= k_max_world_point_lights)
+                break;
+
+            const chlm::float2 light_position_px{ presentation.world_position_to_pixels(light.position_world) };
+            const chlm::float2 light_radius_px{ presentation.world_size_to_pixels({ light.radius_world, light.radius_world }) };
+
+            _world_point_lights[_world_point_light_count++] = world_point_light_uniform_t{
+                .position_radius_px = { light_position_px.x, light_position_px.y, light_radius_px.x, 0.f },
+                .color_intensity = { light.color.x, light.color.y, light.color.z, light.intensity }
+            };
+        }
         std::vector<std::string_view> active_visibility_tags;
         world::layering_debug_snapshot_t layering_debug_snapshot{ };
         layering_debug_snapshot.frame_index = _frame_index;
@@ -1010,13 +1103,15 @@ namespace carrot::renderer {
 
             if (state.batches.empty() ||
                 state.batches.back().texture != quad.texture ||
-                state.batches.back().sampler_preset != quad.sampler_preset)
+                state.batches.back().sampler_preset != quad.sampler_preset ||
+                !(state.batches.back().world_material == submission.world_material))
             {
                 state.batches.push_back(textured_quad_batch_t{
                     .texture = quad.texture,
                     .first_index = static_cast<uint32_t>(state.indices_cpu.size()),
                     .index_count = 0,
-                    .sampler_preset = quad.sampler_preset
+                    .sampler_preset = quad.sampler_preset,
+                    .world_material = submission.world_material
                 });
             }
 
@@ -1073,6 +1168,235 @@ namespace carrot::renderer {
         }
     }
 
+    void renderer_t::build_world_textured_quad_batches(textured_quad_state_t& state) const
+    {
+        state.vertices_cpu.clear();
+        state.indices_cpu.clear();
+        state.batches.clear();
+
+        if (state.submissions.empty())
+            return;
+
+        std::stable_sort(state.submissions.begin(), state.submissions.end(),
+                         [](const textured_quad_state_t::submission_t& lhs,
+                            const textured_quad_state_t::submission_t& rhs) noexcept
+                         {
+                             if (quad_sorts_before(lhs.quad, rhs.quad))
+                                 return true;
+
+                             if (quad_sorts_before(rhs.quad, lhs.quad))
+                                 return false;
+
+                             return lhs.submission_index < rhs.submission_index;
+                         });
+
+        for (const textured_quad_state_t::submission_t& submission : state.submissions)
+        {
+            const textured_quad_draw_info_t& quad{ submission.quad };
+
+            if (state.batches.empty() ||
+                state.batches.back().texture != quad.texture ||
+                state.batches.back().sampler_preset != quad.sampler_preset ||
+                !(state.batches.back().world_material == submission.world_material))
+            {
+                state.batches.push_back(textured_quad_batch_t{
+                    .texture = quad.texture,
+                    .first_index = static_cast<uint32_t>(state.indices_cpu.size()),
+                    .index_count = 0,
+                    .sampler_preset = quad.sampler_preset,
+                    .world_material = submission.world_material
+                });
+            }
+
+            const uint32_t base_vertex{ static_cast<uint32_t>(state.vertices_cpu.size()) };
+
+            state.vertices_cpu.push_back(quad_vertex_t{
+                .x = quad.x,
+                .y = quad.y,
+                .u = quad.u0,
+                .v = quad.v0,
+                .color = quad.color,
+                .effect_mode = quad.effect_mode,
+                .effect_param0 = quad.effect_param0
+            });
+
+            state.vertices_cpu.push_back(quad_vertex_t{
+                .x = quad.x + quad.width,
+                .y = quad.y,
+                .u = quad.u1,
+                .v = quad.v0,
+                .color = quad.color,
+                .effect_mode = quad.effect_mode,
+                .effect_param0 = quad.effect_param0
+            });
+
+            state.vertices_cpu.push_back(quad_vertex_t{
+                .x = quad.x + quad.width,
+                .y = quad.y + quad.height,
+                .u = quad.u1,
+                .v = quad.v1,
+                .color = quad.color,
+                .effect_mode = quad.effect_mode,
+                .effect_param0 = quad.effect_param0
+            });
+
+            state.vertices_cpu.push_back(quad_vertex_t{
+                .x = quad.x,
+                .y = quad.y + quad.height,
+                .u = quad.u0,
+                .v = quad.v1,
+                .color = quad.color,
+                .effect_mode = quad.effect_mode,
+                .effect_param0 = quad.effect_param0
+            });
+
+            state.indices_cpu.push_back(base_vertex + 0);
+            state.indices_cpu.push_back(base_vertex + 1);
+            state.indices_cpu.push_back(base_vertex + 2);
+            state.indices_cpu.push_back(base_vertex + 0);
+            state.indices_cpu.push_back(base_vertex + 2);
+            state.indices_cpu.push_back(base_vertex + 3);
+
+            state.batches.back().index_count += 6;
+        }
+    }
+
+    void renderer_t::execute_world_frame_stage()
+    {
+        const frame_stage_plan_t& world_stage_plan{ _frame_stage_plan[frame_stage_index(frame_stage_kind_t::world)] };
+        const stage_execution_context_t stage_context{ resolve_stage_execution_context(world_stage_plan) };
+        const resolved_camera_2d_t resolved_world_camera{ _active_camera.resolve(current_render_target_size()) };
+        constexpr uint32_t presentation_mask{ rhi::presentation_channel_gameplay };
+
+        _world_forward_plus_grid_params = {
+            _active_camera.position.x,
+            _active_camera.position.y,
+            static_cast<float>(k_forward_plus_tile_size_px),
+            0.f
+        };
+        _world_forward_plus_tile_counts = { 0u, 0u, 0u, 0u };
+        _world_forward_plus_tiles = { };
+        _world_forward_plus_light_indices = { };
+
+        const std::uint32_t tile_count_x{
+            std::min<std::uint32_t>(
+                static_cast<std::uint32_t>(k_max_forward_plus_tiles_x),
+                std::max(1u, static_cast<std::uint32_t>(
+                    std::ceil(resolved_world_camera.visible_world_size.x / static_cast<float>(k_forward_plus_tile_size_px))))
+            )
+        };
+        const std::uint32_t tile_count_y{
+            std::min<std::uint32_t>(
+                static_cast<std::uint32_t>(k_max_forward_plus_tiles_y),
+                std::max(1u, static_cast<std::uint32_t>(
+                    std::ceil(resolved_world_camera.visible_world_size.y / static_cast<float>(k_forward_plus_tile_size_px))))
+            )
+        };
+        _world_forward_plus_tile_counts = { tile_count_x, tile_count_y, static_cast<std::uint32_t>(k_forward_plus_tile_size_px), 0u };
+        _stats.world_point_light_count = _world_point_light_count;
+        _stats.forward_plus_tile_count = tile_count_x * tile_count_y;
+        _stats.forward_plus_light_index_count = 0u;
+        _stats.forward_plus_dropped_light_references = 0u;
+
+        std::uint32_t light_index_cursor{ 0u };
+        for (std::uint32_t tile_y{ 0u }; tile_y < tile_count_y; ++tile_y)
+        {
+            for (std::uint32_t tile_x{ 0u }; tile_x < tile_count_x; ++tile_x)
+            {
+                const std::uint32_t tile_index{ tile_y * tile_count_x + tile_x };
+                if (tile_index >= k_max_forward_plus_tiles)
+                    continue;
+
+                forward_plus_tile_header_t& tile_header{ _world_forward_plus_tiles[tile_index] };
+                tile_header.light_index_offset = light_index_cursor;
+                tile_header.light_count = 0u;
+
+                const chlm::float2 tile_min{
+                    _active_camera.position.x + (static_cast<float>(tile_x) * static_cast<float>(k_forward_plus_tile_size_px)),
+                    _active_camera.position.y + (static_cast<float>(tile_y) * static_cast<float>(k_forward_plus_tile_size_px))
+                };
+                const chlm::float2 tile_max{
+                    tile_min.x + static_cast<float>(k_forward_plus_tile_size_px),
+                    tile_min.y + static_cast<float>(k_forward_plus_tile_size_px)
+                };
+
+                for (std::uint32_t light_index{ 0u }; light_index < _world_point_light_count; ++light_index)
+                {
+                    const world_point_light_uniform_t& light{ _world_point_lights[light_index] };
+                    if (!circle_overlaps_aabb(chlm::float2{ light.position_radius_px.x, light.position_radius_px.y },
+                                              light.position_radius_px.z,
+                                              tile_min,
+                                              tile_max))
+                    {
+                        continue;
+                    }
+
+                    if (light_index_cursor >= k_max_forward_plus_tile_light_indices)
+                    {
+                        _stats.forward_plus_dropped_light_references++;
+                        continue;
+                    }
+
+                    packed_uint4_t& packed_light_indices{ _world_forward_plus_light_indices[light_index_cursor / 4u] };
+                    switch (light_index_cursor % 4u)
+                    {
+                        case 0u: packed_light_indices.x = light_index; break;
+                        case 1u: packed_light_indices.y = light_index; break;
+                        case 2u: packed_light_indices.z = light_index; break;
+                        default: packed_light_indices.w = light_index; break;
+                    }
+                    light_index_cursor++;
+                    tile_header.light_count++;
+                }
+            }
+        }
+        _stats.forward_plus_light_index_count = light_index_cursor;
+
+        auto record_stage = [&](textured_quad_state_t& stage_state, const bool is_text)
+        {
+            build_world_textured_quad_batches(stage_state);
+
+            if (stage_state.batches.empty())
+                return;
+
+            ensure_textured_quad_frame_buffers(stage_state);
+            upload_textured_quad_frame_data(stage_state);
+
+            const auto& frame_buffers{ current_frame_buffers(stage_state) };
+            if (!frame_buffers.vertex_buffer || !frame_buffers.index_buffer)
+                return;
+
+            const rhi::textured_quad_stage_record_t record{
+                .vertex_buffer = frame_buffers.vertex_buffer.get(),
+                .index_buffer = frame_buffers.index_buffer.get(),
+                .batches = stage_state.batches,
+                .view_projection = stage_context.view_projection,
+                .ambient_color = is_text ? chlm::float4{ 1.f, 1.f, 1.f, 1.f } : _world_ambient_color,
+                .forward_plus_grid_params = is_text ? chlm::float4{ 0.f, 0.f, static_cast<float>(k_forward_plus_tile_size_px), 0.f } : _world_forward_plus_grid_params,
+                .forward_plus_tile_counts = is_text ? std::array<std::uint32_t, 4>{ 0u, 0u, 0u, 0u } : _world_forward_plus_tile_counts,
+                .point_light_count = is_text ? 0u : _world_point_light_count,
+                .point_lights = is_text ? std::array<world_point_light_uniform_t, k_max_world_point_lights>{ } : _world_point_lights,
+                .forward_plus_tiles = is_text ? std::array<forward_plus_tile_header_t, k_max_forward_plus_tiles>{ } : _world_forward_plus_tiles,
+                .forward_plus_light_indices = is_text ? std::array<packed_uint4_t, k_max_forward_plus_packed_light_index_words>{ } : _world_forward_plus_light_indices,
+                .viewport = stage_context.viewport,
+                .presentation_mask = presentation_mask
+            };
+
+            if (is_text)
+                _rhi->record_text_quad_stage(record);
+            else
+                _rhi->record_textured_quad_stage(record);
+
+            _stats.vertex_count += static_cast<uint32_t>(stage_state.vertices_cpu.size());
+            _stats.index_count += static_cast<uint32_t>(stage_state.indices_cpu.size());
+            _stats.textured_quad_batch_count += static_cast<uint32_t>(stage_state.batches.size());
+            _stats.draw_calls += static_cast<uint32_t>(stage_state.batches.size());
+        };
+
+        record_stage(_world_textured_quads, false);
+        record_stage(_world_text_quads, true);
+    }
+
     void renderer_t::execute_frame_stage(const frame_stage_plan_t& stage_plan)
     {
         const stage_execution_context_t stage_context{ resolve_stage_execution_context(stage_plan) };
@@ -1099,6 +1423,13 @@ namespace carrot::renderer {
                 .index_buffer = frame_buffers.index_buffer.get(),
                 .batches = stage_state.batches,
                 .view_projection = stage_context.view_projection,
+                .ambient_color = { 1.f, 1.f, 1.f, 1.f },
+                .forward_plus_grid_params = { 0.f, 0.f, static_cast<float>(k_forward_plus_tile_size_px), 0.f },
+                .forward_plus_tile_counts = { 0u, 0u, 0u, 0u },
+                .point_light_count = 0u,
+                .point_lights = { },
+                .forward_plus_tiles = { },
+                .forward_plus_light_indices = { },
                 .viewport = stage_context.viewport,
                 .presentation_mask = presentation_mask
             };
@@ -1144,7 +1475,12 @@ namespace carrot::renderer {
         _stats.draw_calls = 0;
 
         for (const frame_stage_plan_t& stage_plan : _frame_stage_plan)
-            execute_frame_stage(stage_plan);
+        {
+            if (stage_plan.kind == frame_stage_kind_t::world)
+                execute_world_frame_stage();
+            else
+                execute_frame_stage(stage_plan);
+        }
     }
 
     void renderer_t::release_frame_resources()
@@ -1163,6 +1499,9 @@ namespace carrot::renderer {
                 frame_buffers.index_capacity = 0;
             }
         };
+
+        release_stage_buffers(_world_textured_quads);
+        release_stage_buffers(_world_text_quads);
 
         for (textured_quad_state_t& stage_state : _stage_textured_quads)
             release_stage_buffers(stage_state);

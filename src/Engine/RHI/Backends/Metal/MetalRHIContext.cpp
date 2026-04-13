@@ -144,16 +144,16 @@ namespace carrot::rhi::metal {
             ensure_textured_quad_argument_capacity(stage_slot, 16);
 
             _textured_quad_camera_uniform_buffers[stage_slot] = std::make_unique<metal_buffer_t>(
-                _device->mtl_device()->newBuffer(sizeof(renderer::textured_quad_camera_uniform_t),
+                _device->mtl_device()->newBuffer(sizeof(renderer::world_forward_plus_uniform_t),
                                                  MTL::ResourceStorageModeShared),
-                sizeof(renderer::textured_quad_camera_uniform_t),
+                sizeof(renderer::world_forward_plus_uniform_t),
                 buffer_usage_t::uniform
             );
 
             if (!_textured_quad_camera_uniform_buffers[stage_slot] ||
                 !_textured_quad_camera_uniform_buffers[stage_slot]->mtl_buffer())
             {
-                LOG_GRAPHICS_FATAL("Failed to allocate Metal textured quad camera uniform buffer for stage slot {}",
+                LOG_GRAPHICS_FATAL("Failed to allocate Metal world forward+ uniform buffer for stage slot {}",
                                    stage_slot);
                 return;
             }
@@ -608,13 +608,20 @@ namespace carrot::rhi::metal {
         encoder->setRenderPipelineState(pipeline->state());
         encoder->setVertexBuffer(vertex_buffer->mtl_buffer(), 0, 0);
 
-        renderer::textured_quad_camera_uniform_t camera_uniform{ };
-        camera_uniform.view_projection = stage.view_projection;
+        renderer::world_forward_plus_uniform_t world_uniform{ };
+        world_uniform.view_projection = stage.view_projection;
+        world_uniform.ambient_color = stage.ambient_color;
+        world_uniform.forward_plus_grid_params = stage.forward_plus_grid_params;
+        world_uniform.forward_plus_tile_counts = stage.forward_plus_tile_counts;
+        world_uniform.point_light_counts[0] = stage.point_light_count;
+        world_uniform.point_lights = stage.point_lights;
+        world_uniform.forward_plus_tiles = stage.forward_plus_tiles;
+        world_uniform.forward_plus_light_indices = stage.forward_plus_light_indices;
 
         if (!_textured_quad_camera_uniform_buffers[stage_slot] ||
-            !_textured_quad_camera_uniform_buffers[stage_slot]->write(&camera_uniform, sizeof(camera_uniform), 0))
+            !_textured_quad_camera_uniform_buffers[stage_slot]->write(&world_uniform, sizeof(world_uniform), 0))
         {
-            LOG_GRAPHICS_WARN("Failed to upload Metal textured quad camera uniform");
+            LOG_GRAPHICS_WARN("Failed to upload Metal world forward+ uniform");
             return;
         }
 
@@ -642,6 +649,10 @@ namespace carrot::rhi::metal {
                                  MTL::RenderStageVertex);
             encoder->useResource(_textured_quad_camera_uniform_buffers[stage_slot]->mtl_buffer(), MTL::ResourceUsageRead,
                                  MTL::RenderStageVertex);
+            encoder->useResource(_textured_quad_cbv_descriptor_tables[stage_slot]->mtl_buffer(), MTL::ResourceUsageRead,
+                                 MTL::RenderStageFragment);
+            encoder->useResource(_textured_quad_camera_uniform_buffers[stage_slot]->mtl_buffer(), MTL::ResourceUsageRead,
+                                 MTL::RenderStageFragment);
 
             encoder->useResource(_textured_quad_srv_descriptor_tables[stage_slot]->mtl_buffer(), MTL::ResourceUsageRead,
                                  MTL::RenderStageFragment);
@@ -784,7 +795,7 @@ namespace carrot::rhi::metal {
 
         *cbv_ptr = encode_metal_constant_buffer_cbv_descriptor(_textured_quad_camera_uniform_buffers[stage_slot]->mtl_buffer(),
                                                                0,
-                                                               sizeof(renderer::textured_quad_camera_uniform_t));
+                                                               sizeof(renderer::world_forward_plus_uniform_t));
         *srv_ptr = encode_metal_texture_srv_descriptor(texture.mtl_texture());
         *sampler_ptr = encode_metal_sampler_descriptor(sampler);
 

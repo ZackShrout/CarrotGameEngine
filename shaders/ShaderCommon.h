@@ -6,6 +6,8 @@
 #ifndef CARROT_SHADER_COMMON_H
 #define CARROT_SHADER_COMMON_H
 
+#include "ForwardPlusSharedConfig.h"
+
 #if defined(CARROT_USE_ROOT_SIGNATURES)
     #define CARROT_ROOT_SIGNATURE(x) [RootSignature(x)]
 #else

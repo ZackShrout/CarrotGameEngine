@@ -9,6 +9,7 @@
 #include "Camera/Camera2D.h"
 #include "Core/Module.h"
 #include "Draw/TexturedQuadBatch.h"
+#include "Draw/TexturedQuadCameraUniform.h"
 #include "Draw/TexturedQuadTypes.h"
 #include "EngineConfig.h"
 #include "Primitives/QuadVertex.h"
@@ -100,6 +101,10 @@ namespace carrot::renderer {
         uint32_t textured_quad_batch_count{ 0 };
         uint32_t vertex_count{ 0 };
         uint32_t index_count{ 0 };
+        uint32_t world_point_light_count{ 0 };
+        uint32_t forward_plus_tile_count{ 0 };
+        uint32_t forward_plus_light_index_count{ 0 };
+        uint32_t forward_plus_dropped_light_references{ 0 };
     };
 
     struct textured_quad_state_t
@@ -115,6 +120,7 @@ namespace carrot::renderer {
         struct submission_t
         {
             textured_quad_draw_info_t quad;
+            world_material_key_t world_material{ };
             uint64_t submission_index{ 0 };
         };
 
@@ -204,10 +210,14 @@ namespace carrot::renderer {
         [[nodiscard]] chlm::uint2 current_render_target_size() const noexcept;
         [[nodiscard]] stage_execution_context_t resolve_stage_execution_context(const frame_stage_plan_t& stage_plan) const noexcept;
         void queue_fullscreen_overlay_if_needed();
+        void submit_world_textured_quad(const textured_quad_draw_info_t& quad);
+        void submit_world_text_quad(const textured_quad_draw_info_t& quad);
         void submit_textured_quad(frame_stage_kind_t stage, const textured_quad_draw_info_t& quad);
         void submit_text_quad(frame_stage_kind_t stage, const textured_quad_draw_info_t& quad);
         void submit_solid_quad(frame_stage_kind_t stage, const solid_quad_draw_info_t& quad);
+        void build_world_textured_quad_batches(textured_quad_state_t& state) const;
         void build_textured_quad_batches(textured_quad_state_t& state) const;
+        void execute_world_frame_stage();
         void execute_frame_stage(const frame_stage_plan_t& stage_plan);
         void execute_frame_stages();
         void release_frame_resources();
@@ -245,6 +255,8 @@ namespace carrot::renderer {
         std::chrono::steady_clock::time_point _animated_tiles_clock_origin{ std::chrono::steady_clock::now() };
 
         // ── Renderer path state: textured quads ───────────────────────────────────
+        textured_quad_state_t _world_textured_quads;
+        textured_quad_state_t _world_text_quads;
         std::array<textured_quad_state_t, static_cast<size_t>(frame_stage_kind_t::count)> _stage_textured_quads;
         std::array<textured_quad_state_t, static_cast<size_t>(frame_stage_kind_t::count)> _stage_text_quads;
         std::array<frame_stage_plan_t, static_cast<size_t>(frame_stage_kind_t::count)> _frame_stage_plan{
@@ -256,6 +268,13 @@ namespace carrot::renderer {
         };
 
         camera_2d_t _active_camera{ };
+        chlm::float4 _world_ambient_color{ 1.f, 1.f, 1.f, 1.f };
+        std::array<world_point_light_uniform_t, k_max_world_point_lights> _world_point_lights{ };
+        std::uint32_t _world_point_light_count{ 0u };
+        chlm::float4 _world_forward_plus_grid_params{ 0.f, 0.f, static_cast<float>(k_forward_plus_tile_size_px), 0.f };
+        std::array<std::uint32_t, 4> _world_forward_plus_tile_counts{ 0u, 0u, 0u, 0u };
+        std::array<forward_plus_tile_header_t, k_max_forward_plus_tiles> _world_forward_plus_tiles{ };
+        std::array<packed_uint4_t, k_max_forward_plus_packed_light_index_words> _world_forward_plus_light_indices{ };
         std::unique_ptr<rhi::rhi_texture_t> _solid_white_texture;
         bool _fullscreen_overlay_enabled{ false };
         uint32_t _fullscreen_overlay_color{ 0x00000000u };

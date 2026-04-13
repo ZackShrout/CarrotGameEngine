@@ -2,6 +2,17 @@ cmake_minimum_required(VERSION 4.1)
 project(CarrotGameEngine LANGUAGES CXX C VERSION 0.0.1)
 enable_testing()
 
+set(CARROT_MAX_WORLD_POINT_LIGHTS 16)
+set(CARROT_FORWARD_PLUS_TILE_SIZE_PX 128)
+set(CARROT_MAX_FORWARD_PLUS_TILES_X 32)
+set(CARROT_MAX_FORWARD_PLUS_TILES_Y 18)
+
+configure_file(
+        ${CMAKE_SOURCE_DIR}/cmake/ForwardPlusSharedConfig.h.in
+        ${CMAKE_BINARY_DIR}/generated/shared/ForwardPlusSharedConfig.h
+        @ONLY
+)
+
 # ------------------------------------------------------------------------
 # Default build type for single-config generators (Ninja, Makefiles)
 # ------------------------------------------------------------------------
@@ -647,6 +658,7 @@ target_compile_options(CarrotEngine PUBLIC
 # project code -> full warnings
 target_include_directories(CarrotEngine PUBLIC
         src/Engine
+        ${CMAKE_BINARY_DIR}/generated/shared
 )
 
 # Everything under deps/ is third-party -> treat as system headers

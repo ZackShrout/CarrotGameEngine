@@ -249,6 +249,7 @@ Carrot already has a meaningful 2D-first renderer foundation in place, including
 * debug rendering and text
 * engine-level full-screen composite overlays
 * engine-owned in-game runtime UI built on top of the retained widget/navigation foundation
+* a first-pass forward+ world-lighting path with engine-owned ambient and point-light support
 
 The current renderer growth focus is narrower and more practical:
 
@@ -257,6 +258,13 @@ The current renderer growth focus is narrower and more practical:
 * improve diagnostics, preview, and iteration surfaces on top of existing renderer stages
 * support safe runtime reload of renderer-facing assets where practical
 * continue moving more real game presentation through the engine-owned world/render path instead of sandbox bootstrap glue
+
+Current renderer milestone status:
+
+* the world renderer has crossed into a first-pass forward+ architecture
+* world lighting is now an engine-owned runtime concern rather than sandbox-local proof code
+* Vulkan, Metal, and DirectX 12 all support the current forward+ world slice
+* the current implementation is intentionally CPU-submission-driven, with CPU-built tiled light lists as the first-pass forward+ structure
 
 The renderer should keep evolving toward a stronger world-aware rendering system, but it no longer needs to be described as a pre-foundation “test scene” renderer.
 

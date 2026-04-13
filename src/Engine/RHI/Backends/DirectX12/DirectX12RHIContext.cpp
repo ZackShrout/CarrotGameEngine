@@ -65,7 +65,7 @@ namespace carrot::rhi::dx12 {
             frame.fence_value = 0;
 
             buffer_create_info_t camera_buffer_info{ };
-            camera_buffer_info.size_bytes = align_constant_buffer_size(sizeof(renderer::textured_quad_camera_uniform_t));
+            camera_buffer_info.size_bytes = align_constant_buffer_size(sizeof(renderer::world_forward_plus_uniform_t));
             camera_buffer_info.usage = buffer_usage_t::uniform;
             camera_buffer_info.cpu_writable = true;
 
@@ -227,14 +227,21 @@ namespace carrot::rhi::dx12 {
 
             const dx12_frame_t& frame{ _frames[_frame_index] };
 
-            renderer::textured_quad_camera_uniform_t camera_uniform{ };
-            camera_uniform.view_projection = stage.view_projection;
+            renderer::world_forward_plus_uniform_t world_uniform{ };
+            world_uniform.view_projection = stage.view_projection;
+            world_uniform.ambient_color = stage.ambient_color;
+            world_uniform.forward_plus_grid_params = stage.forward_plus_grid_params;
+            world_uniform.forward_plus_tile_counts = stage.forward_plus_tile_counts;
+            world_uniform.point_light_counts[0] = stage.point_light_count;
+            world_uniform.point_lights = stage.point_lights;
+            world_uniform.forward_plus_tiles = stage.forward_plus_tiles;
+            world_uniform.forward_plus_light_indices = stage.forward_plus_light_indices;
 
             if (!frame.textured_quad_camera_uniform_buffers[stage_slot] ||
-                !frame.textured_quad_camera_uniform_buffers[stage_slot]->write(&camera_uniform,
-                                                                                     sizeof(camera_uniform), 0))
+                !frame.textured_quad_camera_uniform_buffers[stage_slot]->write(&world_uniform,
+                                                                               sizeof(world_uniform), 0))
             {
-                LOG_GRAPHICS_FATAL("Failed to upload DX12 textured quad camera uniform");
+                LOG_GRAPHICS_FATAL("Failed to upload DX12 world forward+ uniform");
                 return;
             }
 
@@ -768,7 +775,7 @@ namespace carrot::rhi::dx12 {
                 D3D12_CONSTANT_BUFFER_VIEW_DESC cbv_desc{ };
                 cbv_desc.BufferLocation =
                     frame.textured_quad_camera_uniform_buffers[stage_slot]->resource()->GetGPUVirtualAddress();
-                cbv_desc.SizeInBytes = align_constant_buffer_size(sizeof(renderer::textured_quad_camera_uniform_t));
+                cbv_desc.SizeInBytes = align_constant_buffer_size(sizeof(renderer::world_forward_plus_uniform_t));
 
                 _device->id3d12_device()->CreateConstantBufferView(
                     &cbv_desc,

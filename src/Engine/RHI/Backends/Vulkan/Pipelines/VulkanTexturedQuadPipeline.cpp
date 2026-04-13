@@ -161,7 +161,7 @@ namespace carrot::rhi::vulkan {
         camera_binding.binding = 0;
         camera_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         camera_binding.descriptorCount = 1;
-        camera_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        camera_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
         camera_binding.pImmutableSamplers = nullptr;
 
         VkDescriptorSetLayoutCreateInfo camera_layout_info{ };

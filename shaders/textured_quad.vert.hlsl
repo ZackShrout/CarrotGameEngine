@@ -1,9 +1,27 @@
 #include "ShaderCommon.h"
 
+struct PointLightData
+{
+    float4 position_radius;
+    float4 color_intensity;
+};
+
+struct ForwardPlusTileHeader
+{
+    uint4 data;
+};
+
 CARROT_VK_BINDING(0, 0)
-cbuffer TexturedQuadCamera
+cbuffer WorldForwardPlus
 {
     float4x4 g_view_projection;
+    float4 g_ambient_color;
+    float4 g_forward_plus_grid_params;
+    uint4 g_forward_plus_tile_counts;
+    uint4 g_point_light_counts;
+    PointLightData g_point_lights[CARROT_MAX_WORLD_POINT_LIGHTS];
+    ForwardPlusTileHeader g_forward_plus_tiles[CARROT_MAX_FORWARD_PLUS_TILES];
+    uint4 g_forward_plus_light_indices[CARROT_MAX_FORWARD_PLUS_PACKED_LIGHT_INDEX_WORDS];
 };
 
 struct VSInput
@@ -22,6 +40,7 @@ struct VSOutput
     float4 color    : COLOR0;
     float effect_mode : TEXCOORD1;
     float effect_param0 : TEXCOORD2;
+    float2 world_position_px : TEXCOORD3;
 };
 
 CARROT_ROOT_SIGNATURE(CARROT_RS_TEXTURED_QUAD)
@@ -37,6 +56,7 @@ VSOutput main(VSInput input)
     output.color = input.color;
     output.effect_mode = input.effect_mode;
     output.effect_param0 = input.effect_param0;
+    output.world_position_px = input.position;
 
     return output;
 }

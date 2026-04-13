@@ -52,7 +52,7 @@ namespace carrot::rhi::dx12 {
         D3D12_ROOT_PARAMETER root_params[3]{ };
 
         root_params[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-        root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+        root_params[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
         root_params[0].DescriptorTable.NumDescriptorRanges = 1;
         root_params[0].DescriptorTable.pDescriptorRanges = &cbv_range;
 

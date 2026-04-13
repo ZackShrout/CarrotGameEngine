@@ -18,6 +18,12 @@
     #define CARROT_VK_BINDING(binding_index, set_index)
 #endif
 
+#if defined(VULKAN)
+    #define CARROT_DECLARE_PUSH_CONSTANT(type, name, binding_index) [[vk::push_constant]] type name
+#else
+    #define CARROT_DECLARE_PUSH_CONSTANT(type, name, binding_index) ConstantBuffer<type> name : register(b##binding_index)
+#endif
+
 #define CARROT_RS_TEXTURED_QUAD \
 "RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)," \
 "DescriptorTable(CBV(b0, numDescriptors=1))," \

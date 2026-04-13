@@ -42,7 +42,7 @@ function(compile_hlsl_to_spirv TARGET_NAME HLSL_FILE OUTPUT_DIR)
     cmake_path(SET ABS_HLSL "${CMAKE_CURRENT_SOURCE_DIR}/${HLSL_FILE}" NORMALIZE)
 
     # Full base for target uniqueness
-    get_filename_component(FULL_BASE "${HLSL_FILE}" NAME)  # triangle.vert.hlsl
+    get_filename_component(FULL_BASE "${HLSL_FILE}" NAME)
     string(REPLACE "." "_" SANITIZED "${FULL_BASE}")
     string(MAKE_C_IDENTIFIER "${SANITIZED}" TARGET_ID)
 
@@ -99,7 +99,7 @@ function(compile_hlsl_to_metallib TARGET_NAME HLSL_FILE OUTPUT_DIR)
     cmake_path(SET ABS_HLSL "${CMAKE_CURRENT_SOURCE_DIR}/${HLSL_FILE}" NORMALIZE)
 
     # Naming / sanitization (same as the SPIR-V version)
-    get_filename_component(FULL_BASE "${HLSL_FILE}" NAME)          # e.g. triangle.vert.hlsl
+    get_filename_component(FULL_BASE "${HLSL_FILE}" NAME)
     string(REPLACE "." "_" SANITIZED "${FULL_BASE}")
     string(MAKE_C_IDENTIFIER "${SANITIZED}" TARGET_ID)
 
@@ -173,7 +173,7 @@ function(compile_hlsl_to_dxil TARGET_NAME HLSL_FILE OUTPUT_DIR)
     cmake_path(SET ABS_HLSL "${CMAKE_CURRENT_SOURCE_DIR}/${HLSL_FILE}" NORMALIZE)
 
     # Naming / sanitization (same as the SPIR-V version)
-    get_filename_component(FULL_BASE "${HLSL_FILE}" NAME)          # e.g. triangle.vert.hlsl
+    get_filename_component(FULL_BASE "${HLSL_FILE}" NAME)
     string(REPLACE "." "_" SANITIZED "${FULL_BASE}")
     string(MAKE_C_IDENTIFIER "${SANITIZED}" TARGET_ID)
 

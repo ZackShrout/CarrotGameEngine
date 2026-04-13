@@ -2,7 +2,7 @@
 
 **BunnySoft**
 **System Design Document**
-**Last Updated: April 10, 2026**
+**Last Updated: April 13, 2026**
 
 ---
 
@@ -67,7 +67,7 @@ Carrot’s asset model should work:
 * in a small no-editor project
 * in a larger project with stronger import workflows
 * with future editor support
-* with optional future cooked/cache layers
+* with imported/cooked/cache layers where they solve a real problem
 
 The pipeline should scale without needing to be reinvented every time the engine grows.
 
@@ -154,7 +154,7 @@ They are not raw JSON, and they are not just file paths.
 
 ### 4.4 Imported / Cooked / Cached Artifacts
 
-These are machine-generated, engine-native derived outputs that Carrot is now expected to introduce as the next major asset-pipeline expansion.
+These are machine-generated, engine-native derived outputs that Carrot now actively uses for several asset classes.
 
 Examples:
 
@@ -173,6 +173,14 @@ Carrot should introduce these artifacts only when they solve a real problem such
 * runtime simplification
 
 Carrot should not introduce cooked formats merely to feel “engine-like.”
+
+Current implemented examples include:
+
+* `.cfont`
+* `.ctex`
+* `.caud`
+* `.csprite`
+* `.cmap`
 
 Important rule:
 
@@ -220,7 +228,7 @@ IDs are for engine-facing identity.
 
 Carrot uses a **virtual file system** so asset references remain portable and explicit.
 
-Current / planned virtual roots include:
+Current virtual roots include:
 
 * `engine://`
 * `game://`
@@ -559,32 +567,32 @@ It means the **asset model** should prefer replacement over in-place authoring-s
 
 ---
 
-## 15. Startup Import vs Future Offline Cooking
+## 15. Startup Import vs Imported/Cooked Runtime Loading
 
-Carrot currently leans toward a **startup import / startup load** model for many asset types.
+Carrot now uses a mixed model:
 
-That is completely acceptable at this stage of the engine.
+* authored JSON remains the source of truth
+* importers still interpret external tool data and manifest intent
+* loaders prefer valid imported/cooked artifacts where they exist
+* stale or missing artifacts are regenerated automatically
 
 ### Current Strengths of This Model
 
-* simple
 * understandable
-* easy to debug
-* easy to iterate on
+* deterministic
 * editor-independent
+* fast enough to benefit startup/runtime workflows without hiding authored intent
 
-### Why This May Change Later
+### What Still May Change Later
 
-As the engine grows, some asset types may eventually benefit from:
+As the engine grows, some asset types may still benefit from:
 
-* offline preprocessing
-* cached derived data
-* platform-specific cooked outputs
-* faster startup/load workflows
+* stronger offline preprocessing flows
+* packaging-oriented cooked outputs
+* platform-specific derived variants
+* richer runtime reload and diagnostics support
 
-That is a future optimization and tooling concern.
-
-It should be introduced when it becomes worthwhile, not before.
+Those should be introduced only where the current model stops being enough.
 
 ---
 
@@ -619,7 +627,7 @@ That model works:
 * today without an editor
 * later with an editor
 * with external tools
-* with future cooked/cache layers if they become worthwhile
+* with imported/cooked/cache layers that already exist and can grow further where worthwhile
 
 That is the point of the system.
 

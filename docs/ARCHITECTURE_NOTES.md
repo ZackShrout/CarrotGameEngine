@@ -2,7 +2,7 @@
 
 **BunnySoft**
 **Working architecture notes**
-**Last Updated: April 10, 2026**
+**Last Updated: April 13, 2026**
 
 ---
 
@@ -47,7 +47,7 @@ Important examples:
 * platform code should not leak across the engine unchecked
 * higher-level renderer logic should not collapse directly into backend API code
 * asset definitions should not be confused with runtime loaded assets
-* authored content should remain distinct from future cooked data
+* authored content should remain distinct from imported/cooked runtime data
 * world/gameplay systems should not be forced into the engine before the engine is ready for them
 
 ### 2.3 Explicit Over Magical
@@ -108,33 +108,36 @@ Carrot should periodically audit which current assumptions are acceptable sandbo
 
 ### 2.6 Current Priority Stack
 
-Several older priority items have now moved from "next" into "implemented first-pass foundation":
+Several older priority items have now moved out of the active priority list and into "implemented first-pass foundation":
 
 * 2D layering and visibility-zone behavior
 * controller/device support and action-map-based gameplay input
 * in-game UI foundation and navigation
+* runtime text rendering
 * richer Tiled authored-data support
+* imported/cooked asset artifacts
 * engine extraction of recurring gameplay-side movement/interaction patterns
 * multi-window runtime ownership
 
-The current proposed engine-growth order is now:
+The current engine-growth order is now:
 
-1. docs and architectural alignment
-2. runtime UI usability led by stronger text rendering
-3. imported/cooked asset artifact pipeline
-4. user-facing input rebinding and broader gameplay input routing growth
-5. scene/runtime polish and broader gameplay-facing runtime APIs
+1. runtime iteration, reload, and diagnostics
+2. a thin optional tooling/editor host that stays outside engine ownership boundaries
+3. user-facing input rebinding and broader gameplay input routing growth
+4. scene/runtime polish and broader gameplay-facing runtime APIs
+5. preserving backend parity and diagnostics as renderer features expand
 
 This ordering reflects the current state of the codebase:
 
-* the engine already has enough foundations that docs drift now matters
-* runtime UI quality is currently gated more by text/presentation than by missing navigation/layout basics
-* imported/cooked artifacts now solve a real startup/load-time problem rather than a hypothetical one
+* the engine already has enough foundations that iteration friction now matters more than adding another disconnected subsystem
+* the cooked pipeline exists, so visibility and reload behavior are now more important than merely inventing more formats
+* editor/tooling work is justified only if it stays engine-independent and validates real runtime seams
 
 Notable later work that should stay visible but is not the immediate top priority:
 
 * screen-transition presentation effects
 * richer optional gameplay modules
+* save/persistence architecture
 * lighting and shadows
 * hybrid 2D/3D rendering growth
 * animated 3D model workflows
@@ -1197,7 +1200,7 @@ As Carrot evolves, this document should continue preserving a few key ideas:
 * native-first architecture matters
 * layer boundaries matter
 * RHI and renderer are not the same thing
-* assets must distinguish source, authored metadata, runtime data, and future cooked data
+* assets must distinguish source, authored metadata, runtime data, and imported/cooked data
 * Aseprite and Tiled are intentional content workflow targets
 * audio is a first-class subsystem
 * world/object architecture is important, but should arrive at the right time

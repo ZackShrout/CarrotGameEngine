@@ -2,7 +2,7 @@
 
 **BunnySoft**
 **System Design Document**
-**Last Updated: April 2026**
+**Last Updated: April 13, 2026**
 
 ---
 
@@ -77,10 +77,10 @@ Examples include:
 * engine configuration
 * audio asset definitions
 * texture asset definitions
-* future sprite asset definitions
-* future tile map metadata
-* future imported content descriptors
-* future editor-facing authored metadata
+* sprite asset definitions
+* tilemap asset definitions
+* imported content descriptors
+* editor-facing authored metadata where appropriate
 
 ### Key Principle
 
@@ -428,7 +428,7 @@ After JSON is parsed and validated, the asset pipeline is responsible for turnin
 
 * imported metadata
 * runtime loaded assets
-* future optional cooked/cache layers where appropriate
+* imported/cooked/cache layers where appropriate
 
 That means JSON should stay on the **authoring/import side** of the boundary, not bleed into hot-path runtime systems.
 
@@ -436,15 +436,18 @@ For more detail, see `docs/systems/asset_pipeline.md`.
 
 ---
 
-## 14. Relationship to Future Custom Formats
+## 14. Relationship to Engine-Native Derived Formats
 
-Carrot may eventually introduce engine-native custom formats such as:
+Carrot now uses engine-native derived formats such as:
 
 * `.ctex`
 * `.caud`
-* other future cooked/cache formats
+* `.cfont`
+* `.csprite`
+* `.cmap`
+* other future cooked/cache formats where warranted
 
-These would exist **alongside** JSON, not replace it entirely.
+These exist **alongside** JSON, not in place of it.
 
 ### Important Rule
 
@@ -477,7 +480,7 @@ Carrot should avoid casually blurring together:
 * config files
 * authored asset metadata
 * imported external tool data
-* cooked/cache artifacts
+* imported/cooked/cache artifacts
 * save data
 
 These are different categories of data and should remain architecturally distinct even if some of them happen to use JSON.

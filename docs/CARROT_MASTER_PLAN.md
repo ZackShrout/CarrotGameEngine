@@ -2,7 +2,7 @@
 
 **BunnySoft**
 **Version 2.1**
-**Last Updated: April 10, 2026**
+**Last Updated: April 13, 2026**
 
 ---
 
@@ -237,27 +237,28 @@ The renderer sits above the RHI and is responsible for higher-level rendering be
 
 Its job is not just to issue API calls, but to provide a coherent rendering path for the engine.
 
-Near-term renderer priorities include:
+Carrot already has a meaningful 2D-first renderer foundation in place, including:
 
 * textured quad rendering
 * batching
-* backend parity
-* camera / projection support
 * explicit frame stages for world, UI, composite, debug, and runtime log-console responsibilities
 * gameplay-facing presentation policies such as fixed-aspect letterboxing
 * sprite rendering
 * stable layered 2D draw ordering
 * sprite placement controls such as pivot/origin and flip
 * debug rendering and text
-* engine-level full-screen composite overlays for future fades/flashes/tints
-* engine-owned diagnostics overlays built on top of the existing 2D renderer
-* higher-quality runtime text rendering as a near-term engine priority
-* engine-owned in-game runtime UI built on top of the existing retained widget/navigation foundation
-* world-aware scene rendering where tilemap backdrops, actors, and Tiled-authored scene objects can all be consumed through the world/object layer
-* sandbox-driven movement, camera follow, and authored-object interaction built on top of the world/object layer rather than engine bootstrap code
-* reusable default controller support where the engine provides common movement and proximity-interaction mechanics while the game layer keeps semantic control
+* engine-level full-screen composite overlays
+* engine-owned in-game runtime UI built on top of the retained widget/navigation foundation
 
-Over time, the renderer should evolve from “test scene rendering” into a world-aware rendering system that can support actual gameplay-driven rendering flows.
+The current renderer growth focus is narrower and more practical:
+
+* preserve backend parity as renderer features expand
+* keep the renderer / RHI boundary explicit and stable
+* improve diagnostics, preview, and iteration surfaces on top of existing renderer stages
+* support safe runtime reload of renderer-facing assets where practical
+* continue moving more real game presentation through the engine-owned world/render path instead of sandbox bootstrap glue
+
+The renderer should keep evolving toward a stronger world-aware rendering system, but it no longer needs to be described as a pre-foundation “test scene” renderer.
 
 ### 5.4.1 Current Runtime UI Direction
 
@@ -271,11 +272,11 @@ Carrot now has a real first-pass in-game UI foundation:
 
 The next UI priority is not a giant widget explosion.
 
-The next priority is:
+The current UI direction is:
 
-* better engine-owned text rendering quality
-* stronger text layout/measurement primitives
-* a smaller set of genuinely usable runtime UI widgets
+* keep the existing text, layout, and focus/navigation foundations usable and understandable
+* add only the next genuinely needed widgets and diagnostics surfaces
+* use runtime UI to validate engine iteration/tooling workflows before growing a broader editor UI stack
 
 The sandbox should validate this work, but the implementation should remain primarily engine-owned.
 
@@ -449,14 +450,14 @@ The engine should clearly distinguish between:
 * **runtime loaded assets**
   such as decoded images, audio samples, GPU textures, and streaming objects
 
-* **future cooked or cached artifacts**
-  optional engine-native derived data such as texture/audio caches if and when they become worthwhile
+* **imported / cooked / cached artifacts**
+  engine-native derived data such as `.cfont`, `.ctex`, `.caud`, `.csprite`, and `.cmap`
 
 ### Virtual File System
 
 Carrot uses a virtual file system to keep asset access portable and explicit.
 
-Planned / current virtual roots include:
+Current virtual roots include:
 
 * `engine://`
 * `game://`
@@ -471,11 +472,11 @@ Carrot is intended to work well with authored metadata and external content tool
 
 This is one reason JSON is currently a strong fit for authored asset definitions.
 
-### Planned External Tool Workflows
+### External Tool Workflows
 
-Carrot is intended to support established external tools as first-class content workflows where they make sense.
+Carrot supports established external tools as first-class content workflows where they make sense.
 
-Important planned integrations include:
+Current engine-facing integrations include:
 
 * **Aseprite**
   for sprite sheets, animation data, and frame/tag-based workflows
@@ -522,7 +523,7 @@ Over time, the audio system should be able to support:
 * richer in-game audio workflows
 * stronger asset/tool integration
 * engine-native authoring support where appropriate
-* future middleware/editor-style possibilities if they ever become worth pursuing
+* better diagnostics and inspection surfaces
 
 Carrot’s audio engine is intended to remain a real strength of the project.
 
@@ -633,82 +634,49 @@ See also:
 
 Carrot’s roadmap is best understood in terms of **capabilities**, not fake calendar certainty.
 
-### 11.1 Near-Term Priorities
+### 11.1 Current Focus Areas
 
-These are the most immediate engine priorities.
+These are the current engine priorities after the completed foundations in Milestones 01 through 12.
 
-* Preserve and verify **Vulkan**, **Metal**, and **DirectX 12** textured quad parity as renderer features expand
-* Continue stabilizing the renderer / RHI boundary
-* Expand textured quad rendering into a stronger general 2D rendering foundation
-* Introduce **sprite asset support**
-* Support **sprite animation workflows**
-* Continue expanding **camera / projection support** into stronger gameplay/editor camera workflows
-* Continue expanding sprite-facing renderer behavior such as layered draw ordering, pivot/origin handling, and flip support
-* Continue expanding Tiled-backed tilemap support from the current foundation into stronger gameplay/world rendering behavior
-* Continue formalizing Tiled object-layer conventions for markers, props, and hybrid objects
-* Continue moving rendering from ad hoc test scenes into world-aware scene/object rendering paths
-* Continue refining the new scene asset and transition path into a broader reusable game-flow foundation
-* Continue improving **debug rendering / debug text / overlay direction**, beginning from the current engine-owned text overlay path
-* Continue strengthening the asset system and authored asset workflows
-* Continue expanding the new input action layer toward config-backed and player-rebindable controls
+* runtime iteration, reload, and diagnostics
+* a thin optional tooling/editor host built on top of engine APIs rather than inside them
+* sharper asset-pipeline visibility around invalidation, regeneration, and cache state
+* user-facing input rebinding and broader gameplay input routing growth
+* scene/runtime polish and broader gameplay-facing runtime APIs
+* preserving renderer backend parity as real-world renderer features broaden
 
-Recent completed foundation work in Milestones 03 and 04:
+Recent completed foundation work now includes:
 
-* explicit frame stages for world, UI, composite, and overlay debug rendering
-* engine-level fullscreen composite overlays
-* stronger world-aware scene rendering and controller integration
-* collision queries and static collision foundations
-* Tiled-authored blocking collision and trigger import
-* first-pass kinematic player movement against authored world collision
-* gameplay-facing trigger events and toggleable collision debug views
+* explicit frame stages for world, UI, composite, overlay debug, and log-console rendering
+* world-aware scene rendering and authored scene transitions
+* collision queries, authored blocking collision, and trigger import
+* layered 2D rendering and visibility-zone behavior
+* controller/device support and action-map-based gameplay input
+* in-game UI foundation and runtime text rendering
+* richer Tiled authored-data support
+* imported/cooked asset artifacts for fonts, textures, audio, sprites, and tilemaps
 
-Current proposed post-Milestone-04 engine priority order:
+### 11.2 Next-Tier Growth
 
-1. 2D layering and depth-sort behavior
-2. Gamepad input support
-3. In-game UI foundation and API
-4. richer Tiled feature coverage and authored data support
-5. broader gameplay/runtime cleanup where emerging engine patterns should move out of sandbox code
+These are important next-tier areas, but they should advance because they solve real workflow or gameplay structure problems, not because they have lingered on an old checklist.
 
-Important but intentionally later / dependent work:
+* optional local-multiplayer input routing built on top of the controller/action-map foundation
+* screen-transition presentation modules built on top of the stronger frame architecture
+* save / persistence architecture
+* broader gameplay/runtime cleanup where stable engine patterns should move out of sandbox code
+* deeper runtime and tooling inspection surfaces for assets, world state, and diagnostics
 
-* richer Tiled support such as animated tiles and more authored feature coverage
-* screen-transition presentation modules such as fade-to-black built on top of stronger frame architecture
-* broader gameplay modules layered above engine primitives
-* optional local-multiplayer input routing built on top of the existing controller/action-map foundation
+For current input-router direction, see [input_router_direction.md](/Users/zshrout/dev/CarrotGameEngine/docs/systems/input_router_direction.md).
+
+### 11.3 Longer-Horizon Work
+
+These remain meaningful future directions, but they are not current priorities simply because they are desirable someday.
+
+* richer world/object architecture growth where the current scene/world model stops being enough
+* better asset authoring workflows where they provide clear value beyond external tools
 * 2D lighting and later shadow support
 * hybrid 2D/3D rendering expansion
 * animated 3D model support
-
-### 11.2 Mid-Term Priorities
-
-These priorities build on the near-term rendering and asset foundation.
-
-* Introduce a **simple world / scene rendering flow**
-* Introduce the first meaningful version of **world-driven object architecture**
-* Expand rendering from test-scene logic into world-driven rendering
-* Add stronger support for:
-
-    * sprites
-    * tile maps
-    * layered rendering
-    * world-space 2D workflows
-* Improve input routing / layer-aware input handling
-* Add an opt-in player input-router layer so local multiplayer assignment remains game-configured, not engine-forced
-* Continue maturing asset import and runtime asset systems
-
-For current direction, see [input_router_direction.md](/Users/zshrout/dev/CarrotGameEngine/docs/systems/input_router_direction.md).
-
-### 11.3 Long-Term Priorities
-
-These are meaningful future directions, but should only be pursued on top of strong foundations.
-
-* Early tooling / editor beginnings
-* Better asset authoring workflows
-* Save / persistence architecture
-* World and gameplay tooling improvements
-* Broader game-facing engine systems
-* Possible future engine-native tools where they genuinely add value
 
 Long-term work should remain grounded in Carrot’s actual needs rather than feature-chasing.
 

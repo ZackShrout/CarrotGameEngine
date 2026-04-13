@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "Assets/AssetIteration.h"
 #include "AudioAsset.h"
 
 namespace carrot::io {
@@ -32,6 +33,9 @@ namespace carrot::assets {
     {
         loaded_audio_asset_t asset;
         audio_asset_load_error error{ audio_asset_load_error::ok };
+        asset_load_origin_t load_origin{ asset_load_origin_t::never_loaded };
+        imported_artifact_state_t cooked_artifact_state{ imported_artifact_state_t::missing };
+        imported_artifact_issue_t invalidation_reason{ imported_artifact_issue_t::none };
 
         [[nodiscard]] bool success() const noexcept
         {

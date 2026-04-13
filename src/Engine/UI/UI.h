@@ -9,6 +9,7 @@
 #include "UIInputOwnership.h"
 #include "UIRootWidget.h"
 #include "Widgets/UIButton.h"
+#include "Widgets/UIAssetPreview.h"
 #include "Widgets/UIFocusScope.h"
 #include "Widgets/UILabel.h"
 #include "Widgets/UIPanel.h"

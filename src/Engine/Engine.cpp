@@ -349,7 +349,8 @@ namespace carrot {
             _renderer->begin_frame();
             render_world();
             render_ui();
-            render_debug();
+            if (_application && _application->show_debug_overlay())
+                render_debug();
             render_log_console();
             _renderer->end_frame();
         }

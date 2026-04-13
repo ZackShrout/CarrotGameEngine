@@ -31,6 +31,18 @@ namespace carrot::assets {
         valid,
     };
 
+    enum class imported_artifact_issue_t
+    {
+        none,
+        missing_artifact,
+        unreadable_artifact,
+        importer_version_changed,
+        source_changed,
+        asset_definition_changed,
+        import_settings_changed,
+        reserved_changed,
+    };
+
     [[nodiscard]] std::filesystem::path imported_asset_cache_path(std::string_view logical_id,
                                                                   std::string_view category,
                                                                   std::string_view extension,
@@ -44,4 +56,37 @@ namespace carrot::assets {
                                                  const imported_asset_invalidation_t& expected,
                                                  std::uint32_t cached_importer_version,
                                                  std::uint32_t expected_importer_version) noexcept;
+
+    [[nodiscard]] imported_artifact_state_t inspect_imported_artifact_state(const imported_asset_invalidation_t& cached,
+                                                                            const imported_asset_invalidation_t& expected,
+                                                                            std::uint32_t cached_importer_version,
+                                                                            std::uint32_t expected_importer_version,
+                                                                            imported_artifact_issue_t& issue) noexcept;
+
+    [[nodiscard]] constexpr std::string_view to_string(const imported_artifact_state_t state) noexcept
+    {
+        switch (state)
+        {
+            case imported_artifact_state_t::missing: return "missing";
+            case imported_artifact_state_t::stale: return "stale";
+            case imported_artifact_state_t::valid: return "valid";
+            default: return "unknown";
+        }
+    }
+
+    [[nodiscard]] constexpr std::string_view to_string(const imported_artifact_issue_t issue) noexcept
+    {
+        switch (issue)
+        {
+            case imported_artifact_issue_t::none: return "none";
+            case imported_artifact_issue_t::missing_artifact: return "missing_artifact";
+            case imported_artifact_issue_t::unreadable_artifact: return "unreadable_artifact";
+            case imported_artifact_issue_t::importer_version_changed: return "importer_version_changed";
+            case imported_artifact_issue_t::source_changed: return "source_changed";
+            case imported_artifact_issue_t::asset_definition_changed: return "asset_definition_changed";
+            case imported_artifact_issue_t::import_settings_changed: return "import_settings_changed";
+            case imported_artifact_issue_t::reserved_changed: return "reserved_changed";
+            default: return "unknown";
+        }
+    }
 } // namespace carrot::assets

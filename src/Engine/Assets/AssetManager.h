@@ -5,12 +5,16 @@
 
 #pragma once
 
+#include "AssetIteration.h"
 #include "Audio/AudioAssetSystem.h"
 #include "Font/FontAssetSystem.h"
 #include "Scene/SceneAssetSystem.h"
 #include "Sprite/SpriteAssetSystem.h"
 #include "Texture/TextureAssetSystem.h"
 #include "Tilemap/TilemapAssetSystem.h"
+
+#include <optional>
+#include <vector>
 
 namespace carrot::io {
     class virtual_file_system_t;
@@ -54,6 +58,12 @@ namespace carrot::assets {
 
         [[nodiscard]] const scene_asset_system_t& scenes() const noexcept { return _scenes; }
         [[nodiscard]] scene_asset_system_t& scenes() noexcept { return _scenes; }
+
+        [[nodiscard]] std::vector<asset_iteration_status_t> collect_runtime_iteration_statuses() const;
+        [[nodiscard]] std::optional<asset_iteration_status_t> find_runtime_iteration_status(asset_kind_t kind,
+                                                                                            asset_id_t id) const;
+        bool reload_asset(asset_kind_t kind, asset_id_t id);
+        bool reload_asset(asset_kind_t kind, std::string_view logical_id);
 
         void clear();
 

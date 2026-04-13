@@ -65,6 +65,11 @@ namespace carrot::core {
         // ───────────────────────────────────────────────
         virtual void on_tick([[maybe_unused]] const float delta_time) {}
 
+        // ───────────────────────────────────────────────
+        // Debug overlay policy
+        // ───────────────────────────────────────────────
+        [[nodiscard]] virtual bool show_debug_overlay() const noexcept { return true; }
+
     protected:
         ce_application_t() noexcept = default;
         virtual ~ce_application_t() = default;

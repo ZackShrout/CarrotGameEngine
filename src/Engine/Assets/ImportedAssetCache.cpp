@@ -69,4 +69,45 @@ namespace carrot::assets {
                cached.import_settings_hash == expected.import_settings_hash &&
                cached.reserved_hash == expected.reserved_hash;
     }
+
+    imported_artifact_state_t inspect_imported_artifact_state(const imported_asset_invalidation_t& cached,
+                                                              const imported_asset_invalidation_t& expected,
+                                                              const std::uint32_t cached_importer_version,
+                                                              const std::uint32_t expected_importer_version,
+                                                              imported_artifact_issue_t& issue) noexcept
+    {
+        issue = imported_artifact_issue_t::none;
+
+        if (cached_importer_version != expected_importer_version)
+        {
+            issue = imported_artifact_issue_t::importer_version_changed;
+            return imported_artifact_state_t::stale;
+        }
+
+        if (cached.source_content_hash != expected.source_content_hash)
+        {
+            issue = imported_artifact_issue_t::source_changed;
+            return imported_artifact_state_t::stale;
+        }
+
+        if (cached.asset_definition_content_hash != expected.asset_definition_content_hash)
+        {
+            issue = imported_artifact_issue_t::asset_definition_changed;
+            return imported_artifact_state_t::stale;
+        }
+
+        if (cached.import_settings_hash != expected.import_settings_hash)
+        {
+            issue = imported_artifact_issue_t::import_settings_changed;
+            return imported_artifact_state_t::stale;
+        }
+
+        if (cached.reserved_hash != expected.reserved_hash)
+        {
+            issue = imported_artifact_issue_t::reserved_changed;
+            return imported_artifact_state_t::stale;
+        }
+
+        return imported_artifact_state_t::valid;
+    }
 } // namespace carrot::assets

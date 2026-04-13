@@ -86,7 +86,7 @@ namespace carrot::assets {
         {
             loaded_audio_asset_t loaded{ };
             loaded.record = &record;
-            return { std::move(loaded), audio_asset_load_error::ok };
+            return { std::move(loaded), audio_asset_load_error::ok, asset_load_origin_t::streamed_direct, imported_artifact_state_t::missing, imported_artifact_issue_t::none };
         }
 
         [[nodiscard]] audio_asset_load_result_t create_loaded_audio_asset(const audio_asset_record_t& record,
@@ -166,6 +166,8 @@ namespace carrot::assets {
             build_expected_invalidation(record, vfs)
         };
 
+        imported_artifact_issue_t invalidation_reason{ imported_artifact_issue_t::missing_artifact };
+        imported_artifact_state_t cooked_artifact_state{ imported_artifact_state_t::missing };
         const std::filesystem::path cooked_path{ cooked_audio_cache_path(record.logical_id, vfs) };
         if (!cooked_path.empty() && std::filesystem::exists(cooked_path))
         {
@@ -175,17 +177,25 @@ namespace carrot::assets {
                 LOG_ASSET_WARN("Audio asset '{}' has unreadable cooked artifact '{}'; regenerating.",
                                record.logical_id,
                                cooked_path.string());
-            }
-            else if (is_imported_asset_current(cooked->invalidation,
-                                               expected_invalidation,
-                                               cooked->importer_version,
-                                               audio_importer_version))
-            {
-                LOG_ASSET_INFO("Loaded audio asset '{}' from cooked cache", record.logical_id);
-                return create_loaded_audio_asset(record, *cooked);
+                invalidation_reason = imported_artifact_issue_t::unreadable_artifact;
             }
             else
             {
+                cooked_artifact_state = inspect_imported_artifact_state(cooked->invalidation,
+                                                                       expected_invalidation,
+                                                                       cooked->importer_version,
+                                                                       audio_importer_version,
+                                                                       invalidation_reason);
+                if (cooked_artifact_state == imported_artifact_state_t::valid)
+                {
+                    LOG_ASSET_INFO("Loaded audio asset '{}' from cooked cache", record.logical_id);
+                    auto result{ create_loaded_audio_asset(record, *cooked) };
+                    result.load_origin = asset_load_origin_t::cooked_cache;
+                    result.cooked_artifact_state = imported_artifact_state_t::valid;
+                    result.invalidation_reason = imported_artifact_issue_t::none;
+                    return result;
+                }
+
                 LOG_ASSET_INFO("Cooked audio '{}' is stale; regenerating '{}'.",
                                cooked_path.string(),
                                record.logical_id);
@@ -194,7 +204,7 @@ namespace carrot::assets {
 
         std::unique_ptr<audio::audio_sample_t> decoded_sample{ audio::load_wav_file(native_path->string()) };
         if (!decoded_sample)
-            return { { }, audio_asset_load_error::decode_failed };
+            return { { }, audio_asset_load_error::decode_failed, asset_load_origin_t::never_loaded, cooked_artifact_state, invalidation_reason };
 
         const cooked_audio_data_t cooked{
             build_cooked_audio(*decoded_sample, expected_invalidation)
@@ -204,10 +214,10 @@ namespace carrot::assets {
         {
             const auto serialized{ serialize_cooked_audio(cooked) };
             if (!serialized)
-                return { { }, audio_asset_load_error::cooked_serialize_failed };
+                return { { }, audio_asset_load_error::cooked_serialize_failed, asset_load_origin_t::never_loaded, cooked_artifact_state, invalidation_reason };
 
             if (!utils::file::write_binary_file(cooked_path, *serialized))
-                return { { }, audio_asset_load_error::cooked_write_failed };
+                return { { }, audio_asset_load_error::cooked_write_failed, asset_load_origin_t::never_loaded, cooked_artifact_state, invalidation_reason };
 
             LOG_ASSET_INFO("Regenerated cooked audio '{}' for asset '{}'.",
                            cooked_path.string(),
@@ -222,6 +232,12 @@ namespace carrot::assets {
         loaded_audio_asset_t loaded{ };
         loaded.record = &record;
         loaded.sample = std::move(decoded_sample);
-        return { std::move(loaded), audio_asset_load_error::ok };
+        return {
+            std::move(loaded),
+            audio_asset_load_error::ok,
+            cooked_path.empty() ? asset_load_origin_t::source_without_cooked_cache : asset_load_origin_t::regenerated_from_source,
+            cooked_artifact_state,
+            invalidation_reason
+        };
     }
 } // namespace carrot::assets

@@ -11,6 +11,21 @@
 #include "Assets/Audio/AudioAssetLoader.h"
 
 namespace carrot::assets {
+    namespace {
+        [[nodiscard]] asset_iteration_status_t base_audio_status(const audio_asset_record_t& record) noexcept
+        {
+            asset_iteration_status_t status;
+            status.kind = asset_kind_t::audio;
+            status.id = record.id;
+            status.logical_id = record.logical_id;
+            status.source_uri = record.source_uri;
+            status.manifest_uri = record.manifest_uri;
+            status.reload_policy = record.streamed ? asset_reload_policy_t::manual_refresh_only
+                                                   : asset_reload_policy_t::reloadable_live;
+            return status;
+        }
+    }
+
     const loaded_audio_asset_t* audio_asset_system_t::get(asset_id_t id)
     {
         if (const auto it{ _loaded.find(id) }; it != _loaded.end())
@@ -26,6 +41,7 @@ namespace carrot::assets {
         audio_asset_load_result_t result{ load_audio_asset(*record, _vfs) };
         if (!result.success())
         {
+            record_load_result(*record, result, to_string(result.error));
             LOG_ASSET_ERROR("Failed to load audio asset '{}' from '{}': {}",
                             record->logical_id,
                             record->source_uri,
@@ -34,6 +50,8 @@ namespace carrot::assets {
         }
 
         const auto [it, inserted]{ _loaded.emplace(id, std::move(result.asset)) };
+        (void)inserted;
+        record_load_result(*record, result, {});
 
         return &it->second;
     }
@@ -52,5 +70,84 @@ namespace carrot::assets {
     {
         _loaded.clear();
         _registry.clear();
+        _statuses.clear();
+    }
+
+    std::vector<asset_iteration_status_t> audio_asset_system_t::collect_iteration_statuses() const
+    {
+        std::vector<asset_iteration_status_t> out;
+        out.reserve(_registry.records().size());
+
+        for (const auto& [id, record] : _registry.records())
+        {
+            auto status{ find_iteration_status(id).value_or(base_audio_status(record)) };
+            status.loaded_in_runtime_cache = _loaded.contains(id);
+            out.push_back(std::move(status));
+        }
+
+        std::ranges::sort(out, {}, &asset_iteration_status_t::logical_id);
+        return out;
+    }
+
+    std::optional<asset_iteration_status_t> audio_asset_system_t::find_iteration_status(const asset_id_t id) const
+    {
+        const audio_asset_record_t* record{ _registry.find(id) };
+        if (!record)
+            return std::nullopt;
+
+        if (const auto it{ _statuses.find(id) }; it != _statuses.end())
+        {
+            auto status{ it->second };
+            status.loaded_in_runtime_cache = _loaded.contains(id);
+            return status;
+        }
+
+        auto status{ base_audio_status(*record) };
+        status.loaded_in_runtime_cache = _loaded.contains(id);
+        return status;
+    }
+
+    bool audio_asset_system_t::reload(const asset_id_t id)
+    {
+        _loaded.erase(id);
+        return get(id) != nullptr;
+    }
+
+    bool audio_asset_system_t::reload(const std::string_view logical_id)
+    {
+        return reload(make_asset_id(logical_id));
+    }
+
+    asset_iteration_status_t audio_asset_system_t::make_status(const audio_asset_record_t& record) const
+    {
+        auto status{ base_audio_status(record) };
+        status.loaded_in_runtime_cache = _loaded.contains(record.id);
+        return status;
+    }
+
+    void audio_asset_system_t::record_load_result(const audio_asset_record_t& record,
+                                                  const audio_asset_load_result_t& result,
+                                                  const std::string_view error_message)
+    {
+        asset_iteration_status_t status{ make_status(record) };
+        if (const auto it{ _statuses.find(record.id) }; it != _statuses.end())
+            status = it->second;
+
+        status.kind = asset_kind_t::audio;
+        status.id = record.id;
+        status.logical_id = record.logical_id;
+        status.source_uri = record.source_uri;
+        status.manifest_uri = record.manifest_uri;
+        status.reload_policy = record.streamed ? asset_reload_policy_t::manual_refresh_only
+                                               : asset_reload_policy_t::reloadable_live;
+        status.loaded_in_runtime_cache = result.success();
+        status.has_last_attempt = true;
+        status.last_attempt_at = std::chrono::system_clock::now();
+        status.last_result = result.success() ? asset_iteration_result_t::success : asset_iteration_result_t::failed;
+        status.last_load_origin = result.load_origin;
+        status.last_cooked_artifact_state = result.cooked_artifact_state;
+        status.last_invalidation_reason = result.invalidation_reason;
+        status.last_error = std::string{ error_message };
+        _statuses[record.id] = std::move(status);
     }
 }

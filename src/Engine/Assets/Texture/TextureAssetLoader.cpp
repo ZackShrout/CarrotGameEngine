@@ -122,6 +122,8 @@ namespace carrot::assets {
             build_expected_invalidation(record, vfs)
         };
 
+        imported_artifact_issue_t invalidation_reason{ imported_artifact_issue_t::missing_artifact };
+        imported_artifact_state_t cooked_artifact_state{ imported_artifact_state_t::missing };
         const std::filesystem::path cooked_path{ cooked_texture_cache_path(record.logical_id, vfs) };
         if (!cooked_path.empty() && std::filesystem::exists(cooked_path))
         {
@@ -131,17 +133,25 @@ namespace carrot::assets {
                 LOG_ASSET_WARN("Texture asset '{}' has unreadable cooked artifact '{}'; regenerating.",
                                record.logical_id,
                                cooked_path.string());
-            }
-            else if (is_imported_asset_current(cooked->invalidation,
-                                               expected_invalidation,
-                                               cooked->importer_version,
-                                               texture_importer_version))
-            {
-                LOG_ASSET_INFO("Loaded texture asset '{}' from cooked cache", record.logical_id);
-                return create_runtime_texture(record, *cooked, rhi);
+                invalidation_reason = imported_artifact_issue_t::unreadable_artifact;
             }
             else
             {
+                cooked_artifact_state = inspect_imported_artifact_state(cooked->invalidation,
+                                                                       expected_invalidation,
+                                                                       cooked->importer_version,
+                                                                       texture_importer_version,
+                                                                       invalidation_reason);
+                if (cooked_artifact_state == imported_artifact_state_t::valid)
+                {
+                    LOG_ASSET_INFO("Loaded texture asset '{}' from cooked cache", record.logical_id);
+                    auto result{ create_runtime_texture(record, *cooked, rhi) };
+                    result.load_origin = asset_load_origin_t::cooked_cache;
+                    result.cooked_artifact_state = imported_artifact_state_t::valid;
+                    result.invalidation_reason = imported_artifact_issue_t::none;
+                    return result;
+                }
+
                 LOG_ASSET_INFO("Cooked texture '{}' is stale; regenerating '{}'.",
                                cooked_path.string(),
                                record.logical_id);
@@ -150,7 +160,7 @@ namespace carrot::assets {
 
         image_load_result_t image_result{ load_image_rgba8(*native_path) };
         if (!image_result.success())
-            return { { }, texture_asset_load_error::decode_failed };
+            return { { }, texture_asset_load_error::decode_failed, asset_load_origin_t::never_loaded, cooked_artifact_state, invalidation_reason };
 
         cooked_texture_data_t cooked{ };
         cooked.importer_version = texture_importer_version;
@@ -163,25 +173,34 @@ namespace carrot::assets {
 
         auto runtime_texture_result{ create_runtime_texture(record, cooked, rhi) };
         if (!runtime_texture_result.success())
+        {
+            runtime_texture_result.cooked_artifact_state = cooked_artifact_state;
+            runtime_texture_result.invalidation_reason = invalidation_reason;
             return runtime_texture_result;
+        }
 
+        runtime_texture_result.invalidation_reason = invalidation_reason;
         if (!cooked_path.empty())
         {
             const auto serialized{ serialize_cooked_texture(cooked) };
             if (!serialized)
-                return { { }, texture_asset_load_error::cooked_serialize_failed };
+                return { { }, texture_asset_load_error::cooked_serialize_failed, asset_load_origin_t::never_loaded, cooked_artifact_state, invalidation_reason };
 
             if (!utils::file::write_binary_file(cooked_path, *serialized))
-                return { { }, texture_asset_load_error::cooked_write_failed };
+                return { { }, texture_asset_load_error::cooked_write_failed, asset_load_origin_t::never_loaded, cooked_artifact_state, invalidation_reason };
 
             LOG_ASSET_INFO("Regenerated cooked texture '{}' for asset '{}'.",
                            cooked_path.string(),
                            record.logical_id);
+            runtime_texture_result.load_origin = asset_load_origin_t::regenerated_from_source;
+            runtime_texture_result.cooked_artifact_state = cooked_artifact_state;
         }
         else
         {
             LOG_ASSET_INFO("Texture asset '{}' loaded from source without cooked cache (no save mount).",
                            record.logical_id);
+            runtime_texture_result.load_origin = asset_load_origin_t::source_without_cooked_cache;
+            runtime_texture_result.cooked_artifact_state = imported_artifact_state_t::missing;
         }
 
         return runtime_texture_result;

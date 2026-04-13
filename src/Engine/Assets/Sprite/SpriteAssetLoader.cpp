@@ -98,21 +98,30 @@ namespace carrot::assets {
         }
 
         sprite_asset_t sprite{ record.sprite };
-        bool loaded_from_cooked{ false };
         const imported_asset_invalidation_t expected_invalidation{ build_expected_invalidation(record, vfs) };
+        imported_artifact_issue_t invalidation_reason{ imported_artifact_issue_t::missing_artifact };
+        imported_artifact_state_t cooked_artifact_state{ imported_artifact_state_t::missing };
         const std::filesystem::path cooked_path{ cooked_sprite_cache_path(record.logical_id, vfs) };
 
         if (!cooked_path.empty() && std::filesystem::exists(cooked_path))
         {
             const auto cooked{ load_cooked_sprite_file(cooked_path) };
-            if (cooked && is_imported_asset_current(cooked->invalidation,
-                                                   expected_invalidation,
-                                                   cooked->importer_version,
-                                                   sprite_importer_version))
+            if (!cooked)
             {
-                sprite = cooked->sprite;
-                loaded_from_cooked = true;
-                LOG_ASSET_INFO("Loaded sprite asset '{}' from cooked cache", record.logical_id);
+                invalidation_reason = imported_artifact_issue_t::unreadable_artifact;
+            }
+            else
+            {
+                cooked_artifact_state = inspect_imported_artifact_state(cooked->invalidation,
+                                                                       expected_invalidation,
+                                                                       cooked->importer_version,
+                                                                       sprite_importer_version,
+                                                                       invalidation_reason);
+                if (cooked_artifact_state == imported_artifact_state_t::valid)
+                {
+                    sprite = cooked->sprite;
+                    LOG_ASSET_INFO("Loaded sprite asset '{}' from cooked cache", record.logical_id);
+                }
             }
         }
 
@@ -121,11 +130,25 @@ namespace carrot::assets {
         {
             return {
                 .asset = { },
-                .error = sprite_asset_load_error_t::missing_texture_asset
+                .error = sprite_asset_load_error_t::missing_texture_asset,
+                .load_origin = asset_load_origin_t::never_loaded,
+                .cooked_artifact_state = cooked_artifact_state,
+                .invalidation_reason = invalidation_reason,
             };
         }
 
-        if (!loaded_from_cooked && !cooked_path.empty())
+        if (cooked_artifact_state == imported_artifact_state_t::valid)
+        {
+            return {
+                .asset = loaded_sprite_asset_t{ std::move(sprite), texture },
+                .error = sprite_asset_load_error_t::none,
+                .load_origin = asset_load_origin_t::cooked_cache,
+                .cooked_artifact_state = imported_artifact_state_t::valid,
+                .invalidation_reason = imported_artifact_issue_t::none,
+            };
+        }
+
+        if (!cooked_path.empty())
         {
             cooked_sprite_data_t cooked;
             cooked.importer_version = sprite_importer_version;
@@ -133,12 +156,22 @@ namespace carrot::assets {
             cooked.sprite = sprite;
 
             if (!write_cooked_sprite_file(cooked_path, cooked))
-                return { .asset = { }, .error = sprite_asset_load_error_t::cooked_write_failed };
+                return {
+                    .asset = { },
+                    .error = sprite_asset_load_error_t::cooked_write_failed,
+                    .load_origin = asset_load_origin_t::never_loaded,
+                    .cooked_artifact_state = cooked_artifact_state,
+                    .invalidation_reason = invalidation_reason,
+                };
         }
 
         return {
             .asset = loaded_sprite_asset_t{ std::move(sprite), texture },
-            .error = sprite_asset_load_error_t::none
+            .error = sprite_asset_load_error_t::none,
+            .load_origin = cooked_path.empty() ? asset_load_origin_t::source_without_cooked_cache
+                                               : asset_load_origin_t::regenerated_from_source,
+            .cooked_artifact_state = cooked_artifact_state,
+            .invalidation_reason = invalidation_reason,
         };
     }
 } // namespace carrot::assets

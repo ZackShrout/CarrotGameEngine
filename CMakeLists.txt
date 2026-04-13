@@ -242,6 +242,7 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/AssetDiscovery.h
         src/Engine/Assets/AssetHandle.h
         src/Engine/Assets/AssetID.h
+        src/Engine/Assets/AssetIteration.h
         src/Engine/Assets/ImportedAssetCache.cpp
         src/Engine/Assets/ImportedAssetCache.h
         src/Engine/Assets/AssetManager.cpp
@@ -392,6 +393,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/UI/UIService.h
         src/Engine/UI/Widgets/UIButton.cpp
         src/Engine/UI/Widgets/UIButton.h
+        src/Engine/UI/Widgets/UIAssetPreview.cpp
+        src/Engine/UI/Widgets/UIAssetPreview.h
         src/Engine/UI/Widgets/UIFocusScope.cpp
         src/Engine/UI/Widgets/UIFocusScope.h
         src/Engine/UI/Widgets/UILabel.cpp
@@ -855,6 +858,7 @@ set(CARROT_TEST_SOURCES
         tests/TestMain.cpp
         tests/ActionMapTests.cpp
         tests/AssetCookedPipelineTests.cpp
+        tests/AssetIterationTests.cpp
         tests/ControllerTests.cpp
         tests/CollisionWorldTests.cpp
         tests/FontAssetTests.cpp
@@ -872,6 +876,18 @@ target_link_libraries(CarrotEngineTests PRIVATE CarrotEngine)
 target_compile_definitions(CarrotEngineTests PRIVATE CARROT_SOURCE_ROOT="${CMAKE_SOURCE_DIR}")
 
 add_test(NAME CarrotEngineTests COMMAND CarrotEngineTests)
+
+set(CARROT_EDITOR_SOURCES
+        src/Editor/EditorApp.cpp
+        src/Editor/EditorApp.h
+        src/Editor/main.cpp
+)
+
+source_group(TREE ${CMAKE_SOURCE_DIR} FILES ${CARROT_EDITOR_SOURCES})
+
+add_executable(CarrotEditor ${CARROT_EDITOR_SOURCES})
+target_include_directories(CarrotEditor PRIVATE src/Editor)
+target_link_libraries(CarrotEditor PRIVATE CarrotEngine)
 
 #if(WIN32)
 #    # Use Windows GUI subsystem → no console window

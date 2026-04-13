@@ -2,10 +2,36 @@
 
 **Last Updated:** April 13, 2026  
 **Title:** Runtime Iteration and Editor Skeleton Foundation  
-**Status:** Planned  
+**Status:** Complete  
 **Focus:** Introduce engine-owned runtime iteration and diagnostics services, then validate them through a thin optional `CarrotEditor` host.
 
+Archived in April 2026 after the engine gained structured runtime iteration diagnostics, manual reload support for the first safe asset slice, and a thin optional `CarrotEditor` host with list, diagnostics, and preview surfaces.
+
 ---
+
+## Closeout Summary (April 13, 2026)
+
+Milestone 13 is now considered complete.
+
+Delivered outcomes:
+
+* engine-owned runtime iteration data structures and query APIs for textures, sprites, and audio
+* explicit per-asset reload policy, last-attempt result, load-origin, cooked-artifact state, and invalidation diagnostics
+* manual reload/refresh flow exposed through engine-facing APIs rather than editor-owned hooks
+* `CarrotEditor` as a separate executable target on top of `CarrotEngine`
+* first useful tooling surfaces:
+  * asset list/browser
+  * diagnostics/status panel
+  * manual reload trigger
+  * stable preview surfaces for textures and sprites
+* runtime/editor boundary validation showing the editor observes, triggers, and previews without owning iteration logic
+
+Still intentionally deferred:
+
+* automatic file watching
+* audio preview playback
+* broader asset-class participation beyond the first safe slice
+* any scene/world editing or generalized editor framework work
 
 ## Milestone Goal
 

@@ -85,7 +85,7 @@ namespace carrot::input {
                                 gameplay_input_router_t::repeat_state_t& state,
                                 const float initial_delay_seconds,
                                 const float repeat_interval_seconds,
-                                const std::string_view action_name) noexcept
+                                const input_action_handle_t action_name) noexcept
         {
             if (consume_repeat(pressed,
                                delta_time,
@@ -93,19 +93,63 @@ namespace carrot::input {
                                initial_delay_seconds,
                                repeat_interval_seconds))
             {
-                (void)ui_module.dispatch_navigation_action(action_name);
+                (void)ui_module.dispatch_navigation_action(action_name.authored_id);
             }
         }
     } // namespace
 
+    gameplay_input_router_t::gameplay_input_router_t() noexcept
+    {
+        reset_routing_defaults();
+        rebuild_player_contexts();
+    }
+
+    void gameplay_input_router_t::configure_routing(gameplay_input_routing_config_t config) noexcept
+    {
+        config.player_count = std::clamp<size_t>(config.player_count, 1u, controller_manager_t::max_gamepad_slots);
+        _routing_config = config;
+        rebuild_player_contexts();
+    }
+
+    const player_input_context_t* gameplay_input_router_t::player(const size_t index) const noexcept
+    {
+        if (const runtime_player_context_t* context{ runtime_context(index) })
+            return &context->descriptor;
+
+        return nullptr;
+    }
+
+    void gameplay_input_router_t::bind(const input_action_handle_t action, const key_code key, const uint8_t required_mods)
+    {
+        _action_bindings.bind(action, key, required_mods);
+        _bindings_dirty = true;
+    }
+
     void gameplay_input_router_t::bind(std::string action, const key_code key, const uint8_t required_mods)
     {
-        _actions.bind(std::move(action), key, required_mods);
+        _action_bindings.bind(std::move(action), key, required_mods);
+        _bindings_dirty = true;
+    }
+
+    void gameplay_input_router_t::bind_gamepad_button(const input_action_handle_t action, const gamepad_button_t button)
+    {
+        _action_bindings.bind_gamepad_button(action, button);
+        _bindings_dirty = true;
     }
 
     void gameplay_input_router_t::bind_gamepad_button(std::string action, const gamepad_button_t button)
     {
-        _actions.bind_gamepad_button(std::move(action), button);
+        _action_bindings.bind_gamepad_button(std::move(action), button);
+        _bindings_dirty = true;
+    }
+
+    void gameplay_input_router_t::bind_gamepad_axis(const input_action_handle_t action,
+                                                    const gamepad_axis_t axis,
+                                                    const gamepad_axis_direction_t direction,
+                                                    const float threshold)
+    {
+        _action_bindings.bind_gamepad_axis(action, axis, direction, threshold);
+        _bindings_dirty = true;
     }
 
     void gameplay_input_router_t::bind_gamepad_axis(std::string action,
@@ -113,89 +157,117 @@ namespace carrot::input {
                                                     const gamepad_axis_direction_t direction,
                                                     const float threshold)
     {
-        _actions.bind_gamepad_axis(std::move(action), axis, direction, threshold);
+        _action_bindings.bind_gamepad_axis(std::move(action), axis, direction, threshold);
+        _bindings_dirty = true;
     }
 
     void gameplay_input_router_t::clear() noexcept
     {
-        _actions.clear();
-        _previous_pressed.clear();
-        _triggered_actions.clear();
+        _action_bindings.clear();
+        _bindings_dirty = true;
         on_focus_lost();
     }
 
     bool gameplay_input_router_t::load_bindings_from_file(const io::virtual_file_system_t& vfs,
                                                           const std::string_view virtual_path)
     {
-        return _actions.load_bindings_from_file(vfs, virtual_path);
+        const bool loaded{ _action_bindings.load_bindings_from_file(vfs, virtual_path) };
+        _bindings_dirty = _bindings_dirty || loaded;
+        return loaded;
     }
 
     void gameplay_input_router_t::update(core::game_context_t& game,
                                          const gameplay_input_profile_t& profile,
                                          const float delta_time) noexcept
     {
-        _actions.update_gamepad_state(game.controllers.active_gamepad());
+        sync_context_bindings_if_needed();
+
+        for (runtime_player_context_t& context : _player_contexts)
+        {
+            const gamepad_state_t* assigned_gamepad{
+                (_routing_config.mode == gameplay_input_routing_mode_t::single_player_auto && context.descriptor.player_index == 0u)
+                    ? game.controllers.active_gamepad()
+                    : (context.descriptor.assignment.gamepad_slot.has_value()
+                    ? game.controllers.gamepad(*context.descriptor.assignment.gamepad_slot)
+                    : nullptr)
+            };
+            context.actions.update_gamepad_state(assigned_gamepad);
+        }
+
+        runtime_player_context_t* primary{ primary_context() };
+        if (!primary)
+            return;
 
         if (carrot::ui::ui_module_t* ui_module{ carrot::ui::ui_service_t::try_get() })
         {
             dispatch_if_repeat(*ui_module,
-                               _actions.is_pressed_by_gamepad(profile.ui_up),
+                               primary->actions.is_pressed_by_gamepad(profile.ui_up),
                                delta_time,
                                _ui_up_repeat,
                                _gamepad_nav_repeat_initial_delay_seconds,
                                _gamepad_nav_repeat_interval_seconds,
                                profile.ui_up);
             dispatch_if_repeat(*ui_module,
-                               _actions.is_pressed_by_gamepad(profile.ui_down),
+                               primary->actions.is_pressed_by_gamepad(profile.ui_down),
                                delta_time,
                                _ui_down_repeat,
                                _gamepad_nav_repeat_initial_delay_seconds,
                                _gamepad_nav_repeat_interval_seconds,
                                profile.ui_down);
             dispatch_if_repeat(*ui_module,
-                               _actions.is_pressed_by_gamepad(profile.ui_left),
+                               primary->actions.is_pressed_by_gamepad(profile.ui_left),
                                delta_time,
                                _ui_left_repeat,
                                _gamepad_nav_repeat_initial_delay_seconds,
                                _gamepad_nav_repeat_interval_seconds,
                                profile.ui_left);
             dispatch_if_repeat(*ui_module,
-                               _actions.is_pressed_by_gamepad(profile.ui_right),
+                               primary->actions.is_pressed_by_gamepad(profile.ui_right),
                                delta_time,
                                _ui_right_repeat,
                                _gamepad_nav_repeat_initial_delay_seconds,
                                _gamepad_nav_repeat_interval_seconds,
                                profile.ui_right);
 
-            const bool accept_pressed{ _actions.is_pressed_by_gamepad(profile.ui_accept) };
-            const bool cancel_pressed{ _actions.is_pressed_by_gamepad(profile.ui_cancel) };
+            const bool accept_pressed{ primary->actions.is_pressed_by_gamepad(profile.ui_accept) };
+            const bool cancel_pressed{ primary->actions.is_pressed_by_gamepad(profile.ui_cancel) };
             if (accept_pressed && !_ui_accept_gamepad_was_pressed)
-                (void)ui_module->dispatch_navigation_action(profile.ui_accept);
+                (void)ui_module->dispatch_navigation_action(profile.ui_accept.authored_id);
             if (cancel_pressed && !_ui_cancel_gamepad_was_pressed)
-                (void)ui_module->dispatch_navigation_action(profile.ui_cancel);
+                (void)ui_module->dispatch_navigation_action(profile.ui_cancel.authored_id);
             _ui_accept_gamepad_was_pressed = accept_pressed;
             _ui_cancel_gamepad_was_pressed = cancel_pressed;
         }
 
-        snapshot_action_edges(profile);
+        for (runtime_player_context_t& context : _player_contexts)
+            snapshot_action_edges(context, profile);
     }
 
     bool gameplay_input_router_t::handle_key_event(const events::key_event_t& event,
                                                    const gameplay_input_profile_t& profile,
                                                    const bool log_interact_keys) noexcept
     {
-        _actions.handle_key_event(event);
+        sync_context_bindings_if_needed();
+        for (runtime_player_context_t& context : _player_contexts)
+        {
+            if (context.descriptor.assignment.receives_keyboard)
+                context.actions.handle_key_event(event);
+        }
+
+        runtime_player_context_t* primary{ primary_context() };
+        if (!primary)
+            return false;
 
         bool ui_consumed_event{ false };
-        auto handle_ui_key_action = [this, &event, &ui_consumed_event](const std::string_view action_name) noexcept
+        auto handle_ui_key_action = [primary, &event, &ui_consumed_event](const input_action_handle_t action_name) noexcept
         {
-            if (!_actions.matches(action_name, event))
+            if (!primary->actions.matches(action_name, event))
                 return;
 
             if (event._action == events::key_action::press || event._action == events::key_action::repeat)
             {
                 if (ui::ui_module_t* ui_module{ ui::ui_service_t::try_get() })
-                    ui_consumed_event = ui_module->dispatch_navigation_action(action_name) || ui_consumed_event;
+                    ui_consumed_event = ui_module->dispatch_navigation_action(action_name.authored_id) || ui_consumed_event;
             }
         };
 
@@ -206,10 +278,11 @@ namespace carrot::input {
         handle_ui_key_action(profile.ui_accept);
         handle_ui_key_action(profile.ui_cancel);
 
-        auto update_move_suppression = [this, &event, ui_consumed_event](const std::string_view move_action,
+        auto update_move_suppression = [this, &event, ui_consumed_event](const input_action_handle_t move_action,
                                                                          bool& suppressed_flag) noexcept
         {
-            if (!_actions.matches(move_action, event))
+            const runtime_player_context_t* primary_context_ptr{ primary_context() };
+            if (!primary_context_ptr || !primary_context_ptr->actions.matches(move_action, event))
                 return;
 
             if (event._action == events::key_action::release)
@@ -230,7 +303,7 @@ namespace carrot::input {
         update_move_suppression(profile.move_left, _move_left_suppressed);
         update_move_suppression(profile.move_right, _move_right_suppressed);
 
-        if (event._action == events::key_action::press && _actions.matches(profile.interact, event) && log_interact_keys)
+        if (event._action == events::key_action::press && primary->actions.matches(profile.interact, event) && log_interact_keys)
         {
             LOG_CORE_INFO("Key pressed: {} ({}) (mods: {})",
                           key_code_to_string(event._key),
@@ -238,7 +311,7 @@ namespace carrot::input {
                           modifiers_to_string(event._mods));
         }
         else if (event._action == events::key_action::repeat &&
-                 (_actions.matches(profile.interact, event) ||
+                 (primary->actions.matches(profile.interact, event) ||
                   event._key == key_code::escape ||
                   event._key == key_code::enter ||
                   event._key == key_code::f11))
@@ -248,7 +321,7 @@ namespace carrot::input {
                           static_cast<uint32_t>(event._key));
         }
         else if (event._action == events::key_action::release &&
-                 (_actions.matches(profile.interact, event) ||
+                 (primary->actions.matches(profile.interact, event) ||
                   event._key == key_code::escape ||
                   event._key == key_code::enter ||
                   event._key == key_code::f11))
@@ -260,12 +333,17 @@ namespace carrot::input {
 
         return event._action == events::key_action::press &&
                !event._repeat &&
-               _actions.matches(profile.toggle_fullscreen, event);
+               primary->actions.matches(profile.toggle_fullscreen, event);
     }
 
     void gameplay_input_router_t::on_focus_lost() noexcept
     {
-        _actions.release_all_keys();
+        for (runtime_player_context_t& context : _player_contexts)
+        {
+            context.actions.release_all_keys();
+            context.previous_pressed.clear();
+            context.triggered_actions.clear();
+        }
         _move_up_suppressed = false;
         _move_down_suppressed = false;
         _move_left_suppressed = false;
@@ -276,25 +354,56 @@ namespace carrot::input {
         _ui_right_repeat = {};
         _ui_accept_gamepad_was_pressed = false;
         _ui_cancel_gamepad_was_pressed = false;
-        _previous_pressed.clear();
-        _triggered_actions.clear();
     }
 
-    bool gameplay_input_router_t::is_pressed(const std::string_view action) const noexcept
+    bool gameplay_input_router_t::is_pressed(const input_action_id_t action) const noexcept
     {
-        return _actions.is_pressed(action);
+        return is_pressed(0u, action);
     }
 
-    bool gameplay_input_router_t::was_just_pressed(const std::string_view action) const noexcept
+    bool gameplay_input_router_t::was_just_pressed(const input_action_id_t action) const noexcept
     {
-        const auto it{ _triggered_actions.find(std::string{ action }) };
-        return it != _triggered_actions.end() && it->second;
+        return was_just_pressed(0u, action);
+    }
+
+    bool gameplay_input_router_t::is_pressed(const size_t player_index, const input_action_id_t action) const noexcept
+    {
+        const runtime_player_context_t* context{ runtime_context(player_index) };
+        return context && context->actions.is_pressed(action);
+    }
+
+    bool gameplay_input_router_t::was_just_pressed(const size_t player_index, const input_action_id_t action) const noexcept
+    {
+        const runtime_player_context_t* context{ runtime_context(player_index) };
+        if (!context)
+            return false;
+
+        const auto it{ context->triggered_actions.find(action) };
+        return it != context->triggered_actions.end() && it->second;
     }
 
     chlm::float2 gameplay_input_router_t::movement_intent(const core::game_context_t& game,
                                                           const gameplay_input_profile_t& profile) const noexcept
     {
-        if (const gamepad_state_t* gamepad{ game.controllers.active_gamepad() })
+        return movement_intent(0u, game, profile);
+    }
+
+    chlm::float2 gameplay_input_router_t::movement_intent(const size_t player_index,
+                                                          const core::game_context_t& game,
+                                                          const gameplay_input_profile_t& profile) const noexcept
+    {
+        const runtime_player_context_t* context{ runtime_context(player_index) };
+        if (!context)
+            return { 0.f, 0.f };
+
+        const gamepad_state_t* gamepad{
+            (_routing_config.mode == gameplay_input_routing_mode_t::single_player_auto && player_index == 0u)
+                ? game.controllers.active_gamepad()
+                : (context->descriptor.assignment.gamepad_slot.has_value()
+                ? game.controllers.gamepad(*context->descriptor.assignment.gamepad_slot)
+                : nullptr)
+        };
+        if (gamepad)
         {
             const chlm::float2 left_stick{ gamepad->left_stick() };
             const float length_sq{ (left_stick.x * left_stick.x) + (left_stick.y * left_stick.y) };
@@ -302,26 +411,42 @@ namespace carrot::input {
                 return left_stick;
         }
 
-        return digital_move_vector(_actions,
+        return digital_move_vector(context->actions,
                                    profile,
-                                   _move_up_suppressed,
-                                   _move_down_suppressed,
-                                   _move_left_suppressed,
-                                   _move_right_suppressed);
+                                   player_index == 0u ? _move_up_suppressed : false,
+                                   player_index == 0u ? _move_down_suppressed : false,
+                                   player_index == 0u ? _move_left_suppressed : false,
+                                   player_index == 0u ? _move_right_suppressed : false);
     }
 
     void gameplay_input_router_t::apply_player_movement(world::player_controller_t& controller,
                                                         const core::game_context_t& game,
                                                         const gameplay_input_profile_t& profile) const noexcept
     {
-        controller.set_move_intent(movement_intent(game, profile));
+        controller.set_move_intent(movement_intent(0u, game, profile));
+    }
+
+    void gameplay_input_router_t::apply_player_movement(const size_t player_index,
+                                                        world::player_controller_t& controller,
+                                                        const core::game_context_t& game,
+                                                        const gameplay_input_profile_t& profile) const noexcept
+    {
+        controller.set_move_intent(movement_intent(player_index, game, profile));
     }
 
     bool gameplay_input_router_t::dispatch_interaction_if_triggered(world::interaction_controller_t& controller,
                                                                     core::game_context_t& game,
                                                                     const gameplay_input_profile_t& profile) const noexcept
     {
-        if (!was_just_pressed(profile.interact))
+        return dispatch_interaction_if_triggered(0u, controller, game, profile);
+    }
+
+    bool gameplay_input_router_t::dispatch_interaction_if_triggered(const size_t player_index,
+                                                                    world::interaction_controller_t& controller,
+                                                                    core::game_context_t& game,
+                                                                    const gameplay_input_profile_t& profile) const noexcept
+    {
+        if (!was_just_pressed(player_index, profile.interact))
             return false;
 
         if (!controller.actor() || !controller.actor()->transform)
@@ -339,30 +464,112 @@ namespace carrot::input {
         return true;
     }
 
-    void gameplay_input_router_t::snapshot_action_edges(const gameplay_input_profile_t& profile) noexcept
+    void gameplay_input_router_t::reset_routing_defaults() noexcept
     {
-        _triggered_actions.clear();
+        _routing_config = {};
+        _routing_config.mode = gameplay_input_routing_mode_t::single_player_auto;
+        _routing_config.player_count = 1u;
+        _routing_config.assignments[0] = player_input_assignment_t{
+            .receives_keyboard = true,
+            .gamepad_slot = std::nullopt
+        };
+    }
 
-        track_action_edge(_previous_pressed, _triggered_actions, _actions, profile.interact);
-        track_action_edge(_previous_pressed, _triggered_actions, _actions, profile.quit);
-        track_action_edge(_previous_pressed, _triggered_actions, _actions, profile.toggle_map_collision_debug);
-        track_action_edge(_previous_pressed, _triggered_actions, _actions, profile.toggle_object_collision_debug);
+    void gameplay_input_router_t::rebuild_player_contexts() noexcept
+    {
+        if (_routing_config.player_count == 0u)
+            reset_routing_defaults();
+
+        _player_contexts.clear();
+        _player_contexts.reserve(_routing_config.player_count);
+        for (size_t index{ 0u }; index < _routing_config.player_count; ++index)
+        {
+            runtime_player_context_t context;
+            context.descriptor.player_index = index;
+            context.descriptor.assignment = _routing_config.assignments[index];
+            _player_contexts.push_back(std::move(context));
+        }
+
+        _bindings_dirty = true;
+        sync_context_bindings_if_needed();
+    }
+
+    void gameplay_input_router_t::sync_context_bindings_if_needed() noexcept
+    {
+        if (!_bindings_dirty)
+            return;
+
+        if (_player_contexts.empty())
+        {
+            reset_routing_defaults();
+            _player_contexts.reserve(_routing_config.player_count);
+            for (size_t index{ 0u }; index < _routing_config.player_count; ++index)
+            {
+                runtime_player_context_t context;
+                context.descriptor.player_index = index;
+                context.descriptor.assignment = _routing_config.assignments[index];
+                _player_contexts.push_back(std::move(context));
+            }
+        }
+
+        for (runtime_player_context_t& context : _player_contexts)
+        {
+            context.actions = _action_bindings;
+            context.actions.release_all_keys();
+            context.previous_pressed.clear();
+            context.triggered_actions.clear();
+        }
+
+        _bindings_dirty = false;
+    }
+
+    gameplay_input_router_t::runtime_player_context_t* gameplay_input_router_t::primary_context() noexcept
+    {
+        return runtime_context(0u);
+    }
+
+    const gameplay_input_router_t::runtime_player_context_t* gameplay_input_router_t::primary_context() const noexcept
+    {
+        return runtime_context(0u);
+    }
+
+    gameplay_input_router_t::runtime_player_context_t* gameplay_input_router_t::runtime_context(const size_t player_index) noexcept
+    {
+        return player_index < _player_contexts.size() ? &_player_contexts[player_index] : nullptr;
+    }
+
+    const gameplay_input_router_t::runtime_player_context_t* gameplay_input_router_t::runtime_context(const size_t player_index) const noexcept
+    {
+        return player_index < _player_contexts.size() ? &_player_contexts[player_index] : nullptr;
+    }
+
+    void gameplay_input_router_t::snapshot_action_edges(runtime_player_context_t& context,
+                                                        const gameplay_input_profile_t& profile) noexcept
+    {
+        context.triggered_actions.clear();
+
+        track_action_edge(context.previous_pressed, context.triggered_actions, context.actions, profile.interact);
+        track_action_edge(context.previous_pressed, context.triggered_actions, context.actions, profile.quit);
+        track_action_edge(context.previous_pressed, context.triggered_actions, context.actions, profile.toggle_map_collision_debug);
+        track_action_edge(context.previous_pressed,
+                          context.triggered_actions,
+                          context.actions,
+                          profile.toggle_object_collision_debug);
     }
 
     void gameplay_input_router_t::track_action_edge(
-        std::unordered_map<std::string, bool, std::hash<std::string>, std::equal_to<>>& previous,
-        std::unordered_map<std::string, bool, std::hash<std::string>, std::equal_to<>>& triggered,
+        std::unordered_map<input_action_id_t, bool, input_action_id_hash_t>& previous,
+        std::unordered_map<input_action_id_t, bool, input_action_id_hash_t>& triggered,
         const input_action_map_t& actions,
-        const std::string_view action) noexcept
+        const input_action_id_t action) noexcept
     {
-        if (action.empty())
+        if (!action.valid())
             return;
 
         const bool current{ actions.is_pressed(action) };
-        const std::string action_key{ action };
-        const auto previous_it{ previous.find(action_key) };
+        const auto previous_it{ previous.find(action) };
         const bool was_pressed{ previous_it != previous.end() ? previous_it->second : false };
-        triggered[action_key] = current && !was_pressed;
-        previous[action_key] = current;
+        triggered[action] = current && !was_pressed;
+        previous[action] = current;
     }
 } // namespace carrot::input

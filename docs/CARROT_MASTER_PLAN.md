@@ -649,7 +649,6 @@ These are the current engine priorities after the completed foundations in Miles
 * runtime iteration, reload, and diagnostics
 * a thin optional tooling/editor host built on top of engine APIs rather than inside them
 * sharper asset-pipeline visibility around invalidation, regeneration, and cache state
-* user-facing input rebinding and broader gameplay input routing growth
 * scene/runtime polish and broader gameplay-facing runtime APIs
 * preserving renderer backend parity as real-world renderer features broaden
 
@@ -663,18 +662,26 @@ Recent completed foundation work now includes:
 * in-game UI foundation and runtime text rendering
 * richer Tiled authored-data support
 * imported/cooked asset artifacts for fonts, textures, audio, sprites, and tilemaps
+* user-facing input rebinding, persisted bindings, and first-pass broader gameplay input routing
 
 ### 11.2 Next-Tier Growth
 
 These are important next-tier areas, but they should advance because they solve real workflow or gameplay structure problems, not because they have lingered on an old checklist.
 
-* optional local-multiplayer input routing built on top of the controller/action-map foundation
+* deeper diagnostics and polish on the new input routing/rebinding foundation
 * screen-transition presentation modules built on top of the stronger frame architecture
 * save / persistence architecture
 * broader gameplay/runtime cleanup where stable engine patterns should move out of sandbox code
 * deeper runtime and tooling inspection surfaces for assets, world state, and diagnostics
 
 For current input-router direction, see [input_router_direction.md](/Users/zshrout/dev/CarrotGameEngine/docs/systems/input_router_direction.md).
+
+Current input-system boundary after Milestone 15:
+
+* player 0 remains the current primary UI/navigation/debug-input owner
+* fixed assignment exists as the first broader routing mode
+* rebinding currently edits shared action bindings rather than divergent per-player binding profiles
+* join-flow and per-player binding divergence remain future work
 
 ### 11.3 Longer-Horizon Work
 

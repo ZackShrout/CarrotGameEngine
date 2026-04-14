@@ -101,7 +101,7 @@ Carrot should periodically audit which current assumptions are acceptable sandbo
 
 **Watch next**
 
-* user-facing input rebinding and config-backed action maps on top of the new engine action layer
+* hardening the new input rebinding/routing foundation with better diagnostics and eventual player-facing UI
 * camera redesign so scene bootstrap defaults become camera defaults rather than a parallel presentation-scale concept
 * whether future games want a broader shared controller base beyond the current default movement and interaction helpers
 * render-pipeline refactoring so world, debug, UI, and future composite work no longer compete inside a one-pass frame model
@@ -118,14 +118,15 @@ Several older priority items have now moved out of the active priority list and 
 * imported/cooked asset artifacts
 * engine extraction of recurring gameplay-side movement/interaction patterns
 * multi-window runtime ownership
+* user-facing input rebinding and first-pass broader gameplay input routing growth
 
 The current engine-growth order is now:
 
 1. runtime iteration, reload, and diagnostics
 2. a thin optional tooling/editor host that stays outside engine ownership boundaries
-3. user-facing input rebinding and broader gameplay input routing growth
-4. scene/runtime polish and broader gameplay-facing runtime APIs
-5. preserving backend parity and diagnostics as renderer features expand
+3. scene/runtime polish and broader gameplay-facing runtime APIs
+4. preserving backend parity and diagnostics as renderer features expand
+5. deeper tooling/runtime inspection surfaces where they unblock real iteration
 
 This ordering reflects the current state of the codebase:
 
@@ -193,6 +194,15 @@ Current direction:
 * single-player convenience paths should remain first-class and unchanged by default
 
 For fuller design details, see [input_router_direction.md](/Users/zshrout/dev/CarrotGameEngine/docs/systems/input_router_direction.md).
+
+Current implemented boundary after Milestone 15:
+
+* typed runtime action handles, engine-owned rebinding, and persisted user bindings now exist
+* `single_player_auto` remains the default convenience path
+* `local_multiplayer_fixed` now exists as the first opt-in broader routing mode
+* player 0 still owns the current primary UI/navigation/debug-input path
+* rebinding edits the shared engine-owned binding template, so routed player contexts still share action bindings
+* join-flow and truly divergent per-player binding profiles are intentionally deferred
 
 ### 2.7 Current Frame Stage Contract
 

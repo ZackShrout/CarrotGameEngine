@@ -60,6 +60,15 @@ namespace carrot::input {
         return gamepad_state_t{ };
     }
 
+    const gamepad_state_t* controller_manager_t::gamepad(const uint32_t slot) const noexcept
+    {
+        if (slot >= _gamepads.size())
+            return nullptr;
+
+        const gamepad_state_t& gamepad{ _gamepads[slot] };
+        return gamepad.connected ? &gamepad : nullptr;
+    }
+
     controller_debug_snapshot_t controller_manager_t::debug_snapshot() const noexcept
     {
         controller_debug_snapshot_t snapshot{ };

@@ -23,11 +23,15 @@ namespace carrot::input {
     class controller_manager_t
     {
     public:
+        static constexpr size_t max_gamepad_slots{ 4u };
+
         void update(float delta_time) noexcept;
 
         [[nodiscard]] bool has_active_gamepad() const noexcept;
         [[nodiscard]] const gamepad_state_t* active_gamepad() const noexcept;
         [[nodiscard]] gamepad_state_t active_gamepad_snapshot() const noexcept;
+        [[nodiscard]] const gamepad_state_t* gamepad(uint32_t slot) const noexcept;
+        [[nodiscard]] std::optional<uint32_t> active_gamepad_index() const noexcept { return _active_gamepad_index; }
         [[nodiscard]] controller_debug_snapshot_t debug_snapshot() const noexcept;
 
     private:

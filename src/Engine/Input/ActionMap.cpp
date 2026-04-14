@@ -13,6 +13,27 @@
 
 namespace carrot::input {
     namespace {
+        [[nodiscard]] std::string escape_json_string(const std::string_view value)
+        {
+            std::string escaped;
+            escaped.reserve(value.size() + 8u);
+
+            for (const char ch : value)
+            {
+                switch (ch)
+                {
+                    case '\\': escaped += "\\\\"; break;
+                    case '"': escaped += "\\\""; break;
+                    case '\n': escaped += "\\n"; break;
+                    case '\r': escaped += "\\r"; break;
+                    case '\t': escaped += "\\t"; break;
+                    default: escaped.push_back(ch); break;
+                }
+            }
+
+            return escaped;
+        }
+
         [[nodiscard]] std::string normalize_name(std::string_view value)
         {
             std::string normalized;
@@ -190,7 +211,66 @@ namespace carrot::input {
 
             return std::nullopt;
         }
+
+        void append_modifier_json_values(std::string& out, const uint8_t mods)
+        {
+            bool first{ true };
+            const auto append_modifier = [&out, &first](const char* name)
+            {
+                if (!first)
+                    out += ", ";
+
+                out += '"';
+                out += name;
+                out += '"';
+                first = false;
+            };
+
+            if (has_modifier(mods, modifier::shift)) append_modifier("Shift");
+            if (has_modifier(mods, modifier::control)) append_modifier("Ctrl");
+            if (has_modifier(mods, modifier::alt)) append_modifier("Alt");
+            if (has_modifier(mods, modifier::super)) append_modifier("Super");
+        }
     } // namespace
+
+    std::vector<action_binding_t> input_action_map_t::bindings_for_action(const input_action_id_t action) const
+    {
+        std::vector<action_binding_t> results;
+        if (!action.valid())
+            return results;
+
+        results.reserve(_bindings.size());
+        for (const action_binding_t& binding : _bindings)
+        {
+            if (binding.action_id == action)
+                results.push_back(binding);
+        }
+
+        return results;
+    }
+
+    std::vector<action_binding_t> input_action_map_t::bindings_for_action(const std::string_view action) const
+    {
+        return bindings_for_action(make_input_action_id(action));
+    }
+
+    void input_action_map_t::add_binding(action_binding_t binding)
+    {
+        finalize_binding(binding);
+        if (binding.action.empty())
+            return;
+
+        _bindings.push_back(std::move(binding));
+        refresh_pressed_actions();
+    }
+
+    void input_action_map_t::bind(const input_action_handle_t action, const key_code key, const uint8_t required_mods)
+    {
+        if (!action)
+            return;
+
+        bind(std::string{ action.authored_id }, key, required_mods);
+    }
 
     void input_action_map_t::bind(std::string action, const key_code key, const uint8_t required_mods)
     {
@@ -199,11 +279,21 @@ namespace carrot::input {
 
         _bindings.emplace_back(action_binding_t{
             .action = std::move(action),
+            .action_id = { },
             .type = action_binding_type_t::key,
             .key = key,
             .required_mods = required_mods
         });
+        _bindings.back().action_id = make_input_action_id(_bindings.back().action);
         refresh_pressed_actions();
+    }
+
+    void input_action_map_t::bind_gamepad_button(const input_action_handle_t action, const gamepad_button_t button)
+    {
+        if (!action)
+            return;
+
+        bind_gamepad_button(std::string{ action.authored_id }, button);
     }
 
     void input_action_map_t::bind_gamepad_button(std::string action, const gamepad_button_t button)
@@ -213,10 +303,23 @@ namespace carrot::input {
 
         _bindings.emplace_back(action_binding_t{
             .action = std::move(action),
+            .action_id = { },
             .type = action_binding_type_t::gamepad_button,
             .gamepad_button = button
         });
+        _bindings.back().action_id = make_input_action_id(_bindings.back().action);
         refresh_pressed_actions();
+    }
+
+    void input_action_map_t::bind_gamepad_axis(const input_action_handle_t action,
+                                               const gamepad_axis_t axis,
+                                               const gamepad_axis_direction_t direction,
+                                               const float threshold)
+    {
+        if (!action)
+            return;
+
+        bind_gamepad_axis(std::string{ action.authored_id }, axis, direction, threshold);
     }
 
     void input_action_map_t::bind_gamepad_axis(std::string action,
@@ -229,18 +332,109 @@ namespace carrot::input {
 
         _bindings.emplace_back(action_binding_t{
             .action = std::move(action),
+            .action_id = { },
             .type = action_binding_type_t::gamepad_axis,
             .gamepad_axis = axis,
             .gamepad_axis_direction = direction,
             .gamepad_axis_threshold = std::clamp(threshold, 0.f, 1.f)
         });
+        _bindings.back().action_id = make_input_action_id(_bindings.back().action);
         refresh_pressed_actions();
+    }
+
+    void input_action_map_t::set_bindings_for_action(const input_action_handle_t action, std::vector<action_binding_t> bindings)
+    {
+        if (!action)
+            return;
+
+        clear_bindings_for_action(action.id);
+        for (action_binding_t& binding : bindings)
+        {
+            binding.action = std::string{ action.authored_id };
+            binding.action_id = action.id;
+            binding.active = false;
+            add_binding(std::move(binding));
+        }
+        refresh_pressed_actions();
+    }
+
+    void input_action_map_t::clear_bindings_for_action(const input_action_id_t action) noexcept
+    {
+        if (!action.valid())
+            return;
+
+        std::erase_if(_bindings, [action](const action_binding_t& binding) noexcept
+        {
+            return binding.action_id == action;
+        });
+        refresh_pressed_actions();
+    }
+
+    void input_action_map_t::clear_bindings_for_action(const std::string_view action) noexcept
+    {
+        clear_bindings_for_action(make_input_action_id(action));
     }
 
     void input_action_map_t::clear() noexcept
     {
         _bindings.clear();
         _pressed_actions.clear();
+        _pressed_actions_gamepad.clear();
+    }
+
+    std::string input_action_map_t::serialize_bindings_to_json() const
+    {
+        std::string json;
+        json.reserve((_bindings.size() * 96u) + 32u);
+        json += "{\n  \"bindings\": [\n";
+
+        for (size_t i{ 0u }; i < _bindings.size(); ++i)
+        {
+            const action_binding_t& binding{ _bindings[i] };
+            json += "    { \"action\": \"";
+            json += escape_json_string(binding.action);
+            json += '"';
+
+            switch (binding.type)
+            {
+                case action_binding_type_t::key:
+                    json += ", \"key\": \"";
+                    json += key_code_to_string(binding.key);
+                    json += '"';
+                    if (binding.required_mods != 0)
+                    {
+                        json += ", \"mods\": [";
+                        append_modifier_json_values(json, binding.required_mods);
+                        json += ']';
+                    }
+                    break;
+                case action_binding_type_t::gamepad_button:
+                    json += ", \"gamepad_button\": \"";
+                    json += gamepad_button_to_string(binding.gamepad_button);
+                    json += '"';
+                    break;
+                case action_binding_type_t::gamepad_axis:
+                {
+                    char threshold_buffer[16]{ };
+                    std::snprintf(threshold_buffer, sizeof(threshold_buffer), "%.3f", binding.gamepad_axis_threshold);
+                    json += ", \"gamepad_axis\": \"";
+                    json += gamepad_axis_to_string(binding.gamepad_axis);
+                    json += "\", \"direction\": \"";
+                    json += gamepad_axis_direction_to_string(binding.gamepad_axis_direction);
+                    json += "\", \"threshold\": ";
+                    json += threshold_buffer;
+                    break;
+                }
+            }
+
+            json += " }";
+            if (i + 1u < _bindings.size())
+                json += ',';
+            json += '\n';
+        }
+
+        json += "  ]\n}\n";
+        return json;
     }
 
     bool input_action_map_t::load_bindings_from_memory(const char* data, const size_t size)
@@ -345,6 +539,7 @@ namespace carrot::input {
 
                 parsed_bindings.emplace_back(action_binding_t{
                     .action = std::string{ action },
+                    .action_id = make_input_action_id(action),
                     .type = action_binding_type_t::key,
                     .key = key,
                     .required_mods = *required_mods
@@ -365,6 +560,7 @@ namespace carrot::input {
 
                 parsed_bindings.emplace_back(action_binding_t{
                     .action = std::string{ action },
+                    .action_id = make_input_action_id(action),
                     .type = action_binding_type_t::gamepad_button,
                     .gamepad_button = button
                 });
@@ -411,6 +607,7 @@ namespace carrot::input {
 
             parsed_bindings.emplace_back(action_binding_t{
                 .action = std::string{ action },
+                .action_id = make_input_action_id(action),
                 .type = action_binding_type_t::gamepad_axis,
                 .gamepad_axis = axis,
                 .gamepad_axis_direction = *direction,
@@ -491,11 +688,11 @@ namespace carrot::input {
         refresh_pressed_actions();
     }
 
-    bool input_action_map_t::matches(const std::string_view action, const events::key_event_t& e) const noexcept
+    bool input_action_map_t::matches(const input_action_id_t action, const events::key_event_t& e) const noexcept
     {
         for (const action_binding_t& binding : _bindings)
         {
-            if (binding.action != action)
+            if (binding.action_id != action)
                 continue;
 
             if (binding_matches_event(binding, e))
@@ -505,16 +702,31 @@ namespace carrot::input {
         return false;
     }
 
+    bool input_action_map_t::matches(const std::string_view action, const events::key_event_t& e) const noexcept
+    {
+        return matches(make_input_action_id(action), e);
+    }
+
+    bool input_action_map_t::is_pressed(const input_action_id_t action) const noexcept
+    {
+        const auto it{ _pressed_actions.find(action) };
+        return it != _pressed_actions.end() && it->second;
+    }
+
     bool input_action_map_t::is_pressed(const std::string_view action) const noexcept
     {
-        const auto it{ _pressed_actions.find(std::string{ action }) };
-        return it != _pressed_actions.end() && it->second;
+        return is_pressed(make_input_action_id(action));
+    }
+
+    bool input_action_map_t::is_pressed_by_gamepad(const input_action_id_t action) const noexcept
+    {
+        const auto it{ _pressed_actions_gamepad.find(action) };
+        return it != _pressed_actions_gamepad.end() && it->second;
     }
 
     bool input_action_map_t::is_pressed_by_gamepad(const std::string_view action) const noexcept
     {
-        const auto it{ _pressed_actions_gamepad.find(std::string{ action }) };
-        return it != _pressed_actions_gamepad.end() && it->second;
+        return is_pressed_by_gamepad(make_input_action_id(action));
     }
 
     bool input_action_map_t::binding_matches_event(const action_binding_t& binding,
@@ -551,6 +763,17 @@ namespace carrot::input {
         return false;
     }
 
+    void input_action_map_t::finalize_binding(action_binding_t& binding) noexcept
+    {
+        if (!binding.action.empty())
+            binding.action_id = make_input_action_id(binding.action);
+
+        binding.active = false;
+
+        if (binding.type == action_binding_type_t::gamepad_axis)
+            binding.gamepad_axis_threshold = std::clamp(binding.gamepad_axis_threshold, 0.f, 1.f);
+    }
+
     void input_action_map_t::refresh_pressed_actions() noexcept
     {
         _pressed_actions.clear();
@@ -558,13 +781,13 @@ namespace carrot::input {
 
         for (const action_binding_t& binding : _bindings)
         {
-            auto& action_pressed{ _pressed_actions[binding.action] };
+            auto& action_pressed{ _pressed_actions[binding.action_id] };
             action_pressed = action_pressed || binding.active;
 
             if (binding.type == action_binding_type_t::key)
                 continue;
 
-            auto& gamepad_action_pressed{ _pressed_actions_gamepad[binding.action] };
+            auto& gamepad_action_pressed{ _pressed_actions_gamepad[binding.action_id] };
             gamepad_action_pressed = gamepad_action_pressed || binding.active;
         }
     }

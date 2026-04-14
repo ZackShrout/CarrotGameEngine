@@ -12,6 +12,17 @@
 
 namespace sandbox {
     namespace {
+        [[nodiscard]] const char* routing_mode_to_string(const carrot::input::gameplay_input_routing_mode_t mode) noexcept
+        {
+            switch (mode)
+            {
+                case carrot::input::gameplay_input_routing_mode_t::single_player_auto: return "single_player_auto";
+                case carrot::input::gameplay_input_routing_mode_t::local_multiplayer_fixed: return "local_multiplayer_fixed";
+            }
+
+            return "unknown";
+        }
+
         [[nodiscard]] bool validate_loaded_sandbox_scene(const carrot::assets::asset_manager_t& assets,
                                                          const carrot::world::world_t& world,
                                                          const std::string_view scene_id)
@@ -240,10 +251,10 @@ namespace sandbox {
         _input.apply_player_movement(_player_controller, game(), k_input_profile);
         (void)_input.dispatch_interaction_if_triggered(_interaction_controller, game(), k_input_profile);
 
-        if (_input.was_just_pressed(k_action_toggle_map_collision_debug))
+        if (_input.was_just_pressed(k_input_actions.toggle_map_collision_debug))
             toggle_map_collision_debug();
 
-        if (_input.was_just_pressed(k_action_toggle_object_collision_debug))
+        if (_input.was_just_pressed(k_input_actions.toggle_object_collision_debug))
             toggle_object_collision_debug();
 
         consume_pending_runtime_events();
@@ -253,6 +264,34 @@ namespace sandbox {
         if (const carrot::world::world_object_t* actor{ _player_controller.controlled_object() })
             _trigger_monitor.update(*actor, game().world);
         update_camera_follow(delta_time);
+
+        if (_input.routing_mode() == carrot::input::gameplay_input_routing_mode_t::local_multiplayer_fixed)
+        {
+            carrot::debug::text_colored(16.f,
+                                        156.f,
+                                        0xFF9AD0FFu,
+                                        "Routing: %s | Players: %zu",
+                                        routing_mode_to_string(_input.routing_mode()),
+                                        _input.player_count());
+
+            for (size_t player_index{ 0u }; player_index < std::min<size_t>(_input.player_count(), 2u); ++player_index)
+            {
+                const carrot::input::player_input_context_t* context{ _input.player(player_index) };
+                const chlm::float2 intent{ _input.movement_intent(player_index, game(), k_input_profile) };
+                carrot::debug::text_colored(16.f,
+                                            184.f + (28.f * static_cast<float>(player_index)),
+                                            player_index == 0u ? 0xFF88FF88u : 0xFFFFC888u,
+                                            "P%zu keyboard=%s gamepad=%s move=(%.2f, %.2f) interact=%s",
+                                            player_index + 1u,
+                                            context && context->receives_keyboard() ? "yes" : "no",
+                                            context && context->gamepad_slot().has_value()
+                                                ? std::to_string(*context->gamepad_slot()).c_str()
+                                                : "none",
+                                            intent.x,
+                                            intent.y,
+                                            _input.is_pressed(player_index, k_input_actions.interact) ? "down" : "up");
+            }
+        }
     }
 
     void gameplay_state_t::on_window_focus_changed(const carrot::events::window_focused_t& e)

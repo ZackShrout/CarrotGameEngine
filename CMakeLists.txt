@@ -89,6 +89,12 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Input/ActionMap.h
         src/Engine/Input/GameplayInputRouter.cpp
         src/Engine/Input/GameplayInputRouter.h
+        src/Engine/Input/InputActionId.h
+        src/Engine/Input/InputActionCatalog.h
+        src/Engine/Input/InputBindingStore.cpp
+        src/Engine/Input/InputBindingStore.h
+        src/Engine/Input/InputRebindSession.cpp
+        src/Engine/Input/InputRebindSession.h
         src/Engine/Input/ControllerManager.cpp
         src/Engine/Input/ControllerManager.h
         src/Engine/Input/ControllerState.h

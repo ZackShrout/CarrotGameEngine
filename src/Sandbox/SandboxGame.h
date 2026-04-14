@@ -7,6 +7,8 @@
 
 #include <CarrotEngine.h>
 
+#include <string>
+
 namespace sandbox {
     class sandbox_game_t final : public carrot::core::game_runtime_t
     {
@@ -26,8 +28,17 @@ namespace sandbox {
     private:
         void configure_fallback_input_actions();
         void configure_default_input_actions();
+        void configure_input_routing() noexcept;
         void bootstrap_runtime_ui() noexcept;
+        void begin_interact_rebind();
+        void finish_pending_input_rebind();
+        void restore_default_input_bindings();
+        void set_rebind_status(std::string message, float seconds = 4.f) noexcept;
 
         carrot::input::gameplay_input_router_t _input;
+        carrot::input::input_binding_store_t _input_binding_store;
+        carrot::input::input_rebind_session_t _input_rebind_session;
+        std::string _rebind_status_message;
+        float _rebind_status_seconds{ 0.f };
     };
 } // namespace sandbox

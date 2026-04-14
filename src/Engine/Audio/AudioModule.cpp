@@ -222,11 +222,20 @@ namespace carrot::audio {
             return nullptr;
         }
 
-        if (!stream->decoder.open(native_path->string(), stream))
+        const bool opened{
+            asset.prepared_stream
+                ? stream->decoder.open_prepared(*asset.prepared_stream, stream)
+                : stream->decoder.open(native_path->string(), stream)
+        };
+        if (!opened)
         {
             LOG_AUDIO_ERROR("Failed to open stream source {} for asset {}", record.source_uri, record.logical_id);
             return nullptr;
         }
+
+        constexpr uint32_t k_initial_stream_prime_frames{ k_stream_chunk_frames };
+        const uint32_t primed_frames{ stream->decoder.prime_initial_buffer(k_initial_stream_prime_frames) };
+        LOG_AUDIO_INFO("Primed {} frame(s) for streamed audio asset '{}'", primed_frames, record.logical_id);
 
         stream->decoder.start();
 

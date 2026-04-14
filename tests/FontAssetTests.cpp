@@ -14,11 +14,7 @@
 #include "Assets/Font/TextLayout.h"
 #include "Assets/AssetManager.h"
 #include "IO/VirtualFileSystem.h"
-#include "RHI/Buffer.h"
-#include "RHI/CommandQueue.h"
 #include "RHI/RHI.h"
-#include "RHI/Sampler.h"
-#include "RHI/Texture.h"
 #include "Utils/File/FileUtils.h"
 #include "Utils/JSON/Public/JsonDocument.h"
 
@@ -26,113 +22,30 @@
 #include <filesystem>
 #include <functional>
 #include <string_view>
-#include <utility>
+#include <memory>
 #include <vector>
 
 namespace carrot::tests {
     namespace {
-        class fake_texture_t final : public rhi::rhi_texture_t
+        [[nodiscard]] std::unique_ptr<rhi::rhi_context_t> make_null_rhi()
         {
-        public:
-            explicit fake_texture_t(const rhi::texture_create_info_t& info) noexcept
-                : _width{ info.width }, _height{ info.height }, _format{ info.format } {}
+            return rhi::create_rhi_context(rhi::rhi_desc_t{
+                .api = rhi::graphics_api::null_backend,
+                .presentation_window_id = window::invalid_window_id,
+                .width = 1280u,
+                .height = 720u,
+                .enable_debug_layers = false
+            });
+        }
 
-            [[nodiscard]] uint32_t width() const noexcept override { return _width; }
-            [[nodiscard]] uint32_t height() const noexcept override { return _height; }
-            [[nodiscard]] rhi::texture_format_t format() const noexcept override { return _format; }
-
-        private:
-            uint32_t _width{ 0 };
-            uint32_t _height{ 0 };
-            rhi::texture_format_t _format{ rhi::texture_format_t::rgba8_unorm };
-        };
-
-        class fake_buffer_t final : public rhi::rhi_buffer_t
+        [[nodiscard]] std::unique_ptr<rhi::rhi_texture_t> make_test_texture(rhi::rhi_context_t& rhi)
         {
-        public:
-            explicit fake_buffer_t(const rhi::buffer_create_info_t& info) noexcept
-                : rhi::rhi_buffer_t{ info.size_bytes, info.usage } {}
-
-            [[nodiscard]] bool write([[maybe_unused]] const void* data,
-                                     [[maybe_unused]] const size_t size_bytes,
-                                     [[maybe_unused]] const size_t offset_bytes = 0) override
-            {
-                return true;
-            }
-        };
-
-        class fake_sampler_t final : public rhi::rhi_sampler_t
-        {
-        public:
-            explicit fake_sampler_t(const rhi::sampler_desc_t& desc) noexcept
-                : rhi::rhi_sampler_t{ desc } {}
-        };
-
-        class fake_command_queue_t final : public rhi::rhi_command_queue_t
-        {
-        public:
-            void submit([[maybe_unused]] rhi::rhi_command_list_t* cmd_list,
-                        [[maybe_unused]] rhi::rhi_fence_t* fence_to_signal = nullptr,
-                        [[maybe_unused]] rhi::rhi_semaphore_t* wait_semaphore = nullptr,
-                        [[maybe_unused]] rhi::rhi_semaphore_t* signal_semaphore = nullptr) override {}
-
-            void wait_idle() override {}
-        };
-
-        class fake_context_t final : public rhi::rhi_context_t
-        {
-        public:
-            void begin_frame() override {}
-            void record_textured_quad_stage([[maybe_unused]] const rhi::textured_quad_stage_record_t& stage) override {}
-            void record_text_quad_stage([[maybe_unused]] const rhi::textured_quad_stage_record_t& stage) override {}
-            void end_frame() override {}
-            void release_asset_references() override {}
-            void resize([[maybe_unused]] uint32_t width, [[maybe_unused]] uint32_t height) override {}
-
-            [[nodiscard]] rhi::rhi_device_t* get_device() const noexcept override { return nullptr; }
-            [[nodiscard]] rhi::rhi_swapchain_t* get_swapchain() const noexcept override { return nullptr; }
-            [[nodiscard]] rhi::rhi_command_queue_t* get_command_queue() const noexcept override
-            {
-                return const_cast<fake_command_queue_t*>(&_queue);
-            }
-
-            [[nodiscard]] rhi::graphics_api get_graphics_api() const noexcept override
-            {
-                return rhi::graphics_api::default_api;
-            }
-
-            [[nodiscard]] std::unique_ptr<rhi::rhi_texture_t> create_texture_2d(const rhi::texture_create_info_t& info) override
-            {
-                return std::make_unique<fake_texture_t>(info);
-            }
-
-            [[nodiscard]] std::unique_ptr<rhi::rhi_buffer_t> create_buffer(const rhi::buffer_create_info_t& info) override
-            {
-                return std::make_unique<fake_buffer_t>(info);
-            }
-
-            [[nodiscard]] std::unique_ptr<rhi::rhi_sampler_t> create_sampler(const rhi::sampler_desc_t& desc) const override
-            {
-                return std::make_unique<fake_sampler_t>(desc);
-            }
-
-            [[nodiscard]] rhi::rhi_sampler_t* get_or_create_sampler(const rhi::sampler_desc_t& desc) override
-            {
-                const auto [it, inserted]{
-                    _samplers.emplace(desc, std::make_unique<fake_sampler_t>(desc))
-                };
-                return it->second.get();
-            }
-
-            void bind_textured_quad_resources([[maybe_unused]] const rhi::rhi_texture_t& texture,
-                                              [[maybe_unused]] const rhi::rhi_sampler_t& sampler) override {}
-
-            void wait_idle() override {}
-
-        private:
-            fake_command_queue_t _queue;
-            std::unordered_map<rhi::sampler_desc_t, std::unique_ptr<fake_sampler_t>, rhi::sampler_desc_hash_t> _samplers;
-        };
+            return rhi.create_texture_2d(rhi::texture_create_info_t{
+                .width = 2u,
+                .height = 2u,
+                .format = rhi::texture_format_t::rgba8_unorm,
+            });
+        }
 
         [[nodiscard]] std::filesystem::path engine_assets_root()
         {
@@ -253,8 +166,9 @@ namespace carrot::tests {
             io::virtual_file_system_t vfs;
             mount_engine_assets_with_save(vfs);
 
-            fake_context_t rhi;
-            assets::asset_manager_t asset_manager{ vfs, rhi };
+            auto rhi{ make_null_rhi() };
+            CARROT_TEST_REQUIRE(rhi != nullptr);
+            assets::asset_manager_t asset_manager{ vfs, *rhi };
 
             {
                 utils::json::json_document_t doc{ parse_json(vfs, "engine://fonts/roboto_regular.font.json") };
@@ -271,7 +185,7 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(record != nullptr);
 
             const assets::font_asset_load_result_t direct_load{
-                assets::load_font_asset(*record, vfs, rhi)
+                assets::load_font_asset(*record, vfs, *rhi)
             };
             CARROT_TEST_REQUIRE_MSG(direct_load.success(),
                                     std::string{ assets::to_string(direct_load.error) });
@@ -320,8 +234,9 @@ namespace carrot::tests {
             io::virtual_file_system_t vfs;
             mount_engine_assets_with_save(vfs);
 
-            fake_context_t rhi;
-            assets::asset_manager_t asset_manager{ vfs, rhi };
+            auto rhi{ make_null_rhi() };
+            CARROT_TEST_REQUIRE(rhi != nullptr);
+            assets::asset_manager_t asset_manager{ vfs, *rhi };
 
             {
                 utils::json::json_document_t doc{ parse_json(vfs, "engine://fonts/pixelnauts.font.json") };
@@ -355,14 +270,12 @@ namespace carrot::tests {
         void test_loaded_font_asset_supports_glyph_lookup_and_kerning()
         {
             const assets::cooked_font_data_t source{ make_test_cooked_font() };
+            auto rhi{ make_null_rhi() };
+            CARROT_TEST_REQUIRE(rhi != nullptr);
             assets::loaded_font_asset_t loaded{};
             loaded.record = reinterpret_cast<const assets::font_asset_record_t*>(0x1);
             loaded.cooked = source;
-            loaded.atlas_texture = std::make_unique<fake_texture_t>(rhi::texture_create_info_t{
-                .width = 2u,
-                .height = 2u,
-                .format = rhi::texture_format_t::rgba8_unorm,
-            });
+            loaded.atlas_texture = make_test_texture(*rhi);
 
             const assets::cfont_glyph_record_t* glyph_a{ loaded.find_glyph(65u) };
             CARROT_TEST_REQUIRE(glyph_a != nullptr);
@@ -375,14 +288,12 @@ namespace carrot::tests {
         void test_text_layout_measures_and_positions_glyphs()
         {
             const assets::cooked_font_data_t source{ make_test_cooked_font() };
+            auto rhi{ make_null_rhi() };
+            CARROT_TEST_REQUIRE(rhi != nullptr);
             assets::loaded_font_asset_t loaded{};
             loaded.record = reinterpret_cast<const assets::font_asset_record_t*>(0x1);
             loaded.cooked = source;
-            loaded.atlas_texture = std::make_unique<fake_texture_t>(rhi::texture_create_info_t{
-                .width = 2u,
-                .height = 2u,
-                .format = rhi::texture_format_t::rgba8_unorm,
-            });
+            loaded.atlas_texture = make_test_texture(*rhi);
 
             const assets::text_layout_result_t layout{
                 assets::layout_text(loaded,
@@ -406,14 +317,12 @@ namespace carrot::tests {
         void test_text_layout_wraps_and_counts_lines()
         {
             const assets::cooked_font_data_t source{ make_test_cooked_font() };
+            auto rhi{ make_null_rhi() };
+            CARROT_TEST_REQUIRE(rhi != nullptr);
             assets::loaded_font_asset_t loaded{};
             loaded.record = reinterpret_cast<const assets::font_asset_record_t*>(0x1);
             loaded.cooked = source;
-            loaded.atlas_texture = std::make_unique<fake_texture_t>(rhi::texture_create_info_t{
-                .width = 2u,
-                .height = 2u,
-                .format = rhi::texture_format_t::rgba8_unorm,
-            });
+            loaded.atlas_texture = make_test_texture(*rhi);
 
             const assets::text_layout_result_t layout{
                 assets::layout_text(loaded,

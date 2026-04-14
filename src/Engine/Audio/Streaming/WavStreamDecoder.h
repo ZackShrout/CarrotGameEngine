@@ -11,6 +11,8 @@
 
 #include <atomic>
 #include <cstdint>
+#include <filesystem>
+#include <optional>
 #include <thread>
 
 namespace carrot::audio {
@@ -21,6 +23,16 @@ namespace carrot::audio {
 #endif
 
     struct audio_stream_t;
+
+    struct prepared_wav_stream_t
+    {
+        std::filesystem::path path;
+        fmt_chunk_t fmt{ };
+        uint64_t data_bytes_total{ 0u };
+        carrot_offset_t data_start_offset{ 0 };
+        uint32_t source_sample_rate{ 0u };
+        uint64_t source_frames_total{ 0u };
+    };
 
     /**
      * @brief Incremental WAV streaming decoder for audio_stream_t.
@@ -71,6 +83,9 @@ namespace carrot::audio {
          *       after a successful open().
          */
         bool open(std::string_view path, audio_stream_t* stream) noexcept;
+        bool open_prepared(const prepared_wav_stream_t& prepared, audio_stream_t* stream) noexcept;
+        [[nodiscard]] static std::optional<prepared_wav_stream_t> prepare(std::string_view path) noexcept;
+        uint32_t prime_initial_buffer(uint32_t target_frames) noexcept;
 
         /**
          * @brief Starts the background decode thread.

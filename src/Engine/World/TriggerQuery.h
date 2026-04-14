@@ -8,6 +8,7 @@
 #include "World/AuthoredInteractions.h"
 #include "WorldObject.h"
 
+#include <functional>
 #include <unordered_set>
 #include <vector>
 
@@ -35,12 +36,20 @@ namespace carrot::world {
         std::vector<const world_object_t*> exited;
     };
 
+    struct trigger_event_dispatch_t
+    {
+        std::function<void(const trigger_event_t&)> on_entered;
+        std::function<void(const trigger_event_t&)> on_exited;
+        std::function<void(const trigger_event_t&)> on_any;
+    };
+
     class trigger_monitor_t
     {
     public:
         void reset() noexcept;
         void update(const world_object_t& actor, const world_t& world);
         [[nodiscard]] std::vector<trigger_event_t> consume_pending_events() noexcept;
+        [[nodiscard]] size_t dispatch_pending_events(const trigger_event_dispatch_t& dispatch) noexcept;
 
     private:
         std::unordered_set<world_object_id_t> _active_trigger_ids;

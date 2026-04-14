@@ -9,6 +9,7 @@
 #include "Audio/AudioTypes.h"
 #include "Audio/Mixer/AudioBus.h"
 #include "Audio/Sample/AudioSample.h"
+#include "Audio/Streaming/WavStreamDecoder.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -127,6 +128,7 @@ namespace carrot::assets {
          * For streamed assets, this remains nullptr and playback uses record->source_uri.
          */
         std::unique_ptr<audio::audio_sample_t> sample{ nullptr };
+        std::shared_ptr<audio::prepared_wav_stream_t> prepared_stream{ nullptr };
 
         [[nodiscard]] bool valid() const noexcept
         {

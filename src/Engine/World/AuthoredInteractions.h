@@ -8,6 +8,8 @@
 #include "Scene/Scene.h"
 #include "World/World.h"
 
+#include <functional>
+
 namespace carrot::assets {
     class asset_manager_t;
 }
@@ -61,6 +63,14 @@ namespace carrot::world::authored {
         std::string loot_table;
     };
 
+    struct interaction_outcome_dispatch_t
+    {
+        std::function<void(std::string_view)> on_sign;
+        std::function<void(const scene::scene_transition_request_t&)> on_scene_transition;
+        std::function<void(world_object_id_t, std::string_view)> on_container;
+        std::function<void(const interaction_outcome_t&)> on_unhandled;
+    };
+
     struct scene_validation_report_t
     {
         std::vector<std::string> issues;
@@ -75,6 +85,8 @@ namespace carrot::world::authored {
     [[nodiscard]] std::optional<trigger_interaction_data_t> as_trigger(const world_object_t& object) noexcept;
     [[nodiscard]] std::optional<interaction_outcome_t> resolve_interaction_outcome(const assets::asset_manager_t& assets,
                                                                                    const world_object_t& object);
+    [[nodiscard]] bool dispatch_interaction_outcome(const interaction_outcome_t& outcome,
+                                                    const interaction_outcome_dispatch_t& dispatch) noexcept;
     [[nodiscard]] std::optional<scene::scene_transition_request_t> make_scene_transition_request(
         const assets::asset_manager_t& assets,
         const world_object_t& object);

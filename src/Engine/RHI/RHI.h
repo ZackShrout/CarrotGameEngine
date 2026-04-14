@@ -69,7 +69,7 @@ namespace carrot::rhi {
         return (mask & channel) != 0u;
     }
 
-    enum class graphics_api { vulkan, direct_x12, metal, default_api, count };
+    enum class graphics_api { vulkan, direct_x12, metal, null_backend, default_api, count };
 
     [[nodiscard]] inline std::string_view graphics_api_to_string(const graphics_api api) noexcept
     {
@@ -78,6 +78,7 @@ namespace carrot::rhi {
             case graphics_api::vulkan: return "Vulkan";
             case graphics_api::direct_x12: return "DirectX12";
             case graphics_api::metal: return "Metal";
+            case graphics_api::null_backend: return "Null";
             case graphics_api::default_api: return "Platform Default";
             default: return "Unknown";
         }

@@ -99,6 +99,16 @@ namespace carrot::assets {
                                                    const io::virtual_file_system_t& vfs,
                                                    rhi::rhi_context_t& rhi) noexcept
     {
+        const tilemap_asset_prepare_result_t prepared{ prepare_tilemap_asset(record, vfs) };
+        if (!prepared.success())
+            return { .asset = { }, .error = prepared.error };
+
+        return realize_prepared_tilemap_asset(prepared_tilemap_asset_t{ prepared.asset }, rhi);
+    }
+
+    tilemap_asset_prepare_result_t prepare_tilemap_asset(const tilemap_asset_record_t& record,
+                                                         const io::virtual_file_system_t& vfs) noexcept
+    {
         if (!record.manifest_uri.empty())
         {
             const auto manifest_path{ vfs.resolve_native_path(record.manifest_uri) };
@@ -133,20 +143,27 @@ namespace carrot::assets {
 
         tilemap_asset_load_result_t result{ load_tilemap_asset(working_record) };
         if (!result.success())
-            return result;
+            return { .asset = { }, .error = result.error };
 
         const auto source_path{ vfs.resolve_native_path(working_record.source_uri) };
         if (!source_path)
         {
-            result.error = tilemap_asset_load_error_t::resolve_failed;
-            return result;
+            return { .asset = { }, .error = tilemap_asset_load_error_t::resolve_failed };
         }
+
+        prepared_tilemap_asset_t prepared;
+        prepared.tilemap = result.asset.tilemap();
+        prepared.record = &record;
+        prepared.expected_invalidation = expected_invalidation;
+        prepared.cooked_path = cooked_path;
+        prepared.write_cooked_artifact = !loaded_from_cooked && !cooked_path.empty();
+        prepared.tileset_textures.reserve(working_record.tilemap.tilesets().size());
 
         for (const tilemap_tileset_t& tileset : working_record.tilemap.tilesets())
         {
             if (tileset.image_source_uri.empty())
             {
-                result.asset.add_tileset_texture(nullptr);
+                prepared.tileset_textures.emplace_back();
                 continue;
             }
 
@@ -160,37 +177,26 @@ namespace carrot::assets {
             {
                 LOG_ASSET_ERROR("Tilemap tileset image not found: raw='{}', resolved='{}'",
                                 tileset.image_source_uri, image_path.string());
-                result.error = tilemap_asset_load_error_t::source_not_found;
-                return result;
+                return { .asset = { }, .error = tilemap_asset_load_error_t::source_not_found };
             }
 
             image_load_result_t image_result{ load_image_rgba8(image_path) };
             if (!image_result.success())
             {
-                result.error = tilemap_asset_load_error_t::decode_failed;
-                return result;
+                return { .asset = { }, .error = tilemap_asset_load_error_t::decode_failed };
             }
 
-            rhi::texture_create_info_t texture_info{ };
-            texture_info.width = image_result.image.width;
-            texture_info.height = image_result.image.height;
-            texture_info.format = image_result.image.is_srgb ? rhi::texture_format_t::rgba8_srgb
-                                                             : rhi::texture_format_t::rgba8_unorm;
-            texture_info.initial_data = image_result.image.data();
-            texture_info.initial_data_size = image_result.image.size_bytes();
-            texture_info.initial_data_stride_bytes = image_result.image.stride_bytes;
-
-            std::unique_ptr<rhi::rhi_texture_t> texture{ rhi.create_texture_2d(texture_info) };
-            if (!texture)
-            {
-                result.error = tilemap_asset_load_error_t::texture_create_failed;
-                return result;
-            }
-
-            result.asset.add_tileset_texture(std::move(texture));
+            prepared.tileset_textures.emplace_back(prepared_tilemap_tileset_texture_t{
+                .width = image_result.image.width,
+                .height = image_result.image.height,
+                .stride_bytes = image_result.image.stride_bytes,
+                .format = image_result.image.is_srgb ? rhi::texture_format_t::rgba8_srgb
+                                                     : rhi::texture_format_t::rgba8_unorm,
+                .pixel_payload = std::move(image_result.image.pixels)
+            });
         }
 
-        if (!loaded_from_cooked && !cooked_path.empty())
+        if (prepared.write_cooked_artifact)
         {
             cooked_tilemap_data_t cooked;
             cooked.importer_version = tilemap_importer_version;
@@ -199,11 +205,46 @@ namespace carrot::assets {
 
             if (!write_cooked_tilemap_file(cooked_path, cooked))
             {
-                result.error = tilemap_asset_load_error_t::cooked_write_failed;
-                return result;
+                return { .asset = { }, .error = tilemap_asset_load_error_t::cooked_write_failed };
             }
         }
 
-        return result;
+        return {
+            .asset = std::move(prepared),
+            .error = tilemap_asset_load_error_t::none
+        };
+    }
+
+    tilemap_asset_load_result_t realize_prepared_tilemap_asset(prepared_tilemap_asset_t prepared,
+                                                               rhi::rhi_context_t& rhi) noexcept
+    {
+        loaded_tilemap_asset_t loaded{ std::move(prepared.tilemap), prepared.record };
+        for (prepared_tilemap_tileset_texture_t& prepared_texture : prepared.tileset_textures)
+        {
+            if (prepared_texture.width == 0u || prepared_texture.height == 0u)
+            {
+                loaded.add_tileset_texture(nullptr);
+                continue;
+            }
+
+            rhi::texture_create_info_t texture_info{ };
+            texture_info.width = prepared_texture.width;
+            texture_info.height = prepared_texture.height;
+            texture_info.format = prepared_texture.format;
+            texture_info.initial_data = prepared_texture.pixel_payload.data();
+            texture_info.initial_data_size = prepared_texture.pixel_payload.size();
+            texture_info.initial_data_stride_bytes = prepared_texture.stride_bytes;
+
+            std::unique_ptr<rhi::rhi_texture_t> texture{ rhi.create_texture_2d(texture_info) };
+            if (!texture)
+                return { .asset = { }, .error = tilemap_asset_load_error_t::texture_create_failed };
+
+            loaded.add_tileset_texture(std::move(texture));
+        }
+
+        return {
+            .asset = std::move(loaded),
+            .error = tilemap_asset_load_error_t::none
+        };
     }
 } // namespace carrot::assets

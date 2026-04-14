@@ -20,6 +20,8 @@ namespace sandbox {
 
         void enter() override;
         void tick(float delta_time) override;
+        [[nodiscard]] carrot::scene::scene_runtime_t* scene_runtime() noexcept override { return &_scene_runtime; }
+        [[nodiscard]] const carrot::scene::scene_runtime_t* scene_runtime() const noexcept override { return &_scene_runtime; }
         void on_window_focus_changed(const carrot::events::window_focused_t& e) override;
         void on_key(const carrot::events::key_event_t& e) override;
         void before_scene_change(carrot::core::game_context_t& game,
@@ -30,7 +32,6 @@ namespace sandbox {
                                 const carrot::scene::scene_runtime_context_t& current_context) override;
 
     private:
-        void update_camera_follow(float delta_time) noexcept;
         [[nodiscard]] carrot::scene::scene_load_options_t make_scene_load_options(std::string_view spawn_marker_override = {}) noexcept;
         void prepare_for_scene_change(const carrot::scene::scene_runtime_context_t* current_context) noexcept;
         void finalize_scene_change(const carrot::scene::scene_runtime_context_t& current_context) noexcept;

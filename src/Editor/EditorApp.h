@@ -17,6 +17,7 @@ namespace carrot::editor {
         editor_app_t() = default;
         ~editor_app_t() override = default;
 
+        void describe_boot_prewarm(core::boot_prewarm_plan_t& plan) const override;
         void start(core::game_context_t& game) override;
         void on_tick(float delta_time) override;
         void on_key(const events::key_event_t& e) override;

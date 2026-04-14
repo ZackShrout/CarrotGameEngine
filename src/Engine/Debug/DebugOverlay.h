@@ -32,6 +32,8 @@ namespace carrot::debug {
 
     // Immediate-mode printf-style text. Step 1 uses the current 2D world/camera
     // convention so text appears in the authored top-left camera space.
+    void text_sized(float x, float y, float font_pixel_height, const char* fmt, ...) noexcept;
+    void text_colored_sized(float x, float y, float font_pixel_height, uint32_t color, const char* fmt, ...) noexcept;
     void text(float x, float y, const char* fmt, ...) noexcept;
     void text_colored(float x, float y, uint32_t color, const char* fmt, ...) noexcept;
     void log_console_text(float x, float y, const char* fmt, ...) noexcept;

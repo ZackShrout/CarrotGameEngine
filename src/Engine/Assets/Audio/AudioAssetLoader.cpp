@@ -159,7 +159,13 @@ namespace carrot::assets {
         if (record.streamed)
         {
             LOG_ASSET_INFO("Audio asset '{}' is streamed; skipping cooked sample cache.", record.logical_id);
-            return load_streamed_audio_asset(record);
+            auto result{ load_streamed_audio_asset(record) };
+            if (const auto prepared_native_path{ vfs.resolve_native_path(record.source_uri) })
+            {
+                if (const auto prepared{ audio::wav_stream_decoder_t::prepare(prepared_native_path->string()) })
+                    result.asset.prepared_stream = std::make_shared<audio::prepared_wav_stream_t>(*prepared);
+            }
+            return result;
         }
 
         const imported_asset_invalidation_t expected_invalidation{

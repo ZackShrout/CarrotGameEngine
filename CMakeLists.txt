@@ -145,6 +145,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/World/Controllers/PlayerController.h
         src/Engine/World/Import/TilemapWorldBridge.cpp
         src/Engine/World/Import/TilemapWorldBridge.h
+        src/Engine/World/SceneContinuity.cpp
+        src/Engine/World/SceneContinuity.h
         src/Engine/World/SceneLoader.cpp
         src/Engine/World/SceneLoader.h
         src/Engine/World/TriggerQuery.cpp
@@ -172,6 +174,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/RHI/Semaphore.h
         src/Engine/RHI/Swapchain.h
         src/Engine/RHI/Texture.h
+        src/Engine/RHI/Backends/Null/NullRHIContext.cpp
+        src/Engine/RHI/Backends/Null/NullRHIContext.h
 
         # ========================================
         # RHI - Vulkan Backend

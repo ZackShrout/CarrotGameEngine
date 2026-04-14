@@ -86,6 +86,15 @@ namespace carrot::world {
         return outcome;
     }
 
+    bool interaction_controller_t::dispatch_pending_interaction(const authored::interaction_outcome_dispatch_t& dispatch) noexcept
+    {
+        const std::optional<authored::interaction_outcome_t> outcome{ consume_pending_interaction() };
+        if (!outcome)
+            return false;
+
+        return authored::dispatch_interaction_outcome(*outcome, dispatch);
+    }
+
     bool interaction_controller_t::is_interactable_candidate(const world_object_t& object) const noexcept
     {
         return object.get_bool_property("interactable").value_or(false);

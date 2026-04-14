@@ -39,6 +39,24 @@ namespace carrot::world::authored {
             LOG_CORE_WARN("{}", issue);
             report.issues.emplace_back(std::move(issue));
         }
+
+        [[nodiscard]] const assets::tilemap_object_t* find_tilemap_object_by_name(const assets::tilemap_asset_t& tilemap,
+                                                                                   const std::string_view name) noexcept
+        {
+            for (const assets::tilemap_layer_t& layer : tilemap.layers())
+            {
+                if (layer.kind != assets::tilemap_layer_kind_t::object)
+                    continue;
+
+                for (const assets::tilemap_object_t& object : layer.objects)
+                {
+                    if (object.name == name)
+                        return &object;
+                }
+            }
+
+            return nullptr;
+        }
     } // namespace
 
     interaction_kind_t interaction_kind_for(const world_object_t& object) noexcept
@@ -178,6 +196,45 @@ namespace carrot::world::authored {
         return std::nullopt;
     }
 
+    bool dispatch_interaction_outcome(const interaction_outcome_t& outcome,
+                                      const interaction_outcome_dispatch_t& dispatch) noexcept
+    {
+        switch (outcome.kind)
+        {
+            case interaction_outcome_kind_t::sign:
+                if (dispatch.on_sign)
+                {
+                    dispatch.on_sign(outcome.message_id);
+                    return true;
+                }
+                break;
+            case interaction_outcome_kind_t::scene_transition:
+                if (dispatch.on_scene_transition)
+                {
+                    dispatch.on_scene_transition(outcome.transition);
+                    return true;
+                }
+                break;
+            case interaction_outcome_kind_t::container:
+                if (dispatch.on_container)
+                {
+                    dispatch.on_container(outcome.object_id, outcome.loot_table);
+                    return true;
+                }
+                break;
+            case interaction_outcome_kind_t::none:
+                break;
+        }
+
+        if (dispatch.on_unhandled)
+        {
+            dispatch.on_unhandled(outcome);
+            return true;
+        }
+
+        return false;
+    }
+
     std::optional<scene::scene_transition_request_t> make_scene_transition_request(
         const assets::asset_manager_t& assets,
         const world_object_t& object)
@@ -274,17 +331,17 @@ namespace carrot::world::authored {
                 }
                 else
                 {
-                    const assets::loaded_tilemap_asset_t* destination_tilemap{
-                        assets.tilemaps().get(destination_scene->scene.tilemap_id)
+                    const assets::tilemap_asset_record_t* destination_tilemap{
+                        assets.tilemaps().registry().find(destination_scene->scene.tilemap_id)
                     };
                     if (!destination_tilemap)
                     {
-                        append_issue(report, std::format("Door {} could not load destination tilemap '{}' for scene '{}'",
+                        append_issue(report, std::format("Door {} could not resolve destination tilemap '{}' for scene '{}'",
                                                          describe_world_object(*object),
                                                          destination_scene->scene.tilemap_id,
                                                          destination_scene->logical_id));
                     }
-                    else if (!destination_tilemap->find_object_by_name(door->target_marker))
+                    else if (!find_tilemap_object_by_name(destination_tilemap->tilemap, door->target_marker))
                     {
                         append_issue(report, std::format("Door {} targets marker '{}' which does not exist in scene '{}'",
                                                          describe_world_object(*object),
@@ -306,17 +363,17 @@ namespace carrot::world::authored {
                 }
                 else
                 {
-                    const assets::loaded_tilemap_asset_t* destination_tilemap{
-                        assets.tilemaps().get(destination_scene->scene.tilemap_id)
+                    const assets::tilemap_asset_record_t* destination_tilemap{
+                        assets.tilemaps().registry().find(destination_scene->scene.tilemap_id)
                     };
                     if (!destination_tilemap)
                     {
-                        append_issue(report, std::format("Door {} could not load destination tilemap '{}' for scene '{}'",
+                        append_issue(report, std::format("Door {} could not resolve destination tilemap '{}' for scene '{}'",
                                                          describe_world_object(*object),
                                                          destination_scene->scene.tilemap_id,
                                                          destination_scene->logical_id));
                     }
-                    else if (!destination_tilemap->find_object_by_name(door->target_marker))
+                    else if (!find_tilemap_object_by_name(destination_tilemap->tilemap, door->target_marker))
                     {
                         append_issue(report, std::format("Door {} targets marker '{}' which does not exist in scene '{}'",
                                                          describe_world_object(*object),

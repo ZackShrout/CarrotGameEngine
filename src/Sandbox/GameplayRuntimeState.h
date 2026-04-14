@@ -5,19 +5,18 @@
 
 #pragma once
 
+#include "World/SceneContinuity.h"
 #include "World/Controllers/PlayerController.h"
 #include "World/World.h"
 
 #include <optional>
-#include <string>
 #include <string_view>
-#include <unordered_set>
 
 namespace sandbox {
     struct gameplay_runtime_state_t
     {
         std::optional<carrot::world::facing_direction_t> player_facing;
-        std::unordered_set<std::string> opened_containers;
+        carrot::world::scene_runtime_flag_store_t scene_flags;
     };
 
     void capture_player_runtime_state(gameplay_runtime_state_t& runtime_state,

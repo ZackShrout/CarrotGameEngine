@@ -196,6 +196,11 @@ namespace carrot::editor {
         }
     } // namespace
 
+    void editor_app_t::describe_boot_prewarm(core::boot_prewarm_plan_t& plan) const
+    {
+        plan.font_ids.emplace_back("font.engine.roboto_regular");
+    }
+
     void editor_app_t::start(core::game_context_t& game)
     {
         _game = &game;

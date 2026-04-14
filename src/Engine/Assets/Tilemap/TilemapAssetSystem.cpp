@@ -57,6 +57,11 @@ namespace carrot::assets {
         return get(make_asset_id(logical_id));
     }
 
+    void tilemap_asset_system_t::cache_loaded(const asset_id_t id, loaded_tilemap_asset_t asset)
+    {
+        _loaded.insert_or_assign(id, std::move(asset));
+    }
+
     void tilemap_asset_system_t::clear_runtime_cache()
     {
         _loaded.clear();

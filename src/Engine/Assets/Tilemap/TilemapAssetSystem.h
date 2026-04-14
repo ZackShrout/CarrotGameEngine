@@ -28,6 +28,13 @@ namespace carrot::assets {
 
         [[nodiscard]] const loaded_tilemap_asset_t* get(asset_id_t id);
         [[nodiscard]] const loaded_tilemap_asset_t* get(std::string_view logical_id);
+        [[nodiscard]] bool is_loaded(asset_id_t id) const noexcept { return _loaded.contains(id); }
+        [[nodiscard]] bool is_loaded(std::string_view logical_id) const noexcept
+        {
+            const tilemap_asset_record_t* record{ _registry.find(logical_id) };
+            return record != nullptr && is_loaded(record->id);
+        }
+        void cache_loaded(asset_id_t id, loaded_tilemap_asset_t asset);
 
         void clear_runtime_cache();
         void clear_all();

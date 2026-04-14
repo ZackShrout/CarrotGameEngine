@@ -28,6 +28,21 @@ namespace carrot::core {
         _renderer.clear_fullscreen_overlay();
     }
 
+    void game_view_t::draw_overlay_solid_quad(const float x,
+                                              const float y,
+                                              const float width,
+                                              const float height,
+                                              const uint32_t color_abgr) noexcept
+    {
+        _renderer.draw_overlay_solid_quad(renderer::solid_quad_draw_info_t{
+            .x = x,
+            .y = y,
+            .width = width,
+            .height = height,
+            .color = color_abgr
+        });
+    }
+
     chlm::float2 game_view_t::center_world_position(const world::world_t& world) const noexcept
     {
         const renderer::camera_2d_t camera{ _renderer.get_camera_2d() };

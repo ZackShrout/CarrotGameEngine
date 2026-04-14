@@ -17,16 +17,17 @@
 #include "Assets/Tilemap/TypedObjectConventions.h"
 #include "Assets/Tilemap/TilemapValidation.h"
 #include "Core/GameView.h"
+#include "EngineConfig.h"
 #include "Renderer/Renderer.h"
 #include "Scene/Scene.h"
 #include "GameplayRuntimeState.h"
 #include "IO/VirtualFileSystem.h"
-#include "RHI/CommandQueue.h"
 #include "RHI/RHI.h"
 #include "Utils/JSON/Public/JsonDocument.h"
 #include "World/AuthoredInteractions.h"
 #include "World/Controllers/PlayerController.h"
 #include "World/Import/TilemapWorldBridge.h"
+#include "World/SceneContinuity.h"
 #include "World/SceneLoader.h"
 #include "World/TriggerQuery.h"
 #include "World/World.h"
@@ -34,123 +35,43 @@
 
 #include <algorithm>
 #include <array>
-#include <cstring>
 #include <filesystem>
 #include <functional>
 #include <memory>
 #include <string_view>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
 namespace carrot::tests {
     namespace {
-        class fake_texture_t final : public rhi::rhi_texture_t
+        [[nodiscard]] std::unique_ptr<rhi::rhi_context_t> make_null_rhi()
+        {
+            return rhi::create_rhi_context(rhi::rhi_desc_t{
+                .api = rhi::graphics_api::null_backend,
+                .presentation_window_id = window::invalid_window_id,
+                .width = 1280u,
+                .height = 720u,
+                .enable_debug_layers = false
+            });
+        }
+
+        class fake_context_t
         {
         public:
-            explicit fake_texture_t(const rhi::texture_create_info_t& info) noexcept
-                : _width{ info.width }, _height{ info.height }, _format{ info.format } {}
+            fake_context_t()
+                : _context{ make_null_rhi() }
+            {
+                CARROT_TEST_REQUIRE(_context != nullptr);
+            }
 
-            [[nodiscard]] uint32_t width() const noexcept override { return _width; }
-            [[nodiscard]] uint32_t height() const noexcept override { return _height; }
-            [[nodiscard]] rhi::texture_format_t format() const noexcept override { return _format; }
+            [[nodiscard]] rhi::rhi_context_t& get() noexcept { return *_context; }
+            [[nodiscard]] const rhi::rhi_context_t& get() const noexcept { return *_context; }
+
+            operator rhi::rhi_context_t&() noexcept { return *_context; }
+            operator const rhi::rhi_context_t&() const noexcept { return *_context; }
 
         private:
-            uint32_t _width{ 0 };
-            uint32_t _height{ 0 };
-            rhi::texture_format_t _format{ rhi::texture_format_t::rgba8_srgb };
-        };
-
-        class fake_buffer_t final : public rhi::rhi_buffer_t
-        {
-        public:
-            explicit fake_buffer_t(const rhi::buffer_create_info_t& info) noexcept
-                : rhi::rhi_buffer_t{ info.size_bytes, info.usage }, _storage(info.size_bytes) {}
-
-            [[nodiscard]] bool write(const void* data, const size_t size_bytes, const size_t offset_bytes = 0) override
-            {
-                if (!data || offset_bytes + size_bytes > _storage.size())
-                    return false;
-
-                std::memcpy(_storage.data() + offset_bytes, data, size_bytes);
-                return true;
-            }
-
-        private:
-            std::vector<std::byte> _storage;
-        };
-
-        class fake_sampler_t final : public rhi::rhi_sampler_t
-        {
-        public:
-            explicit fake_sampler_t(const rhi::sampler_desc_t& desc) noexcept
-                : rhi::rhi_sampler_t{ desc } {}
-        };
-
-        class fake_command_queue_t final : public rhi::rhi_command_queue_t
-        {
-        public:
-            void submit([[maybe_unused]] rhi::rhi_command_list_t* cmd_list,
-                        [[maybe_unused]] rhi::rhi_fence_t* fence_to_signal = nullptr,
-                        [[maybe_unused]] rhi::rhi_semaphore_t* wait_semaphore = nullptr,
-                        [[maybe_unused]] rhi::rhi_semaphore_t* signal_semaphore = nullptr) override {}
-
-            void wait_idle() override {}
-        };
-
-        class fake_context_t final : public rhi::rhi_context_t
-        {
-        public:
-            void begin_frame() override {}
-            void record_textured_quad_stage([[maybe_unused]] const rhi::textured_quad_stage_record_t& stage) override {}
-            void record_text_quad_stage([[maybe_unused]] const rhi::textured_quad_stage_record_t& stage) override {}
-            void end_frame() override {}
-            void release_asset_references() override {}
-            void resize([[maybe_unused]] uint32_t width, [[maybe_unused]] uint32_t height) override {}
-
-            [[nodiscard]] rhi::rhi_device_t* get_device() const noexcept override { return nullptr; }
-            [[nodiscard]] rhi::rhi_swapchain_t* get_swapchain() const noexcept override { return nullptr; }
-            [[nodiscard]] rhi::rhi_command_queue_t* get_command_queue() const noexcept override
-            {
-                return const_cast<fake_command_queue_t*>(&_queue);
-            }
-
-            [[nodiscard]] rhi::graphics_api get_graphics_api() const noexcept override
-            {
-                return rhi::graphics_api::default_api;
-            }
-
-            [[nodiscard]] std::unique_ptr<rhi::rhi_texture_t> create_texture_2d(const rhi::texture_create_info_t& info) override
-            {
-                return std::make_unique<fake_texture_t>(info);
-            }
-
-            [[nodiscard]] std::unique_ptr<rhi::rhi_buffer_t> create_buffer(const rhi::buffer_create_info_t& info) override
-            {
-                return std::make_unique<fake_buffer_t>(info);
-            }
-
-            [[nodiscard]] std::unique_ptr<rhi::rhi_sampler_t> create_sampler(const rhi::sampler_desc_t& desc) const override
-            {
-                return std::make_unique<fake_sampler_t>(desc);
-            }
-
-            [[nodiscard]] rhi::rhi_sampler_t* get_or_create_sampler(const rhi::sampler_desc_t& desc) override
-            {
-                const auto [it, inserted]{
-                    _samplers.emplace(desc, std::make_unique<fake_sampler_t>(desc))
-                };
-                return it->second.get();
-            }
-
-            void bind_textured_quad_resources([[maybe_unused]] const rhi::rhi_texture_t& texture,
-                                              [[maybe_unused]] const rhi::rhi_sampler_t& sampler) override {}
-
-            void wait_idle() override {}
-
-        private:
-            fake_command_queue_t _queue;
-            std::unordered_map<rhi::sampler_desc_t, std::unique_ptr<fake_sampler_t>, rhi::sampler_desc_hash_t> _samplers;
+            std::unique_ptr<rhi::rhi_context_t> _context;
         };
 
         class test_player_controller_t final : public world::player_controller_t
@@ -330,7 +251,7 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(result.tile_objects_created >= 1);
             CARROT_TEST_REQUIRE(world.find_object_by_name("PlayerSpawn") != nullptr);
             CARROT_TEST_REQUIRE(world.find_object_by_name("StarterChest") != nullptr);
-            CARROT_TEST_REQUIRE(world.find_object_by_name("NorthDoor") != nullptr);
+            CARROT_TEST_REQUIRE(world.find_first_object_by_type("Door") != nullptr);
         }
 
         void test_tilemap_world_bridge_imports_tileset_collision_as_static_colliders()
@@ -1570,6 +1491,30 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(!carrot::world::authored::validate_scene_transition_targets(assets, world));
         }
 
+        void test_scene_validation_report_does_not_realize_destination_tilemaps()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, static_cast<rhi::rhi_context_t&>(rhi) };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town"));
+
+            CARROT_TEST_REQUIRE(!assets.tilemaps().is_loaded("tilemap.sandbox.inn"));
+            CARROT_TEST_REQUIRE(!assets.tilemaps().is_loaded("tilemap.sandbox.item_shop"));
+
+            const carrot::world::authored::scene_validation_report_t report{
+                carrot::world::authored::build_scene_validation_report(assets, world)
+            };
+
+            CARROT_TEST_REQUIRE(report.valid());
+            CARROT_TEST_REQUIRE(!assets.tilemaps().is_loaded("tilemap.sandbox.inn"));
+            CARROT_TEST_REQUIRE(!assets.tilemaps().is_loaded("tilemap.sandbox.item_shop"));
+        }
+
         void test_sandbox_scene_transition_requests_connect_all_three_scenes()
         {
             io::virtual_file_system_t vfs;
@@ -1682,6 +1627,564 @@ namespace carrot::tests {
 
             sandbox::apply_runtime_state_to_player(runtime_state, controller);
             CARROT_TEST_REQUIRE(controller.facing_direction() == carrot::world::facing_direction_t::left);
+        }
+
+        void test_scene_continuity_builds_stable_object_keys_from_name_and_source()
+        {
+            carrot::world::world_object_t named_object;
+            named_object.id = 10;
+            named_object.name = "StarterChest";
+
+            CARROT_TEST_REQUIRE(carrot::world::build_runtime_object_identity(named_object) == "name:StarterChest");
+            CARROT_TEST_REQUIRE(carrot::world::make_scene_runtime_object_key("scene.sandbox.town", named_object) ==
+                                "scene.sandbox.town::name:StarterChest");
+
+            carrot::world::world_object_t sourced_object;
+            sourced_object.id = 99;
+            sourced_object.source = carrot::world::world_object_source_t{
+                .tilemap_logical_id = "tilemap.sandbox.town",
+                .layer_name = "Objects",
+                .object_id = 42,
+                .object_name = "UnnamedSource"
+            };
+
+            CARROT_TEST_REQUIRE(carrot::world::build_runtime_object_identity(sourced_object) ==
+                                "source:tilemap.sandbox.town:Objects:42");
+            CARROT_TEST_REQUIRE(carrot::world::make_scene_runtime_object_flag_key("scene.sandbox.town",
+                                                                                  sourced_object,
+                                                                                  "opened") ==
+                                "scene.sandbox.town::source:tilemap.sandbox.town:Objects:42::opened");
+        }
+
+        void test_scene_continuity_flag_store_tracks_named_flags_per_scene_object()
+        {
+            carrot::world::scene_runtime_flag_store_t flags;
+            carrot::world::world_object_t object;
+            object.name = "StarterChest";
+
+            CARROT_TEST_REQUIRE(!flags.contains("scene.sandbox.town", object, "opened"));
+            flags.mark("scene.sandbox.town", object, "opened");
+            CARROT_TEST_REQUIRE(flags.contains("scene.sandbox.town", object, "opened"));
+            CARROT_TEST_REQUIRE(!flags.contains("scene.sandbox.inn", object, "opened"));
+            CARROT_TEST_REQUIRE(!flags.contains("scene.sandbox.town", object, "looted"));
+            CARROT_TEST_REQUIRE(flags.size() == 1u);
+        }
+
+        void test_scene_continuity_applies_flagged_callback_to_matching_objects()
+        {
+            carrot::world::scene_runtime_flag_store_t flags;
+            carrot::world::world_t world;
+
+            carrot::world::world_object_t& chest{ world.create_object() };
+            chest.name = "StarterChest";
+            chest.type = "Container";
+            chest.properties.emplace_back(carrot::assets::tilemap_property_t{
+                .name = "interactable",
+                .value = true
+            });
+
+            carrot::world::world_object_t& sign{ world.create_object() };
+            sign.name = "WelcomeSign";
+            sign.type = "Sign";
+            sign.properties.emplace_back(carrot::assets::tilemap_property_t{
+                .name = "interactable",
+                .value = true
+            });
+
+            const carrot::world::world_object_t* opened_chest{ world.find_object_by_name("StarterChest") };
+            CARROT_TEST_REQUIRE(opened_chest != nullptr);
+            flags.mark("scene.sandbox.town", *opened_chest, "opened");
+
+            const size_t applied{
+                carrot::world::apply_scene_runtime_flag_to_matching_objects(
+                    "scene.sandbox.town",
+                    world,
+                    flags,
+                    "opened",
+                    [](const carrot::world::world_object_t& object)
+                    {
+                        return object.type == "Container";
+                    },
+                    [](carrot::world::world_object_t& object)
+                    {
+                        carrot::world::set_world_object_bool_property(object, "interactable", false);
+                    }
+                )
+            };
+
+            const carrot::world::world_object_t* applied_chest{ world.find_object_by_name("StarterChest") };
+            const carrot::world::world_object_t* applied_sign{ world.find_object_by_name("WelcomeSign") };
+
+            CARROT_TEST_REQUIRE(applied == 1u);
+            CARROT_TEST_REQUIRE(applied_chest != nullptr);
+            CARROT_TEST_REQUIRE(applied_sign != nullptr);
+            CARROT_TEST_REQUIRE(!applied_chest->get_bool_property("interactable").value_or(true));
+            CARROT_TEST_REQUIRE(applied_sign->get_bool_property("interactable").value_or(false));
+        }
+
+        void test_scene_runtime_snapshot_defaults_to_idle_state()
+        {
+            carrot::scene::scene_runtime_t runtime;
+            const carrot::scene::scene_runtime_snapshot_t snapshot{ runtime.snapshot() };
+
+            CARROT_TEST_REQUIRE(snapshot.runtime_state == carrot::scene::scene_runtime_state_t::idle);
+            CARROT_TEST_REQUIRE(snapshot.transition_phase == carrot::scene::scene_transition_phase_t::none);
+            CARROT_TEST_REQUIRE(!snapshot.has_active_scene());
+            CARROT_TEST_REQUIRE(!snapshot.has_pending_scene());
+            CARROT_TEST_REQUIRE(!snapshot.is_transitioning());
+            CARROT_TEST_REQUIRE(runtime.current_scene_id().empty());
+            CARROT_TEST_REQUIRE(runtime.current_spawn_marker().empty());
+            CARROT_TEST_REQUIRE(runtime.pending_scene_id().empty());
+            CARROT_TEST_REQUIRE(runtime.pending_spawn_marker().empty());
+            CARROT_TEST_REQUIRE(!runtime.has_scene_loaded());
+            CARROT_TEST_REQUIRE(!runtime.has_pending_scene());
+            CARROT_TEST_REQUIRE(!runtime.is_transitioning());
+            CARROT_TEST_REQUIRE(runtime.runtime_state() == carrot::scene::scene_runtime_state_t::idle);
+            CARROT_TEST_REQUIRE(runtime.transition_phase() == carrot::scene::scene_transition_phase_t::none);
+        }
+
+        void test_scene_runtime_state_labels_match_expected_diagnostics()
+        {
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_runtime_state_t::idle) == "idle");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_runtime_state_t::loading) == "loading");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_runtime_state_t::active) == "active");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_runtime_state_t::transitioning) == "transitioning");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_phase_t::none) == "none");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_phase_t::preparing) == "preparing");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_phase_t::loading) == "loading");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_phase_t::activating) == "activating");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_phase_t::finalizing) == "finalizing");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_overlay_style_t::inherit) == "inherit");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_overlay_style_t::none) == "none");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_overlay_style_t::fade) == "fade");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_overlay_style_t::loading_screen) == "loading_screen");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_overlay_style_t::wipe) == "wipe");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_wipe_direction_t::left_to_right) == "left_to_right");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_wipe_direction_t::right_to_left) == "right_to_left");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_wipe_direction_t::top_to_bottom) == "top_to_bottom");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_wipe_direction_t::bottom_to_top) == "bottom_to_top");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_camera_projection_mode_t::orthographic) == "orthographic");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_camera_projection_mode_t::perspective) == "perspective");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_camera_bounds_mode_t::none) == "none");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_camera_bounds_mode_t::scene_extents) == "scene_extents");
+        }
+
+        void test_transition_presentation_is_hidden_when_runtime_is_idle()
+        {
+            const carrot::scene::scene_transition_presentation_t presentation{
+                carrot::scene::make_transition_presentation(carrot::scene::scene_runtime_snapshot_t{})
+            };
+
+            CARROT_TEST_REQUIRE(!presentation.visible);
+            CARROT_TEST_REQUIRE(!presentation.show_loading_text);
+            CARROT_TEST_REQUIRE(presentation.overlay_opacity == 0.f);
+        }
+
+        void test_transition_presentation_exposes_loading_overlay_during_prepare()
+        {
+            const carrot::scene::scene_runtime_snapshot_t snapshot{
+                .runtime_state = carrot::scene::scene_runtime_state_t::loading,
+                .transition_phase = carrot::scene::scene_transition_phase_t::preparing,
+                .pending_scene_id = "scene.sandbox.town",
+                .transition_completed_steps = 2u,
+                .transition_total_steps = 8u,
+                .transition_progress = 0.25f
+            };
+
+            const carrot::scene::scene_transition_presentation_t presentation{
+                carrot::scene::make_transition_presentation(snapshot)
+            };
+
+            CARROT_TEST_REQUIRE(presentation.visible);
+            CARROT_TEST_REQUIRE(!presentation.show_loading_text);
+            CARROT_TEST_REQUIRE(presentation.phase_label == "preparing");
+            CARROT_TEST_REQUIRE(presentation.overlay_opacity > 0.35f);
+            CARROT_TEST_REQUIRE(presentation.progress == 0.25f);
+        }
+
+        void test_transition_presentation_uses_black_fade_defaults()
+        {
+            carrot::scene::scene_runtime_t runtime;
+            const carrot::scene::scene_transition_overlay_options_t& options{ runtime.default_transition_overlay_options() };
+            const carrot::scene::scene_transition_overlay_options_t& engine_options{ runtime.engine_transition_overlay_options() };
+
+            CARROT_TEST_REQUIRE(options.enabled);
+            CARROT_TEST_REQUIRE(options.overlay_color_abgr == 0xFF000000u);
+            CARROT_TEST_REQUIRE(options.fade_out_to_black_seconds == 0.5f);
+            CARROT_TEST_REQUIRE(options.minimum_opaque_hold_seconds == 0.0f);
+            CARROT_TEST_REQUIRE(options.fade_in_from_black_seconds == 0.5f);
+            CARROT_TEST_REQUIRE(options.wipe_direction == carrot::scene::scene_transition_wipe_direction_t::left_to_right);
+            CARROT_TEST_REQUIRE(!options.show_loading_text);
+            CARROT_TEST_REQUIRE(engine_options.overlay_color_abgr == options.overlay_color_abgr);
+        }
+
+        void test_scene_runtime_uses_engine_camera_defaults()
+        {
+            carrot::scene::scene_runtime_t runtime;
+            const carrot::scene::scene_camera_options_t& options{ runtime.default_camera_options() };
+            const carrot::scene::scene_camera_options_t& engine_options{ runtime.engine_camera_options() };
+
+            CARROT_TEST_REQUIRE(options.projection_mode == carrot::scene::scene_camera_projection_mode_t::orthographic);
+            CARROT_TEST_REQUIRE(options.bounds_mode == carrot::scene::scene_camera_bounds_mode_t::none);
+            CARROT_TEST_REQUIRE(options.zoom == 4.f);
+            CARROT_TEST_REQUIRE(options.follow_mode == carrot::assets::scene_camera_follow_mode_t::player);
+            CARROT_TEST_REQUIRE(options.initial_target_policy ==
+                                carrot::assets::scene_camera_initial_target_policy_t::player);
+            CARROT_TEST_REQUIRE(options.dead_zone_size_world.x == 2.0f);
+            CARROT_TEST_REQUIRE(options.dead_zone_size_world.y == 1.5f);
+            CARROT_TEST_REQUIRE(options.follow_smoothing == 10.0f);
+            CARROT_TEST_REQUIRE(engine_options.zoom == options.zoom);
+        }
+
+        void test_scene_runtime_project_default_camera_resolves_over_engine_default()
+        {
+            carrot::scene::scene_runtime_t runtime;
+            runtime.set_default_camera_override(carrot::scene::scene_camera_override_t{
+                .bounds_mode = carrot::scene::scene_camera_bounds_mode_t::scene_extents,
+                .zoom = 3.0f,
+                .follow_mode = carrot::assets::scene_camera_follow_mode_t::none
+            });
+
+            const carrot::scene::scene_camera_options_t& options{ runtime.default_camera_options() };
+            const carrot::scene::scene_camera_options_t& engine_options{ runtime.engine_camera_options() };
+
+            CARROT_TEST_REQUIRE(options.bounds_mode == carrot::scene::scene_camera_bounds_mode_t::scene_extents);
+            CARROT_TEST_REQUIRE(options.zoom == 3.0f);
+            CARROT_TEST_REQUIRE(options.follow_mode == carrot::assets::scene_camera_follow_mode_t::none);
+            CARROT_TEST_REQUIRE(engine_options.bounds_mode == carrot::scene::scene_camera_bounds_mode_t::none);
+            CARROT_TEST_REQUIRE(engine_options.zoom == 4.f);
+        }
+
+        void test_scene_camera_override_preserves_unspecified_defaults()
+        {
+            const carrot::scene::scene_camera_options_t resolved{
+                carrot::scene::resolve_scene_camera_options(
+                    carrot::scene::scene_camera_options_t{
+                        .projection_mode = carrot::scene::scene_camera_projection_mode_t::perspective,
+                        .bounds_mode = carrot::scene::scene_camera_bounds_mode_t::scene_extents,
+                        .zoom = 2.0f,
+                        .follow_mode = carrot::assets::scene_camera_follow_mode_t::player,
+                        .initial_target_policy = carrot::assets::scene_camera_initial_target_policy_t::spawn_marker,
+                        .dead_zone_size_world = { 5.0f, 4.0f },
+                        .follow_smoothing = 6.0f
+                    },
+                    carrot::scene::scene_camera_override_t{
+                        .zoom = 3.5f,
+                        .follow_mode = carrot::assets::scene_camera_follow_mode_t::none
+                    })
+            };
+
+            CARROT_TEST_REQUIRE(resolved.projection_mode == carrot::scene::scene_camera_projection_mode_t::perspective);
+            CARROT_TEST_REQUIRE(resolved.bounds_mode == carrot::scene::scene_camera_bounds_mode_t::scene_extents);
+            CARROT_TEST_REQUIRE(resolved.zoom == 3.5f);
+            CARROT_TEST_REQUIRE(resolved.follow_mode == carrot::assets::scene_camera_follow_mode_t::none);
+            CARROT_TEST_REQUIRE(resolved.initial_target_policy ==
+                                carrot::assets::scene_camera_initial_target_policy_t::spawn_marker);
+            CARROT_TEST_REQUIRE(resolved.dead_zone_size_world.x == 5.0f);
+            CARROT_TEST_REQUIRE(resolved.dead_zone_size_world.y == 4.0f);
+            CARROT_TEST_REQUIRE(resolved.follow_smoothing == 6.0f);
+        }
+
+        void test_scene_runtime_can_disable_project_default_transition_overlay()
+        {
+            carrot::scene::scene_runtime_t runtime;
+            runtime.set_default_transition_overlay_override(carrot::scene::scene_transition_overlay_override_t{
+                .style = carrot::scene::scene_transition_overlay_style_t::none
+            });
+
+            CARROT_TEST_REQUIRE(!runtime.default_transition_overlay_options().enabled);
+            CARROT_TEST_REQUIRE(runtime.engine_transition_overlay_options().enabled);
+        }
+
+        void test_scene_runtime_project_default_resolves_over_engine_default()
+        {
+            carrot::scene::scene_runtime_t runtime;
+            runtime.set_default_transition_overlay_override(carrot::scene::scene_transition_overlay_override_t{
+                .style = carrot::scene::scene_transition_overlay_style_t::loading_screen,
+                .loading_title_text = std::string{ "Project Default" },
+                .show_progress_text = true,
+                .wipe_direction = carrot::scene::scene_transition_wipe_direction_t::bottom_to_top
+            });
+
+            const carrot::scene::scene_transition_overlay_options_t& defaults{
+                runtime.default_transition_overlay_options()
+            };
+            CARROT_TEST_REQUIRE(defaults.enabled);
+            CARROT_TEST_REQUIRE(defaults.style == carrot::scene::scene_transition_overlay_style_t::loading_screen);
+            CARROT_TEST_REQUIRE(defaults.wipe_direction == carrot::scene::scene_transition_wipe_direction_t::bottom_to_top);
+            CARROT_TEST_REQUIRE(defaults.loading_title_text == "Project Default");
+            CARROT_TEST_REQUIRE(defaults.show_progress_text);
+        }
+
+        void test_transition_overlay_override_none_disables_defaults()
+        {
+            const carrot::scene::scene_transition_overlay_options_t resolved{
+                carrot::scene::resolve_transition_overlay_options(
+                    carrot::scene::scene_transition_overlay_options_t{},
+                    carrot::scene::scene_transition_overlay_override_t{
+                        .style = carrot::scene::scene_transition_overlay_style_t::none
+                    }
+                )
+            };
+
+            CARROT_TEST_REQUIRE(!resolved.enabled);
+            CARROT_TEST_REQUIRE(resolved.overlay_color_abgr == 0xFF000000u);
+        }
+
+        void test_transition_overlay_override_fade_applies_requested_fields()
+        {
+            const carrot::scene::scene_transition_overlay_options_t resolved{
+                carrot::scene::resolve_transition_overlay_options(
+                    carrot::scene::scene_transition_overlay_options_t{
+                        .enabled = false,
+                        .overlay_color_abgr = 0xFF000000u,
+                        .fade_out_to_black_seconds = 0.5f,
+                        .minimum_opaque_hold_seconds = 0.0f,
+                        .fade_in_from_black_seconds = 0.5f,
+                        .show_loading_text = false
+                    },
+                    carrot::scene::scene_transition_overlay_override_t{
+                        .style = carrot::scene::scene_transition_overlay_style_t::fade,
+                        .overlay_color_abgr = 0xFF112233u,
+                        .fade_out_to_black_seconds = 0.25f,
+                        .minimum_opaque_hold_seconds = 0.1f,
+                        .fade_in_from_black_seconds = 0.75f,
+                        .show_loading_text = true
+                    }
+                )
+            };
+
+            CARROT_TEST_REQUIRE(resolved.enabled);
+            CARROT_TEST_REQUIRE(resolved.overlay_color_abgr == 0xFF112233u);
+            CARROT_TEST_REQUIRE(resolved.fade_out_to_black_seconds == 0.25f);
+            CARROT_TEST_REQUIRE(resolved.minimum_opaque_hold_seconds == 0.1f);
+            CARROT_TEST_REQUIRE(resolved.fade_in_from_black_seconds == 0.75f);
+            CARROT_TEST_REQUIRE(resolved.show_loading_text);
+        }
+
+        void test_transition_overlay_override_loading_screen_applies_text_configuration()
+        {
+            const carrot::scene::scene_transition_overlay_options_t resolved{
+                carrot::scene::resolve_transition_overlay_options(
+                    carrot::scene::scene_transition_overlay_options_t{},
+                    carrot::scene::scene_transition_overlay_override_t{
+                        .style = carrot::scene::scene_transition_overlay_style_t::loading_screen,
+                        .loading_title_text = std::string{ "Entering Inn" },
+                        .loading_subtitle_text = std::string{ "Please wait" },
+                        .show_progress_text = true,
+                        .loading_text_color_abgr = 0xFFEEDDCCu,
+                        .loading_subtext_color_abgr = 0xFFBBAA99u
+                    }
+                )
+            };
+
+            CARROT_TEST_REQUIRE(resolved.enabled);
+            CARROT_TEST_REQUIRE(resolved.style == carrot::scene::scene_transition_overlay_style_t::loading_screen);
+            CARROT_TEST_REQUIRE(resolved.show_loading_text);
+            CARROT_TEST_REQUIRE(resolved.show_progress_text);
+            CARROT_TEST_REQUIRE(resolved.loading_title_text == "Entering Inn");
+            CARROT_TEST_REQUIRE(resolved.loading_subtitle_text == "Please wait");
+            CARROT_TEST_REQUIRE(resolved.loading_text_color_abgr == 0xFFEEDDCCu);
+            CARROT_TEST_REQUIRE(resolved.loading_subtext_color_abgr == 0xFFBBAA99u);
+        }
+
+        void test_transition_overlay_override_wipe_selects_wipe_style()
+        {
+            const carrot::scene::scene_transition_overlay_options_t resolved{
+                carrot::scene::resolve_transition_overlay_options(
+                    carrot::scene::scene_transition_overlay_options_t{},
+                    carrot::scene::scene_transition_overlay_override_t{
+                        .style = carrot::scene::scene_transition_overlay_style_t::wipe,
+                        .wipe_direction = carrot::scene::scene_transition_wipe_direction_t::right_to_left,
+                        .overlay_color_abgr = 0xFF224466u
+                    }
+                )
+            };
+
+            CARROT_TEST_REQUIRE(resolved.enabled);
+            CARROT_TEST_REQUIRE(resolved.style == carrot::scene::scene_transition_overlay_style_t::wipe);
+            CARROT_TEST_REQUIRE(resolved.wipe_direction == carrot::scene::scene_transition_wipe_direction_t::right_to_left);
+            CARROT_TEST_REQUIRE(resolved.overlay_color_abgr == 0xFF224466u);
+            CARROT_TEST_REQUIRE(!resolved.show_loading_text);
+        }
+
+        void test_interaction_outcome_dispatch_routes_scene_transition_and_container()
+        {
+            bool transition_called{ false };
+            bool container_called{ false };
+            carrot::scene::scene_transition_request_t seen_transition;
+            carrot::world::world_object_id_t seen_object_id{ 0 };
+            std::string seen_loot_table;
+
+            CARROT_TEST_REQUIRE(carrot::world::authored::dispatch_interaction_outcome(
+                carrot::world::authored::interaction_outcome_t{
+                    .kind = carrot::world::authored::interaction_outcome_kind_t::scene_transition,
+                    .transition = {
+                        .scene_id = "scene.test.target",
+                        .marker_name = "DoorSpawn"
+                    }
+                },
+                carrot::world::authored::interaction_outcome_dispatch_t{
+                    .on_scene_transition = [&](const carrot::scene::scene_transition_request_t& request)
+                    {
+                        transition_called = true;
+                        seen_transition = request;
+                    }
+                }
+            ));
+
+            CARROT_TEST_REQUIRE(transition_called);
+            CARROT_TEST_REQUIRE(seen_transition.scene_id == "scene.test.target");
+            CARROT_TEST_REQUIRE(seen_transition.marker_name == "DoorSpawn");
+
+            CARROT_TEST_REQUIRE(carrot::world::authored::dispatch_interaction_outcome(
+                carrot::world::authored::interaction_outcome_t{
+                    .kind = carrot::world::authored::interaction_outcome_kind_t::container,
+                    .object_id = 77,
+                    .loot_table = "loot.basic"
+                },
+                carrot::world::authored::interaction_outcome_dispatch_t{
+                    .on_container = [&](const carrot::world::world_object_id_t object_id, const std::string_view loot_table)
+                    {
+                        container_called = true;
+                        seen_object_id = object_id;
+                        seen_loot_table = std::string{ loot_table };
+                    }
+                }
+            ));
+
+            CARROT_TEST_REQUIRE(container_called);
+            CARROT_TEST_REQUIRE(seen_object_id == 77);
+            CARROT_TEST_REQUIRE(seen_loot_table == "loot.basic");
+        }
+
+        void test_scene_runtime_rejects_overlapping_load_requests()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t renderer{ vfs, graphics_config, window::invalid_window_id };
+
+            assets::asset_manager_t assets{ vfs, *renderer.get_rhi() };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            core::game_view_t view{ renderer };
+            input::controller_manager_t controllers;
+            core::game_context_t game{
+                .world = world,
+                .assets = assets,
+                .view = view,
+                .controllers = controllers
+            };
+
+            scene::scene_runtime_t runtime;
+            CARROT_TEST_REQUIRE(runtime.request_load(game, "scene.sandbox.town"));
+            CARROT_TEST_REQUIRE(!runtime.request_load(game, "scene.sandbox.inn"));
+            CARROT_TEST_REQUIRE(!runtime.request_transition(game, scene::scene_transition_request_t{
+                                     .scene_id = "scene.sandbox.inn",
+                                     .marker_name = "PlayerSpawn"
+                                 }));
+        }
+
+        void test_incremental_scene_load_task_spreads_work_across_multiple_advances()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            world::scene_load_task_t task{ "scene.sandbox.town" };
+            CARROT_TEST_REQUIRE(task.total_steps() >= 5u);
+            CARROT_TEST_REQUIRE(task.completed_steps() == 0u);
+            CARROT_TEST_REQUIRE(!task.is_ready_to_activate());
+            CARROT_TEST_REQUIRE(!task.is_complete());
+            CARROT_TEST_REQUIRE(!task.has_failed());
+
+            CARROT_TEST_REQUIRE(task.advance(assets));
+            CARROT_TEST_REQUIRE(task.completed_steps() == 1u);
+            CARROT_TEST_REQUIRE(!task.is_ready_to_activate());
+
+            size_t advances{ 1u };
+            while (!task.is_ready_to_activate() && !task.has_failed())
+            {
+                CARROT_TEST_REQUIRE(task.advance(assets));
+                ++advances;
+            }
+
+            CARROT_TEST_REQUIRE(!task.has_failed());
+            CARROT_TEST_REQUIRE(task.is_ready_to_activate());
+            CARROT_TEST_REQUIRE(advances >= task.total_steps());
+            CARROT_TEST_REQUIRE(task.scene_record() != nullptr);
+            CARROT_TEST_REQUIRE(task.effective_spawn_marker() == "PlayerSpawn");
+
+            world::world_t staged_world{ task.take_world() };
+            CARROT_TEST_REQUIRE(task.is_complete());
+
+            const world::world_object_t* player{ staged_world.find_object_by_name("Vraden") };
+            CARROT_TEST_REQUIRE(player != nullptr);
+            CARROT_TEST_REQUIRE(player->transform.has_value());
+
+            const world::world_object_t* player_spawn{ staged_world.find_object_by_name("PlayerSpawn") };
+            CARROT_TEST_REQUIRE(player_spawn != nullptr);
+            CARROT_TEST_REQUIRE(player_spawn->transform.has_value());
+            CARROT_TEST_REQUIRE(player->transform->position.x == player_spawn->transform->position.x);
+            CARROT_TEST_REQUIRE(player->transform->position.y == player_spawn->transform->position.y);
+        }
+
+        void test_incremental_scene_load_task_fails_for_missing_spawn_marker()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            world::scene_load_task_t task{ "scene.sandbox.town", "MissingSpawn" };
+            while (!task.is_ready_to_activate() && !task.has_failed())
+                (void)task.advance(assets);
+
+            CARROT_TEST_REQUIRE(task.has_failed());
+            CARROT_TEST_REQUIRE(!task.is_ready_to_activate());
+        }
+
+        void test_prepared_tilemap_world_data_applies_cleanly_to_world()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            const assets::loaded_tilemap_asset_t* tilemap{ assets.tilemaps().get("tilemap.test.overworld") };
+            CARROT_TEST_REQUIRE(tilemap != nullptr);
+
+            const world::import::prepared_tilemap_world_data_t prepared{
+                world::import::prepare_tilemap_world_data(*tilemap, chlm::float2{ 0.f, 0.f })
+            };
+            CARROT_TEST_REQUIRE(!prepared.objects.empty());
+
+            world::world_t world;
+            const world::import::tilemap_world_bridge_result_t result{
+                world::import::apply_prepared_tilemap_world_data(world, *tilemap, prepared)
+            };
+
+            CARROT_TEST_REQUIRE(result.markers_created > 0u);
+            CARROT_TEST_REQUIRE(result.static_colliders_created == prepared.static_colliders.size());
+            CARROT_TEST_REQUIRE(world.objects().size() == prepared.objects.size());
+            CARROT_TEST_REQUIRE(world.collision_world().static_colliders().size() == prepared.static_colliders.size());
+
+            const world::world_object_t* marker{ world.find_object_by_name("PlayerSpawn") };
+            CARROT_TEST_REQUIRE(marker != nullptr);
+            CARROT_TEST_REQUIRE(marker->transform.has_value());
         }
 
         void test_sandbox_town_player_sprite_exposes_walk_animation()
@@ -2144,12 +2647,58 @@ namespace carrot::tests {
         tests.emplace_back("validate scene transition targets rejects invalid door in world", test_validate_scene_transition_targets_rejects_invalid_door_in_world);
         tests.emplace_back("validate scene transition targets rejects missing destination marker",
                            test_validate_scene_transition_targets_rejects_missing_destination_marker);
+        tests.emplace_back("scene validation report does not realize destination tilemaps",
+                           test_scene_validation_report_does_not_realize_destination_tilemaps);
         tests.emplace_back("sandbox scene transition requests connect all three scenes",
                            test_sandbox_scene_transition_requests_connect_all_three_scenes);
         tests.emplace_back("transition runtime state preserves opened container across scene reload",
                            test_transition_runtime_state_preserves_opened_container_across_scene_reload);
         tests.emplace_back("transition runtime state restores player facing after rebind",
                            test_transition_runtime_state_restores_player_facing_after_rebind);
+        tests.emplace_back("scene continuity builds stable object keys from name and source",
+                           test_scene_continuity_builds_stable_object_keys_from_name_and_source);
+        tests.emplace_back("scene continuity flag store tracks named flags per scene object",
+                           test_scene_continuity_flag_store_tracks_named_flags_per_scene_object);
+        tests.emplace_back("scene continuity applies flagged callback to matching objects",
+                           test_scene_continuity_applies_flagged_callback_to_matching_objects);
+        tests.emplace_back("scene runtime snapshot defaults to idle state",
+                           test_scene_runtime_snapshot_defaults_to_idle_state);
+        tests.emplace_back("scene runtime state labels match expected diagnostics",
+                           test_scene_runtime_state_labels_match_expected_diagnostics);
+        tests.emplace_back("transition presentation is hidden when runtime is idle",
+                           test_transition_presentation_is_hidden_when_runtime_is_idle);
+        tests.emplace_back("transition presentation exposes loading overlay during prepare",
+                           test_transition_presentation_exposes_loading_overlay_during_prepare);
+        tests.emplace_back("scene runtime uses black fade defaults for transition overlays",
+                           test_transition_presentation_uses_black_fade_defaults);
+        tests.emplace_back("scene runtime uses engine camera defaults",
+                           test_scene_runtime_uses_engine_camera_defaults);
+        tests.emplace_back("scene runtime project default camera resolves over engine default",
+                           test_scene_runtime_project_default_camera_resolves_over_engine_default);
+        tests.emplace_back("scene camera override preserves unspecified defaults",
+                           test_scene_camera_override_preserves_unspecified_defaults);
+        tests.emplace_back("scene runtime can disable project default transition overlay",
+                           test_scene_runtime_can_disable_project_default_transition_overlay);
+        tests.emplace_back("scene runtime project default resolves over engine default",
+                           test_scene_runtime_project_default_resolves_over_engine_default);
+        tests.emplace_back("transition overlay override none disables defaults",
+                           test_transition_overlay_override_none_disables_defaults);
+        tests.emplace_back("transition overlay override fade applies requested fields",
+                           test_transition_overlay_override_fade_applies_requested_fields);
+        tests.emplace_back("transition overlay override loading screen applies text configuration",
+                           test_transition_overlay_override_loading_screen_applies_text_configuration);
+        tests.emplace_back("transition overlay override wipe selects wipe style",
+                           test_transition_overlay_override_wipe_selects_wipe_style);
+        tests.emplace_back("interaction outcome dispatch routes scene transition and container",
+                           test_interaction_outcome_dispatch_routes_scene_transition_and_container);
+        tests.emplace_back("scene runtime rejects overlapping load requests",
+                           test_scene_runtime_rejects_overlapping_load_requests);
+        tests.emplace_back("incremental scene load task spreads work across multiple advances",
+                           test_incremental_scene_load_task_spreads_work_across_multiple_advances);
+        tests.emplace_back("incremental scene load task fails for missing spawn marker",
+                           test_incremental_scene_load_task_fails_for_missing_spawn_marker);
+        tests.emplace_back("prepared tilemap world data applies cleanly to world",
+                           test_prepared_tilemap_world_data_applies_cleanly_to_world);
         tests.emplace_back("sandbox town player sprite exposes walk animation",
                            test_sandbox_town_player_sprite_exposes_walk_animation);
         tests.emplace_back("sandbox town player animator can play walk animation",

@@ -6,7 +6,9 @@
 #pragma once
 
 #include "Assets/AssetManager.h"
+#include "Assets/Tilemap/TilemapAssetLoader.h"
 #include "Audio/AudioModule.h"
+#include "Core/Application.h"
 #include "Core/CoreDefines.h"
 #include "IO/VirtualFileSystem.h"
 #include "Input/ControllerManager.h"
@@ -16,6 +18,8 @@
 #include "Window/Window.h"
 #include "World/World.h"
 
+#include <string>
+#include <future>
 #include <vector>
 
 #include "UI/UIModule.h"
@@ -28,6 +32,8 @@ namespace carrot {
     namespace core {
         struct engine_paths_t;
         class ce_application_t;
+        struct game_context_t;
+        struct boot_prewarm_plan_t;
     }
 
     DECLARE_MULTICAST_DELEGATE(on_tick_t, float/* dt*/);
@@ -69,6 +75,42 @@ namespace carrot {
         [[nodiscard]] const io::virtual_file_system_t& vfs() const noexcept { return _vfs; }
 
     private:
+        enum class boot_stage_t : uint8_t
+        {
+            pending = 0,
+            discovering_manifests,
+            registering_audio,
+            registering_fonts,
+            registering_textures,
+            registering_sprites,
+            registering_tilemaps,
+            registering_scenes,
+            expanding_scene_prewarm,
+            prewarming_audio,
+            prewarming_fonts,
+            prewarming_textures,
+            prewarming_sprites,
+            prewarming_tilemaps,
+            complete,
+        };
+
+        struct boot_pipeline_t
+        {
+            boot_stage_t stage{ boot_stage_t::pending };
+            size_t completed_steps{ 0u };
+            size_t total_steps{ 0u };
+            size_t next_manifest_index{ 0u };
+            std::vector<std::string> audio_manifests;
+            std::vector<std::string> font_manifests;
+            std::vector<std::string> texture_manifests;
+            std::vector<std::string> sprite_manifests;
+            std::vector<std::string> tilemap_manifests;
+            std::vector<std::string> scene_manifests;
+            core::boot_prewarm_plan_t prewarm_plan;
+            std::string active_tilemap_prewarm_id;
+            std::unique_ptr<std::future<assets::tilemap_asset_prepare_result_t>> tilemap_prepare_future;
+        };
+
         struct runtime_window_instance_t
         {
             engine_runtime_window_role_t role{ engine_runtime_window_role_t::gameplay_main };
@@ -93,6 +135,15 @@ namespace carrot {
         [[nodiscard]] static std::optional<std::filesystem::path> find_repo_root(std::filesystem::path start) noexcept;
         void configure_paths(const core::engine_paths_t& paths);
 
+        void initialize_boot_pipeline() noexcept;
+        [[nodiscard]] bool advance_boot_pipeline();
+        void render_boot_overlay() noexcept;
+        [[nodiscard]] std::string_view boot_stage_label() const noexcept;
+        [[nodiscard]] float boot_progress() const noexcept;
+        void start_application(core::ce_application_t& app,
+                               core::game_context_t& game,
+                               window::window_id_t main_window_id);
+
         bool discover_and_register_assets();
         bool register_audio_asset_manifest(std::string_view manifest_uri);
         bool register_font_asset_manifest(std::string_view manifest_uri);
@@ -104,6 +155,7 @@ namespace carrot {
 
         bool                                                _initialized{ false };
         bool                                                _running{ false };
+        bool                                                _application_started{ false };
         bool                                                _should_quit{ false };
         float                                               _delta_time{ 0.f };
         std::chrono::time_point<std::chrono::steady_clock>  _last_time_point{ };
@@ -121,6 +173,7 @@ namespace carrot {
 
         on_tick_t                                           _on_tick;
         renderer::renderer_stats_t                          _last_logged_renderer_stats;
+        boot_pipeline_t                                     _boot_pipeline;
 
         world::world_t                                      _world;
     };

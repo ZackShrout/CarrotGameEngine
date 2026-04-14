@@ -7,6 +7,7 @@
 
 #include "RHI/RHI.h"
 
+#include "Backends/Null/NullRHIContext.h"
 #include "Backends/Vulkan/VulkanRHIContext.h"
 
 #if defined(CARROT_PLATFORM_COCOA)
@@ -20,6 +21,9 @@ namespace carrot::rhi {
     namespace {
         bool is_api_supported(graphics_api api)
         {
+            if (api == graphics_api::null_backend)
+                return true;
+
 #if defined(CARROT_PLATFORM_WAYLAND) || defined(CARROT_PLATFORM_X11)
             return api == graphics_api::vulkan;
 #elif defined(CARROT_PLATFORM_WIN32)
@@ -63,6 +67,9 @@ namespace carrot::rhi {
     {
         switch (resolve_graphics_api(desc))
         {
+            case graphics_api::null_backend:
+                return std::make_unique<null::null_rhi_context_t>(desc);
+
             case graphics_api::vulkan:
                 return std::make_unique<vulkan::vulkan_rhi_context_t>(desc);
 

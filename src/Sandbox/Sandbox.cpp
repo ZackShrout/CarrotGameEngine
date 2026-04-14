@@ -10,9 +10,19 @@
 #include "SandboxGame.h"
 
 namespace sandbox {
+    namespace {
+        constexpr std::string_view k_initial_scene_id{ "scene.sandbox.town" };
+    }
+
     sandbox_t::sandbox_t() = default;
 
     sandbox_t::~sandbox_t() = default;
+
+    void sandbox_t::describe_boot_prewarm(carrot::core::boot_prewarm_plan_t& plan) const
+    {
+        plan.scene_ids.emplace_back(k_initial_scene_id);
+        plan.font_ids.emplace_back("font.engine.roboto_regular");
+    }
 
     void sandbox_t::start(carrot::core::game_context_t& game)
     {
@@ -25,6 +35,12 @@ namespace sandbox {
     {
         if (_runtime)
             _runtime->tick(delta_time);
+    }
+
+    void sandbox_t::on_render_overlay()
+    {
+        if (_runtime)
+            _runtime->render_overlay();
     }
 
     void sandbox_t::on_window_focus_changed(const carrot::events::window_focused_t& e)

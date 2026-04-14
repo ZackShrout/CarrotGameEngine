@@ -40,6 +40,16 @@ namespace carrot {
         bool _debug_overlay_initialized{ false };
         core::ce_application_t* _application{ nullptr };
 
+        void ensure_debug_overlay_initialized(renderer::renderer_t* renderer,
+                                              const io::virtual_file_system_t& vfs) noexcept
+        {
+            if (_debug_overlay_initialized || renderer == nullptr)
+                return;
+
+            debug::init(renderer, vfs);
+            _debug_overlay_initialized = debug::is_initialized();
+        }
+
         [[nodiscard]] std::optional<collision::collision_aabb_t> object_collision_bounds(
             const world::world_object_t& object) noexcept
         {
@@ -60,6 +70,17 @@ namespace carrot {
                 presentation.world_position_to_pixels(bounds.min),
                 presentation.world_size_to_pixels(bounds.size())
             );
+        }
+
+        void append_unique(std::vector<std::string>& values, std::string_view value)
+        {
+            if (value.empty())
+                return;
+
+            if (std::ranges::find(values, value) != values.end())
+                return;
+
+            values.emplace_back(value);
         }
 
     } // anonymous namespace
@@ -178,8 +199,7 @@ namespace carrot {
             }
         }
 
-        // Discover and register supported asset manifests under engine:// and game://
-        discover_and_register_assets();
+        initialize_boot_pipeline();
 
         LOG_CORE_INFO("Carrot Engine Initialized (Pure RHI Mode)");
         _initialized = true;
@@ -227,18 +247,14 @@ namespace carrot {
             _gameplay_window_id = main_window_id;
 
         _running = true;
+        _application_started = false;
         _application = app;
+        _boot_pipeline.prewarm_plan = core::boot_prewarm_plan_t{};
+        _boot_pipeline.prewarm_plan.font_ids.emplace_back("font.engine.roboto_regular");
+        _application->describe_boot_prewarm(_boot_pipeline.prewarm_plan);
 
         _last_tick_time = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count());
-
-        // Bind the on_tick function in the engine's application class, to be inherited
-        _on_tick += BIND_MEMBER(_application, on_tick);
-
-        for (const window::window_id_t window_id: window::get_window_ids())
-            bind_window_events(window_id, main_window_id);
-
-        LOG_CORE_INFO("Starting application...");
         core::game_view_t game_view{ *_renderer };
         core::game_context_t game{
             .world = _world,
@@ -259,13 +275,26 @@ namespace carrot {
             hot_reload::shader_watcher_t::poll();
             tick();
 
+            if (!_application_started && advance_boot_pipeline())
+                start_application(*_application, game, main_window_id);
+
             if (window::is_minimized(main_window_id)) continue;
 
             _renderer->begin_frame();
-            render_world();
-            render_ui();
-            if (_application && _application->show_debug_overlay())
-                render_debug();
+            if (_application_started)
+            {
+                render_world();
+                render_ui();
+                ensure_debug_overlay_initialized(_renderer.get(), _vfs);
+                if (_application)
+                    _application->on_render_overlay();
+                if (_application && _application->show_debug_overlay())
+                    render_debug();
+            }
+            else
+            {
+                render_boot_overlay();
+            }
             render_log_console();
             _renderer->end_frame();
         }
@@ -276,6 +305,261 @@ namespace carrot {
     }
 
     // PRIVATE
+    void engine_t::initialize_boot_pipeline() noexcept
+    {
+        _boot_pipeline = boot_pipeline_t{};
+        _boot_pipeline.stage = boot_stage_t::discovering_manifests;
+        _boot_pipeline.completed_steps = 0u;
+        _boot_pipeline.total_steps = 1u;
+        _boot_pipeline.next_manifest_index = 0u;
+        LOG_CORE_INFO("Initialized staged engine boot pipeline");
+    }
+
+    bool engine_t::advance_boot_pipeline()
+    {
+        if (_boot_pipeline.stage == boot_stage_t::complete)
+            return true;
+
+        if (!_asset_manager)
+            return false;
+
+        if (_boot_pipeline.stage == boot_stage_t::discovering_manifests)
+        {
+            const assets::discovered_asset_manifests_t manifests{
+                assets::asset_discovery_t::discover_supported_manifests(_asset_manager->vfs())
+            };
+
+            _boot_pipeline.audio_manifests = manifests.audio;
+            _boot_pipeline.font_manifests = manifests.fonts;
+            _boot_pipeline.texture_manifests = manifests.textures;
+            _boot_pipeline.sprite_manifests = manifests.sprites;
+            _boot_pipeline.tilemap_manifests = manifests.tilemaps;
+            _boot_pipeline.scene_manifests = manifests.scenes;
+            _boot_pipeline.completed_steps = 1u;
+            _boot_pipeline.total_steps = 1u + manifests.total_count() +
+                                         _boot_pipeline.prewarm_plan.audio_ids.size() +
+                                         _boot_pipeline.prewarm_plan.font_ids.size() +
+                                         _boot_pipeline.prewarm_plan.texture_ids.size() +
+                                         _boot_pipeline.prewarm_plan.sprite_ids.size() +
+                                         _boot_pipeline.prewarm_plan.tilemap_ids.size();
+            _boot_pipeline.next_manifest_index = 0u;
+            _boot_pipeline.stage = boot_stage_t::registering_audio;
+
+            LOG_ASSET_INFO(
+                "Boot discovered {} asset manifest(s): audio={}, fonts={}, textures={}, sprites={}, tilemaps={}, scenes={}",
+                manifests.total_count(),
+                manifests.audio.size(),
+                manifests.fonts.size(),
+                manifests.textures.size(),
+                manifests.sprites.size(),
+                manifests.tilemaps.size(),
+                manifests.scenes.size()
+            );
+        }
+
+        constexpr size_t k_max_boot_steps_per_frame{ 8u };
+        size_t steps_this_frame{ 0u };
+        while (_boot_pipeline.stage != boot_stage_t::complete && steps_this_frame < k_max_boot_steps_per_frame)
+        {
+            std::vector<std::string>* manifest_group{ nullptr };
+            bool (engine_t::*register_manifest)(std::string_view){ nullptr };
+            boot_stage_t next_stage{ boot_stage_t::complete };
+
+            switch (_boot_pipeline.stage)
+            {
+                case boot_stage_t::registering_audio:
+                    manifest_group = &_boot_pipeline.audio_manifests;
+                    register_manifest = &engine_t::register_audio_asset_manifest;
+                    next_stage = boot_stage_t::registering_fonts;
+                    break;
+                case boot_stage_t::registering_fonts:
+                    manifest_group = &_boot_pipeline.font_manifests;
+                    register_manifest = &engine_t::register_font_asset_manifest;
+                    next_stage = boot_stage_t::registering_textures;
+                    break;
+                case boot_stage_t::registering_textures:
+                    manifest_group = &_boot_pipeline.texture_manifests;
+                    register_manifest = &engine_t::register_texture_asset_manifest;
+                    next_stage = boot_stage_t::registering_sprites;
+                    break;
+                case boot_stage_t::registering_sprites:
+                    manifest_group = &_boot_pipeline.sprite_manifests;
+                    register_manifest = &engine_t::register_sprite_asset_manifest;
+                    next_stage = boot_stage_t::registering_tilemaps;
+                    break;
+                case boot_stage_t::registering_tilemaps:
+                    manifest_group = &_boot_pipeline.tilemap_manifests;
+                    register_manifest = &engine_t::register_tilemap_asset_manifest;
+                    next_stage = boot_stage_t::registering_scenes;
+                    break;
+                case boot_stage_t::registering_scenes:
+                    manifest_group = &_boot_pipeline.scene_manifests;
+                    register_manifest = &engine_t::register_scene_asset_manifest;
+                    next_stage = boot_stage_t::expanding_scene_prewarm;
+                    break;
+                case boot_stage_t::expanding_scene_prewarm:
+                {
+                    for (const std::string& scene_id : _boot_pipeline.prewarm_plan.scene_ids)
+                    {
+                        const assets::scene_asset_record_t* scene_record{ _asset_manager->scenes().registry().find(scene_id) };
+                        if (!scene_record)
+                        {
+                            LOG_ASSET_WARN("Boot prewarm skipped unknown scene '{}'", scene_id);
+                            continue;
+                        }
+
+                        append_unique(_boot_pipeline.prewarm_plan.tilemap_ids, scene_record->scene.tilemap_id);
+                        append_unique(_boot_pipeline.prewarm_plan.sprite_ids, scene_record->scene.player_sprite_id);
+                        append_unique(_boot_pipeline.prewarm_plan.audio_ids, scene_record->scene.initial_music_id);
+
+                        if (const assets::sprite_asset_record_t* sprite_record{
+                                _asset_manager->sprites().registry().find(scene_record->scene.player_sprite_id)
+                            })
+                        {
+                            append_unique(_boot_pipeline.prewarm_plan.texture_ids, sprite_record->sprite.texture_id());
+                        }
+                    }
+
+                    _boot_pipeline.stage = boot_stage_t::prewarming_audio;
+                    _boot_pipeline.total_steps = 1u +
+                                                 _boot_pipeline.audio_manifests.size() +
+                                                 _boot_pipeline.font_manifests.size() +
+                                                 _boot_pipeline.texture_manifests.size() +
+                                                 _boot_pipeline.sprite_manifests.size() +
+                                                 _boot_pipeline.tilemap_manifests.size() +
+                                                 _boot_pipeline.scene_manifests.size() +
+                                                 _boot_pipeline.prewarm_plan.audio_ids.size() +
+                                                 _boot_pipeline.prewarm_plan.font_ids.size() +
+                                                 _boot_pipeline.prewarm_plan.texture_ids.size() +
+                                                 _boot_pipeline.prewarm_plan.sprite_ids.size() +
+                                                 _boot_pipeline.prewarm_plan.tilemap_ids.size();
+                    continue;
+                }
+                case boot_stage_t::prewarming_audio:
+                    manifest_group = &_boot_pipeline.prewarm_plan.audio_ids;
+                    register_manifest = nullptr;
+                    next_stage = boot_stage_t::prewarming_fonts;
+                    break;
+                case boot_stage_t::prewarming_fonts:
+                    manifest_group = &_boot_pipeline.prewarm_plan.font_ids;
+                    register_manifest = nullptr;
+                    next_stage = boot_stage_t::prewarming_textures;
+                    break;
+                case boot_stage_t::prewarming_textures:
+                    manifest_group = &_boot_pipeline.prewarm_plan.texture_ids;
+                    register_manifest = nullptr;
+                    next_stage = boot_stage_t::prewarming_sprites;
+                    break;
+                case boot_stage_t::prewarming_sprites:
+                    manifest_group = &_boot_pipeline.prewarm_plan.sprite_ids;
+                    register_manifest = nullptr;
+                    next_stage = boot_stage_t::prewarming_tilemaps;
+                    break;
+                case boot_stage_t::prewarming_tilemaps:
+                    manifest_group = &_boot_pipeline.prewarm_plan.tilemap_ids;
+                    register_manifest = nullptr;
+                    next_stage = boot_stage_t::complete;
+                    break;
+                case boot_stage_t::complete:
+                    return true;
+                case boot_stage_t::pending:
+                case boot_stage_t::discovering_manifests:
+                    return false;
+            }
+
+            if (_boot_pipeline.next_manifest_index >= manifest_group->size())
+            {
+                _boot_pipeline.next_manifest_index = 0u;
+                _boot_pipeline.stage = next_stage;
+                continue;
+            }
+
+            const std::string_view manifest_uri{ (*manifest_group)[_boot_pipeline.next_manifest_index] };
+            switch (_boot_pipeline.stage)
+            {
+                case boot_stage_t::registering_audio:
+                case boot_stage_t::registering_fonts:
+                case boot_stage_t::registering_textures:
+                case boot_stage_t::registering_sprites:
+                case boot_stage_t::registering_tilemaps:
+                case boot_stage_t::registering_scenes:
+                    (void)(this->*register_manifest)(manifest_uri);
+                    break;
+                case boot_stage_t::prewarming_audio:
+                    (void)_asset_manager->audio().get(manifest_uri);
+                    break;
+                case boot_stage_t::prewarming_fonts:
+                    (void)_asset_manager->fonts().get(manifest_uri);
+                    break;
+                case boot_stage_t::prewarming_textures:
+                    (void)_asset_manager->textures().get(manifest_uri);
+                    break;
+                case boot_stage_t::prewarming_sprites:
+                    (void)_asset_manager->sprites().get(manifest_uri);
+                    break;
+                case boot_stage_t::prewarming_tilemaps:
+                    if (!_boot_pipeline.tilemap_prepare_future)
+                    {
+                        const assets::tilemap_asset_record_t* tilemap_record{
+                            _asset_manager->tilemaps().registry().find(manifest_uri)
+                        };
+                        if (!tilemap_record)
+                        {
+                            LOG_ASSET_WARN("Boot prewarm skipped unknown tilemap '{}'", manifest_uri);
+                            break;
+                        }
+
+                        _boot_pipeline.active_tilemap_prewarm_id = std::string{ manifest_uri };
+                        _boot_pipeline.tilemap_prepare_future = std::make_unique<std::future<assets::tilemap_asset_prepare_result_t>>(
+                            std::async(std::launch::async,
+                                       [tilemap_record, vfs = &_asset_manager->vfs()]()
+                                       {
+                                           return assets::prepare_tilemap_asset(*tilemap_record, *vfs);
+                                       })
+                        );
+                    }
+
+                    if (_boot_pipeline.tilemap_prepare_future->wait_for(std::chrono::seconds{ 0 }) != std::future_status::ready)
+                        return false;
+
+                    {
+                        assets::tilemap_asset_prepare_result_t prepared{ _boot_pipeline.tilemap_prepare_future->get() };
+                        _boot_pipeline.tilemap_prepare_future.reset();
+
+                        if (prepared.success())
+                        {
+                            auto realized{ assets::realize_prepared_tilemap_asset(std::move(prepared.asset), *_renderer->get_rhi()) };
+                            if (realized.success())
+                            {
+                                if (const assets::tilemap_asset_record_t* tilemap_record{
+                                        _asset_manager->tilemaps().registry().find(manifest_uri)
+                                    })
+                                {
+                                    _asset_manager->tilemaps().cache_loaded(tilemap_record->id, std::move(realized.asset));
+                                }
+                            }
+                        }
+                    }
+
+                    _boot_pipeline.active_tilemap_prewarm_id.clear();
+                    break;
+                case boot_stage_t::pending:
+                case boot_stage_t::discovering_manifests:
+                case boot_stage_t::expanding_scene_prewarm:
+                case boot_stage_t::complete:
+                    break;
+            }
+            ++_boot_pipeline.next_manifest_index;
+            ++_boot_pipeline.completed_steps;
+            ++steps_this_frame;
+        }
+
+        if (_boot_pipeline.stage == boot_stage_t::complete)
+            LOG_CORE_INFO("Engine boot pipeline completed");
+
+        return _boot_pipeline.stage == boot_stage_t::complete;
+    }
+
     void engine_t::tick()
     {
         const long long now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -311,14 +595,117 @@ namespace carrot {
         _renderer->draw_world(_world);
     }
 
+    void engine_t::render_boot_overlay() noexcept
+    {
+        if (!_renderer)
+            return;
+
+        const float viewport_width{ static_cast<float>(window::get_width()) };
+        const float viewport_height{ static_cast<float>(window::get_height()) };
+        if (viewport_width <= 0.f || viewport_height <= 0.f)
+            return;
+
+        _renderer->draw_overlay_solid_quad({
+            .x = 0.f,
+            .y = 0.f,
+            .width = viewport_width,
+            .height = viewport_height,
+            .layer = renderer::render_layer_t::ui,
+            .color = 0xFF000000u,
+            .sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp
+        });
+
+        constexpr float bar_width_fraction{ 0.34f };
+        constexpr float bar_height{ 8.f };
+        const float bar_width{ std::max(120.f, viewport_width * bar_width_fraction) };
+        const float bar_x{ (viewport_width - bar_width) * 0.5f };
+        const float bar_y{ viewport_height * 0.78f };
+        const float fill_width{ std::clamp(boot_progress(), 0.f, 1.f) * bar_width };
+
+        _renderer->draw_overlay_solid_quad({
+            .x = bar_x,
+            .y = bar_y,
+            .width = bar_width,
+            .height = bar_height,
+            .layer = renderer::render_layer_t::ui,
+            .color = 0xFF1E1E1Eu,
+            .sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp
+        });
+
+        if (fill_width > 0.001f)
+        {
+            _renderer->draw_overlay_solid_quad({
+                .x = bar_x,
+                .y = bar_y,
+                .width = fill_width,
+                .height = bar_height,
+                .layer = renderer::render_layer_t::ui,
+                .color = 0xFFFFFFFFu,
+                .sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp
+            });
+        }
+    }
+
+    std::string_view engine_t::boot_stage_label() const noexcept
+    {
+        switch (_boot_pipeline.stage)
+        {
+            case boot_stage_t::pending: return "pending";
+            case boot_stage_t::discovering_manifests: return "discovering_manifests";
+            case boot_stage_t::registering_audio: return "registering_audio";
+            case boot_stage_t::registering_fonts: return "registering_fonts";
+            case boot_stage_t::registering_textures: return "registering_textures";
+            case boot_stage_t::registering_sprites: return "registering_sprites";
+            case boot_stage_t::registering_tilemaps: return "registering_tilemaps";
+            case boot_stage_t::registering_scenes: return "registering_scenes";
+            case boot_stage_t::expanding_scene_prewarm: return "expanding_scene_prewarm";
+            case boot_stage_t::prewarming_audio: return "prewarming_audio";
+            case boot_stage_t::prewarming_fonts: return "prewarming_fonts";
+            case boot_stage_t::prewarming_textures: return "prewarming_textures";
+            case boot_stage_t::prewarming_sprites: return "prewarming_sprites";
+            case boot_stage_t::prewarming_tilemaps: return "prewarming_tilemaps";
+            case boot_stage_t::complete: return "complete";
+        }
+
+        return "unknown";
+    }
+
+    float engine_t::boot_progress() const noexcept
+    {
+        if (_boot_pipeline.stage == boot_stage_t::complete)
+            return 1.f;
+
+        if (_boot_pipeline.total_steps == 0u)
+            return 0.f;
+
+        return static_cast<float>(_boot_pipeline.completed_steps) /
+               static_cast<float>(std::max<size_t>(_boot_pipeline.total_steps, 1u));
+    }
+
+    void engine_t::start_application(core::ce_application_t& app,
+                                     core::game_context_t& game,
+                                     const window::window_id_t main_window_id)
+    {
+        if (_application_started)
+            return;
+
+        // Bind the on_tick function in the engine's application class, to be inherited
+        _on_tick += BIND_MEMBER(&app, on_tick);
+
+        for (const window::window_id_t window_id: window::get_window_ids())
+            bind_window_events(window_id, main_window_id);
+
+        LOG_CORE_INFO("Starting application after staged boot pipeline (stage='{}', progress={:.0f}%)",
+                      boot_stage_label(),
+                      boot_progress() * 100.0f);
+        app.start(game);
+        _application_started = true;
+    }
+
     void engine_t::render_debug()
     {
         // Initialize debug overlay AFTER the first swapchain image exists
-        if (!_debug_overlay_initialized)
-        {
-            debug::init(_renderer.get(), _vfs);
-            _debug_overlay_initialized = debug::is_initialized();
-        }
+        ensure_debug_overlay_initialized(_renderer.get(), _vfs);
 
         const renderer::renderer_stats_t& stats{ _renderer->get_last_completed_stats() };
         const renderer::resolved_camera_2d_t resolved_camera{ _renderer->resolve_camera_2d() };

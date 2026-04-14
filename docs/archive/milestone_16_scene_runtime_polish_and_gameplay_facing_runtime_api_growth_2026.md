@@ -1,8 +1,8 @@
 # Carrot Game Engine - Milestone 16
 
-**Last Updated:** April 13, 2026  
+**Last Updated:** April 14, 2026  
 **Title:** Scene Runtime Polish and Gameplay-Facing Runtime API Growth  
-**Status:** Draft  
+**Status:** Completed and archived  
 **Focus:** Turn Carrot's current scene/runtime flow into a more intentional, presentation-ready, gameplay-facing engine layer with explicit async scene transitions, cleaner camera/runtime ownership, and stronger reusable runtime APIs for scene-driven games.
 
 ---
@@ -42,6 +42,48 @@ This milestone is successful if Carrot ends with:
 * stronger camera bootstrap/follow ownership
 * more reusable gameplay-facing runtime helpers moved out of sandbox-local glue
 * clearer diagnostics around scene/runtime behavior and transition state
+
+### Closeout Summary
+
+Milestone 16 shipped successfully.
+
+Carrot now ends this milestone with:
+
+* explicit scene runtime state and transition phase tracking
+* architecturally asynchronous scene transitions through staged loading plus safe activation
+* hybrid transition work where CPU-safe preparation can run off the main thread while world/RHI activation stays synchronized
+* engine-owned transition presentation with engine defaults, project defaults, and per-transition overrides
+* working transition styles for `fade`, `loading_screen`, and `wipe`
+* startup presentation support that uses the same runtime truth as in-game transitions
+* compact scene-runtime diagnostics and structured transition logs
+* stronger engine-owned camera runtime intent/config seams
+* stronger engine-owned runtime helpers for continuity, authored interaction dispatch, and trigger consumption
+* a real sandbox proof that exercises the runtime and presentation path end to end
+
+### Ticket Outcome Snapshot
+
+1. `Scene Runtime State Model Cleanup`: complete
+2. `Async Transition Foundation`: complete
+3. `Transition Presentation Lifecycle`: complete
+4. `Camera Runtime Ownership Cleanup`: complete
+5. `Runtime State Handoff Helpers`: complete for milestone scope
+6. `Interaction / Trigger Runtime API Cleanup`: complete for milestone scope
+7. `Scene Runtime Diagnostics`: complete
+8. `Sandbox Proof and Closeout`: complete
+
+### Current Limitations
+
+The milestone is complete, but the following limits remain intentionally explicit:
+
+* scene activation still requires synchronized main-thread world replacement
+* renderer/RHI-facing work is still not generally worker-thread-safe
+* hybrid async preparation exists for scene staging and some asset paths, but not every asset type is fully split into CPU prep versus GPU realization yet
+* startup/boot presentation is stronger than before, but Sandbox still has a remaining startup pause that does not appear to be a generic engine boot issue and was not fully solved in this milestone
+* the new camera contract establishes the endgame shape, but does not yet implement the full future camera feature surface such as perspective execution or bounds clamping
+
+Archive note:
+
+* milestone document archived after closeout on April 14, 2026
 
 For the system boundary this milestone should follow, see:
 
@@ -507,4 +549,3 @@ This milestone should close only when Carrot can truthfully say:
 * transitions are async in architecture, not just in presentation
 * gameplay-facing runtime APIs are stronger
 * the engine gives scene-driven games less glue work and better runtime structure
-

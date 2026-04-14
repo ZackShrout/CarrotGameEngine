@@ -25,6 +25,7 @@ namespace carrot::core {
 
         virtual void start() {}
         virtual void tick(float delta_time);
+        virtual void render_overlay();
         virtual void on_window_focus_changed(const events::window_focused_t& e);
         virtual void on_key(const events::key_event_t& e);
         virtual void on_mouse_moved(const events::mouse_moved_event_t& e);

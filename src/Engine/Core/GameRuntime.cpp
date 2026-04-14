@@ -8,6 +8,7 @@
 #include "GameRuntime.h"
 
 #include "GameState.h"
+#include "Scene/Scene.h"
 
 namespace carrot::core {
     game_runtime_t::game_runtime_t(game_context_t& game) noexcept
@@ -23,7 +24,21 @@ namespace carrot::core {
     void game_runtime_t::tick(const float delta_time)
     {
         if (_active_state)
+        {
             _active_state->tick(delta_time);
+            if (scene::scene_runtime_t* runtime{ _active_state->scene_runtime() })
+                runtime->advance_transition_overlay(delta_time);
+        }
+    }
+
+    void game_runtime_t::render_overlay()
+    {
+        if (_active_state)
+        {
+            if (scene::scene_runtime_t* runtime{ _active_state->scene_runtime() })
+                runtime->render_transition_overlay(_game);
+            _active_state->render_overlay();
+        }
     }
 
     void game_runtime_t::on_window_focus_changed(const events::window_focused_t& e)

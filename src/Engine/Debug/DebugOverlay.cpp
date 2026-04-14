@@ -111,6 +111,7 @@ namespace carrot::debug {
 
         void text_v(const float x,
                     const float y,
+                    const float font_pixel_height,
                     const uint32_t color,
                     const debug_text_target_t target,
                     const char* fmt,
@@ -141,7 +142,7 @@ namespace carrot::debug {
                 assets::layout_text(*g_font_asset,
                                     text,
                                     assets::text_layout_settings_t{
-                                        .font_size = k_font_pixel_height,
+                                        .font_size = std::max(1.0f, font_pixel_height),
                                         .wrap_width = 0.0f,
                                         .letter_spacing = 0.35f,
                                         .line_spacing = 6.0f,
@@ -176,11 +177,32 @@ namespace carrot::debug {
         }
     } // namespace
 
+    void text_sized(const float x, const float y, const float font_pixel_height, const char* fmt, ...) noexcept
+    {
+        va_list args;
+        va_start(args, fmt);
+        text_v(x, y, font_pixel_height, 0xFFFFFFFFu, debug_text_target_t::overlay, fmt, args);
+        va_end(args);
+    }
+
+    void text_colored_sized(const float x,
+                            const float y,
+                            const float font_pixel_height,
+                            const uint32_t color,
+                            const char* fmt,
+                            ...) noexcept
+    {
+        va_list args;
+        va_start(args, fmt);
+        text_v(x, y, font_pixel_height, color, debug_text_target_t::overlay, fmt, args);
+        va_end(args);
+    }
+
     void text(const float x, const float y, const char* fmt, ...) noexcept
     {
         va_list args;
         va_start(args, fmt);
-        text_v(x, y, 0xFFFFFFFFu, debug_text_target_t::overlay, fmt, args);
+        text_v(x, y, k_font_pixel_height, 0xFFFFFFFFu, debug_text_target_t::overlay, fmt, args);
         va_end(args);
     }
 
@@ -188,7 +210,7 @@ namespace carrot::debug {
     {
         va_list args;
         va_start(args, fmt);
-        text_v(x, y, color, debug_text_target_t::overlay, fmt, args);
+        text_v(x, y, k_font_pixel_height, color, debug_text_target_t::overlay, fmt, args);
         va_end(args);
     }
 
@@ -196,7 +218,7 @@ namespace carrot::debug {
     {
         va_list args;
         va_start(args, fmt);
-        text_v(x, y, 0xFFFFFFFFu, debug_text_target_t::log_console, fmt, args);
+        text_v(x, y, k_font_pixel_height, 0xFFFFFFFFu, debug_text_target_t::log_console, fmt, args);
         va_end(args);
     }
 
@@ -204,7 +226,7 @@ namespace carrot::debug {
     {
         va_list args;
         va_start(args, fmt);
-        text_v(x, y, color, debug_text_target_t::log_console, fmt, args);
+        text_v(x, y, k_font_pixel_height, color, debug_text_target_t::log_console, fmt, args);
         va_end(args);
     }
 

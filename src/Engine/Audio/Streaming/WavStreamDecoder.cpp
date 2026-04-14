@@ -11,6 +11,105 @@
 #include "Utils/File/FileUtils.h"
 
 namespace carrot::audio {
+    namespace {
+        [[nodiscard]] bool parse_wav_stream_header(FILE* file,
+                                                   fmt_chunk_t& out_fmt,
+                                                   uint64_t& out_data_bytes_total,
+                                                   carrot_offset_t& out_data_start_offset) noexcept
+        {
+            if (!file)
+                return false;
+
+            riff_header_t riff{ };
+            if (std::fread(&riff, sizeof(riff), 1, file) != 1)
+                return false;
+
+            if (!id_equals(riff.id, "RIFF") || !id_equals(riff.format, "WAVE"))
+                return false;
+
+            bool found_fmt{ false };
+            bool found_data{ false };
+
+            while (true)
+            {
+                chunk_header_t chunk{ };
+                if (std::fread(&chunk, sizeof(chunk), 1, file) != 1)
+                    break;
+
+                if (id_equals(chunk.id, "fmt "))
+                {
+                    if (chunk.size < sizeof(out_fmt))
+                        return false;
+
+                    if (std::fread(&out_fmt, sizeof(out_fmt), 1, file) != 1)
+                        return false;
+
+                    const uint32_t remaining{ chunk.size - static_cast<uint32_t>(sizeof(out_fmt)) };
+                    if (remaining > 0)
+                    {
+                        if (utils::file::seek_file(file, static_cast<utils::file::file_offset_t>(remaining), SEEK_CUR) != 0)
+                            return false;
+                    }
+
+                    found_fmt = true;
+                }
+                else if (id_equals(chunk.id, "data"))
+                {
+                    if (chunk.size == 0)
+                        return false;
+
+                    out_data_bytes_total = chunk.size;
+                    out_data_start_offset = static_cast<carrot_offset_t>(utils::file::tell_file(file));
+                    if (out_data_start_offset < 0)
+                        return false;
+
+                    found_data = true;
+                    break;
+                }
+                else
+                {
+                    if (utils::file::seek_file(file, static_cast<utils::file::file_offset_t>(chunk.size), SEEK_CUR) != 0)
+                        return false;
+                }
+
+                if ((chunk.size & 1u) != 0u)
+                {
+                    if (utils::file::seek_file(file, static_cast<utils::file::file_offset_t>(1), SEEK_CUR) != 0)
+                        return false;
+                }
+            }
+
+            if (!found_fmt || !found_data)
+                return false;
+
+            if (out_fmt.audio_format != 1 && out_fmt.audio_format != 3)
+                return false;
+
+            const bool supported_format =
+                (out_fmt.audio_format == 1 && out_fmt.bits_per_sample == 16) ||
+                (out_fmt.audio_format == 1 && out_fmt.bits_per_sample == 24) ||
+                (out_fmt.audio_format == 3 && out_fmt.bits_per_sample == 32);
+            if (!supported_format)
+                return false;
+
+            if (out_fmt.sample_rate == 0)
+                return false;
+
+            if (out_fmt.num_channels == 0 || out_fmt.num_channels > 2 || out_fmt.num_channels > k_max_channels)
+                return false;
+
+            const uint32_t bytes_per_sample{ static_cast<uint32_t>(out_fmt.bits_per_sample / 8u) };
+            if (bytes_per_sample == 0)
+                return false;
+
+            const uint32_t bytes_per_frame{ bytes_per_sample * out_fmt.num_channels };
+            if (bytes_per_frame == 0 || (out_data_bytes_total % bytes_per_frame) != 0)
+                return false;
+
+            return true;
+        }
+    }
+
     // PUBLIC
     bool wav_stream_decoder_t::open(const std::string_view path, audio_stream_t* stream) noexcept
     {
@@ -29,10 +128,6 @@ namespace carrot::audio {
         _src_frames_total = 0;
         _src_frames_in_buffer = 0;
         _src_pos = 0.0;
-
-        _file = utils::file::open_file(path.data(), "rb");
-        if (!_file)
-            return false;
 
         const auto fail = [&]() -> bool {
             if (_file)
@@ -58,114 +153,100 @@ namespace carrot::audio {
             return false;
         };
 
-        riff_header_t riff{ };
-        if (std::fread(&riff, sizeof(riff), 1, _file) != 1)
+        const auto prepared{ prepare(path) };
+        if (!prepared)
             return fail();
 
-        if (!id_equals(riff.id, "RIFF") || !id_equals(riff.format, "WAVE"))
-            return fail();
+        return open_prepared(*prepared, stream);
+    }
 
-        bool found_fmt{ false };
-        bool found_data{ false };
+    bool wav_stream_decoder_t::open_prepared(const prepared_wav_stream_t& prepared, audio_stream_t* stream) noexcept
+    {
+        stop();
 
-        while (true)
-        {
-            chunk_header_t chunk{ };
-            if (std::fread(&chunk, sizeof(chunk), 1, _file) != 1)
-                break;
-
-            if (id_equals(chunk.id, "fmt "))
-            {
-                if (chunk.size < sizeof(_fmt))
-                    return fail();
-
-                if (std::fread(&_fmt, sizeof(_fmt), 1, _file) != 1)
-                    return fail();
-
-                const uint32_t remaining{ chunk.size - static_cast<uint32_t>(sizeof(_fmt)) };
-                if (remaining > 0)
-                {
-                    if (utils::file::seek_file(_file, static_cast<utils::file::file_offset_t>(remaining), SEEK_CUR) != 0)
-                        return fail();
-                }
-
-                found_fmt = true;
-            }
-            else if (id_equals(chunk.id, "data"))
-            {
-                if (chunk.size == 0)
-                    return fail();
-
-                _data_bytes_remaining = chunk.size;
-                _data_bytes_total = chunk.size;
-                _data_start_offset = static_cast<carrot_offset_t>(utils::file::tell_file(_file));
-
-                if (_data_start_offset < 0)
-                    return fail();
-
-                found_data = true;
-                break; // file cursor now at PCM data
-            }
-            else
-            {
-                if (utils::file::seek_file(_file, static_cast<utils::file::file_offset_t>(chunk.size), SEEK_CUR) != 0)
-                    return fail();
-            }
-
-            // RIFF chunks are word-aligned; odd-sized chunks include one pad byte.
-            if ((chunk.size & 1u) != 0u)
-            {
-                if (utils::file::seek_file(_file, static_cast<utils::file::file_offset_t>(1), SEEK_CUR) != 0)
-                    return fail();
-            }
-        }
-
-        if (!found_fmt || !found_data)
-            return fail();
-
-        if (_fmt.audio_format != 1 && _fmt.audio_format != 3)
-            return fail();
-
-        const bool supported_format =
-                (_fmt.audio_format == 1 && _fmt.bits_per_sample == 16) ||
-                (_fmt.audio_format == 1 && _fmt.bits_per_sample == 24) ||
-                (_fmt.audio_format == 3 && _fmt.bits_per_sample == 32);
-
-        if (!supported_format)
-            return fail();
-
-        if (_fmt.sample_rate == 0)
-            return fail();
-
-        if (_fmt.num_channels == 0 || _fmt.num_channels > 2 || _fmt.num_channels > k_max_channels)
-            return fail();
-
-        const uint32_t bytes_per_sample{ static_cast<uint32_t>(_fmt.bits_per_sample / 8u) };
-        if (bytes_per_sample == 0)
-            return fail();
-
-        const uint32_t bytes_per_frame{ bytes_per_sample * _fmt.num_channels };
-        if (bytes_per_frame == 0)
-            return fail();
-
-        if ((_data_bytes_total % bytes_per_frame) != 0)
-            return fail();
-
-        LOG_AUDIO_INFO("WAV file reports sample rate {} HZ in format chunk", _fmt.sample_rate);
+        _file = utils::file::open_file(prepared.path.string().c_str(), "rb");
+        if (!_file)
+            return false;
 
         _stream = stream;
         if (!_stream)
-            return fail();
+            return false;
 
-        _stream->channels = _fmt.num_channels;
-        _stream->sample_rate = k_engine_sample_rate;
-
-        _src_sample_rate = _fmt.sample_rate;
-        _src_frames_total = _data_bytes_total / bytes_per_frame;
+        _fmt = prepared.fmt;
+        _data_bytes_remaining = prepared.data_bytes_total;
+        _data_bytes_total = prepared.data_bytes_total;
+        _data_start_offset = prepared.data_start_offset;
+        _src_sample_rate = prepared.source_sample_rate;
+        _src_frames_total = prepared.source_frames_total;
         _src_pos = 0.0;
         _src_frames_in_buffer = 0;
 
+        if (utils::file::seek_file(_file, prepared.data_start_offset, SEEK_SET) != 0)
+            return false;
+
+        LOG_AUDIO_INFO("WAV file reports sample rate {} HZ in format chunk", _fmt.sample_rate);
+
+        _stream->channels = _fmt.num_channels;
+        _stream->sample_rate = k_engine_sample_rate;
         return true;
+    }
+
+    std::optional<prepared_wav_stream_t> wav_stream_decoder_t::prepare(const std::string_view path) noexcept
+    {
+        FILE* file{ utils::file::open_file(path.data(), "rb") };
+        if (!file)
+            return std::nullopt;
+
+        prepared_wav_stream_t prepared;
+        prepared.path = std::filesystem::path{ path };
+        if (!parse_wav_stream_header(file, prepared.fmt, prepared.data_bytes_total, prepared.data_start_offset))
+        {
+            std::fclose(file);
+            return std::nullopt;
+        }
+
+        const uint32_t bytes_per_sample{ static_cast<uint32_t>(prepared.fmt.bits_per_sample / 8u) };
+        const uint32_t bytes_per_frame{ bytes_per_sample * prepared.fmt.num_channels };
+        prepared.source_sample_rate = prepared.fmt.sample_rate;
+        prepared.source_frames_total = prepared.data_bytes_total / bytes_per_frame;
+
+        std::fclose(file);
+        return prepared;
+    }
+
+    uint32_t wav_stream_decoder_t::prime_initial_buffer(const uint32_t target_frames) noexcept
+    {
+        if (!_stream || !_file || target_frames == 0u)
+            return 0u;
+
+        const uint32_t bytes_per_sample{ static_cast<uint32_t>(_fmt.bits_per_sample / 8u) };
+        const uint32_t bytes_per_frame{ bytes_per_sample * _fmt.num_channels };
+        if (bytes_per_frame == 0u)
+            return 0u;
+
+        init_loop_region(bytes_per_frame);
+
+        uint32_t primed_frames{ 0u };
+        while (primed_frames < target_frames)
+        {
+            const uint32_t writable{
+                chlm::min<uint32_t>(_stream->buffer.available_write(), target_frames - primed_frames)
+            };
+            if (writable == 0u)
+                break;
+
+            fill_src_buffer(bytes_per_frame);
+            if (_src_frames_in_buffer == 0u)
+                break;
+
+            const uint32_t produced{ produce_resampled_chunk(writable) };
+            if (produced == 0u)
+                break;
+
+            primed_frames += produced;
+        }
+
+        return primed_frames;
     }
 
     void wav_stream_decoder_t::start() noexcept

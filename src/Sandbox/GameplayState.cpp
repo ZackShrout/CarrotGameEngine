@@ -110,6 +110,11 @@ namespace sandbox {
 
     void gameplay_state_t::enter()
     {
+        _scene_runtime.set_default_transition_overlay_override(carrot::scene::scene_transition_overlay_override_t{
+            .style = carrot::scene::scene_transition_overlay_style_t::wipe,
+            .wipe_direction = carrot::scene::scene_transition_wipe_direction_t::left_to_right,
+            .overlay_color_abgr = 0xFF000000u
+        });
         _player_controller.set_animation_set({
             .idle_down = "idle_down",
             .idle_up = "idle_up",
@@ -122,12 +127,8 @@ namespace sandbox {
         });
         _player_controller.set_move_speed(4.0f);
         _interaction_controller.set_interaction_radius(3.0f);
-        (void)load_scene("scene.sandbox.town");
-    }
-
-    void gameplay_state_t::update_camera_follow(const float delta_time) noexcept
-    {
-        _scene_runtime.update_camera_follow(game(), delta_time);
+        constexpr std::string_view k_initial_scene_id{ "scene.sandbox.town" };
+        (void)_scene_runtime.request_load(game(), k_initial_scene_id, make_scene_load_options());
     }
 
     void gameplay_state_t::before_scene_change([[maybe_unused]] carrot::core::game_context_t& game,
@@ -177,38 +178,34 @@ namespace sandbox {
             return;
 
         const carrot::scene::scene_runtime_context_t context{ _scene_runtime.make_context(game()) };
-        if (const std::optional<carrot::world::authored::interaction_outcome_t> interaction{
-                _interaction_controller.consume_pending_interaction()
-            })
-        {
-            switch (interaction->kind)
+        (void)_interaction_controller.dispatch_pending_interaction({
+            .on_scene_transition = [this](const carrot::scene::scene_transition_request_t& request)
             {
-                case carrot::world::authored::interaction_outcome_kind_t::container:
+                (void)transition_scene(request);
+            },
+            .on_container = [this, &context](const carrot::world::world_object_id_t object_id, [[maybe_unused]] const std::string_view loot_table)
+            {
+                carrot::world::world_object_t* container{ context.find_object_by_id(object_id) };
+                if (!container)
                 {
-                    carrot::world::world_object_t* container{ context.find_object_by_id(interaction->object_id) };
-                    if (!container)
-                    {
-                        LOG_CORE_WARN("Opened container request referenced missing world object id {}", interaction->object_id);
-                        break;
-                    }
-
-                    mark_container_open(_runtime_state, context.scene_id, *container);
-                    apply_runtime_state_to_scene(context.scene_id, context.world, _runtime_state);
-                    LOG_CORE_INFO("Marked container '{}' as opened in scene '{}'",
-                                  container->name,
-                                  context.scene_id);
-                    break;
+                    LOG_CORE_WARN("Opened container request referenced missing world object id {}", object_id);
+                    return;
                 }
-                case carrot::world::authored::interaction_outcome_kind_t::scene_transition:
-                    (void)transition_scene(interaction->transition);
-                    break;
-                default:
-                    break;
-            }
-        }
 
-        for (const carrot::world::trigger_event_t& event : _trigger_monitor.consume_pending_events())
-            handle_trigger_event(event);
+                mark_container_open(_runtime_state, context.scene_id, *container);
+                apply_runtime_state_to_scene(context.scene_id, context.world, _runtime_state);
+                LOG_CORE_INFO("Marked container '{}' as opened in scene '{}'",
+                              container->name,
+                              context.scene_id);
+            }
+        });
+
+        (void)_trigger_monitor.dispatch_pending_events({
+            .on_any = [this](const carrot::world::trigger_event_t& event)
+            {
+                handle_trigger_event(event);
+            }
+        });
     }
 
     void gameplay_state_t::handle_trigger_event(const carrot::world::trigger_event_t& event) noexcept
@@ -237,12 +234,12 @@ namespace sandbox {
 
     bool gameplay_state_t::load_scene(const std::string_view scene_id, const std::string_view spawn_marker)
     {
-        return carrot::scene::load(game(), _scene_runtime, scene_id, make_scene_load_options(spawn_marker));
+        return _scene_runtime.request_load(game(), scene_id, make_scene_load_options(spawn_marker));
     }
 
     bool gameplay_state_t::transition_scene(const carrot::scene::scene_transition_request_t& request)
     {
-        return carrot::scene::transition(game(), _scene_runtime, request, make_scene_load_options());
+        return _scene_runtime.request_transition(game(), request, make_scene_load_options());
     }
 
     void gameplay_state_t::tick(const float delta_time)
@@ -257,13 +254,14 @@ namespace sandbox {
         if (_input.was_just_pressed(k_input_actions.toggle_object_collision_debug))
             toggle_object_collision_debug();
 
+        (void)_scene_runtime.update(game());
         consume_pending_runtime_events();
 
         _player_controller.update(game(), delta_time);
         update_world_lighting(game().world, _player_controller);
         if (const carrot::world::world_object_t* actor{ _player_controller.controlled_object() })
             _trigger_monitor.update(*actor, game().world);
-        update_camera_follow(delta_time);
+        _scene_runtime.update_camera(game(), delta_time);
 
         if (_input.routing_mode() == carrot::input::gameplay_input_routing_mode_t::local_multiplayer_fixed)
         {

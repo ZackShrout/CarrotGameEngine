@@ -10,18 +10,32 @@
 #include "Utils/MulticastDelegate.h"
 #include "Window/Window.h"
 
+#include <string>
+#include <vector>
+
 namespace carrot::core {
     class ce_application_t;
     struct game_context_t;
 }
 
 namespace carrot::core {
+    struct boot_prewarm_plan_t
+    {
+        std::vector<std::string> audio_ids;
+        std::vector<std::string> font_ids;
+        std::vector<std::string> texture_ids;
+        std::vector<std::string> sprite_ids;
+        std::vector<std::string> tilemap_ids;
+        std::vector<std::string> scene_ids;
+    };
+
     class ce_application_t
     {
     public:
         DISABLE_COPY_AND_MOVE(ce_application_t)
 
         virtual void start([[maybe_unused]] game_context_t& game) {}
+        virtual void describe_boot_prewarm([[maybe_unused]] boot_prewarm_plan_t& plan) const {}
 
         // ───────────────────────────────────────────────
         // Window events
@@ -64,6 +78,11 @@ namespace carrot::core {
         // Tick event
         // ───────────────────────────────────────────────
         virtual void on_tick([[maybe_unused]] const float delta_time) {}
+
+        // ───────────────────────────────────────────────
+        // Render overlay event
+        // ───────────────────────────────────────────────
+        virtual void on_render_overlay() {}
 
         // ───────────────────────────────────────────────
         // Debug overlay policy

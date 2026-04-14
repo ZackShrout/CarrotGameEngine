@@ -5,10 +5,13 @@
 
 #pragma once
 
+#include "Assets/ImportedAssetCache.h"
 #include "LoadedTilemapAsset.h"
 #include "TilemapAsset.h"
+#include "RHI/RHI.h"
 
 #include <filesystem>
+#include <vector>
 
 namespace carrot::io {
     class virtual_file_system_t;
@@ -42,7 +45,41 @@ namespace carrot::assets {
         }
     };
 
+    struct prepared_tilemap_tileset_texture_t
+    {
+        uint32_t width{ 0u };
+        uint32_t height{ 0u };
+        size_t stride_bytes{ 0u };
+        rhi::texture_format_t format{ rhi::texture_format_t::rgba8_unorm };
+        std::vector<std::uint8_t> pixel_payload;
+    };
+
+    struct prepared_tilemap_asset_t
+    {
+        tilemap_asset_t tilemap;
+        const tilemap_asset_record_t* record{ nullptr };
+        std::vector<prepared_tilemap_tileset_texture_t> tileset_textures;
+        imported_asset_invalidation_t expected_invalidation;
+        std::filesystem::path cooked_path;
+        bool write_cooked_artifact{ false };
+    };
+
+    struct tilemap_asset_prepare_result_t
+    {
+        prepared_tilemap_asset_t asset;
+        tilemap_asset_load_error_t error{ tilemap_asset_load_error_t::none };
+
+        [[nodiscard]] bool success() const noexcept
+        {
+            return error == tilemap_asset_load_error_t::none;
+        }
+    };
+
     [[nodiscard]] tilemap_asset_load_result_t load_tilemap_asset(const tilemap_asset_record_t& record);
+    [[nodiscard]] tilemap_asset_prepare_result_t prepare_tilemap_asset(const tilemap_asset_record_t& record,
+                                                                       const io::virtual_file_system_t& vfs) noexcept;
+    [[nodiscard]] tilemap_asset_load_result_t realize_prepared_tilemap_asset(prepared_tilemap_asset_t prepared,
+                                                                              rhi::rhi_context_t& rhi) noexcept;
     [[nodiscard]] tilemap_asset_load_result_t load_tilemap_asset(const tilemap_asset_record_t& record,
                                                                  const io::virtual_file_system_t& vfs,
                                                                  rhi::rhi_context_t& rhi) noexcept;

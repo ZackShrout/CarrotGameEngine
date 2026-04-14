@@ -10,124 +10,26 @@
 #include "Assets/Sprite/SpriteAssetManifestImporter.h"
 #include "Assets/Texture/TextureAssetManifestImporter.h"
 #include "IO/VirtualFileSystem.h"
-#include "RHI/Buffer.h"
-#include "RHI/CommandQueue.h"
 #include "RHI/RHI.h"
-#include "RHI/Sampler.h"
-#include "RHI/Texture.h"
 #include "Utils/JSON/Public/JsonDocument.h"
 
 #include <filesystem>
 #include <functional>
 #include <string_view>
-#include <unordered_map>
 #include <vector>
 
 namespace carrot::tests {
     namespace {
-        class fake_texture_t final : public rhi::rhi_texture_t
+        [[nodiscard]] std::unique_ptr<rhi::rhi_context_t> make_null_rhi()
         {
-        public:
-            explicit fake_texture_t(const rhi::texture_create_info_t& info) noexcept
-                : _width{ info.width }, _height{ info.height }, _format{ info.format } {}
-
-            [[nodiscard]] uint32_t width() const noexcept override { return _width; }
-            [[nodiscard]] uint32_t height() const noexcept override { return _height; }
-            [[nodiscard]] rhi::texture_format_t format() const noexcept override { return _format; }
-
-        private:
-            uint32_t _width{ 0u };
-            uint32_t _height{ 0u };
-            rhi::texture_format_t _format{ rhi::texture_format_t::rgba8_unorm };
-        };
-
-        class fake_buffer_t final : public rhi::rhi_buffer_t
-        {
-        public:
-            explicit fake_buffer_t(const rhi::buffer_create_info_t& info) noexcept
-                : rhi::rhi_buffer_t{ info.size_bytes, info.usage } {}
-
-            [[nodiscard]] bool write([[maybe_unused]] const void* data,
-                                     [[maybe_unused]] const size_t size_bytes,
-                                     [[maybe_unused]] const size_t offset_bytes = 0) override
-            {
-                return true;
-            }
-        };
-
-        class fake_sampler_t final : public rhi::rhi_sampler_t
-        {
-        public:
-            explicit fake_sampler_t(const rhi::sampler_desc_t& desc) noexcept
-                : rhi::rhi_sampler_t{ desc } {}
-        };
-
-        class fake_command_queue_t final : public rhi::rhi_command_queue_t
-        {
-        public:
-            void submit([[maybe_unused]] rhi::rhi_command_list_t* cmd_list,
-                        [[maybe_unused]] rhi::rhi_fence_t* fence_to_signal = nullptr,
-                        [[maybe_unused]] rhi::rhi_semaphore_t* wait_semaphore = nullptr,
-                        [[maybe_unused]] rhi::rhi_semaphore_t* signal_semaphore = nullptr) override {}
-
-            void wait_idle() override {}
-        };
-
-        class fake_context_t final : public rhi::rhi_context_t
-        {
-        public:
-            void begin_frame() override {}
-            void record_textured_quad_stage([[maybe_unused]] const rhi::textured_quad_stage_record_t& stage) override {}
-            void record_text_quad_stage([[maybe_unused]] const rhi::textured_quad_stage_record_t& stage) override {}
-            void end_frame() override {}
-            void release_asset_references() override {}
-            void resize([[maybe_unused]] uint32_t width, [[maybe_unused]] uint32_t height) override {}
-
-            [[nodiscard]] rhi::rhi_device_t* get_device() const noexcept override { return nullptr; }
-            [[nodiscard]] rhi::rhi_swapchain_t* get_swapchain() const noexcept override { return nullptr; }
-            [[nodiscard]] rhi::rhi_command_queue_t* get_command_queue() const noexcept override
-            {
-                return const_cast<fake_command_queue_t*>(&_queue);
-            }
-
-            [[nodiscard]] rhi::graphics_api get_graphics_api() const noexcept override
-            {
-                return rhi::graphics_api::default_api;
-            }
-
-            [[nodiscard]] std::unique_ptr<rhi::rhi_texture_t> create_texture_2d(const rhi::texture_create_info_t& info) override
-            {
-                return std::make_unique<fake_texture_t>(info);
-            }
-
-            [[nodiscard]] std::unique_ptr<rhi::rhi_buffer_t> create_buffer(const rhi::buffer_create_info_t& info) override
-            {
-                return std::make_unique<fake_buffer_t>(info);
-            }
-
-            [[nodiscard]] std::unique_ptr<rhi::rhi_sampler_t> create_sampler(const rhi::sampler_desc_t& desc) const override
-            {
-                return std::make_unique<fake_sampler_t>(desc);
-            }
-
-            [[nodiscard]] rhi::rhi_sampler_t* get_or_create_sampler(const rhi::sampler_desc_t& desc) override
-            {
-                const auto [it, inserted]{
-                    _samplers.emplace(desc, std::make_unique<fake_sampler_t>(desc))
-                };
-                (void)inserted;
-                return it->second.get();
-            }
-
-            void bind_textured_quad_resources([[maybe_unused]] const rhi::rhi_texture_t& texture,
-                                              [[maybe_unused]] const rhi::rhi_sampler_t& sampler) override {}
-
-            void wait_idle() override {}
-
-        private:
-            fake_command_queue_t _queue;
-            std::unordered_map<rhi::sampler_desc_t, std::unique_ptr<fake_sampler_t>, rhi::sampler_desc_hash_t> _samplers;
-        };
+            return rhi::create_rhi_context(rhi::rhi_desc_t{
+                .api = rhi::graphics_api::null_backend,
+                .presentation_window_id = window::invalid_window_id,
+                .width = 1280u,
+                .height = 720u,
+                .enable_debug_layers = false
+            });
+        }
 
         [[nodiscard]] std::filesystem::path engine_assets_root()
         {
@@ -198,8 +100,9 @@ namespace carrot::tests {
 
             io::virtual_file_system_t vfs;
             mount_all(vfs);
-            fake_context_t rhi;
-            assets::asset_manager_t asset_manager{ vfs, rhi };
+            auto rhi{ make_null_rhi() };
+            CARROT_TEST_REQUIRE(rhi != nullptr);
+            assets::asset_manager_t asset_manager{ vfs, *rhi };
             register_runtime_iteration_assets(asset_manager, vfs);
 
             const auto statuses{ asset_manager.collect_runtime_iteration_statuses() };
@@ -223,8 +126,9 @@ namespace carrot::tests {
 
             io::virtual_file_system_t vfs;
             mount_all(vfs);
-            fake_context_t rhi;
-            assets::asset_manager_t asset_manager{ vfs, rhi };
+            auto rhi{ make_null_rhi() };
+            CARROT_TEST_REQUIRE(rhi != nullptr);
+            assets::asset_manager_t asset_manager{ vfs, *rhi };
             register_runtime_iteration_assets(asset_manager, vfs);
 
             CARROT_TEST_REQUIRE(asset_manager.reload_asset(assets::asset_kind_t::texture, "engine.carrot_engine_logo_512"));

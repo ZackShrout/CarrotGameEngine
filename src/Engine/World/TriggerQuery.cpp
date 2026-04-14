@@ -65,6 +65,44 @@ namespace carrot::world {
         return events;
     }
 
+    size_t trigger_monitor_t::dispatch_pending_events(const trigger_event_dispatch_t& dispatch) noexcept
+    {
+        size_t dispatched_count{ 0u };
+        std::vector<trigger_event_t> events{ consume_pending_events() };
+        for (const trigger_event_t& event : events)
+        {
+            bool handled{ false };
+            switch (event.phase)
+            {
+                case trigger_event_phase_t::entered:
+                    if (dispatch.on_entered)
+                    {
+                        dispatch.on_entered(event);
+                        handled = true;
+                    }
+                    break;
+                case trigger_event_phase_t::exited:
+                    if (dispatch.on_exited)
+                    {
+                        dispatch.on_exited(event);
+                        handled = true;
+                    }
+                    break;
+            }
+
+            if (dispatch.on_any)
+            {
+                dispatch.on_any(event);
+                handled = true;
+            }
+
+            if (handled)
+                ++dispatched_count;
+        }
+
+        return dispatched_count;
+    }
+
     trigger_overlap_changes_t update_trigger_overlaps(const world_object_t& actor,
                                                       const world_t& world,
                                                       std::unordered_set<world_object_id_t>& active_trigger_ids)

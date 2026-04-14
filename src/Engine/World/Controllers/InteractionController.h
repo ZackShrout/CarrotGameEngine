@@ -27,6 +27,7 @@ namespace carrot::world {
         [[nodiscard]] std::optional<float> candidate_distance(const world_t& world) const noexcept;
         bool try_interact(core::game_context_t& game);
         [[nodiscard]] std::optional<authored::interaction_outcome_t> consume_pending_interaction() noexcept;
+        [[nodiscard]] bool dispatch_pending_interaction(const authored::interaction_outcome_dispatch_t& dispatch) noexcept;
 
     protected:
         [[nodiscard]] virtual bool is_interactable_candidate(const world_object_t& object) const noexcept;

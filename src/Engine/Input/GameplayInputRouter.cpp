@@ -555,6 +555,10 @@ namespace carrot::input {
                           context.triggered_actions,
                           context.actions,
                           profile.toggle_object_collision_debug);
+        track_action_edge(context.previous_pressed,
+                          context.triggered_actions,
+                          context.actions,
+                          profile.toggle_trigger_volume_debug);
     }
 
     void gameplay_input_router_t::track_action_edge(

@@ -12,6 +12,18 @@
 
 namespace sandbox {
     namespace {
+        void ensure_action_has_default_binding(carrot::input::input_binding_store_t& store,
+                                               const carrot::input::input_action_handle_t action,
+                                               const char* label)
+        {
+            const auto summary{ store.describe_action(action) };
+            if (!summary.has_value() || !summary->active_bindings.empty())
+                return;
+
+            if (store.restore_action_defaults(action, false))
+                LOG_CORE_INFO("Restored missing default binding for {}", label);
+        }
+
         [[nodiscard]] std::string describe_binding(const carrot::input::action_binding_t& binding)
         {
             using namespace carrot::input;
@@ -102,6 +114,7 @@ namespace sandbox {
                     static_cast<uint8_t>(carrot::input::modifier::alt));
         _input.bind(k_input_actions.toggle_map_collision_debug, carrot::input::key_code::f2);
         _input.bind(k_input_actions.toggle_object_collision_debug, carrot::input::key_code::f3);
+        _input.bind(k_input_actions.toggle_trigger_volume_debug, carrot::input::key_code::f4);
         _input.bind(k_input_actions.ui_up, carrot::input::key_code::i);
         _input.bind(k_input_actions.ui_down, carrot::input::key_code::k);
         _input.bind(k_input_actions.ui_left, carrot::input::key_code::j);
@@ -122,6 +135,15 @@ namespace sandbox {
                           _input_binding_store.has_user_bindings() ? "persisted" : "default",
                           _input_binding_store.has_user_bindings() ? k_user_input_bindings_config_path
                                                                    : k_input_bindings_config_path);
+            ensure_action_has_default_binding(_input_binding_store,
+                                              k_input_actions.toggle_map_collision_debug,
+                                              "toggle_map_collision_debug");
+            ensure_action_has_default_binding(_input_binding_store,
+                                              k_input_actions.toggle_object_collision_debug,
+                                              "toggle_object_collision_debug");
+            ensure_action_has_default_binding(_input_binding_store,
+                                              k_input_actions.toggle_trigger_volume_debug,
+                                              "toggle_trigger_volume_debug");
             return;
         }
 

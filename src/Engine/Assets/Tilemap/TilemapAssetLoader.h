@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "Assets/AssetIteration.h"
 #include "Assets/ImportedAssetCache.h"
 #include "LoadedTilemapAsset.h"
 #include "TilemapAsset.h"
@@ -38,6 +39,9 @@ namespace carrot::assets {
     {
         loaded_tilemap_asset_t asset;
         tilemap_asset_load_error_t error{ tilemap_asset_load_error_t::none };
+        asset_load_origin_t load_origin{ asset_load_origin_t::never_loaded };
+        imported_artifact_state_t cooked_artifact_state{ imported_artifact_state_t::missing };
+        imported_artifact_issue_t invalidation_reason{ imported_artifact_issue_t::none };
 
         [[nodiscard]] bool success() const noexcept
         {

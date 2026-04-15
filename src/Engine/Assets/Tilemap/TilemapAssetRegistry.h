@@ -21,6 +21,7 @@ namespace carrot::assets {
         [[nodiscard]] const tilemap_asset_record_t* find(asset_id_t id) const noexcept;
         [[nodiscard]] const tilemap_asset_record_t* find(std::string_view logical_id) const noexcept;
         [[nodiscard]] bool contains(const asset_id_t id) const noexcept { return _records.contains(id); }
+        [[nodiscard]] const std::unordered_map<asset_id_t, tilemap_asset_record_t>& records() const noexcept { return _records; }
 
         void clear() noexcept { _records.clear(); }
 

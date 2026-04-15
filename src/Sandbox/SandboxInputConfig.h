@@ -23,6 +23,7 @@ namespace sandbox {
         .toggle_fullscreen = carrot::input::make_input_action("toggle_fullscreen"),
         .toggle_map_collision_debug = carrot::input::make_input_action("toggle_map_collision_debug"),
         .toggle_object_collision_debug = carrot::input::make_input_action("toggle_object_collision_debug"),
+        .toggle_trigger_volume_debug = carrot::input::make_input_action("toggle_trigger_volume_debug"),
         .ui_up = carrot::input::make_input_action("ui_up"),
         .ui_down = carrot::input::make_input_action("ui_down"),
         .ui_left = carrot::input::make_input_action("ui_left"),
@@ -31,7 +32,7 @@ namespace sandbox {
         .ui_cancel = carrot::input::make_input_action("ui_cancel"),
     };
 
-    inline constexpr std::array<carrot::input::input_action_definition_t, 15> k_input_action_definitions{ {
+    inline constexpr std::array<carrot::input::input_action_definition_t, 16> k_input_action_definitions{ {
         { .action = k_input_actions.move_up, .display_name = "Move Up", .category = "Gameplay" },
         { .action = k_input_actions.move_down, .display_name = "Move Down", .category = "Gameplay" },
         { .action = k_input_actions.move_left, .display_name = "Move Left", .category = "Gameplay" },
@@ -41,6 +42,7 @@ namespace sandbox {
         { .action = k_input_actions.toggle_fullscreen, .display_name = "Toggle Fullscreen", .category = "System" },
         { .action = k_input_actions.toggle_map_collision_debug, .display_name = "Toggle Map Collision Debug", .category = "Debug" },
         { .action = k_input_actions.toggle_object_collision_debug, .display_name = "Toggle Object Collider Debug", .category = "Debug" },
+        { .action = k_input_actions.toggle_trigger_volume_debug, .display_name = "Toggle Trigger Volume Debug", .category = "Debug" },
         { .action = k_input_actions.ui_up, .display_name = "UI Up", .category = "UI" },
         { .action = k_input_actions.ui_down, .display_name = "UI Down", .category = "UI" },
         { .action = k_input_actions.ui_left, .display_name = "UI Left", .category = "UI" },

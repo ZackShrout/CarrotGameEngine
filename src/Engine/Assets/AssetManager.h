@@ -13,7 +13,9 @@
 #include "Texture/TextureAssetSystem.h"
 #include "Tilemap/TilemapAssetSystem.h"
 
+#include <filesystem>
 #include <optional>
+#include <unordered_map>
 #include <vector>
 
 namespace carrot::io {
@@ -64,10 +66,26 @@ namespace carrot::assets {
                                                                                             asset_id_t id) const;
         bool reload_asset(asset_kind_t kind, asset_id_t id);
         bool reload_asset(asset_kind_t kind, std::string_view logical_id);
+        void poll_runtime_iteration_changes();
 
         void clear();
 
     private:
+        struct runtime_iteration_watch_snapshot_t
+        {
+            std::optional<std::filesystem::file_time_type> source_write_time;
+            std::optional<std::filesystem::file_time_type> manifest_write_time;
+        };
+
+        [[nodiscard]] static std::uint64_t runtime_iteration_watch_key(asset_kind_t kind, asset_id_t id) noexcept;
+        [[nodiscard]] runtime_iteration_watch_snapshot_t capture_watch_snapshot(std::string_view source_uri,
+                                                                                std::string_view manifest_uri) const;
+        void update_runtime_iteration_watch(asset_kind_t kind,
+                                            asset_id_t id,
+                                            std::string_view logical_id,
+                                            std::string_view source_uri,
+                                            std::string_view manifest_uri);
+
         io::virtual_file_system_t& _vfs;
         audio_asset_system_t _audio;
         font_asset_system_t _fonts;
@@ -75,5 +93,6 @@ namespace carrot::assets {
         sprite_asset_system_t _sprites;
         tilemap_asset_system_t _tilemaps;
         scene_asset_system_t _scenes;
+        std::unordered_map<std::uint64_t, runtime_iteration_watch_snapshot_t> _runtime_iteration_watches;
     };
 } // namespace carrot::assets

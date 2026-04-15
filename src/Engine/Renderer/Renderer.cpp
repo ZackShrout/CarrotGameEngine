@@ -389,7 +389,7 @@ namespace carrot::renderer {
             return;
         }
 
-        submit_textured_quad(stage, textured_quad_draw_info_t{
+        const textured_quad_draw_info_t textured_quad{
             .texture = _solid_white_texture.get(),
             .x = quad.x,
             .y = quad.y,
@@ -405,7 +405,15 @@ namespace carrot::renderer {
             .sort_reference_y = quad.sort_reference_y,
             .color = quad.color,
             .sampler_preset = quad.sampler_preset
-        });
+        };
+
+        if (stage == frame_stage_kind_t::world)
+        {
+            submit_world_textured_quad(textured_quad);
+            return;
+        }
+
+        submit_textured_quad(stage, textured_quad);
     }
 
     void renderer_t::submit_world_text_quad(const textured_quad_draw_info_t& quad)

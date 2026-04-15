@@ -1,8 +1,8 @@
 # Carrot Game Engine - Milestone 17
 
-**Last Updated:** April 14, 2026
+**Last Updated:** April 15, 2026
 **Title:** Runtime Iteration Expansion and Scene Inspection Tooling
-**Status:** Proposed
+**Status:** Completed and archived
 **Focus:** Strengthen Carrot's engine-owned runtime iteration loop and validate it through deeper editor-side inspection of assets, scenes, and live world state without crossing into editor-owned scene authoring.
 
 ---
@@ -232,9 +232,8 @@ Recommended first slice:
 * current world lighting summary
   * ambient light
   * active point lights
-* trigger summary
 * collision summary
-* scene continuity/runtime flags summary where useful
+* layering/visibility summary
 * current controlled player object / camera target where applicable
 
 This work matters because many debugging questions are really system-state questions, not asset questions.
@@ -334,6 +333,195 @@ This ordering keeps the engine boundary honest and prevents UI work from masking
 
 ---
 
+## Ticketed Work Order
+
+This milestone is broad enough that it should be implemented through focused tickets with a clear dependency order.
+
+### Ticket 1. Broaden Runtime Iteration Status and Reload Policy Coverage
+
+Goal:
+
+* expand the engine-owned iteration/diagnostics model beyond the current first asset slice
+
+Expected outcomes:
+
+* runtime iteration status is exposed consistently for:
+  * textures
+  * sprites
+  * audio
+  * tilemaps
+  * scenes
+  * fonts where practical
+* per-asset reload policy is surfaced explicitly
+* last-attempt result, load origin, cooked artifact state, and invalidation reason remain queryable across the broader slice
+
+Why this comes first:
+
+* automatic watching, rebuild UX, and editor inspection all depend on a trustworthy diagnostics/query model first
+
+### Ticket 2. Automatic Change Detection for Safe Asset Classes
+
+Goal:
+
+* make the current runtime iteration loop more useful without exaggerating what can hot reload safely
+
+Expected outcomes:
+
+* file watching or equivalent change detection for the safe initial slice
+* automatic invalidation/reload where live reload is genuinely safe
+* clear status updates when automatic reload succeeds or fails
+* runtime behavior still works correctly when no editor is open
+
+Why this comes early:
+
+* this is the most direct day-to-day iteration win, but it should only sit on top of the stronger status model from Ticket 1
+
+### Ticket 3. Scene-Bound Rebuild Rules and Rebuild Trigger Path
+
+Goal:
+
+* make scene/tilemap/runtime-structure changes explicit instead of ambiguous
+
+Expected outcomes:
+
+* tilemap and scene diagnostics can report when live reload is unsafe
+* rebuild-required cases are distinguishable from safe live reload cases
+* the engine exposes a safe "rebuild current scene" path or equivalent runtime action
+* rebuild messaging is queryable and visible to tooling
+
+Why this belongs before editor scene inspection:
+
+* the editor should report truthful actionability, not just show state without explaining what the user can do next
+
+### Ticket 4. Scene Runtime Summary and Transition Inspection API
+
+Goal:
+
+* expose the active scene/runtime truth through public engine seams
+
+Expected outcomes:
+
+* active scene id
+* runtime state and transition phase/progress
+* spawn/context summary where applicable
+* camera summary
+* aggregate world summary counts for objects, triggers, colliders, and lights
+
+Why this comes here:
+
+* this is the first meaningful step from asset inspection into live runtime inspection, and it should land before object-level detail work
+
+### Ticket 5. Runtime Object Inspection API
+
+Goal:
+
+* make live world contents inspectable in a structured way
+
+Expected outcomes:
+
+* browsable runtime object list for the active world
+* stable summary fields per object:
+  * id
+  * name
+  * type
+  * transform summary
+  * authored source provenance where available
+* attached component summaries for the first useful slice:
+  * sprite
+  * tilemap
+  * collision
+  * trigger
+  * animator
+  * visibility-related data where practical
+
+Why this comes after scene summary:
+
+* object-level inspection is much easier to shape well once the higher-level runtime summary contract is already settled
+
+### Ticket 6. Runtime Systems Inspection API
+
+Goal:
+
+* expose the first useful runtime-owned system summaries that explain behavior beyond individual objects
+
+Expected outcomes:
+
+* world lighting summary including ambient and active point lights
+* collision summary
+* layering/visibility summary
+* current controlled player object and/or camera target summary where applicable
+
+Why this is separate from Ticket 5:
+
+* many debugging questions are about world state and system state rather than any one object, so this should not be forced awkwardly into the object inspector contract
+
+### Ticket 7. `CarrotEditor` Scene Inspector Panels
+
+Goal:
+
+* validate the new engine inspection seams through real editor surfaces without crossing into authoring
+
+Expected outcomes:
+
+* scene runtime summary panel
+* runtime object list panel
+* selection/details panel
+* light/trigger/collision summary surface
+* explicit reload/rebuild messaging visible alongside asset and scene inspection
+
+Important boundary:
+
+* this ticket must not expand into transform editing, gizmos, or source-authoring workflows
+
+Why this comes late:
+
+* the editor should consume stable engine-facing inspection APIs rather than inventing temporary private data paths
+
+### Ticket 8. Validation, Regression Coverage, and Closeout
+
+Goal:
+
+* harden the milestone and document its actual limitations honestly
+
+Expected outcomes:
+
+* tests for broader iteration status coverage
+* tests for rebuild-required vs live-reload-safe policy behavior
+* tests for scene/runtime inspection query validity
+* sandbox/editor proof that validates the full milestone loop
+* doc updates describing the delivered runtime/tooling boundary and current limitations
+
+Why this stays last:
+
+* closeout should protect the final architecture rather than getting invalidated by later ticket churn
+
+---
+
+## Recommended Implementation Order
+
+The recommended implementation order is:
+
+1. Ticket 1. Broaden Runtime Iteration Status and Reload Policy Coverage
+2. Ticket 2. Automatic Change Detection for Safe Asset Classes
+3. Ticket 3. Scene-Bound Rebuild Rules and Rebuild Trigger Path
+4. Ticket 4. Scene Runtime Summary and Transition Inspection API
+5. Ticket 5. Runtime Object Inspection API
+6. Ticket 6. Runtime Systems Inspection API
+7. Ticket 7. `CarrotEditor` Scene Inspector Panels
+8. Ticket 8. Validation, Regression Coverage, and Closeout
+
+Why this order fits the milestone:
+
+* Ticket 1 creates the diagnostics truth surface the rest of the milestone depends on.
+* Ticket 2 delivers the first immediate workflow win while staying grounded in that truth surface.
+* Ticket 3 prevents scene-bound reload behavior from becoming fuzzy or misleading as iteration expands.
+* Ticket 4 establishes the high-level runtime inspection contract before deeper object/system detail is added.
+* Tickets 5 and 6 then flesh out world inspection in two clean layers: object-centric and system-centric.
+* Ticket 7 validates the architecture through the editor only after the engine seams are stable enough to consume directly.
+* Ticket 8 is intentionally last so tests, docs, and closeout reflect the real delivered boundary rather than an earlier draft of it.
+
+---
+
 ## Success Criteria
 
 Milestone 17 is successful when all of the following are true:
@@ -344,6 +532,61 @@ Milestone 17 is successful when all of the following are true:
 * a developer can identify loaded objects, lights, triggers, and collision state without relying only on logs
 * the editor can disappear and the runtime still behaves correctly
 * no scene editing architecture is required for the milestone to feel useful
+
+---
+
+## Delivered Result
+
+Milestone 17 shipped with the planned engine/runtime inspection seams and a first useful `CarrotEditor` inspection surface.
+
+Delivered outcomes:
+
+* runtime iteration status/policy coverage broadened across texture, sprite, audio, font, tilemap, and scene assets
+* automatic change detection for the safe live-reload slice
+* explicit scene rebuild path for scene-bound reload cases
+* engine-owned scene runtime summary API
+* engine-owned runtime object inspection API
+* engine-owned runtime systems inspection API
+* `CarrotEditor` panels for asset diagnostics, scene summary, systems summary, runtime object list, and selected object details
+* validation coverage for the new inspection and rebuild seams
+
+Important implementation note:
+
+* the current editor scene/object/system panels inspect **live runtime state**
+* they do not inspect authored scene contents before runtime exists
+* the current editor build uses a **temporary hosted runtime harness** that boots `scene.sandbox.town` on startup so the panels can be validated against real data
+
+That harness is intentionally not final editor architecture. It exists to validate the runtime inspection loop and may be removed or replaced later without changing the underlying engine inspection APIs.
+
+---
+
+## Known Limitations
+
+Milestone 17 intentionally stops short of a fuller editor/runtime tooling stack.
+
+Current limitations:
+
+* `CarrotEditor` is still keyboard/gamepad-first; mouse focus/selection behavior is not yet a goal of the engine UI layer
+* the current runtime object/details surface is dense and reveals the need for future UI primitives such as scroll/clipping regions
+* the current editor-hosted runtime path is a narrow validation harness, not a generalized editor play/runtime architecture
+* the scene inspector shows **runtime truth**, not authored pre-runtime scene contents
+* continuity/flag-store and trigger-monitor state are not yet surfaced as dedicated scene-runtime system summaries because those stores are not currently owned by `scene_runtime_t`
+
+---
+
+## Validation Summary
+
+Validation completed for the delivered milestone work:
+
+* `CarrotEngineTests` passes with the new scene summary, object inspection, systems inspection, rebuild-path, and debug-toggle coverage
+* `CarrotEditor` builds cleanly with the new inspection panels
+* the temporary editor-hosted runtime harness proves the scene/object/system panels against a real loaded `scene.sandbox.town`
+
+The main follow-on work exposed by this milestone is no longer engine inspection plumbing. It is mostly:
+
+* UI toolkit growth for scrollable/clipped inspection surfaces
+* eventual separation between authored-scene inspection and runtime-scene inspection
+* eventual replacement of the temporary hosted runtime harness with a more intentional editor/runtime integration path
 
 ---
 

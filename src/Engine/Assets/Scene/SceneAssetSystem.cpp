@@ -6,3 +6,43 @@
 #include "Core/Pch.h"
 
 #include "SceneAssetSystem.h"
+
+namespace carrot::assets {
+    namespace {
+        [[nodiscard]] asset_iteration_status_t make_scene_status(const scene_asset_record_t& record) noexcept
+        {
+            asset_iteration_status_t status;
+            status.kind = asset_kind_t::scene;
+            status.id = record.id;
+            status.logical_id = record.logical_id;
+            status.source_uri = record.source_uri;
+            status.manifest_uri = record.source_uri;
+            status.reload_policy = asset_reload_policy_t::restart_or_scene_rebuild_required;
+            return status;
+        }
+    }
+
+    std::vector<asset_iteration_status_t> scene_asset_system_t::collect_iteration_statuses() const
+    {
+        std::vector<asset_iteration_status_t> out;
+        out.reserve(_registry.records().size());
+
+        for (const auto& [id, record] : _registry.records())
+        {
+            (void)id;
+            out.push_back(make_scene_status(record));
+        }
+
+        std::ranges::sort(out, {}, &asset_iteration_status_t::logical_id);
+        return out;
+    }
+
+    std::optional<asset_iteration_status_t> scene_asset_system_t::find_iteration_status(const asset_id_t id) const
+    {
+        const scene_asset_record_t* record{ _registry.find(id) };
+        if (!record)
+            return std::nullopt;
+
+        return make_scene_status(*record);
+    }
+} // namespace carrot::assets

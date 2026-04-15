@@ -39,6 +39,15 @@ namespace carrot::core {
         [[nodiscard]] const igame_state_t* active_state() const noexcept { return _active_state.get(); }
         [[nodiscard]] game_context_t& game() noexcept { return _game; }
         [[nodiscard]] const game_context_t& game() const noexcept { return _game; }
+        [[nodiscard]] bool map_collision_debug_visible() const noexcept;
+        [[nodiscard]] bool object_collider_debug_visible() const noexcept;
+        [[nodiscard]] bool trigger_volume_debug_visible() const noexcept;
+        void set_map_collision_debug_visible(bool visible) noexcept;
+        void set_object_collider_debug_visible(bool visible) noexcept;
+        void set_trigger_volume_debug_visible(bool visible) noexcept;
+        [[nodiscard]] bool toggle_map_collision_debug() noexcept;
+        [[nodiscard]] bool toggle_object_collider_debug() noexcept;
+        [[nodiscard]] bool toggle_trigger_volume_debug() noexcept;
 
         [[nodiscard]] static bool is_fullscreen() { return window::is_fullscreen(); }
         static void set_fullscreen(bool fullscreen) noexcept { window::set_fullscreen(fullscreen); }

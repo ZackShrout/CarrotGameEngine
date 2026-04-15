@@ -20,6 +20,9 @@ namespace carrot::ui {
             if (!asset_manager)
                 return nullptr;
 
+            if (!asset_manager->fonts().registry().find(font_asset_id))
+                return nullptr;
+
             const assets::loaded_font_asset_t* font{ asset_manager->fonts().get(font_asset_id) };
             if (!font || !font->valid())
                 return nullptr;

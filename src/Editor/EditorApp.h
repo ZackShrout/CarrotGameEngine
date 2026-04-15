@@ -31,13 +31,23 @@ namespace carrot::editor {
             ui::ui_button_t* button{ nullptr };
         };
 
+        struct object_button_binding_t
+        {
+            world::world_object_id_t id{ 0 };
+            ui::ui_button_t* button{ nullptr };
+        };
+
         void build_editor_ui();
         void rebuild_asset_list();
+        void rebuild_runtime_object_list();
         void select_asset(assets::asset_kind_t kind, assets::asset_id_t id);
+        void select_runtime_object(world::world_object_id_t id);
         void reload_selected_asset();
         void refresh_selected_asset_details();
+        void refresh_runtime_inspection();
         void update_button_labels();
         [[nodiscard]] ui::ui_button_t* find_button(assets::asset_kind_t kind, assets::asset_id_t id) const noexcept;
+        [[nodiscard]] ui::ui_button_t* find_object_button(world::world_object_id_t id) const noexcept;
 
         core::game_context_t* _game{ nullptr };
         ui::ui_stack_t* _asset_list{ nullptr };
@@ -48,10 +58,20 @@ namespace carrot::editor {
         ui::ui_label_t* _diagnostics_title{ nullptr };
         ui::ui_label_t* _details_body{ nullptr };
         ui::ui_button_t* _reload_button{ nullptr };
+        ui::ui_label_t* _scene_summary_title{ nullptr };
+        ui::ui_label_t* _scene_summary_body{ nullptr };
+        ui::ui_label_t* _systems_summary_body{ nullptr };
+        ui::ui_stack_t* _runtime_object_list{ nullptr };
+        ui::ui_label_t* _object_details_title{ nullptr };
+        ui::ui_label_t* _object_details_body{ nullptr };
         assets::asset_kind_t _selected_kind{ assets::asset_kind_t::texture };
         assets::asset_id_t _selected_id{ 0 };
+        world::world_object_id_t _selected_object_id{ 0 };
         bool _has_selection{ false };
+        bool _has_object_selection{ false };
         bool _show_debug_overlay{ false };
         std::vector<asset_button_binding_t> _asset_buttons;
+        std::vector<object_button_binding_t> _object_buttons;
+        scene::scene_runtime_t _scene_runtime{ };
     };
 } // namespace carrot::editor

@@ -16,6 +16,7 @@
 #include "Assets/Tilemap/TilemapAssetManifestImporter.h"
 #include "Assets/Tilemap/TypedObjectConventions.h"
 #include "Assets/Tilemap/TilemapValidation.h"
+#include "Core/GameRuntime.h"
 #include "Core/GameView.h"
 #include "EngineConfig.h"
 #include "Renderer/Renderer.h"
@@ -25,6 +26,7 @@
 #include "RHI/RHI.h"
 #include "Utils/JSON/Public/JsonDocument.h"
 #include "World/AuthoredInteractions.h"
+#include "World/Controllers/InteractionController.h"
 #include "World/Controllers/PlayerController.h"
 #include "World/Import/TilemapWorldBridge.h"
 #include "World/SceneContinuity.h"
@@ -1769,6 +1771,356 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_camera_bounds_mode_t::scene_extents) == "scene_extents");
         }
 
+        void test_scene_runtime_summary_defaults_to_empty_world_state()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t renderer{ vfs, graphics_config, window::invalid_window_id };
+
+            assets::asset_manager_t assets{ vfs, *renderer.get_rhi() };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            core::game_view_t view{ renderer };
+            input::controller_manager_t controllers;
+            core::game_context_t game{
+                .world = world,
+                .assets = assets,
+                .view = view,
+                .controllers = controllers
+            };
+
+            scene::scene_runtime_t runtime;
+            const scene::scene_runtime_summary_t summary{ runtime.summarize(game) };
+
+            CARROT_TEST_REQUIRE(summary.snapshot.runtime_state == carrot::scene::scene_runtime_state_t::idle);
+            CARROT_TEST_REQUIRE(summary.snapshot.transition_phase == carrot::scene::scene_transition_phase_t::none);
+            CARROT_TEST_REQUIRE(summary.snapshot.active_scene_id.empty());
+            CARROT_TEST_REQUIRE(summary.world_object_count == 0u);
+            CARROT_TEST_REQUIRE(summary.trigger_count == 0u);
+            CARROT_TEST_REQUIRE(summary.object_collider_count == 0u);
+            CARROT_TEST_REQUIRE(summary.static_collider_count == 0u);
+            CARROT_TEST_REQUIRE(summary.point_light_count == 0u);
+            CARROT_TEST_REQUIRE(summary.visibility_region_count == 0u);
+            CARROT_TEST_REQUIRE(!summary.has_player_object());
+            CARROT_TEST_REQUIRE(!summary.has_spawn_object());
+        }
+
+        void test_scene_runtime_summary_reports_loaded_scene_world_state()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t renderer{ vfs, graphics_config, window::invalid_window_id };
+
+            assets::asset_manager_t assets{ vfs, *renderer.get_rhi() };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            core::game_view_t view{ renderer };
+            input::controller_manager_t controllers;
+            core::game_context_t game{
+                .world = world,
+                .assets = assets,
+                .view = view,
+                .controllers = controllers
+            };
+
+            scene::scene_runtime_t runtime;
+            CARROT_TEST_REQUIRE(runtime.load(game,
+                                             "scene.sandbox.town",
+                                             carrot::scene::scene_load_options_t{
+                                                 .apply_scene_music = false,
+                                                 .transition_overlay = {
+                                                     .style = carrot::scene::scene_transition_overlay_style_t::none
+                                                 }
+                                             }));
+
+            const scene::scene_runtime_summary_t summary{ runtime.summarize(game) };
+
+            CARROT_TEST_REQUIRE(summary.snapshot.active_scene_id == "scene.sandbox.town");
+            CARROT_TEST_REQUIRE(summary.snapshot.active_spawn_marker == "PlayerSpawn");
+            CARROT_TEST_REQUIRE(summary.snapshot.runtime_state == carrot::scene::scene_runtime_state_t::active);
+            CARROT_TEST_REQUIRE(summary.snapshot.transition_phase == carrot::scene::scene_transition_phase_t::none);
+            CARROT_TEST_REQUIRE(summary.snapshot.transition_progress == 0.f);
+            CARROT_TEST_REQUIRE(summary.world_object_count > 0u);
+            CARROT_TEST_REQUIRE(summary.trigger_count > 0u);
+            CARROT_TEST_REQUIRE(summary.object_collider_count > 0u);
+            CARROT_TEST_REQUIRE(summary.static_collider_count > 0u);
+            CARROT_TEST_REQUIRE(summary.has_player_object());
+            CARROT_TEST_REQUIRE(!summary.player_object_name.empty());
+            CARROT_TEST_REQUIRE(summary.has_spawn_object());
+            CARROT_TEST_REQUIRE(summary.spawn_object_name == "PlayerSpawn");
+            CARROT_TEST_REQUIRE(summary.active_camera.zoom > 0.f);
+
+            const chlm::float2 camera_center{ summary.camera_center_world };
+            CARROT_TEST_REQUIRE(camera_center.x > 0.f);
+            CARROT_TEST_REQUIRE(camera_center.y > 0.f);
+        }
+
+        void test_scene_runtime_object_summaries_report_loaded_scene_objects()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t renderer{ vfs, graphics_config, window::invalid_window_id };
+
+            assets::asset_manager_t assets{ vfs, *renderer.get_rhi() };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            core::game_view_t view{ renderer };
+            input::controller_manager_t controllers;
+            core::game_context_t game{
+                .world = world,
+                .assets = assets,
+                .view = view,
+                .controllers = controllers
+            };
+
+            scene::scene_runtime_t runtime;
+            CARROT_TEST_REQUIRE(runtime.load(game,
+                                             "scene.sandbox.town",
+                                             carrot::scene::scene_load_options_t{
+                                                 .apply_scene_music = false,
+                                                 .transition_overlay = {
+                                                     .style = carrot::scene::scene_transition_overlay_style_t::none
+                                                 }
+                                             }));
+
+            const std::vector<scene::scene_runtime_object_summary_t> summaries{
+                runtime.collect_runtime_object_summaries(game)
+            };
+
+            CARROT_TEST_REQUIRE(!summaries.empty());
+            CARROT_TEST_REQUIRE(summaries.size() == world.objects().size());
+
+            const auto find_summary_by_name = [&summaries](const std::string_view name)
+                -> const scene::scene_runtime_object_summary_t*
+            {
+                for (const scene::scene_runtime_object_summary_t& summary : summaries)
+                {
+                    if (summary.name == name)
+                        return &summary;
+                }
+
+                return nullptr;
+            };
+
+            const scene::scene_runtime_object_summary_t* player_summary{ find_summary_by_name("Vraden") };
+            CARROT_TEST_REQUIRE(player_summary != nullptr);
+            CARROT_TEST_REQUIRE(player_summary->id != 0u);
+            CARROT_TEST_REQUIRE(!player_summary->type.empty());
+            CARROT_TEST_REQUIRE(player_summary->has_transform);
+            CARROT_TEST_REQUIRE(player_summary->has_collision);
+            CARROT_TEST_REQUIRE(player_summary->has_sprite);
+            CARROT_TEST_REQUIRE(player_summary->has_sprite_animator);
+            CARROT_TEST_REQUIRE(player_summary->sprite.texture_id == "texture.vraden_sprite");
+            CARROT_TEST_REQUIRE(!player_summary->sprite_animator.current_animation_name.empty());
+
+            const scene::scene_runtime_object_summary_t* map_summary{ nullptr };
+            for (const scene::scene_runtime_object_summary_t& summary : summaries)
+            {
+                if (!summary.has_tilemap)
+                    continue;
+
+                if (summary.tilemap.tilemap_logical_id == "tilemap.sandbox.town")
+                {
+                    map_summary = &summary;
+                    break;
+                }
+            }
+            CARROT_TEST_REQUIRE(map_summary != nullptr);
+            CARROT_TEST_REQUIRE(map_summary->has_tilemap);
+            CARROT_TEST_REQUIRE(map_summary->tilemap.tilemap_logical_id == "tilemap.sandbox.town");
+
+            const scene::scene_runtime_object_summary_t* trigger_summary{ find_summary_by_name("Trigger") };
+            CARROT_TEST_REQUIRE(trigger_summary != nullptr);
+            CARROT_TEST_REQUIRE(trigger_summary->has_trigger);
+            CARROT_TEST_REQUIRE(trigger_summary->has_interaction);
+            CARROT_TEST_REQUIRE(trigger_summary->interaction.kind ==
+                                scene::scene_runtime_object_interaction_kind_t::trigger);
+            CARROT_TEST_REQUIRE(trigger_summary->interaction.trigger_id == "inn_trigger_1");
+            CARROT_TEST_REQUIRE(trigger_summary->has_source);
+            CARROT_TEST_REQUIRE(trigger_summary->source.tilemap_logical_id == "tilemap.sandbox.town");
+
+            const auto inspected_player{ runtime.find_runtime_object_summary(game, player_summary->id) };
+            CARROT_TEST_REQUIRE(inspected_player.has_value());
+            CARROT_TEST_REQUIRE(inspected_player->name == "Vraden");
+            CARROT_TEST_REQUIRE(inspected_player->has_sprite);
+            CARROT_TEST_REQUIRE(inspected_player->sprite.texture_id == "texture.vraden_sprite");
+
+            const auto missing_object{ runtime.find_runtime_object_summary(game, 999999999u) };
+            CARROT_TEST_REQUIRE(!missing_object.has_value());
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(scene::scene_runtime_object_interaction_kind_t::trigger) ==
+                                "trigger");
+        }
+
+        void test_scene_runtime_systems_summary_defaults_to_unbound_state()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t renderer{ vfs, graphics_config, window::invalid_window_id };
+
+            assets::asset_manager_t assets{ vfs, *renderer.get_rhi() };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            core::game_view_t view{ renderer };
+            input::controller_manager_t controllers;
+            core::game_context_t game{
+                .world = world,
+                .assets = assets,
+                .view = view,
+                .controllers = controllers
+            };
+
+            scene::scene_runtime_t runtime;
+            const scene::scene_runtime_systems_summary_t summary{ runtime.summarize_runtime_systems(game) };
+
+            CARROT_TEST_REQUIRE(summary.lighting.point_light_count == 0u);
+            CARROT_TEST_REQUIRE(summary.lighting.point_lights.empty());
+            CARROT_TEST_REQUIRE(summary.collision.static_collider_count == 0u);
+            CARROT_TEST_REQUIRE(!summary.collision.show_map_collision);
+            CARROT_TEST_REQUIRE(!summary.collision.show_object_colliders);
+            CARROT_TEST_REQUIRE(!summary.collision.show_trigger_volumes);
+            CARROT_TEST_REQUIRE(!summary.layering.show_visibility_regions);
+            CARROT_TEST_REQUIRE(summary.layering.active_visibility_tags.empty());
+            CARROT_TEST_REQUIRE(!summary.player_controller.bound);
+            CARROT_TEST_REQUIRE(!summary.player_controller.has_controlled_object());
+            CARROT_TEST_REQUIRE(!summary.interaction_controller.bound);
+            CARROT_TEST_REQUIRE(!summary.interaction_controller.has_actor());
+            CARROT_TEST_REQUIRE(!summary.interaction_controller.has_candidate);
+        }
+
+        void test_scene_runtime_systems_summary_reports_bound_runtime_state()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t renderer{ vfs, graphics_config, window::invalid_window_id };
+
+            assets::asset_manager_t assets{ vfs, *renderer.get_rhi() };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            core::game_view_t view{ renderer };
+            input::controller_manager_t controllers;
+            core::game_context_t game{
+                .world = world,
+                .assets = assets,
+                .view = view,
+                .controllers = controllers
+            };
+
+            world::player_controller_t player_controller;
+            world::interaction_controller_t interaction_controller;
+            scene::scene_runtime_t runtime;
+            CARROT_TEST_REQUIRE(runtime.load(game,
+                                             "scene.sandbox.town",
+                                             carrot::scene::scene_load_options_t{
+                                                 .player_controller = &player_controller,
+                                                 .interaction_controller = &interaction_controller,
+                                                 .apply_scene_music = false,
+                                                 .transition_overlay = {
+                                                     .style = carrot::scene::scene_transition_overlay_style_t::none
+                                                 }
+                                             }));
+
+            world.lighting().ambient_color = { 0.2f, 0.3f, 0.4f, 1.f };
+            world.lighting().point_lights.push_back(world::world_lighting_state_t::point_light_t{
+                .position_world = { 12.f, 8.f },
+                .radius_world = 6.f,
+                .color = { 1.f, 0.8f, 0.4f, 1.f },
+                .intensity = 1.5f
+            });
+            world.collision_debug_view().show_map_collision = true;
+            world.collision_debug_view().show_object_colliders = true;
+            world.collision_debug_view().show_trigger_volumes = true;
+            world.layering_debug_view().show_visibility_regions = true;
+            world.layering_debug_view().visibility_region_color = 0x6633AAFFu;
+            world::layering_debug_snapshot_t snapshot;
+            snapshot.frame_index = 42u;
+            snapshot.has_visibility_anchor = true;
+            snapshot.visibility_anchor_world = { 5.f, 7.f };
+            snapshot.visibility_region_count = 2u;
+            snapshot.rendered_tilemap_count = 1u;
+            snapshot.layer_count = 4u;
+            snapshot.visible_layer_count = 3u;
+            snapshot.hidden_layer_count = 1u;
+            snapshot.visibility_bound_layer_count = 2u;
+            snapshot.conditional_front_layer_count = 1u;
+            snapshot.always_front_layer_count = 1u;
+            snapshot.active_visibility_tags = { "inn_roof", "item_shop_roof" };
+            world.set_layering_debug_snapshot(std::move(snapshot));
+
+            world::world_object_t& interactable{ world.create_object() };
+            interactable.name = "DebugSign";
+            interactable.type = "Sign";
+            const world::world_object_t* controlled_object{ player_controller.controlled_object() };
+            CARROT_TEST_REQUIRE(controlled_object != nullptr);
+            CARROT_TEST_REQUIRE(controlled_object->transform.has_value());
+            const chlm::float2 actor_position{ controlled_object->transform->position };
+            interactable.transform = world::transform_component_t{
+                .position = { actor_position.x + 0.5f, actor_position.y }
+            };
+            interactable.properties.push_back({
+                .name = "interactable",
+                .value = true
+            });
+            interactable.properties.push_back({
+                .name = "message_id",
+                .value = std::string{ "debug.sign" }
+            });
+
+            const scene::scene_runtime_systems_summary_t summary{ runtime.summarize_runtime_systems(game) };
+
+            CARROT_TEST_REQUIRE(summary.lighting.point_light_count == 1u);
+            CARROT_TEST_REQUIRE(summary.lighting.point_lights.size() == 1u);
+            CARROT_TEST_REQUIRE(summary.lighting.ambient_color.x == 0.2f);
+            CARROT_TEST_REQUIRE(summary.lighting.point_lights.front().position_world.x == 12.f);
+            CARROT_TEST_REQUIRE(summary.collision.static_collider_count > 0u);
+            CARROT_TEST_REQUIRE(summary.collision.show_map_collision);
+            CARROT_TEST_REQUIRE(summary.collision.show_object_colliders);
+            CARROT_TEST_REQUIRE(summary.collision.show_trigger_volumes);
+            CARROT_TEST_REQUIRE(summary.layering.show_visibility_regions);
+            CARROT_TEST_REQUIRE(summary.layering.frame_index == 42u);
+            CARROT_TEST_REQUIRE(summary.layering.active_visibility_tags.size() == 2u);
+            CARROT_TEST_REQUIRE(summary.player_controller.bound);
+            CARROT_TEST_REQUIRE(summary.player_controller.has_controlled_object());
+            CARROT_TEST_REQUIRE(summary.player_controller.controlled_object_name == "Vraden");
+            CARROT_TEST_REQUIRE(!summary.player_controller.facing_direction.empty());
+            CARROT_TEST_REQUIRE(summary.player_controller.move_speed > 0.f);
+            CARROT_TEST_REQUIRE(summary.interaction_controller.bound);
+            CARROT_TEST_REQUIRE(summary.interaction_controller.has_actor());
+            CARROT_TEST_REQUIRE(summary.interaction_controller.actor_object_name == "Vraden");
+            CARROT_TEST_REQUIRE(summary.interaction_controller.has_candidate);
+            CARROT_TEST_REQUIRE(summary.interaction_controller.candidate_object_name == "DebugSign");
+            CARROT_TEST_REQUIRE(summary.interaction_controller.candidate_distance.has_value());
+        }
+
         void test_transition_presentation_is_hidden_when_runtime_is_idle()
         {
             const carrot::scene::scene_transition_presentation_t presentation{
@@ -2089,6 +2441,131 @@ namespace carrot::tests {
                                      .scene_id = "scene.sandbox.inn",
                                      .marker_name = "PlayerSpawn"
                                  }));
+        }
+
+        void test_scene_runtime_rebuild_current_scene_requires_active_scene()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t renderer{ vfs, graphics_config, window::invalid_window_id };
+
+            assets::asset_manager_t assets{ vfs, *renderer.get_rhi() };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            core::game_view_t view{ renderer };
+            input::controller_manager_t controllers;
+            core::game_context_t game{
+                .world = world,
+                .assets = assets,
+                .view = view,
+                .controllers = controllers
+            };
+
+            scene::scene_runtime_t runtime;
+            CARROT_TEST_REQUIRE(!runtime.request_rebuild_current_scene(game));
+            CARROT_TEST_REQUIRE(!runtime.rebuild_current_scene(game));
+        }
+
+        void test_game_runtime_debug_toggles_drive_world_overlay_state()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t renderer{ vfs, graphics_config, window::invalid_window_id };
+
+            assets::asset_manager_t assets{ vfs, *renderer.get_rhi() };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            core::game_view_t view{ renderer };
+            input::controller_manager_t controllers;
+            core::game_context_t game{
+                .world = world,
+                .assets = assets,
+                .view = view,
+                .controllers = controllers
+            };
+
+            core::game_runtime_t runtime{ game };
+
+            CARROT_TEST_REQUIRE(!runtime.map_collision_debug_visible());
+            CARROT_TEST_REQUIRE(!runtime.object_collider_debug_visible());
+            CARROT_TEST_REQUIRE(!runtime.trigger_volume_debug_visible());
+
+            CARROT_TEST_REQUIRE(runtime.toggle_map_collision_debug());
+            CARROT_TEST_REQUIRE(runtime.toggle_object_collider_debug());
+            CARROT_TEST_REQUIRE(runtime.toggle_trigger_volume_debug());
+
+            CARROT_TEST_REQUIRE(world.collision_debug_view().show_map_collision);
+            CARROT_TEST_REQUIRE(world.collision_debug_view().show_object_colliders);
+            CARROT_TEST_REQUIRE(world.collision_debug_view().show_trigger_volumes);
+
+            runtime.set_map_collision_debug_visible(false);
+            runtime.set_object_collider_debug_visible(false);
+            runtime.set_trigger_volume_debug_visible(false);
+
+            CARROT_TEST_REQUIRE(!runtime.map_collision_debug_visible());
+            CARROT_TEST_REQUIRE(!runtime.object_collider_debug_visible());
+            CARROT_TEST_REQUIRE(!runtime.trigger_volume_debug_visible());
+        }
+
+        void test_scene_runtime_can_rebuild_current_scene()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t renderer{ vfs, graphics_config, window::invalid_window_id };
+
+            assets::asset_manager_t assets{ vfs, *renderer.get_rhi() };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            core::game_view_t view{ renderer };
+            input::controller_manager_t controllers;
+            core::game_context_t game{
+                .world = world,
+                .assets = assets,
+                .view = view,
+                .controllers = controllers
+            };
+
+            scene::scene_runtime_t runtime;
+            CARROT_TEST_REQUIRE(runtime.load(game,
+                                             "scene.sandbox.town",
+                                             carrot::scene::scene_load_options_t{
+                                                 .apply_scene_music = false,
+                                                 .transition_overlay = {
+                                                     .style = carrot::scene::scene_transition_overlay_style_t::none
+                                                 }
+                                             }));
+            CARROT_TEST_REQUIRE(runtime.has_scene_loaded());
+            CARROT_TEST_REQUIRE(runtime.current_scene_id() == "scene.sandbox.town");
+            CARROT_TEST_REQUIRE(runtime.request_rebuild_current_scene(game));
+            CARROT_TEST_REQUIRE(runtime.has_pending_scene());
+            CARROT_TEST_REQUIRE(runtime.pending_scene_id() == "scene.sandbox.town");
+            CARROT_TEST_REQUIRE(runtime.pending_spawn_marker() == "PlayerSpawn");
+            while (runtime.has_pending_scene())
+                CARROT_TEST_REQUIRE(runtime.update(game));
+            CARROT_TEST_REQUIRE(runtime.has_scene_loaded());
+            CARROT_TEST_REQUIRE(!runtime.has_pending_scene());
+            CARROT_TEST_REQUIRE(runtime.current_scene_id() == "scene.sandbox.town");
+            CARROT_TEST_REQUIRE(runtime.current_spawn_marker() == "PlayerSpawn");
+            CARROT_TEST_REQUIRE(runtime.runtime_state() == carrot::scene::scene_runtime_state_t::active);
+            CARROT_TEST_REQUIRE(runtime.transition_phase() == carrot::scene::scene_transition_phase_t::none);
         }
 
         void test_incremental_scene_load_task_spreads_work_across_multiple_advances()
@@ -2665,6 +3142,16 @@ namespace carrot::tests {
                            test_scene_runtime_snapshot_defaults_to_idle_state);
         tests.emplace_back("scene runtime state labels match expected diagnostics",
                            test_scene_runtime_state_labels_match_expected_diagnostics);
+        tests.emplace_back("scene runtime summary defaults to empty world state",
+                           test_scene_runtime_summary_defaults_to_empty_world_state);
+        tests.emplace_back("scene runtime summary reports loaded scene world state",
+                           test_scene_runtime_summary_reports_loaded_scene_world_state);
+        tests.emplace_back("scene runtime object summaries report loaded scene objects",
+                           test_scene_runtime_object_summaries_report_loaded_scene_objects);
+        tests.emplace_back("scene runtime systems summary defaults to unbound state",
+                           test_scene_runtime_systems_summary_defaults_to_unbound_state);
+        tests.emplace_back("scene runtime systems summary reports bound runtime state",
+                           test_scene_runtime_systems_summary_reports_bound_runtime_state);
         tests.emplace_back("transition presentation is hidden when runtime is idle",
                            test_transition_presentation_is_hidden_when_runtime_is_idle);
         tests.emplace_back("transition presentation exposes loading overlay during prepare",
@@ -2693,6 +3180,12 @@ namespace carrot::tests {
                            test_interaction_outcome_dispatch_routes_scene_transition_and_container);
         tests.emplace_back("scene runtime rejects overlapping load requests",
                            test_scene_runtime_rejects_overlapping_load_requests);
+        tests.emplace_back("scene runtime rebuild current scene requires active scene",
+                           test_scene_runtime_rebuild_current_scene_requires_active_scene);
+        tests.emplace_back("game runtime debug toggles drive world overlay state",
+                           test_game_runtime_debug_toggles_drive_world_overlay_state);
+        tests.emplace_back("scene runtime can rebuild current scene",
+                           test_scene_runtime_can_rebuild_current_scene);
         tests.emplace_back("incremental scene load task spreads work across multiple advances",
                            test_incremental_scene_load_task_spreads_work_across_multiple_advances);
         tests.emplace_back("incremental scene load task fails for missing spawn marker",

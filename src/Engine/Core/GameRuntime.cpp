@@ -7,6 +7,7 @@
 
 #include "GameRuntime.h"
 
+#include "GameContext.h"
 #include "GameState.h"
 #include "Scene/Scene.h"
 
@@ -69,6 +70,57 @@ namespace carrot::core {
     {
         if (_active_state)
             _active_state->on_mouse_scrolled(e);
+    }
+
+    bool game_runtime_t::map_collision_debug_visible() const noexcept
+    {
+        return _game.world.collision_debug_view().show_map_collision;
+    }
+
+    bool game_runtime_t::object_collider_debug_visible() const noexcept
+    {
+        return _game.world.collision_debug_view().show_object_colliders;
+    }
+
+    bool game_runtime_t::trigger_volume_debug_visible() const noexcept
+    {
+        return _game.world.collision_debug_view().show_trigger_volumes;
+    }
+
+    void game_runtime_t::set_map_collision_debug_visible(const bool visible) noexcept
+    {
+        _game.world.collision_debug_view().show_map_collision = visible;
+    }
+
+    void game_runtime_t::set_object_collider_debug_visible(const bool visible) noexcept
+    {
+        _game.world.collision_debug_view().show_object_colliders = visible;
+    }
+
+    void game_runtime_t::set_trigger_volume_debug_visible(const bool visible) noexcept
+    {
+        _game.world.collision_debug_view().show_trigger_volumes = visible;
+    }
+
+    bool game_runtime_t::toggle_map_collision_debug() noexcept
+    {
+        const bool next_visible{ !map_collision_debug_visible() };
+        set_map_collision_debug_visible(next_visible);
+        return next_visible;
+    }
+
+    bool game_runtime_t::toggle_object_collider_debug() noexcept
+    {
+        const bool next_visible{ !object_collider_debug_visible() };
+        set_object_collider_debug_visible(next_visible);
+        return next_visible;
+    }
+
+    bool game_runtime_t::toggle_trigger_volume_debug() noexcept
+    {
+        const bool next_visible{ !trigger_volume_debug_visible() };
+        set_trigger_volume_debug_visible(next_visible);
+        return next_visible;
     }
 
     void game_runtime_t::set_active_state(std::unique_ptr<igame_state_t> state)

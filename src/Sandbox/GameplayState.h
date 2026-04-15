@@ -46,6 +46,7 @@ namespace sandbox {
         void handle_trigger_event(const carrot::world::trigger_event_t& event) noexcept;
         void toggle_map_collision_debug() noexcept;
         void toggle_object_collision_debug() noexcept;
+        void toggle_trigger_volume_debug() noexcept;
         bool load_scene(std::string_view scene_id, std::string_view spawn_marker = { });
         bool transition_scene(const carrot::scene::scene_transition_request_t& request);
 

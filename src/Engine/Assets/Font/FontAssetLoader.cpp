@@ -7,6 +7,7 @@
 
 #include "FontAssetLoader.h"
 
+#include "Assets/ImportedAssetCache.h"
 #include "IO/VirtualFileSystem.h"
 #include "MSDFAtlasWrapper.h"
 #include "RHI/RHI.h"
@@ -170,16 +171,6 @@ namespace carrot::assets {
             return codepoints;
         }
 
-        [[nodiscard]] bool is_cooked_font_current(const cooked_font_data_t& cooked,
-                                                  const font_asset_record_t& record,
-                                                  const std::uint64_t source_hash,
-                                                  const std::uint64_t manifest_hash) noexcept
-        {
-            return cooked.importer_version == font_importer_version &&
-                   cooked.invalidation.source_font_content_hash == source_hash &&
-                   cooked.invalidation.asset_definition_content_hash == manifest_hash &&
-                   cooked.invalidation.import_settings_hash == compute_import_settings_hash(record);
-        }
     } // namespace
 
     std::filesystem::path cooked_font_cache_path(const std::string_view logical_id,
@@ -221,13 +212,62 @@ namespace carrot::assets {
         const std::uint64_t source_hash{ hash_bytes(*source_bytes) };
         const std::uint64_t manifest_hash{ hash_bytes(*manifest_bytes) };
         const std::filesystem::path cooked_path{ cooked_font_cache_path(record.logical_id, vfs) };
+        asset_load_origin_t load_origin{ asset_load_origin_t::never_loaded };
+        imported_artifact_state_t cooked_artifact_state{ imported_artifact_state_t::missing };
+        imported_artifact_issue_t invalidation_reason{ imported_artifact_issue_t::none };
 
         std::optional<cooked_font_data_t> cooked;
         if (!cooked_path.empty() && std::filesystem::exists(cooked_path))
         {
             cooked = load_cooked_font_file(cooked_path);
-            if (cooked && !is_cooked_font_current(*cooked, record, source_hash, manifest_hash))
-                cooked.reset();
+            if (cooked)
+            {
+                const std::uint64_t expected_settings_hash{ compute_import_settings_hash(record) };
+                if (cooked->importer_version != font_importer_version)
+                {
+                    cooked_artifact_state = imported_artifact_state_t::stale;
+                    invalidation_reason = imported_artifact_issue_t::importer_version_changed;
+                }
+                else if (cooked->invalidation.source_font_content_hash != source_hash)
+                {
+                    cooked_artifact_state = imported_artifact_state_t::stale;
+                    invalidation_reason = imported_artifact_issue_t::source_changed;
+                }
+                else if (cooked->invalidation.asset_definition_content_hash != manifest_hash)
+                {
+                    cooked_artifact_state = imported_artifact_state_t::stale;
+                    invalidation_reason = imported_artifact_issue_t::asset_definition_changed;
+                }
+                else if (cooked->invalidation.import_settings_hash != expected_settings_hash)
+                {
+                    cooked_artifact_state = imported_artifact_state_t::stale;
+                    invalidation_reason = imported_artifact_issue_t::import_settings_changed;
+                }
+                else if (cooked->invalidation.reserved_hash != 0u)
+                {
+                    cooked_artifact_state = imported_artifact_state_t::stale;
+                    invalidation_reason = imported_artifact_issue_t::reserved_changed;
+                }
+                else
+                {
+                    cooked_artifact_state = imported_artifact_state_t::valid;
+                    invalidation_reason = imported_artifact_issue_t::none;
+                }
+
+                if (cooked_artifact_state == imported_artifact_state_t::valid)
+                {
+                    load_origin = asset_load_origin_t::cooked_cache;
+                }
+                else
+                {
+                    cooked.reset();
+                }
+            }
+            else
+            {
+                cooked_artifact_state = imported_artifact_state_t::stale;
+                invalidation_reason = imported_artifact_issue_t::unreadable_artifact;
+            }
         }
 
         if (!cooked)
@@ -264,6 +304,10 @@ namespace carrot::assets {
             cooked = load_cooked_font_file(cooked_path);
             if (!cooked)
                 return { {}, font_asset_load_error_t::cooked_read_failed };
+
+            load_origin = asset_load_origin_t::regenerated_from_source;
+            cooked_artifact_state = imported_artifact_state_t::valid;
+            invalidation_reason = imported_artifact_issue_t::none;
         }
 
         rhi::texture_create_info_t texture_info{};
@@ -283,7 +327,15 @@ namespace carrot::assets {
         loaded.cooked = std::move(*cooked);
         loaded.atlas_texture = std::move(atlas_texture);
 
-        LOG_ASSET_INFO("Loaded font asset '{}' from cooked cache", record.logical_id);
-        return { std::move(loaded), font_asset_load_error_t::ok };
+        LOG_ASSET_INFO("Loaded font asset '{}' from {}",
+                       record.logical_id,
+                       load_origin == asset_load_origin_t::cooked_cache ? "cooked cache" : "generated data");
+        return {
+            std::move(loaded),
+            font_asset_load_error_t::ok,
+            load_origin,
+            cooked_artifact_state,
+            invalidation_reason
+        };
     }
 } // namespace carrot::assets

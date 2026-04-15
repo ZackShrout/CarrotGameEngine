@@ -28,6 +28,7 @@ namespace carrot::assets {
                                                const sprite_asset_registry_t& sprites,
                                                const audio_asset_registry_t& audio) const noexcept;
         [[nodiscard]] bool contains(asset_id_t id) const noexcept { return _records.contains(id); }
+        [[nodiscard]] const std::unordered_map<asset_id_t, scene_asset_record_t>& records() const noexcept { return _records; }
 
         void clear() noexcept { _records.clear(); }
 

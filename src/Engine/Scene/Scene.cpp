@@ -13,6 +13,7 @@
 #include "Core/GameView.h"
 #include "Debug/DebugOverlay.h"
 #include "Window/Window.h"
+#include "World/AuthoredInteractions.h"
 #include "World/Controllers/InteractionController.h"
 #include "World/Controllers/PlayerController.h"
 #include "World/SceneLoader.h"
@@ -59,6 +60,189 @@ namespace carrot::scene {
                 .follow_smoothing = camera.follow_smoothing
             };
         }
+
+        [[nodiscard]] scene_runtime_object_interaction_kind_t to_runtime_interaction_kind(
+            const world::authored::interaction_kind_t kind) noexcept
+        {
+            switch (kind)
+            {
+                case world::authored::interaction_kind_t::sign:
+                    return scene_runtime_object_interaction_kind_t::sign;
+                case world::authored::interaction_kind_t::door:
+                    return scene_runtime_object_interaction_kind_t::door;
+                case world::authored::interaction_kind_t::container:
+                    return scene_runtime_object_interaction_kind_t::container;
+                case world::authored::interaction_kind_t::none:
+                default:
+                    return scene_runtime_object_interaction_kind_t::none;
+            }
+        }
+
+        [[nodiscard]] std::string_view to_string(const world::facing_direction_t direction) noexcept
+        {
+            switch (direction)
+            {
+                case world::facing_direction_t::down: return "down";
+                case world::facing_direction_t::up: return "up";
+                case world::facing_direction_t::left: return "left";
+                case world::facing_direction_t::right: return "right";
+            }
+
+            return "unknown";
+        }
+
+        [[nodiscard]] scene_runtime_object_summary_t summarize_world_object(const world::world_object_t& object)
+        {
+            scene_runtime_object_summary_t summary{
+                .id = object.id,
+                .name = object.name,
+                .type = object.type,
+                .property_count = static_cast<uint32_t>(object.properties.size())
+            };
+
+            if (object.source)
+            {
+                summary.has_source = true;
+                summary.source = scene_runtime_object_source_summary_t{
+                    .tilemap_logical_id = object.source->tilemap_logical_id,
+                    .layer_name = object.source->layer_name,
+                    .object_id = object.source->object_id,
+                    .object_name = object.source->object_name
+                };
+            }
+
+            if (object.transform)
+            {
+                summary.has_transform = true;
+                summary.transform = scene_runtime_object_transform_summary_t{
+                    .position = object.transform->position,
+                    .scale = object.transform->scale,
+                    .rotation = object.transform->rotation
+                };
+            }
+
+            if (object.collision)
+            {
+                summary.has_collision = true;
+                summary.collision.half_extents = object.collision->half_extents;
+                summary.collision.offset = object.collision->offset;
+                if (object.collision->debug_display)
+                {
+                    summary.collision.has_debug_display = true;
+                    summary.collision.debug_filled = object.collision->debug_display->filled;
+                    summary.collision.debug_outline_thickness = object.collision->debug_display->outline_thickness;
+                    summary.collision.debug_color = object.collision->debug_display->color;
+                }
+            }
+
+            if (object.trigger)
+            {
+                summary.has_trigger = true;
+                summary.trigger.trigger_id = object.trigger->trigger_id;
+                summary.trigger.trigger_kind = object.trigger->trigger_kind;
+            }
+
+            if (object.sprite)
+            {
+                summary.has_sprite = true;
+                if (object.sprite->sprite)
+                    summary.sprite.texture_id = std::string{ object.sprite->sprite->sprite().texture_id() };
+                if (object.sprite->frame)
+                    summary.sprite.frame_name = object.sprite->frame->name;
+                summary.sprite.use_size_override = object.sprite->use_size_override;
+                summary.sprite.size_override_world = object.sprite->size_override_world;
+                summary.sprite.use_custom_pivot = object.sprite->use_custom_pivot;
+                summary.sprite.pivot = object.sprite->pivot;
+                summary.sprite.flip_x = object.sprite->flip_x;
+                summary.sprite.flip_y = object.sprite->flip_y;
+                summary.sprite.layer = object.sprite->layer;
+                summary.sprite.order_mode = object.sprite->order_mode;
+                summary.sprite.order_in_layer = object.sprite->order_in_layer;
+                summary.sprite.sort_reference_y = object.sprite->sort_reference_y;
+                summary.sprite.color = object.sprite->color;
+            }
+
+            if (object.sprite_animator)
+            {
+                summary.has_sprite_animator = true;
+                if (const assets::sprite_animation_t* animation{ object.sprite_animator->animator.current_animation() })
+                    summary.sprite_animator.current_animation_name = animation->name;
+                if (const assets::sprite_frame_t* frame{ object.sprite_animator->animator.current_frame() })
+                    summary.sprite_animator.current_frame_name = frame->name;
+                summary.sprite_animator.is_playing = object.sprite_animator->animator.is_playing();
+                summary.sprite_animator.is_paused = object.sprite_animator->animator.is_paused();
+                summary.sprite_animator.is_finished = object.sprite_animator->animator.is_finished();
+            }
+
+            if (object.tile_object)
+            {
+                summary.has_tile_object = true;
+                if (object.tile_object->tilemap && object.tile_object->tilemap->record())
+                    summary.tile_object.tilemap_logical_id = object.tile_object->tilemap->record()->logical_id;
+                summary.tile_object.gid = object.tile_object->gid;
+                summary.tile_object.size_source_px = object.tile_object->size_source_px;
+                summary.tile_object.layer = object.tile_object->layer;
+                summary.tile_object.order_mode = object.tile_object->order_mode;
+                summary.tile_object.order_in_layer = object.tile_object->order_in_layer;
+                summary.tile_object.sort_reference_y = object.tile_object->sort_reference_y;
+                summary.tile_object.color = object.tile_object->color;
+            }
+
+            if (object.tilemap)
+            {
+                summary.has_tilemap = true;
+                if (object.tilemap->tilemap && object.tilemap->tilemap->record())
+                    summary.tilemap.tilemap_logical_id = object.tilemap->tilemap->record()->logical_id;
+                summary.tilemap.include_object_layers = object.tilemap->include_object_layers;
+                summary.tilemap.layer = object.tilemap->layer;
+                summary.tilemap.order_mode = object.tilemap->order_mode;
+                summary.tilemap.order_in_layer = object.tilemap->order_in_layer;
+                summary.tilemap.sort_reference_y = object.tilemap->sort_reference_y;
+                summary.tilemap.color = object.tilemap->color;
+            }
+
+            if (object.visibility_region)
+            {
+                summary.has_visibility_region = true;
+                summary.visibility_region.size_world = object.visibility_region->size_world;
+                summary.visibility_region.tag = object.visibility_region->tag;
+            }
+
+            if (const auto sign{ world::authored::as_sign(object) })
+            {
+                summary.has_interaction = true;
+                summary.interaction.kind = scene_runtime_object_interaction_kind_t::sign;
+                summary.interaction.message_id = sign->message_id;
+            }
+            else if (const auto door{ world::authored::as_door(object) })
+            {
+                summary.has_interaction = true;
+                summary.interaction.kind = scene_runtime_object_interaction_kind_t::door;
+                summary.interaction.target_scene = door->target_scene;
+                summary.interaction.target_map = door->target_map;
+                summary.interaction.target_marker = door->target_marker;
+            }
+            else if (const auto container{ world::authored::as_container(object) })
+            {
+                summary.has_interaction = true;
+                summary.interaction.kind = scene_runtime_object_interaction_kind_t::container;
+                summary.interaction.loot_table = container->loot_table;
+            }
+            else if (const auto trigger{ world::authored::as_trigger(object) })
+            {
+                summary.has_interaction = true;
+                summary.interaction.kind = scene_runtime_object_interaction_kind_t::trigger;
+                summary.interaction.trigger_id = trigger->trigger_id;
+                summary.interaction.trigger_kind = trigger->trigger_kind;
+            }
+            else
+            {
+                summary.interaction.kind = to_runtime_interaction_kind(world::authored::interaction_kind_for(object));
+                summary.has_interaction = summary.interaction.kind != scene_runtime_object_interaction_kind_t::none;
+            }
+
+            return summary;
+        }
     } // namespace
 
     std::string_view to_string(const scene_runtime_state_t state) noexcept
@@ -86,6 +270,20 @@ namespace carrot::scene {
         }
 
         return "unknown";
+    }
+
+    std::string_view to_string(const scene_runtime_object_interaction_kind_t kind) noexcept
+    {
+        switch (kind)
+        {
+            case scene_runtime_object_interaction_kind_t::sign: return "sign";
+            case scene_runtime_object_interaction_kind_t::door: return "door";
+            case scene_runtime_object_interaction_kind_t::container: return "container";
+            case scene_runtime_object_interaction_kind_t::trigger: return "trigger";
+            case scene_runtime_object_interaction_kind_t::none:
+            default:
+                return "none";
+        }
     }
 
     std::string_view to_string(const scene_transition_overlay_style_t style) noexcept
@@ -405,6 +603,8 @@ namespace carrot::scene {
         _current_scene_record = _pending_scene_record;
         _current_scene_id = _pending_scene_id;
         _current_spawn_marker = _pending_spawn_marker;
+        _active_options = _pending_options;
+        _active_options.spawn_marker_override = {};
 
         bind_runtime_objects(game, _current_scene_record->scene);
 
@@ -433,6 +633,29 @@ namespace carrot::scene {
                                      const scene_load_options_t& options)
     {
         if (!request_transition(game, request, options))
+            return false;
+
+        while (has_pending_scene())
+            (void)update(game);
+
+        return _last_scene_change_succeeded;
+    }
+
+    bool scene_runtime_t::request_rebuild_current_scene(core::game_context_t& game)
+    {
+        if (!has_scene_loaded() || !can_accept_scene_change_request())
+            return false;
+
+        scene_load_options_t rebuild_options{ _active_options };
+        rebuild_options.spawn_marker_override = _current_spawn_marker;
+
+        LOG_CORE_INFO("Scene rebuild requested for current scene '{}'", _current_scene_id);
+        return request_load(game, _current_scene_id, rebuild_options);
+    }
+
+    bool scene_runtime_t::rebuild_current_scene(core::game_context_t& game)
+    {
+        if (!request_rebuild_current_scene(game))
             return false;
 
         while (has_pending_scene())
@@ -560,6 +783,167 @@ namespace carrot::scene {
                                        ? static_cast<float>(completed_steps) / static_cast<float>(total_steps)
                                        : 0.f
         };
+    }
+
+    scene_runtime_summary_t scene_runtime_t::summarize(core::game_context_t& game) const noexcept
+    {
+        scene_runtime_summary_t summary{
+            .snapshot = snapshot(),
+            .active_camera = _active_camera_options,
+            .camera_center_world = game.view.center_world_position(game.world),
+            .static_collider_count = static_cast<uint32_t>(game.world.collision_world().static_colliders().size()),
+            .point_light_count = static_cast<uint32_t>(game.world.lighting().point_lights.size())
+        };
+
+        for (const world::world_object_t& object : game.world.objects())
+        {
+            summary.world_object_count++;
+
+            if (object.trigger)
+                summary.trigger_count++;
+
+            if (object.collision)
+                summary.object_collider_count++;
+
+            if (object.visibility_region)
+                summary.visibility_region_count++;
+        }
+
+        if (_current_scene_record)
+        {
+            if (const world::world_object_t* player{ find_scene_player(game.world, _current_scene_record->scene) })
+            {
+                summary.player_object_id = player->id;
+                summary.player_object_name = player->name;
+            }
+        }
+
+        if (const world::world_object_t* spawn{ find_spawn_marker(game.world, _current_spawn_marker) })
+        {
+            summary.spawn_object_id = spawn->id;
+            summary.spawn_object_name = spawn->name;
+        }
+
+        return summary;
+    }
+
+    std::vector<scene_runtime_object_summary_t> scene_runtime_t::collect_runtime_object_summaries(
+        core::game_context_t& game) const
+    {
+        std::vector<scene_runtime_object_summary_t> summaries;
+        summaries.reserve(game.world.objects().size());
+
+        for (const world::world_object_t& object : game.world.objects())
+            summaries.emplace_back(summarize_world_object(object));
+
+        return summaries;
+    }
+
+    std::optional<scene_runtime_object_summary_t> scene_runtime_t::find_runtime_object_summary(
+        core::game_context_t& game,
+        const world::world_object_id_t object_id) const
+    {
+        for (const world::world_object_t& object : game.world.objects())
+        {
+            if (object.id == object_id)
+                return summarize_world_object(object);
+        }
+
+        return std::nullopt;
+    }
+
+    scene_runtime_systems_summary_t scene_runtime_t::summarize_runtime_systems(core::game_context_t& game) const
+    {
+        scene_runtime_systems_summary_t summary;
+
+        const world::world_lighting_state_t& lighting{ game.world.lighting() };
+        summary.lighting.ambient_color = lighting.ambient_color;
+        summary.lighting.point_light_count = static_cast<uint32_t>(lighting.point_lights.size());
+        summary.lighting.point_lights.reserve(lighting.point_lights.size());
+        for (const world::world_lighting_state_t::point_light_t& light : lighting.point_lights)
+        {
+            summary.lighting.point_lights.push_back(scene_runtime_light_summary_t{
+                .position_world = light.position_world,
+                .radius_world = light.radius_world,
+                .color = light.color,
+                .intensity = light.intensity
+            });
+        }
+
+        const world::collision_debug_view_t& collision_debug{ game.world.collision_debug_view() };
+        summary.collision = scene_runtime_collision_system_summary_t{
+            .static_collider_count = static_cast<uint32_t>(game.world.collision_world().static_colliders().size()),
+            .show_map_collision = collision_debug.show_map_collision,
+            .show_object_colliders = collision_debug.show_object_colliders,
+            .show_trigger_volumes = collision_debug.show_trigger_volumes,
+            .map_collision_color = collision_debug.map_collision_color,
+            .map_outline_thickness = collision_debug.map_outline_thickness,
+            .trigger_volume_color = collision_debug.trigger_volume_color,
+            .trigger_outline_thickness = collision_debug.trigger_outline_thickness,
+            .trigger_filled = collision_debug.trigger_filled
+        };
+
+        const world::layering_debug_view_t& layering_debug{ game.world.layering_debug_view() };
+        const world::layering_debug_snapshot_t& layering_snapshot{ game.world.layering_debug_snapshot() };
+        summary.layering.show_visibility_regions = layering_debug.show_visibility_regions;
+        summary.layering.visibility_region_color = layering_debug.visibility_region_color;
+        summary.layering.frame_index = layering_snapshot.frame_index;
+        summary.layering.has_visibility_anchor = layering_snapshot.has_visibility_anchor;
+        summary.layering.visibility_anchor_world = layering_snapshot.visibility_anchor_world;
+        summary.layering.visibility_region_count = layering_snapshot.visibility_region_count;
+        summary.layering.rendered_tilemap_count = layering_snapshot.rendered_tilemap_count;
+        summary.layering.layer_count = layering_snapshot.layer_count;
+        summary.layering.visible_layer_count = layering_snapshot.visible_layer_count;
+        summary.layering.hidden_layer_count = layering_snapshot.hidden_layer_count;
+        summary.layering.visibility_bound_layer_count = layering_snapshot.visibility_bound_layer_count;
+        summary.layering.conditional_front_layer_count = layering_snapshot.conditional_front_layer_count;
+        summary.layering.always_front_layer_count = layering_snapshot.always_front_layer_count;
+        summary.layering.active_visibility_tags.assign(
+            layering_snapshot.active_visibility_tags.begin(),
+            layering_snapshot.active_visibility_tags.end());
+
+        if (_player_controller)
+        {
+            summary.player_controller.bound = true;
+            summary.player_controller.facing_direction = std::string{ to_string(_player_controller->facing_direction()) };
+            summary.player_controller.move_speed = _player_controller->move_speed();
+            summary.player_controller.move_intent = _player_controller->move_intent();
+            const world::player_move_result_t& last_move{ _player_controller->last_move_result() };
+            summary.player_controller.last_requested_delta = last_move.requested_delta;
+            summary.player_controller.last_actual_delta = last_move.actual_delta;
+            summary.player_controller.last_blocked_x = last_move.blocked_x;
+            summary.player_controller.last_blocked_y = last_move.blocked_y;
+            summary.player_controller.last_started_overlapping = last_move.started_overlapping;
+            const collision::collision_aabb_t collision_bounds{ _player_controller->current_collision_bounds() };
+            summary.player_controller.collision_bounds_min = collision_bounds.min;
+            summary.player_controller.collision_bounds_max = collision_bounds.max;
+            if (const world::world_object_t* object{ _player_controller->controlled_object() })
+            {
+                summary.player_controller.controlled_object_id = object->id;
+                summary.player_controller.controlled_object_name = object->name;
+            }
+        }
+
+        if (_interaction_controller)
+        {
+            summary.interaction_controller.bound = true;
+            summary.interaction_controller.interaction_radius = _interaction_controller->interaction_radius();
+            if (const world::world_object_t* actor{ _interaction_controller->actor() })
+            {
+                summary.interaction_controller.actor_object_id = actor->id;
+                summary.interaction_controller.actor_object_name = actor->name;
+            }
+
+            if (const world::world_object_t* candidate{ _interaction_controller->find_candidate(game.world) })
+            {
+                summary.interaction_controller.has_candidate = true;
+                summary.interaction_controller.candidate_object_id = candidate->id;
+                summary.interaction_controller.candidate_object_name = candidate->name;
+                summary.interaction_controller.candidate_distance = _interaction_controller->candidate_distance(game.world);
+            }
+        }
+
+        return summary;
     }
 
     void scene_runtime_t::set_default_camera_options(scene_camera_options_t options) noexcept
@@ -985,6 +1369,9 @@ namespace carrot::scene {
         if (has_pending_scene())
             return false;
 
+        if (!_active_transition_overlay_options.enabled)
+            return true;
+
         return _transition_overlay_stage == transition_overlay_stage_t::hidden;
     }
 
@@ -1005,6 +1392,13 @@ namespace carrot::scene {
                              ? scene_runtime_state_t::active
                              : scene_runtime_state_t::idle;
         _last_scene_change_succeeded = false;
+        if (!_active_transition_overlay_options.enabled)
+        {
+            _transition_overlay_stage = transition_overlay_stage_t::hidden;
+            _transition_overlay_opacity = 0.f;
+            _transition_overlay_hold_elapsed_seconds = 0.f;
+            _startup_overlay_waiting_for_first_present = false;
+        }
         _transition_diagnostics_hold_remaining_seconds = k_transition_diagnostics_linger_seconds;
     }
 
@@ -1024,6 +1418,13 @@ namespace carrot::scene {
                              ? scene_runtime_state_t::active
                              : scene_runtime_state_t::idle;
         _last_scene_change_succeeded = true;
+        if (!_active_transition_overlay_options.enabled)
+        {
+            _transition_overlay_stage = transition_overlay_stage_t::hidden;
+            _transition_overlay_opacity = 0.f;
+            _transition_overlay_hold_elapsed_seconds = 0.f;
+            _startup_overlay_waiting_for_first_present = false;
+        }
         _transition_diagnostics_hold_remaining_seconds = k_transition_diagnostics_linger_seconds;
     }
 

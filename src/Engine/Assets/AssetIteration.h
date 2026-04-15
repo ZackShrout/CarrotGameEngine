@@ -15,9 +15,12 @@
 namespace carrot::assets {
     enum class asset_kind_t
     {
+        font,
         texture,
         sprite,
         audio,
+        tilemap,
+        scene,
     };
 
     enum class asset_reload_policy_t
@@ -66,9 +69,12 @@ namespace carrot::assets {
     {
         switch (kind)
         {
+            case asset_kind_t::font: return "font";
             case asset_kind_t::texture: return "texture";
             case asset_kind_t::sprite: return "sprite";
             case asset_kind_t::audio: return "audio";
+            case asset_kind_t::tilemap: return "tilemap";
+            case asset_kind_t::scene: return "scene";
             default: return "unknown";
         }
     }

@@ -102,9 +102,12 @@ namespace carrot::editor {
         {
             switch (kind)
             {
+                case assets::asset_kind_t::font: return "F";
                 case assets::asset_kind_t::texture: return "T";
                 case assets::asset_kind_t::sprite: return "S";
                 case assets::asset_kind_t::audio: return "A";
+                case assets::asset_kind_t::tilemap: return "M";
+                case assets::asset_kind_t::scene: return "C";
                 default: return "?";
             }
         }
@@ -148,6 +151,8 @@ namespace carrot::editor {
 
             append_line("Kind", assets::to_string(status.kind));
             append_line("Reload Policy", assets::to_string(status.reload_policy));
+            if (status.reload_policy == assets::asset_reload_policy_t::restart_or_scene_rebuild_required)
+                append_line("Action Required", "rebuild current scene in runtime");
             append_line("Source", status.source_uri);
             append_line("Manifest", status.manifest_uri.empty() ? std::string_view{ "<none>" } : std::string_view{ status.manifest_uri });
             append_line("Cached In Runtime", status.loaded_in_runtime_cache ? std::string_view{ "yes" } : std::string_view{ "no" });
@@ -182,7 +187,7 @@ namespace carrot::editor {
             switch (policy)
             {
                 case assets::asset_reload_policy_t::manual_refresh_only: return "Refresh Selected Asset";
-                case assets::asset_reload_policy_t::restart_or_scene_rebuild_required: return "Reload Requires Restart";
+                case assets::asset_reload_policy_t::restart_or_scene_rebuild_required: return "Scene Rebuild Required";
                 case assets::asset_reload_policy_t::reloadable_live:
                 case assets::asset_reload_policy_t::reloadable_on_next_use:
                 default:
@@ -193,6 +198,178 @@ namespace carrot::editor {
         [[nodiscard]] bool can_trigger_reload(const assets::asset_reload_policy_t policy) noexcept
         {
             return policy != assets::asset_reload_policy_t::restart_or_scene_rebuild_required;
+        }
+
+        [[nodiscard]] std::string format_vec2(const chlm::float2 value)
+        {
+            return std::format("{:.2f}, {:.2f}", value.x, value.y);
+        }
+
+        [[nodiscard]] std::string format_color4(const chlm::float4 value)
+        {
+            return std::format("{:.2f}, {:.2f}, {:.2f}, {:.2f}", value.x, value.y, value.z, value.w);
+        }
+
+        [[nodiscard]] std::string format_scene_summary(const scene::scene_runtime_summary_t& summary)
+        {
+            std::string text;
+            const auto append_line = [&text](std::string_view key, const std::string& value)
+            {
+                text += std::format("{}: {}\n", key, value);
+            };
+
+            append_line("Scene", summary.snapshot.active_scene_id.empty() ? "<none>" : std::string{ summary.snapshot.active_scene_id });
+            append_line("State", std::string{ scene::to_string(summary.snapshot.runtime_state) });
+            append_line("Phase", std::string{ scene::to_string(summary.snapshot.transition_phase) });
+            append_line("Spawn", summary.snapshot.active_spawn_marker.empty() ? "<none>" : std::string{ summary.snapshot.active_spawn_marker });
+            append_line("Camera", std::format("zoom {:.2f} at {}", summary.active_camera.zoom, format_vec2(summary.camera_center_world)));
+            append_line("World", std::format("{} objects, {} triggers, {} colliders, {} static, {} lights, {} vis regions",
+                                             summary.world_object_count,
+                                             summary.trigger_count,
+                                             summary.object_collider_count,
+                                             summary.static_collider_count,
+                                             summary.point_light_count,
+                                             summary.visibility_region_count));
+            if (summary.has_player_object())
+                append_line("Player", std::format("{} (#{} )", summary.player_object_name, summary.player_object_id));
+            if (summary.has_spawn_object())
+                append_line("Spawn Object", std::format("{} (#{} )", summary.spawn_object_name, summary.spawn_object_id));
+            return text;
+        }
+
+        [[nodiscard]] std::string format_systems_summary(const scene::scene_runtime_systems_summary_t& summary)
+        {
+            std::string text;
+            const auto append_line = [&text](std::string_view key, const std::string& value)
+            {
+                text += std::format("{}: {}\n", key, value);
+            };
+
+            append_line("Lighting", std::format("{} point light(s), ambient {}", summary.lighting.point_light_count, format_color4(summary.lighting.ambient_color)));
+            append_line("Collision", std::format("{} static, map={}, object={}, trigger={}",
+                                                 summary.collision.static_collider_count,
+                                                 summary.collision.show_map_collision ? "on" : "off",
+                                                 summary.collision.show_object_colliders ? "on" : "off",
+                                                 summary.collision.show_trigger_volumes ? "on" : "off"));
+            append_line("Layering", std::format("frame {}, vis regions {}, active tags {}",
+                                                summary.layering.frame_index,
+                                                summary.layering.visibility_region_count,
+                                                summary.layering.active_visibility_tags.size()));
+            if (summary.player_controller.bound)
+            {
+                append_line("Player Ctrl", std::format("{} facing {}, speed {:.2f}",
+                                                       summary.player_controller.controlled_object_name.empty()
+                                                           ? "<unbound>"
+                                                           : summary.player_controller.controlled_object_name,
+                                                       summary.player_controller.facing_direction,
+                                                       summary.player_controller.move_speed));
+            }
+            else
+            {
+                append_line("Player Ctrl", "unbound");
+            }
+
+            if (summary.interaction_controller.bound)
+            {
+                append_line("Interact Ctrl", std::format("actor {}, radius {:.2f}, candidate {}",
+                                                         summary.interaction_controller.actor_object_name.empty()
+                                                             ? "<none>"
+                                                             : summary.interaction_controller.actor_object_name,
+                                                         summary.interaction_controller.interaction_radius,
+                                                         summary.interaction_controller.has_candidate
+                                                             ? summary.interaction_controller.candidate_object_name
+                                                             : "<none>"));
+            }
+            else
+            {
+                append_line("Interact Ctrl", "unbound");
+            }
+
+            return text;
+        }
+
+        [[nodiscard]] std::string format_runtime_object_list_label(const scene::scene_runtime_object_summary_t& summary,
+                                                                   const bool selected)
+        {
+            std::string label;
+            label.reserve(summary.name.size() + summary.type.size() + 32u);
+            label += selected ? "> " : "  ";
+            label += summary.name.empty() ? "<unnamed>" : summary.name;
+            if (!summary.type.empty())
+                label += std::format(" [{}]", summary.type);
+            label += std::format(" #{}", summary.id);
+            return label;
+        }
+
+        [[nodiscard]] std::string format_runtime_object_details(const scene::scene_runtime_object_summary_t& summary)
+        {
+            std::string text;
+            const auto append_line = [&text](std::string_view key, const std::string& value)
+            {
+                text += std::format("{}: {}\n", key, value);
+            };
+
+            append_line("Name", summary.name.empty() ? "<unnamed>" : summary.name);
+            append_line("Type", summary.type.empty() ? "<none>" : summary.type);
+            append_line("Id", std::to_string(summary.id));
+            append_line("Properties", std::to_string(summary.property_count));
+
+            if (summary.has_source)
+            {
+                append_line("Source", std::format("{} / {} / {}",
+                                                  summary.source.tilemap_logical_id,
+                                                  summary.source.layer_name,
+                                                  summary.source.object_name.empty() ? "<unnamed>" : summary.source.object_name));
+            }
+
+            if (summary.has_transform)
+                append_line("Transform", std::format("pos {} scale {} rot {:.2f}",
+                                                     format_vec2(summary.transform.position),
+                                                     format_vec2(summary.transform.scale),
+                                                     summary.transform.rotation));
+            if (summary.has_collision)
+                append_line("Collision", std::format("half {} offset {}",
+                                                     format_vec2(summary.collision.half_extents),
+                                                     format_vec2(summary.collision.offset)));
+            if (summary.has_trigger)
+                append_line("Trigger", std::format("{} / {}", summary.trigger.trigger_id, summary.trigger.trigger_kind));
+            if (summary.has_sprite)
+                append_line("Sprite", std::format("tex {} frame {}",
+                                                  summary.sprite.texture_id.empty() ? "<none>" : summary.sprite.texture_id,
+                                                  summary.sprite.frame_name.empty() ? "<none>" : summary.sprite.frame_name));
+            if (summary.has_sprite_animator)
+                append_line("Animator", std::format("{} / {}",
+                                                    summary.sprite_animator.current_animation_name.empty()
+                                                        ? "<idle>"
+                                                        : summary.sprite_animator.current_animation_name,
+                                                    summary.sprite_animator.current_frame_name.empty()
+                                                        ? "<none>"
+                                                        : summary.sprite_animator.current_frame_name));
+            if (summary.has_tilemap)
+                append_line("Tilemap", summary.tilemap.tilemap_logical_id.empty() ? "<none>" : summary.tilemap.tilemap_logical_id);
+            if (summary.has_tile_object)
+                append_line("Tile Object", std::format("{} gid {}", summary.tile_object.tilemap_logical_id, summary.tile_object.gid));
+            if (summary.has_visibility_region)
+                append_line("Visibility", std::format("{} ({})",
+                                                      summary.visibility_region.tag,
+                                                      format_vec2(summary.visibility_region.size_world)));
+            if (summary.has_interaction)
+            {
+                append_line("Interaction", std::string{ scene::to_string(summary.interaction.kind) });
+                if (!summary.interaction.message_id.empty())
+                    append_line("Message", summary.interaction.message_id);
+                if (!summary.interaction.target_scene.empty() || !summary.interaction.target_marker.empty())
+                    append_line("Door", std::format("{} -> {}",
+                                                    summary.interaction.target_scene.empty() ? summary.interaction.target_map
+                                                                                            : summary.interaction.target_scene,
+                                                    summary.interaction.target_marker));
+                if (!summary.interaction.loot_table.empty())
+                    append_line("Loot", summary.interaction.loot_table);
+                if (!summary.interaction.trigger_id.empty())
+                    append_line("Trigger Id", summary.interaction.trigger_id);
+            }
+
+            return text;
         }
     } // namespace
 
@@ -207,11 +384,44 @@ namespace carrot::editor {
         build_editor_ui();
         rebuild_asset_list();
         refresh_selected_asset_details();
+
+        // Temporary milestone harness: boot the known sandbox town so the new
+        // runtime inspection panels can be validated against real live data.
+        const bool loaded{
+            _scene_runtime.load(*_game,
+                                "scene.sandbox.town",
+                                scene::scene_load_options_t{
+                                    .apply_scene_music = false,
+                                    .transition_overlay = {
+                                        .style = scene::scene_transition_overlay_style_t::none
+                                    }
+                                })
+        };
+        if (!loaded)
+            LOG_CORE_WARN("CarrotEditor temporary runtime harness failed to load 'scene.sandbox.town'");
+
+        refresh_runtime_inspection();
+
+        if (_status_summary)
+        {
+            _status_summary->set_text(loaded
+                                          ? "Loaded temporary editor runtime scene 'scene.sandbox.town'."
+                                          : "Editor runtime scene load failed; inspection panels remain idle.");
+        }
     }
 
-    void editor_app_t::on_tick([[maybe_unused]] const float delta_time)
+    void editor_app_t::on_tick(const float delta_time)
     {
+        if (_game)
+        {
+            _game->world.update(delta_time);
+            _scene_runtime.update_camera(*_game, delta_time);
+            if (_scene_runtime.has_pending_scene())
+                (void)_scene_runtime.update(*_game);
+        }
+
         refresh_selected_asset_details();
+        refresh_runtime_inspection();
         update_button_labels();
     }
 
@@ -279,6 +489,7 @@ namespace carrot::editor {
         if (!root)
             return;
 
+        ui_module->clear_focus();
         root->remove_all_children();
 
         ui::ui_panel_t& background{ root->emplace_child<ui::ui_panel_t>() };
@@ -294,7 +505,7 @@ namespace carrot::editor {
         title.set_font_size(27.f);
         title.set_color(color_text_primary);
 
-        auto& subtitle{ screen.emplace_child<ui::ui_label_t>("Milestone 13 asset browser and runtime diagnostics") };
+        auto& subtitle{ screen.emplace_child<ui::ui_label_t>("Milestone 17 runtime iteration, scene inspection, and live world diagnostics") };
         subtitle.set_font_size(15.f);
         subtitle.set_color(color_text_secondary);
 
@@ -335,7 +546,9 @@ namespace carrot::editor {
         _asset_list->set_main_axis_size_rule(ui::ui_main_axis_size_rule_t::flex);
 
         ui::ui_panel_t& details_panel{ body.emplace_child<ui::ui_panel_t>() };
-        details_panel.set_main_axis_size_rule(ui::ui_main_axis_size_rule_t::flex);
+        details_panel.set_desired_size({ 470.f, 620.f });
+        details_panel.set_min_size({ 420.f, 400.f });
+        details_panel.set_main_axis_size_rule(ui::ui_main_axis_size_rule_t::desired);
         details_panel.set_style(chrome_panel_style(true));
 
         ui::ui_stack_t& details_content{ details_panel.emplace_child<ui::ui_stack_t>(ui::ui_stack_orientation_t::vertical) };
@@ -380,7 +593,54 @@ namespace carrot::editor {
             reload_selected_asset();
         });
 
-        (void)ui_module->focus_first();
+        ui::ui_panel_t& scene_panel{ body.emplace_child<ui::ui_panel_t>() };
+        scene_panel.set_main_axis_size_rule(ui::ui_main_axis_size_rule_t::flex);
+        scene_panel.set_style(chrome_panel_style(false));
+
+        ui::ui_stack_t& scene_content{ scene_panel.emplace_child<ui::ui_stack_t>(ui::ui_stack_orientation_t::vertical) };
+        scene_content.set_spacing(12.f);
+        scene_content.set_cross_alignment(ui::ui_stack_cross_alignment_t::stretch);
+
+        _scene_summary_title = &scene_content.emplace_child<ui::ui_label_t>("Runtime Scene");
+        _scene_summary_title->set_font_asset_id("font.engine.roboto_regular");
+        _scene_summary_title->set_font_size(18.f);
+        _scene_summary_title->set_color(color_text_primary);
+
+        _scene_summary_body = &scene_content.emplace_child<ui::ui_label_t>("Waiting for runtime scene summary...");
+        _scene_summary_body->set_font_size(14.f);
+        _scene_summary_body->set_wrap_width(560.f);
+        _scene_summary_body->set_color(color_text_secondary);
+
+        auto& systems_title{ scene_content.emplace_child<ui::ui_label_t>("Runtime Systems") };
+        systems_title.set_font_asset_id("font.engine.roboto_regular");
+        systems_title.set_font_size(16.f);
+        systems_title.set_color(color_accent_glow);
+
+        _systems_summary_body = &scene_content.emplace_child<ui::ui_label_t>("Waiting for runtime systems summary...");
+        _systems_summary_body->set_font_size(14.f);
+        _systems_summary_body->set_wrap_width(560.f);
+        _systems_summary_body->set_color(color_text_secondary);
+
+        auto& objects_title{ scene_content.emplace_child<ui::ui_label_t>("Runtime Objects") };
+        objects_title.set_font_asset_id("font.engine.roboto_regular");
+        objects_title.set_font_size(16.f);
+        objects_title.set_color(color_accent_glow);
+
+        _runtime_object_list = &scene_content.emplace_child<ui::ui_stack_t>(ui::ui_stack_orientation_t::vertical);
+        _runtime_object_list->set_spacing(6.f);
+        _runtime_object_list->set_cross_alignment(ui::ui_stack_cross_alignment_t::stretch);
+        _runtime_object_list->set_main_axis_size_rule(ui::ui_main_axis_size_rule_t::flex);
+
+        _object_details_title = &scene_content.emplace_child<ui::ui_label_t>("No runtime object selected");
+        _object_details_title->set_font_asset_id("font.engine.roboto_regular");
+        _object_details_title->set_font_size(16.f);
+        _object_details_title->set_color(color_text_primary);
+
+        _object_details_body = &scene_content.emplace_child<ui::ui_label_t>("Choose a runtime object to inspect live engine-owned state.");
+        _object_details_body->set_font_size(14.f);
+        _object_details_body->set_wrap_width(560.f);
+        _object_details_body->set_color(color_text_secondary);
+
     }
 
     void editor_app_t::rebuild_asset_list()
@@ -455,6 +715,18 @@ namespace carrot::editor {
 
         refresh_selected_asset_details();
         update_button_labels();
+    }
+
+    void editor_app_t::select_runtime_object(const world::world_object_id_t id)
+    {
+        _selected_object_id = id;
+        _has_object_selection = true;
+
+        if (ui::ui_module_t* ui_module{ ui::ui_service_t::try_get() })
+        {
+            if (ui::ui_button_t* button{ find_object_button(id) })
+                (void)ui_module->set_focus(button);
+        }
     }
 
     void editor_app_t::reload_selected_asset()
@@ -559,6 +831,22 @@ namespace carrot::editor {
 
             binding.button->set_label(format_asset_list_label(*status, selected));
         }
+
+        const std::vector<scene::scene_runtime_object_summary_t> summaries{
+            _scene_runtime.collect_runtime_object_summaries(*_game)
+        };
+        for (const object_button_binding_t& binding : _object_buttons)
+        {
+            if (!binding.button)
+                continue;
+
+            const auto it = std::ranges::find(summaries, binding.id, &scene::scene_runtime_object_summary_t::id);
+            if (it == summaries.end())
+                continue;
+
+            const bool selected{ _has_object_selection && binding.id == _selected_object_id };
+            binding.button->set_label(format_runtime_object_list_label(*it, selected));
+        }
     }
 
     ui::ui_button_t* editor_app_t::find_button(const assets::asset_kind_t kind, const assets::asset_id_t id) const noexcept
@@ -566,6 +854,101 @@ namespace carrot::editor {
         for (const asset_button_binding_t& binding : _asset_buttons)
         {
             if (binding.kind == kind && binding.id == id)
+                return binding.button;
+        }
+
+        return nullptr;
+    }
+
+    void editor_app_t::rebuild_runtime_object_list()
+    {
+        if (!_game || !_runtime_object_list)
+            return;
+
+        _runtime_object_list->remove_all_children();
+        _object_buttons.clear();
+
+        const std::vector<scene::scene_runtime_object_summary_t> summaries{
+            _scene_runtime.collect_runtime_object_summaries(*_game)
+        };
+
+        for (const scene::scene_runtime_object_summary_t& summary : summaries)
+        {
+            ui::ui_button_t& button{ _runtime_object_list->emplace_child<ui::ui_button_t>(
+                format_runtime_object_list_label(summary, _has_object_selection && summary.id == _selected_object_id)) };
+            button.set_on_pressed([this, id = summary.id]()
+            {
+                select_runtime_object(id);
+            });
+
+            ui::ui_button_text_style_t text_style;
+            text_style.font_asset_id = "font.engine.roboto_regular";
+            text_style.font_size = 14.f;
+            text_style.horizontal_alignment = ui::ui_label_horizontal_alignment_t::start;
+            button.set_style(editor_button_style());
+            button.set_text_style(text_style);
+            button.set_desired_size({ 520.f, 30.f });
+            button.set_min_size({ 320.f, 28.f });
+
+            _object_buttons.push_back({
+                .id = summary.id,
+                .button = &button
+            });
+        }
+
+        for (size_t i = 0; i < _object_buttons.size(); ++i)
+        {
+            if (i > 0)
+                _object_buttons[i].button->set_navigation_target(ui::ui_navigation_direction_t::up, _object_buttons[i - 1].button);
+            if (i + 1 < _object_buttons.size())
+                _object_buttons[i].button->set_navigation_target(ui::ui_navigation_direction_t::down, _object_buttons[i + 1].button);
+        }
+
+        if (!_has_object_selection && !_object_buttons.empty())
+        {
+            _selected_object_id = _object_buttons.front().id;
+            _has_object_selection = true;
+        }
+    }
+
+    void editor_app_t::refresh_runtime_inspection()
+    {
+        if (!_game || !_scene_summary_body || !_systems_summary_body || !_object_details_title || !_object_details_body)
+            return;
+
+        const scene::scene_runtime_summary_t scene_summary{ _scene_runtime.summarize(*_game) };
+        const scene::scene_runtime_systems_summary_t systems_summary{ _scene_runtime.summarize_runtime_systems(*_game) };
+        _scene_summary_body->set_text(format_scene_summary(scene_summary));
+        _systems_summary_body->set_text(format_systems_summary(systems_summary));
+
+        rebuild_runtime_object_list();
+
+        if (!_has_object_selection)
+        {
+            _object_details_title->set_text("No runtime object selected");
+            _object_details_body->set_text("Choose a runtime object to inspect live engine-owned state.");
+            return;
+        }
+
+        const auto selected{ _scene_runtime.find_runtime_object_summary(*_game, _selected_object_id) };
+        if (!selected)
+        {
+            _object_details_title->set_text("Runtime object no longer exists");
+            _object_details_body->set_text("The selected runtime object is no longer present in the live world.");
+            _has_object_selection = false;
+            _selected_object_id = 0;
+            return;
+        }
+
+        _object_details_title->set_text(selected->name.empty() ? "Selected Runtime Object" : selected->name);
+        _object_details_body->set_text(format_runtime_object_details(*selected));
+    }
+
+    ui::ui_button_t* editor_app_t::find_object_button(const world::world_object_id_t id) const noexcept
+    {
+        for (const object_button_binding_t& binding : _object_buttons)
+        {
+            if (binding.id == id)
                 return binding.button;
         }
 

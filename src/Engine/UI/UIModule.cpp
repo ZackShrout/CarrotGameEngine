@@ -117,6 +117,9 @@ namespace carrot::ui {
         if (_focused_widget == widget)
             return true;
 
+        if (_focused_widget && !is_widget_in_tree(_focused_widget))
+            _focused_widget = nullptr;
+
         if (_focused_widget)
             _focused_widget->notify_focus_lost();
 

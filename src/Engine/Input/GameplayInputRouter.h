@@ -67,6 +67,7 @@ namespace carrot::input {
         input_action_handle_t toggle_fullscreen{ };
         input_action_handle_t toggle_map_collision_debug{ };
         input_action_handle_t toggle_object_collision_debug{ };
+        input_action_handle_t toggle_trigger_volume_debug{ };
         input_action_handle_t ui_up{ };
         input_action_handle_t ui_down{ };
         input_action_handle_t ui_left{ };

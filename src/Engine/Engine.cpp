@@ -273,6 +273,8 @@ namespace carrot {
                 break;
 
             hot_reload::shader_watcher_t::poll();
+            if (_asset_manager)
+                _asset_manager->poll_runtime_iteration_changes();
             tick();
 
             if (!_application_started && advance_boot_pipeline())
@@ -740,7 +742,7 @@ namespace carrot {
         const world::world_presentation_t& presentation{ _world.presentation() };
         const world::collision_debug_view_t& debug_view{ _world.collision_debug_view() };
         const float viewport_height{ static_cast<float>(resolved_camera.viewport_rect_px.size.y) };
-        const float legend_y_start{ std::max(128.f, viewport_height - 72.f) };
+        const float legend_y_start{ std::max(128.f, viewport_height - 100.f) };
         const uint32_t object_legend_color{ 0xFF00FFFFu };
 
         debug::text_colored(16.f,
@@ -753,6 +755,11 @@ namespace carrot {
                             object_legend_color,
                             "F3 Object Colliders: %s",
                             debug_view.show_object_colliders ? "ON" : "OFF");
+        debug::text_colored(16.f,
+                            legend_y_start + 56.f,
+                            debug_view.trigger_volume_color,
+                            "F4 Trigger Volumes: %s",
+                            debug_view.show_trigger_volumes ? "ON" : "OFF");
 
         if (debug_view.show_map_collision)
         {
@@ -771,7 +778,7 @@ namespace carrot {
             for (const world::world_object_t& object: _world.objects())
             {
                 const std::optional<collision::collision_aabb_t> bounds{ object_collision_bounds(object) };
-                if (!bounds || !object.collision || !object.collision->debug_display)
+                if (!bounds || !object.collision || !object.collision->debug_display || object.trigger)
                     continue;
 
                 const world::collision_debug_display_t& object_debug{ *object.collision->debug_display };
@@ -780,6 +787,34 @@ namespace carrot {
                                       .outline_thickness = object_debug.outline_thickness,
                                       .filled = object_debug.filled
                                   });
+            }
+        }
+
+        if (debug_view.show_trigger_volumes)
+        {
+            for (const world::world_object_t& object: _world.objects())
+            {
+                if (!object.trigger)
+                    continue;
+
+                const std::optional<collision::collision_aabb_t> bounds{ object_collision_bounds(object) };
+                if (!bounds)
+                    continue;
+
+                debug::world_rect_style_t trigger_style{
+                    .color = debug_view.trigger_volume_color,
+                    .outline_thickness = debug_view.trigger_outline_thickness,
+                    .filled = debug_view.trigger_filled
+                };
+
+                if (object.collision && object.collision->debug_display)
+                {
+                    trigger_style.color = object.collision->debug_display->color;
+                    trigger_style.outline_thickness = object.collision->debug_display->outline_thickness;
+                    trigger_style.filled = object.collision->debug_display->filled;
+                }
+
+                debug::world_aabb(presentation_aabb(*bounds, presentation), trigger_style);
             }
         }
 

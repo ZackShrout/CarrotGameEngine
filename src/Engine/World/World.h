@@ -17,8 +17,12 @@ namespace carrot::world {
     {
         bool show_map_collision{ false };
         bool show_object_colliders{ false };
+        bool show_trigger_volumes{ false };
         uint32_t map_collision_color{ 0xFF00FF00u };
         float map_outline_thickness{ 2.f };
+        uint32_t trigger_volume_color{ 0xFFFF00FFu };
+        float trigger_outline_thickness{ 2.f };
+        bool trigger_filled{ true };
     };
 
     struct layering_debug_view_t

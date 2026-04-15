@@ -242,6 +242,251 @@ namespace carrot::scene {
         }
     };
 
+    struct scene_runtime_summary_t
+    {
+        scene_runtime_snapshot_t snapshot;
+        scene_camera_options_t active_camera;
+        chlm::float2 camera_center_world{ 0.f, 0.f };
+        world::world_object_id_t player_object_id{ 0 };
+        std::string_view player_object_name;
+        world::world_object_id_t spawn_object_id{ 0 };
+        std::string_view spawn_object_name;
+        uint32_t world_object_count{ 0u };
+        uint32_t trigger_count{ 0u };
+        uint32_t object_collider_count{ 0u };
+        uint32_t static_collider_count{ 0u };
+        uint32_t point_light_count{ 0u };
+        uint32_t visibility_region_count{ 0u };
+
+        [[nodiscard]] bool has_player_object() const noexcept { return player_object_id != 0; }
+        [[nodiscard]] bool has_spawn_object() const noexcept { return spawn_object_id != 0; }
+    };
+
+    enum class scene_runtime_object_interaction_kind_t : uint8_t
+    {
+        none = 0,
+        sign,
+        door,
+        container,
+        trigger
+    };
+
+    [[nodiscard]] std::string_view to_string(scene_runtime_object_interaction_kind_t kind) noexcept;
+
+    struct scene_runtime_object_source_summary_t
+    {
+        std::string tilemap_logical_id;
+        std::string layer_name;
+        uint32_t object_id{ 0u };
+        std::string object_name;
+    };
+
+    struct scene_runtime_object_transform_summary_t
+    {
+        chlm::float2 position{ 0.f, 0.f };
+        chlm::float2 scale{ 1.f, 1.f };
+        float rotation{ 0.f };
+    };
+
+    struct scene_runtime_object_collision_summary_t
+    {
+        chlm::float2 half_extents{ 0.f, 0.f };
+        chlm::float2 offset{ 0.f, 0.f };
+        bool has_debug_display{ false };
+        bool debug_filled{ false };
+        float debug_outline_thickness{ 0.f };
+        uint32_t debug_color{ 0u };
+    };
+
+    struct scene_runtime_object_trigger_summary_t
+    {
+        std::string trigger_id;
+        std::string trigger_kind;
+    };
+
+    struct scene_runtime_object_sprite_summary_t
+    {
+        std::string texture_id;
+        std::string frame_name;
+        bool use_size_override{ false };
+        chlm::float2 size_override_world{ 0.f, 0.f };
+        bool use_custom_pivot{ false };
+        chlm::float2 pivot{ 0.f, 0.f };
+        bool flip_x{ false };
+        bool flip_y{ false };
+        renderer::render_layer_t layer{ renderer::render_layer_t::actors };
+        renderer::render_order_mode_t order_mode{ renderer::render_order_mode_t::explicit_order };
+        int32_t order_in_layer{ 0 };
+        float sort_reference_y{ 0.f };
+        uint32_t color{ 0xFFFFFFFFu };
+    };
+
+    struct scene_runtime_object_sprite_animator_summary_t
+    {
+        std::string current_animation_name;
+        std::string current_frame_name;
+        bool is_playing{ false };
+        bool is_paused{ false };
+        bool is_finished{ false };
+    };
+
+    struct scene_runtime_object_tile_object_summary_t
+    {
+        std::string tilemap_logical_id;
+        uint32_t gid{ 0u };
+        chlm::float2 size_source_px{ 0.f, 0.f };
+        renderer::render_layer_t layer{ renderer::render_layer_t::actors };
+        renderer::render_order_mode_t order_mode{ renderer::render_order_mode_t::explicit_order };
+        int32_t order_in_layer{ 0 };
+        float sort_reference_y{ 0.f };
+        uint32_t color{ 0xFFFFFFFFu };
+    };
+
+    struct scene_runtime_object_tilemap_summary_t
+    {
+        std::string tilemap_logical_id;
+        bool include_object_layers{ false };
+        renderer::render_layer_t layer{ renderer::render_layer_t::world_back };
+        renderer::render_order_mode_t order_mode{ renderer::render_order_mode_t::explicit_order };
+        int32_t order_in_layer{ 0 };
+        float sort_reference_y{ 0.f };
+        uint32_t color{ 0xFFFFFFFFu };
+    };
+
+    struct scene_runtime_object_visibility_region_summary_t
+    {
+        chlm::float2 size_world{ 0.f, 0.f };
+        std::string tag;
+    };
+
+    struct scene_runtime_object_interaction_summary_t
+    {
+        scene_runtime_object_interaction_kind_t kind{ scene_runtime_object_interaction_kind_t::none };
+        std::string message_id;
+        std::string target_scene;
+        std::string target_map;
+        std::string target_marker;
+        std::string loot_table;
+        std::string trigger_id;
+        std::string trigger_kind;
+    };
+
+    struct scene_runtime_object_summary_t
+    {
+        world::world_object_id_t id{ 0 };
+        std::string name;
+        std::string type;
+        uint32_t property_count{ 0u };
+        bool has_source{ false };
+        bool has_transform{ false };
+        bool has_collision{ false };
+        bool has_trigger{ false };
+        bool has_sprite{ false };
+        bool has_sprite_animator{ false };
+        bool has_tile_object{ false };
+        bool has_tilemap{ false };
+        bool has_visibility_region{ false };
+        bool has_interaction{ false };
+        scene_runtime_object_source_summary_t source;
+        scene_runtime_object_transform_summary_t transform;
+        scene_runtime_object_collision_summary_t collision;
+        scene_runtime_object_trigger_summary_t trigger;
+        scene_runtime_object_sprite_summary_t sprite;
+        scene_runtime_object_sprite_animator_summary_t sprite_animator;
+        scene_runtime_object_tile_object_summary_t tile_object;
+        scene_runtime_object_tilemap_summary_t tilemap;
+        scene_runtime_object_visibility_region_summary_t visibility_region;
+        scene_runtime_object_interaction_summary_t interaction;
+    };
+
+    struct scene_runtime_light_summary_t
+    {
+        chlm::float2 position_world{ 0.f, 0.f };
+        float radius_world{ 0.f };
+        chlm::float4 color{ 1.f, 1.f, 1.f, 1.f };
+        float intensity{ 0.f };
+    };
+
+    struct scene_runtime_lighting_summary_t
+    {
+        chlm::float4 ambient_color{ 1.f, 1.f, 1.f, 1.f };
+        uint32_t point_light_count{ 0u };
+        std::vector<scene_runtime_light_summary_t> point_lights;
+    };
+
+    struct scene_runtime_collision_system_summary_t
+    {
+        uint32_t static_collider_count{ 0u };
+        bool show_map_collision{ false };
+        bool show_object_colliders{ false };
+        bool show_trigger_volumes{ false };
+        uint32_t map_collision_color{ 0u };
+        float map_outline_thickness{ 0.f };
+        uint32_t trigger_volume_color{ 0u };
+        float trigger_outline_thickness{ 0.f };
+        bool trigger_filled{ false };
+    };
+
+    struct scene_runtime_layering_system_summary_t
+    {
+        bool show_visibility_regions{ false };
+        uint32_t visibility_region_color{ 0u };
+        uint64_t frame_index{ 0u };
+        bool has_visibility_anchor{ false };
+        chlm::float2 visibility_anchor_world{ 0.f, 0.f };
+        uint32_t visibility_region_count{ 0u };
+        uint32_t rendered_tilemap_count{ 0u };
+        uint32_t layer_count{ 0u };
+        uint32_t visible_layer_count{ 0u };
+        uint32_t hidden_layer_count{ 0u };
+        uint32_t visibility_bound_layer_count{ 0u };
+        uint32_t conditional_front_layer_count{ 0u };
+        uint32_t always_front_layer_count{ 0u };
+        std::vector<std::string> active_visibility_tags;
+    };
+
+    struct scene_runtime_player_controller_summary_t
+    {
+        bool bound{ false };
+        world::world_object_id_t controlled_object_id{ 0u };
+        std::string controlled_object_name;
+        std::string facing_direction;
+        float move_speed{ 0.f };
+        chlm::float2 move_intent{ 0.f, 0.f };
+        chlm::float2 last_requested_delta{ 0.f, 0.f };
+        chlm::float2 last_actual_delta{ 0.f, 0.f };
+        bool last_blocked_x{ false };
+        bool last_blocked_y{ false };
+        bool last_started_overlapping{ false };
+        chlm::float2 collision_bounds_min{ 0.f, 0.f };
+        chlm::float2 collision_bounds_max{ 0.f, 0.f };
+
+        [[nodiscard]] bool has_controlled_object() const noexcept { return controlled_object_id != 0; }
+    };
+
+    struct scene_runtime_interaction_controller_summary_t
+    {
+        bool bound{ false };
+        world::world_object_id_t actor_object_id{ 0u };
+        std::string actor_object_name;
+        float interaction_radius{ 0.f };
+        bool has_candidate{ false };
+        world::world_object_id_t candidate_object_id{ 0u };
+        std::string candidate_object_name;
+        std::optional<float> candidate_distance;
+
+        [[nodiscard]] bool has_actor() const noexcept { return actor_object_id != 0; }
+    };
+
+    struct scene_runtime_systems_summary_t
+    {
+        scene_runtime_lighting_summary_t lighting;
+        scene_runtime_collision_system_summary_t collision;
+        scene_runtime_layering_system_summary_t layering;
+        scene_runtime_player_controller_summary_t player_controller;
+        scene_runtime_interaction_controller_summary_t interaction_controller;
+    };
+
     [[nodiscard]] scene_transition_presentation_t make_transition_presentation(
         const scene_runtime_snapshot_t& snapshot,
         uint32_t overlay_color_abgr = 0xFF101820u) noexcept;
@@ -270,6 +515,8 @@ namespace carrot::scene {
         [[nodiscard]] bool transition(core::game_context_t& game,
                                       const scene_transition_request_t& request,
                                       const scene_load_options_t& options = {});
+        [[nodiscard]] bool request_rebuild_current_scene(core::game_context_t& game);
+        [[nodiscard]] bool rebuild_current_scene(core::game_context_t& game);
         void update_camera(core::game_context_t& game, float delta_time) noexcept;
 
         [[nodiscard]] std::string_view current_scene_id() const noexcept { return _current_scene_id; }
@@ -288,6 +535,13 @@ namespace carrot::scene {
         [[nodiscard]] scene_transition_phase_t transition_phase() const noexcept { return _transition_phase; }
         [[nodiscard]] scene_runtime_context_t make_context(core::game_context_t& game) const noexcept;
         [[nodiscard]] scene_runtime_snapshot_t snapshot() const noexcept;
+        [[nodiscard]] scene_runtime_summary_t summarize(core::game_context_t& game) const noexcept;
+        [[nodiscard]] std::vector<scene_runtime_object_summary_t> collect_runtime_object_summaries(
+            core::game_context_t& game) const;
+        [[nodiscard]] std::optional<scene_runtime_object_summary_t> find_runtime_object_summary(
+            core::game_context_t& game,
+            world::world_object_id_t object_id) const;
+        [[nodiscard]] scene_runtime_systems_summary_t summarize_runtime_systems(core::game_context_t& game) const;
         [[nodiscard]] const scene_transition_overlay_options_t& engine_transition_overlay_options() const noexcept
         {
             return _engine_transition_overlay_options;
@@ -350,6 +604,7 @@ namespace carrot::scene {
         std::string _pending_scene_id;
         std::string _pending_spawn_marker;
         const assets::scene_asset_record_t* _pending_scene_record{ nullptr };
+        scene_load_options_t _active_options{ };
         scene_load_options_t _pending_options{ };
         std::optional<world::scene_load_task_t> _pending_load_task;
         scene_runtime_state_t _runtime_state{ scene_runtime_state_t::idle };

@@ -211,16 +211,20 @@ namespace sandbox {
 
     void gameplay_state_t::toggle_map_collision_debug() noexcept
     {
-        auto& debug_view{ game().world.collision_debug_view() };
-        debug_view.show_map_collision = !debug_view.show_map_collision;
-        LOG_CORE_INFO("Map collision debug: {}", debug_view.show_map_collision ? "ON" : "OFF");
+        const bool visible{ runtime().toggle_map_collision_debug() };
+        LOG_CORE_INFO("Map collision debug: {}", visible ? "ON" : "OFF");
     }
 
     void gameplay_state_t::toggle_object_collision_debug() noexcept
     {
-        auto& debug_view{ game().world.collision_debug_view() };
-        debug_view.show_object_colliders = !debug_view.show_object_colliders;
-        LOG_CORE_INFO("Object collider debug: {}", debug_view.show_object_colliders ? "ON" : "OFF");
+        const bool visible{ runtime().toggle_object_collider_debug() };
+        LOG_CORE_INFO("Object collider debug: {}", visible ? "ON" : "OFF");
+    }
+
+    void gameplay_state_t::toggle_trigger_volume_debug() noexcept
+    {
+        const bool visible{ runtime().toggle_trigger_volume_debug() };
+        LOG_CORE_INFO("Trigger volume debug: {}", visible ? "ON" : "OFF");
     }
 
     bool gameplay_state_t::load_scene(const std::string_view scene_id, const std::string_view spawn_marker)
@@ -244,6 +248,9 @@ namespace sandbox {
 
         if (_input.was_just_pressed(k_input_actions.toggle_object_collision_debug))
             toggle_object_collision_debug();
+
+        if (_input.was_just_pressed(k_input_actions.toggle_trigger_volume_debug))
+            toggle_trigger_volume_debug();
 
         (void)_scene_runtime.update(game());
         consume_pending_runtime_events();

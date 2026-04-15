@@ -12,12 +12,14 @@
 
 namespace sandbox {
     namespace {
-        [[nodiscard]] const char* routing_mode_to_string(const carrot::input::gameplay_input_routing_mode_t mode) noexcept
+        [[nodiscard]] const char* routing_mode_to_string(
+            const carrot::input::gameplay_input_routing_mode_t mode) noexcept
         {
             switch (mode)
             {
                 case carrot::input::gameplay_input_routing_mode_t::single_player_auto: return "single_player_auto";
-                case carrot::input::gameplay_input_routing_mode_t::local_multiplayer_fixed: return "local_multiplayer_fixed";
+                case carrot::input::gameplay_input_routing_mode_t::local_multiplayer_fixed: return
+                            "local_multiplayer_fixed";
             }
 
             return "unknown";
@@ -28,24 +30,25 @@ namespace sandbox {
                                                          const std::string_view scene_id)
         {
             size_t container_count{ 0 };
-            for (const carrot::world::world_object_t* object : world.find_objects_by_type("Container"))
+
+            for (const carrot::world::world_object_t* object: world.find_objects_by_type("Container"))
                 if (object) ++container_count;
+
             const size_t door_count{ world.find_objects_by_type("Door").size() };
             const size_t sign_count{ world.find_objects_by_type("Sign").size() };
-            LOG_ASSET_INFO("Sandbox scene hybrids: Container={}, Door={}, Sign={}",
-                           container_count,
-                           door_count,
+
+            LOG_ASSET_INFO("Sandbox scene hybrids: Container={}, Door={}, Sign={}", container_count, door_count,
                            sign_count);
 
             carrot::assets::asset_manager_t& mutable_assets{ const_cast<carrot::assets::asset_manager_t&>(assets) };
+
             const carrot::world::authored::scene_validation_report_t report{
                 carrot::world::authored::build_scene_validation_report(mutable_assets, world)
             };
+
             if (!report.valid())
             {
-                LOG_ASSET_ERROR("Scene '{}' validation failed with {} issue(s)",
-                                scene_id,
-                                report.issues.size());
+                LOG_ASSET_ERROR("Scene '{}' validation failed with {} issue(s)", scene_id, report.issues.size());
                 return false;
             }
 
@@ -56,12 +59,12 @@ namespace sandbox {
         void update_world_lighting(carrot::world::world_t& world,
                                    const carrot::world::player_controller_t& player_controller) noexcept
         {
-            auto& lighting{ world.lighting() };
+            carrot::world::world_lighting_state_t& lighting{ world.lighting() };
             lighting.ambient_color = { 0.36f, 0.38f, 0.44f, 1.f };
             lighting.point_lights.clear();
 
-            if (const carrot::world::world_object_t* actor{ player_controller.controlled_object() };
-                actor && actor->transform)
+            const carrot::world::world_object_t* actor{ player_controller.controlled_object() };
+            if (actor && actor->transform)
             {
                 lighting.point_lights.push_back({
                     .position_world = {
@@ -101,20 +104,8 @@ namespace sandbox {
         }
     } // namespace
 
-    gameplay_state_t::gameplay_state_t(carrot::core::game_runtime_t& runtime,
-                                       carrot::input::gameplay_input_router_t& input) noexcept
-        : carrot::core::igame_state_t(runtime),
-          _input(input)
-    {
-    }
-
     void gameplay_state_t::enter()
     {
-        _scene_runtime.set_default_transition_overlay_override(carrot::scene::scene_transition_overlay_override_t{
-            .style = carrot::scene::scene_transition_overlay_style_t::wipe,
-            .wipe_direction = carrot::scene::scene_transition_wipe_direction_t::left_to_right,
-            .overlay_color_abgr = 0xFF000000u
-        });
         _player_controller.set_animation_set({
             .idle_down = "idle_down",
             .idle_up = "idle_up",
@@ -148,7 +139,8 @@ namespace sandbox {
         finalize_scene_change(current_context);
     }
 
-    carrot::scene::scene_load_options_t gameplay_state_t::make_scene_load_options(const std::string_view spawn_marker_override) noexcept
+    carrot::scene::scene_load_options_t gameplay_state_t::make_scene_load_options(
+        const std::string_view spawn_marker_override) noexcept
     {
         return carrot::scene::scene_load_options_t{
             .spawn_marker_override = spawn_marker_override,
@@ -159,7 +151,8 @@ namespace sandbox {
         };
     }
 
-    void gameplay_state_t::prepare_for_scene_change([[maybe_unused]] const carrot::scene::scene_runtime_context_t* current_context) noexcept
+    void gameplay_state_t::prepare_for_scene_change(
+        [[maybe_unused]] const carrot::scene::scene_runtime_context_t* current_context) noexcept
     {
         capture_player_runtime_state(_runtime_state, _player_controller);
     }
@@ -179,12 +172,11 @@ namespace sandbox {
 
         const carrot::scene::scene_runtime_context_t context{ _scene_runtime.make_context(game()) };
         (void)_interaction_controller.dispatch_pending_interaction({
-            .on_scene_transition = [this](const carrot::scene::scene_transition_request_t& request)
-            {
+            .on_scene_transition = [this](const carrot::scene::scene_transition_request_t& request) {
                 (void)transition_scene(request);
             },
-            .on_container = [this, &context](const carrot::world::world_object_id_t object_id, [[maybe_unused]] const std::string_view loot_table)
-            {
+            .on_container = [this, &context](const carrot::world::world_object_id_t object_id,
+                                             [[maybe_unused]] const std::string_view loot_table) {
                 carrot::world::world_object_t* container{ context.find_object_by_id(object_id) };
                 if (!container)
                 {
@@ -201,8 +193,7 @@ namespace sandbox {
         });
 
         (void)_trigger_monitor.dispatch_pending_events({
-            .on_any = [this](const carrot::world::trigger_event_t& event)
-            {
+            .on_any = [this](const carrot::world::trigger_event_t& event) {
                 handle_trigger_event(event);
             }
         });

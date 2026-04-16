@@ -209,6 +209,25 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(audio_status->loaded_in_runtime_cache);
         }
 
+        void test_runtime_refresh_action_maps_reload_policy_to_runtime_action()
+        {
+            CARROT_TEST_REQUIRE(assets::recommended_runtime_refresh_action(
+                                    assets::asset_reload_policy_t::reloadable_live,
+                                    false) == assets::asset_runtime_refresh_action_t::reload_now);
+            CARROT_TEST_REQUIRE(assets::recommended_runtime_refresh_action(
+                                    assets::asset_reload_policy_t::reloadable_on_next_use,
+                                    false) == assets::asset_runtime_refresh_action_t::reload_on_next_use);
+            CARROT_TEST_REQUIRE(assets::recommended_runtime_refresh_action(
+                                    assets::asset_reload_policy_t::manual_refresh_only,
+                                    false) == assets::asset_runtime_refresh_action_t::manual_refresh);
+            CARROT_TEST_REQUIRE(assets::recommended_runtime_refresh_action(
+                                    assets::asset_reload_policy_t::restart_or_scene_rebuild_required,
+                                    true) == assets::asset_runtime_refresh_action_t::rebuild_current_scene);
+            CARROT_TEST_REQUIRE(assets::recommended_runtime_refresh_action(
+                                    assets::asset_reload_policy_t::restart_or_scene_rebuild_required,
+                                    false) == assets::asset_runtime_refresh_action_t::restart_runtime);
+        }
+
         void test_runtime_iteration_poll_reloads_live_texture_when_manifest_changes()
         {
             reset_auto_reload_root();
@@ -274,6 +293,8 @@ namespace carrot::tests {
                            test_runtime_iteration_statuses_expose_registered_assets);
         tests.emplace_back("AssetIteration/manual reload records last attempt details",
                            test_manual_reload_records_last_attempt_details);
+        tests.emplace_back("AssetIteration/runtime refresh action maps reload policy to runtime action",
+                           test_runtime_refresh_action_maps_reload_policy_to_runtime_action);
         tests.emplace_back("AssetIteration/poll reloads live texture when manifest changes",
                            test_runtime_iteration_poll_reloads_live_texture_when_manifest_changes);
     }

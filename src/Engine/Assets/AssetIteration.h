@@ -31,6 +31,16 @@ namespace carrot::assets {
         restart_or_scene_rebuild_required,
     };
 
+    enum class asset_runtime_refresh_action_t
+    {
+        none,
+        reload_now,
+        reload_on_next_use,
+        manual_refresh,
+        rebuild_current_scene,
+        restart_runtime,
+    };
+
     enum class asset_load_origin_t
     {
         never_loaded,
@@ -88,6 +98,41 @@ namespace carrot::assets {
             case asset_reload_policy_t::manual_refresh_only: return "manual_refresh_only";
             case asset_reload_policy_t::restart_or_scene_rebuild_required: return "restart_or_scene_rebuild_required";
             default: return "unknown";
+        }
+    }
+
+    [[nodiscard]] constexpr std::string_view to_string(const asset_runtime_refresh_action_t action) noexcept
+    {
+        switch (action)
+        {
+            case asset_runtime_refresh_action_t::none: return "none";
+            case asset_runtime_refresh_action_t::reload_now: return "reload_now";
+            case asset_runtime_refresh_action_t::reload_on_next_use: return "reload_on_next_use";
+            case asset_runtime_refresh_action_t::manual_refresh: return "manual_refresh";
+            case asset_runtime_refresh_action_t::rebuild_current_scene: return "rebuild_current_scene";
+            case asset_runtime_refresh_action_t::restart_runtime: return "restart_runtime";
+            default: return "unknown";
+        }
+    }
+
+    [[nodiscard]] constexpr asset_runtime_refresh_action_t recommended_runtime_refresh_action(
+        const asset_reload_policy_t policy,
+        const bool has_active_scene) noexcept
+    {
+        switch (policy)
+        {
+            case asset_reload_policy_t::reloadable_live:
+                return asset_runtime_refresh_action_t::reload_now;
+            case asset_reload_policy_t::reloadable_on_next_use:
+                return asset_runtime_refresh_action_t::reload_on_next_use;
+            case asset_reload_policy_t::manual_refresh_only:
+                return asset_runtime_refresh_action_t::manual_refresh;
+            case asset_reload_policy_t::restart_or_scene_rebuild_required:
+                return has_active_scene
+                    ? asset_runtime_refresh_action_t::rebuild_current_scene
+                    : asset_runtime_refresh_action_t::restart_runtime;
+            default:
+                return asset_runtime_refresh_action_t::none;
         }
     }
 

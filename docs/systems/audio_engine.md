@@ -2,7 +2,7 @@
 
 **BunnySoft**
 **System Design Document**
-**Last Updated: March 2026**
+**Last Updated: April 15, 2026**
 
 ---
 
@@ -29,6 +29,16 @@ It should be understandable to:
 
 This is not intended to be a low-level implementation spec.
 It is the architectural model for how Carrot audio is intended to work.
+
+## 1.1 Current Limitations
+
+The audio architecture is real and engine-owned, but a few implementation details are still intentionally first-pass:
+
+* some streaming paths still assume stereo-oriented defaults
+* parts of the current mixer/effects setup still include temporary experimentation scaffolding
+* richer tooling/editor audio preview and authoring workflows are not implemented yet
+
+These are implementation-stage limitations, not a change in the intended subsystem direction.
 
 ---
 

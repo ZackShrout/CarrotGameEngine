@@ -1201,13 +1201,24 @@ For now, Carrot should prioritize:
 * strong runtime architecture
 * good external tool integration
 * good authored asset workflows
+* optional tooling that behaves like an engine client rather than an ownership boundary
+
+Current repo state:
+
+* Carrot now includes a thin optional `CarrotEditor` host
+* that editor can inspect runtime asset iteration status through engine-owned APIs
+* it can trigger reload requests through the same public-facing seams
+* it can inspect live runtime scene, world-object, and system summary data
+
+This is still intentionally a narrow tooling slice.
+The engine remains able to run correctly without the editor, and that boundary should stay intact.
 
 ### Later Tooling Direction
 
 Once the engine genuinely benefits from them, future tooling may include:
 
-* asset browsers
-* debug visualizers
+* broader asset browsers
+* richer debug visualizers
 * editor utilities
 * content pipeline helpers
 * engine-native workflow tools

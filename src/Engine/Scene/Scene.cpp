@@ -272,6 +272,19 @@ namespace carrot::scene {
         return "unknown";
     }
 
+    std::string_view to_string(const scene_change_request_kind_t request_kind) noexcept
+    {
+        switch (request_kind)
+        {
+            case scene_change_request_kind_t::none: return "none";
+            case scene_change_request_kind_t::load: return "load";
+            case scene_change_request_kind_t::transition: return "transition";
+            case scene_change_request_kind_t::rebuild: return "rebuild";
+        }
+
+        return "unknown";
+    }
+
     std::string_view to_string(const scene_runtime_object_interaction_kind_t kind) noexcept
     {
         switch (kind)
@@ -530,31 +543,12 @@ namespace carrot::scene {
                 ? std::string{ scene_record->scene.player_spawn_marker }
                 : std::string{ options.spawn_marker_override }
         };
-        const bool had_scene_loaded{ has_scene_loaded() };
-        const scene_runtime_context_t previous_context{
-            make_context(game)
-        };
-
-        _pending_options = options;
-        _pending_options.spawn_marker_override = {};
-        _active_transition_overlay_options = resolve_transition_overlay_options(_transition_overlay_options,
-                                                                                options.transition_overlay);
-        LOG_CORE_INFO("Scene transition requested: current='{}', target='{}', spawn='{}', overlay='{}'",
-                      _current_scene_id.empty() ? "<none>" : _current_scene_id,
-                      scene_id,
-                      resolved_spawn_marker,
-                      to_string(_active_transition_overlay_options.style));
-        _pending_load_task.emplace(scene_id, resolved_spawn_marker);
-        _last_scene_change_succeeded = false;
-        begin_scene_change(*scene_record, scene_id, resolved_spawn_marker);
-
-        if (options.listener)
-            options.listener->before_scene_change(game,
-                                                 had_scene_loaded ? &previous_context : nullptr,
-                                                 scene_id,
-                                                 resolved_spawn_marker);
-
-        return true;
+        return request_scene_change(game,
+                                    *scene_record,
+                                    scene_id,
+                                    resolved_spawn_marker,
+                                    options,
+                                    scene_change_request_kind_t::load);
     }
 
     bool scene_runtime_t::request_transition(core::game_context_t& game,
@@ -563,7 +557,21 @@ namespace carrot::scene {
     {
         scene_load_options_t transition_options{ options };
         transition_options.spawn_marker_override = request.marker_name;
-        return request_load(game, request.scene_id, transition_options);
+        const assets::scene_asset_record_t* scene_record{ game.assets.scenes().registry().find(request.scene_id) };
+        if (!scene_record || !can_accept_scene_change_request())
+            return false;
+
+        const std::string resolved_spawn_marker{
+            transition_options.spawn_marker_override.empty()
+                ? std::string{ scene_record->scene.player_spawn_marker }
+                : std::string{ transition_options.spawn_marker_override }
+        };
+        return request_scene_change(game,
+                                    *scene_record,
+                                    request.scene_id,
+                                    resolved_spawn_marker,
+                                    transition_options,
+                                    scene_change_request_kind_t::transition);
     }
 
     bool scene_runtime_t::update(core::game_context_t& game)
@@ -596,33 +604,11 @@ namespace carrot::scene {
         }
 
         _transition_phase = scene_transition_phase_t::activating;
-        game.world = std::move(staged_world);
-
-        _player_controller = _pending_options.player_controller;
-        _interaction_controller = _pending_options.interaction_controller;
-        _current_scene_record = _pending_scene_record;
-        _current_scene_id = _pending_scene_id;
-        _current_spawn_marker = _pending_spawn_marker;
-        _active_options = _pending_options;
-        _active_options.spawn_marker_override = {};
-
-        bind_runtime_objects(game, _current_scene_record->scene);
-
-        if (_pending_options.apply_camera_defaults)
-        {
-            apply_camera_defaults(game, _current_scene_record->scene, _pending_options.camera_override);
-            center_camera_on_initial_target(game);
-        }
-
-        if (_pending_options.apply_scene_music)
-            refresh_scene_music(_current_scene_record->scene);
+        adopt_pending_scene(game, std::move(staged_world));
+        finalize_active_scene_activation(game);
 
         _transition_phase = scene_transition_phase_t::finalizing;
-        if (_pending_options.listener)
-        {
-            const scene_runtime_context_t current_context{ make_context(game) };
-            _pending_options.listener->after_scene_change(game, current_context);
-        }
+        notify_scene_change_complete(game);
 
         complete_scene_change();
         return true;
@@ -643,14 +629,24 @@ namespace carrot::scene {
 
     bool scene_runtime_t::request_rebuild_current_scene(core::game_context_t& game)
     {
-        if (!has_scene_loaded() || !can_accept_scene_change_request())
+        if (!can_request_rebuild_current_scene())
+            return false;
+
+        if (_current_scene_record == nullptr || _current_scene_id.empty() || _current_spawn_marker.empty())
             return false;
 
         scene_load_options_t rebuild_options{ _active_options };
         rebuild_options.spawn_marker_override = _current_spawn_marker;
 
-        LOG_CORE_INFO("Scene rebuild requested for current scene '{}'", _current_scene_id);
-        return request_load(game, _current_scene_id, rebuild_options);
+        LOG_CORE_INFO("Scene rebuild requested for current scene '{}' at spawn '{}'",
+                      _current_scene_id,
+                      _current_spawn_marker);
+        return request_scene_change(game,
+                                    *_current_scene_record,
+                                    _current_scene_id,
+                                    _current_spawn_marker,
+                                    rebuild_options,
+                                    scene_change_request_kind_t::rebuild);
     }
 
     bool scene_runtime_t::rebuild_current_scene(core::game_context_t& game)
@@ -662,6 +658,15 @@ namespace carrot::scene {
             (void)update(game);
 
         return _last_scene_change_succeeded;
+    }
+
+    bool scene_runtime_t::can_request_rebuild_current_scene() const noexcept
+    {
+        return has_scene_loaded() &&
+               _current_scene_record != nullptr &&
+               !_current_scene_id.empty() &&
+               !_current_spawn_marker.empty() &&
+               can_accept_scene_change_request();
     }
 
     void scene_runtime_t::update_camera(core::game_context_t& game, const float delta_time) noexcept
@@ -697,13 +702,63 @@ namespace carrot::scene {
         }
     }
 
-    void scene_runtime_t::bind_runtime_objects(core::game_context_t& game, const assets::scene_asset_t& scene) noexcept
+    void scene_runtime_t::finalize_active_scene_activation(core::game_context_t& game) noexcept
+    {
+        bind_active_runtime_objects(game);
+        apply_active_scene_defaults(game);
+    }
+
+    void scene_runtime_t::bind_active_player_controller(core::game_context_t& game) noexcept
     {
         if (_player_controller)
-            _player_controller->set_controlled_object(find_scene_player(game.world, scene));
+            _player_controller->set_controlled_object(find_scene_player(game.world, _current_scene_record->scene));
+    }
 
+    void scene_runtime_t::bind_active_interaction_controller() noexcept
+    {
         if (_interaction_controller)
             _interaction_controller->set_actor(_player_controller ? _player_controller->controlled_object() : nullptr);
+    }
+
+    void scene_runtime_t::adopt_pending_scene(core::game_context_t& game, world::world_t staged_world) noexcept
+    {
+        game.world = std::move(staged_world);
+        _player_controller = _pending_options.player_controller;
+        _interaction_controller = _pending_options.interaction_controller;
+        _current_scene_record = _pending_scene_record;
+        _current_scene_id = _pending_scene_id;
+        _current_spawn_marker = _pending_spawn_marker;
+        _active_options = _pending_options;
+        _active_options.spawn_marker_override = {};
+        _pending_options.spawn_marker_override = {};
+        _pending_load_task.reset();
+    }
+
+    void scene_runtime_t::bind_active_runtime_objects(core::game_context_t& game) noexcept
+    {
+        bind_active_player_controller(game);
+        bind_active_interaction_controller();
+    }
+
+    void scene_runtime_t::apply_active_scene_defaults(core::game_context_t& game) noexcept
+    {
+        if (_active_options.apply_camera_defaults)
+        {
+            apply_camera_defaults(game, _current_scene_record->scene, _active_options.camera_override);
+            center_camera_on_initial_target(game);
+        }
+
+        if (_active_options.apply_scene_music)
+            refresh_scene_music(_current_scene_record->scene);
+    }
+
+    void scene_runtime_t::notify_scene_change_complete(core::game_context_t& game)
+    {
+        if (!_active_options.listener)
+            return;
+
+        const scene_runtime_context_t current_context{ make_context(game) };
+        _active_options.listener->after_scene_change(game, current_context);
     }
 
     void scene_runtime_t::apply_camera_defaults(core::game_context_t& game,
@@ -771,6 +826,7 @@ namespace carrot::scene {
         return scene_runtime_snapshot_t{
             .runtime_state = _runtime_state,
             .transition_phase = _transition_phase,
+            .pending_request_kind = has_pending_scene() ? _pending_request_kind : scene_change_request_kind_t::none,
             .active_scene_record = _current_scene_record,
             .pending_scene_record = _pending_scene_record,
             .active_scene_id = _current_scene_id,
@@ -809,7 +865,16 @@ namespace carrot::scene {
                 summary.visibility_region_count++;
         }
 
-        if (_current_scene_record)
+        if (_player_controller)
+        {
+            if (const world::world_object_t* player{ _player_controller->controlled_object() })
+            {
+                summary.player_object_id = player->id;
+                summary.player_object_name = player->name;
+            }
+        }
+
+        if (!summary.has_player_object() && _current_scene_record)
         {
             if (const world::world_object_t* player{ find_scene_player(game.world, _current_scene_record->scene) })
             {
@@ -1346,6 +1411,40 @@ namespace carrot::scene {
         _startup_overlay_waiting_for_first_present = false;
     }
 
+    bool scene_runtime_t::request_scene_change(core::game_context_t& game,
+                                               const assets::scene_asset_record_t& scene_record,
+                                               const std::string_view scene_id,
+                                               const std::string_view spawn_marker,
+                                               const scene_load_options_t& options,
+                                               const scene_change_request_kind_t request_kind)
+    {
+        const bool had_scene_loaded{ has_scene_loaded() };
+        const scene_runtime_context_t previous_context{ make_context(game) };
+
+        _pending_request_kind = request_kind;
+        _pending_options = options;
+        _pending_options.spawn_marker_override = {};
+        _active_transition_overlay_options = resolve_transition_overlay_options(_transition_overlay_options,
+                                                                                options.transition_overlay);
+        LOG_CORE_INFO("Scene {} requested: current='{}', target='{}', spawn='{}', overlay='{}'",
+                      to_string(request_kind),
+                      _current_scene_id.empty() ? "<none>" : _current_scene_id,
+                      scene_id,
+                      spawn_marker,
+                      to_string(_active_transition_overlay_options.style));
+        _pending_load_task.emplace(scene_id, spawn_marker);
+        _last_scene_change_succeeded = false;
+        begin_scene_change(scene_record, scene_id, spawn_marker);
+
+        if (options.listener)
+            options.listener->before_scene_change(game,
+                                                 had_scene_loaded ? &previous_context : nullptr,
+                                                 scene_id,
+                                                 spawn_marker);
+
+        return true;
+    }
+
     bool scene_runtime_t::can_activate_scene_change() const noexcept
     {
         if (!_active_transition_overlay_options.enabled)
@@ -1378,7 +1477,8 @@ namespace carrot::scene {
     void scene_runtime_t::fail_scene_change() noexcept
     {
         capture_recent_transition_diagnostics();
-        LOG_CORE_WARN("Scene transition failed: current='{}', pending='{}', phase='{}'",
+        LOG_CORE_WARN("Scene {} failed: current='{}', pending='{}', phase='{}'",
+                      to_string(_pending_request_kind),
                       _current_scene_id.empty() ? "<none>" : _current_scene_id,
                       _pending_scene_id.empty() ? "<none>" : _pending_scene_id,
                       to_string(_transition_phase));
@@ -1391,6 +1491,7 @@ namespace carrot::scene {
         _runtime_state = has_scene_loaded()
                              ? scene_runtime_state_t::active
                              : scene_runtime_state_t::idle;
+        _pending_request_kind = scene_change_request_kind_t::none;
         _last_scene_change_succeeded = false;
         if (!_active_transition_overlay_options.enabled)
         {
@@ -1405,7 +1506,8 @@ namespace carrot::scene {
     void scene_runtime_t::complete_scene_change() noexcept
     {
         capture_recent_transition_diagnostics();
-        LOG_CORE_INFO("Scene transition complete: current='{}', spawn='{}'",
+        LOG_CORE_INFO("Scene {} complete: current='{}', spawn='{}'",
+                      to_string(_pending_request_kind),
                       _current_scene_id.empty() ? "<none>" : _current_scene_id,
                       _current_spawn_marker.empty() ? "<none>" : _current_spawn_marker);
         _pending_load_task.reset();
@@ -1417,6 +1519,7 @@ namespace carrot::scene {
         _runtime_state = has_scene_loaded()
                              ? scene_runtime_state_t::active
                              : scene_runtime_state_t::idle;
+        _pending_request_kind = scene_change_request_kind_t::none;
         _last_scene_change_succeeded = true;
         if (!_active_transition_overlay_options.enabled)
         {

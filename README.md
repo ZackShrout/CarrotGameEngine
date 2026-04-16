@@ -27,8 +27,11 @@ The engine already includes meaningful progress in several major areas:
 * DirectX 12 textured quad renderer at practical parity with Vulkan and Metal
 * Custom audio engine architecture
 * Virtual file system and asset pipeline foundations
-* Texture and audio asset loading
-* Shader and asset hot-reload direction
+* Texture, audio, font, sprite, tilemap, and scene asset systems
+* Runtime text rendering through the native MSDF font pipeline
+* Scene runtime summaries, inspection surfaces, and scene rebuild support
+* Thin optional `CarrotEditor` tooling host for diagnostics and live inspection
+* Shader hot reload plus first-pass asset iteration diagnostics and selective runtime reload
 * CMake-based cross-platform build system
 
 Carrot is **not production-complete**, but it is also **not a toy repo**. The goal is to build a focused, long-lived engine foundation.
@@ -84,9 +87,12 @@ Carrot’s rendering architecture is built around a custom **RHI (Rendering Hard
 
 ---
 
-## Planned Content Tooling Direction
+## Content Tooling Direction
 
 Carrot is intended to work well with established external content tools rather than requiring a custom editor immediately.
+
+That remains true even though the repo now includes a thin optional `CarrotEditor` host for runtime inspection and asset diagnostics.
+The editor is intended to validate engine-owned tooling seams, not to become a required workflow boundary.
 
 Planned first-class content workflows include:
 
@@ -148,6 +154,16 @@ This is one of the reasons Carrot leans heavily into **JSON-based authored metad
   * spawn markers and scene transitions
   * scene camera defaults/follow behavior
   * scene-owned music bootstrap
+  * runtime scene summaries and scene/system inspection surfaces
+  * current-scene rebuild support for structure-refresh cases
+* Runtime text foundation including:
+  * cooked `.cfont` artifacts
+  * MSDF atlas generation and runtime font loading
+  * text layout/measurement for UI and debug text
+* Thin optional tooling host including:
+  * asset diagnostics and reload surfaces
+  * texture/sprite preview
+  * runtime scene/object/system inspection
 * Future direction includes:
 
     * higher-quality runtime text rendering

@@ -52,8 +52,17 @@ namespace carrot::scene {
         finalizing
     };
 
+    enum class scene_change_request_kind_t : uint8_t
+    {
+        none = 0,
+        load,
+        transition,
+        rebuild
+    };
+
     [[nodiscard]] std::string_view to_string(scene_runtime_state_t state) noexcept;
     [[nodiscard]] std::string_view to_string(scene_transition_phase_t phase) noexcept;
+    [[nodiscard]] std::string_view to_string(scene_change_request_kind_t request_kind) noexcept;
 
     struct scene_transition_presentation_t
     {
@@ -173,6 +182,15 @@ namespace carrot::scene {
     public:
         virtual ~scene_runtime_listener_t() = default;
 
+        /**
+         * @brief Called after a scene change has been requested, but before the active world is replaced.
+         *
+         * current_context is null when no scene is currently active.
+         *
+         * This hook exists for game-side state capture and transition preparation.
+         * It is not the place to mutate the newly staged world or assume the target
+         * scene has already become active.
+         */
         virtual void before_scene_change(core::game_context_t& game,
                                          const scene_runtime_context_t* current_context,
                                          std::string_view next_scene_id,
@@ -184,6 +202,14 @@ namespace carrot::scene {
             (void)next_spawn_marker;
         }
 
+        /**
+         * @brief Called after the staged world has been adopted and post-activation engine state has been applied.
+         *
+         * At this point the new scene is active, controller bindings have been
+         * rebound, camera defaults/overrides have been applied, scene music has
+         * been refreshed when enabled, and current_context reflects the
+         * post-activation runtime truth.
+         */
         virtual void after_scene_change(core::game_context_t& game,
                                         const scene_runtime_context_t& current_context)
         {
@@ -223,6 +249,7 @@ namespace carrot::scene {
     {
         scene_runtime_state_t runtime_state{ scene_runtime_state_t::idle };
         scene_transition_phase_t transition_phase{ scene_transition_phase_t::none };
+        scene_change_request_kind_t pending_request_kind{ scene_change_request_kind_t::none };
         const assets::scene_asset_record_t* active_scene_record{ nullptr };
         const assets::scene_asset_record_t* pending_scene_record{ nullptr };
         std::string_view active_scene_id;
@@ -517,6 +544,7 @@ namespace carrot::scene {
                                       const scene_load_options_t& options = {});
         [[nodiscard]] bool request_rebuild_current_scene(core::game_context_t& game);
         [[nodiscard]] bool rebuild_current_scene(core::game_context_t& game);
+        [[nodiscard]] bool can_request_rebuild_current_scene() const noexcept;
         void update_camera(core::game_context_t& game, float delta_time) noexcept;
 
         [[nodiscard]] std::string_view current_scene_id() const noexcept { return _current_scene_id; }
@@ -561,6 +589,12 @@ namespace carrot::scene {
         void render_transition_overlay(core::game_context_t& game) noexcept;
 
     private:
+        /**
+         * scene_runtime_t owns the active/pending scene contract and the adoption of
+         * staged worlds into the live runtime. scene_load_task_t only prepares an
+         * isolated world; scene_runtime_t decides when that staged world becomes the
+         * authoritative runtime world and which runtime systems must be rebound.
+         */
         enum class transition_overlay_stage_t : uint8_t
         {
             hidden = 0,
@@ -582,7 +616,10 @@ namespace carrot::scene {
             bool startup_waiting_for_first_present{ false };
         };
 
-        void bind_runtime_objects(core::game_context_t& game, const assets::scene_asset_t& scene) noexcept;
+        void finalize_active_scene_activation(core::game_context_t& game) noexcept;
+        void bind_active_runtime_objects(core::game_context_t& game) noexcept;
+        void bind_active_player_controller(core::game_context_t& game) noexcept;
+        void bind_active_interaction_controller() noexcept;
         void apply_camera_defaults(core::game_context_t& game,
                                    const assets::scene_asset_t& scene,
                                    const scene_camera_override_t& override) noexcept;
@@ -590,14 +627,22 @@ namespace carrot::scene {
         void refresh_scene_music(const assets::scene_asset_t& scene) noexcept;
         void capture_recent_transition_diagnostics() noexcept;
         void render_transition_diagnostics(core::game_context_t& game) noexcept;
+        [[nodiscard]] bool request_scene_change(core::game_context_t& game,
+                                               const assets::scene_asset_record_t& scene_record,
+                                               std::string_view scene_id,
+                                               std::string_view spawn_marker,
+                                               const scene_load_options_t& options,
+                                               scene_change_request_kind_t request_kind);
         void begin_scene_change(const assets::scene_asset_record_t& scene_record,
                                 std::string_view scene_id,
                                 std::string_view spawn_marker) noexcept;
+        void adopt_pending_scene(core::game_context_t& game, world::world_t staged_world) noexcept;
+        void apply_active_scene_defaults(core::game_context_t& game) noexcept;
+        void notify_scene_change_complete(core::game_context_t& game);
         void fail_scene_change() noexcept;
         void complete_scene_change() noexcept;
         [[nodiscard]] bool can_activate_scene_change() const noexcept;
         [[nodiscard]] bool can_accept_scene_change_request() const noexcept;
-
         std::string _current_scene_id;
         std::string _current_spawn_marker;
         const assets::scene_asset_record_t* _current_scene_record{ nullptr };
@@ -607,6 +652,7 @@ namespace carrot::scene {
         scene_load_options_t _active_options{ };
         scene_load_options_t _pending_options{ };
         std::optional<world::scene_load_task_t> _pending_load_task;
+        scene_change_request_kind_t _pending_request_kind{ scene_change_request_kind_t::none };
         scene_runtime_state_t _runtime_state{ scene_runtime_state_t::idle };
         scene_transition_phase_t _transition_phase{ scene_transition_phase_t::none };
         bool _last_scene_change_succeeded{ false };

@@ -136,7 +136,8 @@ namespace carrot::editor {
             return label;
         }
 
-        [[nodiscard]] std::string format_asset_details(const assets::asset_iteration_status_t& status)
+        [[nodiscard]] std::string format_asset_details(const assets::asset_iteration_status_t& status,
+                                                       const bool has_active_scene)
         {
             std::string text;
             text.reserve(512u);
@@ -149,10 +150,12 @@ namespace carrot::editor {
                 text += '\n';
             };
 
+            const assets::asset_runtime_refresh_action_t action{
+                assets::recommended_runtime_refresh_action(status.reload_policy, has_active_scene)
+            };
             append_line("Kind", assets::to_string(status.kind));
             append_line("Reload Policy", assets::to_string(status.reload_policy));
-            if (status.reload_policy == assets::asset_reload_policy_t::restart_or_scene_rebuild_required)
-                append_line("Action Required", "rebuild current scene in runtime");
+            append_line("Recommended Runtime Action", assets::to_string(action));
             append_line("Source", status.source_uri);
             append_line("Manifest", status.manifest_uri.empty() ? std::string_view{ "<none>" } : std::string_view{ status.manifest_uri });
             append_line("Cached In Runtime", status.loaded_in_runtime_cache ? std::string_view{ "yes" } : std::string_view{ "no" });
@@ -182,22 +185,43 @@ namespace carrot::editor {
                 : make_abgr(0xD9u, 0x8Bu, 0x73u);
         }
 
-        [[nodiscard]] std::string_view reload_button_label(const assets::asset_reload_policy_t policy) noexcept
+        [[nodiscard]] assets::asset_runtime_refresh_action_t selected_action(
+            const assets::asset_iteration_status_t& status,
+            const bool has_active_scene) noexcept
         {
-            switch (policy)
+            return assets::recommended_runtime_refresh_action(status.reload_policy, has_active_scene);
+        }
+
+        [[nodiscard]] std::string_view action_button_label(const assets::asset_runtime_refresh_action_t action) noexcept
+        {
+            switch (action)
             {
-                case assets::asset_reload_policy_t::manual_refresh_only: return "Refresh Selected Asset";
-                case assets::asset_reload_policy_t::restart_or_scene_rebuild_required: return "Scene Rebuild Required";
-                case assets::asset_reload_policy_t::reloadable_live:
-                case assets::asset_reload_policy_t::reloadable_on_next_use:
-                default:
-                    return "Reload Selected Asset";
+                case assets::asset_runtime_refresh_action_t::reload_now: return "Reload Selected Asset";
+                case assets::asset_runtime_refresh_action_t::reload_on_next_use: return "Queue Refresh On Next Use";
+                case assets::asset_runtime_refresh_action_t::manual_refresh: return "Refresh Selected Asset";
+                case assets::asset_runtime_refresh_action_t::rebuild_current_scene: return "Rebuild Current Scene";
+                case assets::asset_runtime_refresh_action_t::restart_runtime: return "Restart Runtime Required";
+                case assets::asset_runtime_refresh_action_t::none:
+                default: return "Reload Selected Asset";
             }
         }
 
-        [[nodiscard]] bool can_trigger_reload(const assets::asset_reload_policy_t policy) noexcept
+        [[nodiscard]] bool can_trigger_action(const assets::asset_runtime_refresh_action_t action,
+                                             const bool can_rebuild_current_scene) noexcept
         {
-            return policy != assets::asset_reload_policy_t::restart_or_scene_rebuild_required;
+            switch (action)
+            {
+                case assets::asset_runtime_refresh_action_t::reload_now:
+                case assets::asset_runtime_refresh_action_t::reload_on_next_use:
+                case assets::asset_runtime_refresh_action_t::manual_refresh:
+                    return true;
+                case assets::asset_runtime_refresh_action_t::rebuild_current_scene:
+                    return can_rebuild_current_scene;
+                case assets::asset_runtime_refresh_action_t::restart_runtime:
+                case assets::asset_runtime_refresh_action_t::none:
+                default:
+                    return false;
+            }
         }
 
         [[nodiscard]] std::string format_vec2(const chlm::float2 value)
@@ -734,11 +758,44 @@ namespace carrot::editor {
         if (!_game || !_has_selection)
             return;
 
-        const bool reloaded{ _game->assets.reload_asset(_selected_kind, _selected_id) };
-        LOG_ASSET_INFO("Editor manual reload for '{}' {}",
-                       _has_selection ? "selected asset" : "asset",
-                       reloaded ? "succeeded" : "failed");
+        const auto status{ _game->assets.find_runtime_iteration_status(_selected_kind, _selected_id) };
+        if (!status.has_value())
+            return;
+
+        const assets::asset_runtime_refresh_action_t action{
+            selected_action(*status, _scene_runtime.has_scene_loaded())
+        };
+
+        bool succeeded{ false };
+        switch (action)
+        {
+            case assets::asset_runtime_refresh_action_t::reload_now:
+            case assets::asset_runtime_refresh_action_t::reload_on_next_use:
+            case assets::asset_runtime_refresh_action_t::manual_refresh:
+                succeeded = _game->assets.reload_asset(_selected_kind, _selected_id);
+                LOG_ASSET_INFO("Editor runtime refresh action '{}' for asset '{}' {}",
+                               assets::to_string(action),
+                               status->logical_id,
+                               succeeded ? "succeeded" : "failed");
+                break;
+            case assets::asset_runtime_refresh_action_t::rebuild_current_scene:
+                succeeded = _scene_runtime.rebuild_current_scene(*_game);
+                LOG_CORE_INFO("Editor runtime refresh action '{}' for asset '{}' {}",
+                              assets::to_string(action),
+                              status->logical_id,
+                              succeeded ? "succeeded" : "failed");
+                break;
+            case assets::asset_runtime_refresh_action_t::restart_runtime:
+            case assets::asset_runtime_refresh_action_t::none:
+            default:
+                LOG_CORE_WARN("Editor runtime refresh action '{}' for asset '{}' is not directly executable",
+                              assets::to_string(action),
+                              status->logical_id);
+                break;
+        }
+
         refresh_selected_asset_details();
+        refresh_runtime_inspection();
         update_button_labels();
     }
 
@@ -777,9 +834,12 @@ namespace carrot::editor {
         _details_title->set_text(status->logical_id);
         _details_title->set_color(status_color(*status));
         _diagnostics_title->set_text("Diagnostics");
-        _details_body->set_text(format_asset_details(*status));
-        _reload_button->set_label(std::string{ reload_button_label(status->reload_policy) });
-        _reload_button->set_enabled(can_trigger_reload(status->reload_policy));
+        _details_body->set_text(format_asset_details(*status, _scene_runtime.has_scene_loaded()));
+        const assets::asset_runtime_refresh_action_t action{
+            selected_action(*status, _scene_runtime.has_scene_loaded())
+        };
+        _reload_button->set_label(std::string{ action_button_label(action) });
+        _reload_button->set_enabled(can_trigger_action(action, _scene_runtime.can_request_rebuild_current_scene()));
 
         switch (status->kind)
         {

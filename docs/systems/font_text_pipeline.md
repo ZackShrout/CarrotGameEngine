@@ -1,14 +1,14 @@
 # Carrot Game Engine – Font and Text Pipeline
 
 **BunnySoft**
-**System Design Draft**
-**Last Updated: April 10, 2026**
+**System Design Document**
+**Last Updated: April 15, 2026**
 
 ---
 
 ## 1. Purpose
 
-This document defines the first-draft direction for Carrot's native runtime text pipeline.
+This document defines the current architecture and near-term direction for Carrot's native runtime text pipeline.
 
 Its immediate purpose is to describe:
 
@@ -17,8 +17,10 @@ Its immediate purpose is to describe:
 * the import pipeline from source font data into runtime-facing text assets
 * the runtime responsibilities for layout, measurement, and rendering
 
-This is now a first-draft architecture and binary-format proposal for review.
-It should be treated as concrete enough to discuss implementation shape, while still open to revision before code lands.
+This is no longer a pre-implementation proposal.
+Carrot now has a working native MSDF font pipeline including cooked `.cfont` artifacts, runtime font loading, text measurement/layout, and renderer integration for UI and debug text.
+
+The details here should be treated as the current implemented model, with room for iterative revision as the engine grows.
 
 ---
 
@@ -35,6 +37,20 @@ Important constraint:
 
 * geometry shaders may be explored later as optional experiments
 * geometry shaders must **not** be required for the core Carrot text architecture
+
+## 2.1 Implemented Today
+
+Current implemented pieces include:
+
+* authored `*.font.json` font asset manifests
+* cooked `.cfont` artifacts
+* MSDF atlas generation during import/cook
+* runtime font loading and validation
+* glyph lookup and kerning access
+* `TextLayout` measurement and placement
+* renderer text-quad submission paths across the active RHI backends
+* UI label rendering
+* engine debug/log text rendering
 
 ---
 
@@ -95,9 +111,9 @@ This is the original authored input.
 
 ### 5.2 Authored Font Asset Definition
 
-Carrot should use an authored asset definition file to describe a runtime font asset.
+Carrot uses an authored asset definition file to describe a runtime font asset.
 
-Example future naming direction:
+Current naming:
 
 * `*.font.json`
 
@@ -112,7 +128,7 @@ The authored definition should describe things such as:
 
 ### 5.3 Cooked Font Artifact
 
-The cooked artifact should likely be:
+The cooked artifact is:
 
 * `.cfont`
 
@@ -135,7 +151,7 @@ Gameplay and UI code should work through the loaded font asset and text-layout A
 
 ## 6. First-Draft `.cfont` Binary Specification
 
-The first-pass `.cfont` format should be intentionally narrow, deterministic, and runtime-oriented.
+The current `.cfont` format is intentionally narrow, deterministic, and runtime-oriented.
 
 First-pass assumptions:
 
@@ -146,7 +162,7 @@ First-pass assumptions:
 
 ### 6.1 File Layout Overview
 
-Recommended first-pass file layout:
+Current file layout:
 
 1. header
 2. invalidation metadata block
@@ -159,7 +175,7 @@ All offsets should be absolute byte offsets from the start of the file.
 
 ### 6.2 Header
 
-Recommended first-pass header struct:
+Current header struct:
 
 ```cpp
 struct cfont_header_v1_t
@@ -198,7 +214,7 @@ First-pass rules:
 
 ### 6.3 Invalidation Metadata Block
 
-Recommended first-pass invalidation block:
+Current invalidation block:
 
 ```cpp
 struct cfont_invalidation_v1_t
@@ -219,7 +235,7 @@ This block is not part of gameplay/runtime presentation logic.
 
 ### 6.4 Global Metrics Block
 
-Recommended first-pass global metrics struct:
+Current global metrics struct:
 
 ```cpp
 struct cfont_global_metrics_v1_t
@@ -251,7 +267,7 @@ Notes:
 
 ### 6.5 Glyph Table
 
-Recommended first-pass glyph record:
+Current glyph record:
 
 ```cpp
 struct cfont_glyph_record_v1_t

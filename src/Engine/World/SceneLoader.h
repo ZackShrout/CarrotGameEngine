@@ -29,6 +29,26 @@ namespace carrot::core {
 }
 
 namespace carrot::world {
+    /**
+     * @brief Incrementally stages a world for a target scene without mutating the live runtime world.
+     *
+     * scene_load_task_t owns only the isolated loading/staging path:
+     *
+     * * resolve the scene asset and its dependencies
+     * * construct a staged world
+     * * import authored map/object data into that staged world
+     * * resolve the effective spawn marker inside the staged world
+     *
+     * It does not own:
+     *
+     * * the currently active runtime scene
+     * * transition presentation
+     * * controller binding
+     * * camera or music application
+     * * deciding when the staged world should replace the active world
+     *
+     * Those remain responsibilities of scene::scene_runtime_t.
+     */
     class scene_load_task_t
     {
     public:

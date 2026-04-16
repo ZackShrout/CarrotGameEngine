@@ -147,7 +147,8 @@ A minimum useful `CarrotEditor` should provide:
 * asset list or browser
 * asset diagnostics/status panel
 * manual refresh/reload controls
-* one or more focused preview surfaces such as texture, sprite, tilemap, or audio preview
+* focused preview surfaces for currently supported asset types
+* runtime scene/object/system inspection surfaces
 
 That is enough to prove:
 
@@ -156,6 +157,24 @@ That is enough to prove:
 * practical iteration improvements
 
 It is not yet a full editor architecture.
+
+### Current Implemented Slice
+
+The current repo already implements a thin first-pass tooling host with:
+
+* asset list/status browsing
+* manual reload controls
+* texture preview
+* sprite preview
+* runtime scene summary inspection
+* runtime object inspection
+* runtime systems inspection
+
+Near-term likely additions include:
+
+* audio preview
+* tilemap preview
+* broader asset-type-specific inspection panels
 
 ---
 
@@ -182,3 +201,20 @@ This system direction is succeeding when:
 * the editor can disappear without breaking the engine
 
 That boundary is more important than how quickly the first tooling UI appears.
+
+## 11. Current Reload Scope
+
+Current implementation scope is intentionally narrower than the full design envelope.
+
+Today:
+
+* textures support live runtime reload
+* sprites support live runtime reload
+* non-streamed audio supports live runtime reload
+* streamed audio is tracked but remains manual-refresh-oriented
+* fonts, tilemaps, and scenes are tracked but currently sit in scene-rebuild/restart-oriented territory
+
+This is consistent with the intended safety model:
+
+* simple leaf assets can be more aggressive
+* structure-shaping assets should remain explicit until rebuild rules are clearer

@@ -20,6 +20,10 @@ namespace carrot::assets {
             status.logical_id = record.logical_id;
             status.source_uri = record.source_uri;
             status.manifest_uri = record.manifest_uri;
+            status.dependency_shape = asset_dependency_shape_t::leaf_runtime_data;
+            status.watch_mode = asset_iteration_watch_mode_t::source_and_manifest_timestamps;
+            status.dependency_summary =
+                "Depends on texture source pixels and manifest import settings; safe leaf runtime data for live reload.";
             status.reload_policy = asset_reload_policy_t::reloadable_live;
             return status;
         }

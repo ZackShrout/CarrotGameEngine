@@ -77,9 +77,22 @@ namespace carrot::assets {
             std::optional<std::filesystem::file_time_type> manifest_write_time;
         };
 
+        struct runtime_iteration_diagnostics_t
+        {
+            asset_iteration_watch_change_t last_watch_change{ asset_iteration_watch_change_t::none };
+            asset_iteration_request_origin_t last_refresh_request_origin{ asset_iteration_request_origin_t::none };
+            asset_runtime_refresh_action_t last_requested_action{ asset_runtime_refresh_action_t::none };
+        };
+
         [[nodiscard]] static std::uint64_t runtime_iteration_watch_key(asset_kind_t kind, asset_id_t id) noexcept;
         [[nodiscard]] runtime_iteration_watch_snapshot_t capture_watch_snapshot(std::string_view source_uri,
                                                                                 std::string_view manifest_uri) const;
+        [[nodiscard]] asset_iteration_status_t enrich_runtime_iteration_status(asset_iteration_status_t status) const;
+        void note_runtime_refresh_request(asset_kind_t kind,
+                                          asset_id_t id,
+                                          asset_iteration_request_origin_t origin,
+                                          asset_runtime_refresh_action_t action);
+        bool reload_asset(asset_kind_t kind, asset_id_t id, asset_iteration_request_origin_t origin);
         void update_runtime_iteration_watch(asset_kind_t kind,
                                             asset_id_t id,
                                             std::string_view logical_id,
@@ -94,5 +107,6 @@ namespace carrot::assets {
         tilemap_asset_system_t _tilemaps;
         scene_asset_system_t _scenes;
         std::unordered_map<std::uint64_t, runtime_iteration_watch_snapshot_t> _runtime_iteration_watches;
+        std::unordered_map<std::uint64_t, runtime_iteration_diagnostics_t> _runtime_iteration_diagnostics;
     };
 } // namespace carrot::assets

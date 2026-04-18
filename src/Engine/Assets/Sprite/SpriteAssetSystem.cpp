@@ -20,6 +20,11 @@ namespace carrot::assets {
             status.logical_id = record.logical_id;
             status.source_uri = record.source_uri;
             status.manifest_uri = record.manifest_uri;
+            status.dependency_shape = asset_dependency_shape_t::referenced_runtime_assets;
+            status.watch_mode = asset_iteration_watch_mode_t::source_and_manifest_timestamps;
+            status.dependency_summary = std::string{
+                "Depends on sprite authored data and referenced texture asset '"
+            } + std::string{ record.sprite.texture_id() } + "'.";
             status.reload_policy = asset_reload_policy_t::reloadable_live;
             return status;
         }

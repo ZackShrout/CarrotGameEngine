@@ -20,6 +20,10 @@ namespace carrot::assets {
             status.logical_id = record.logical_id;
             status.source_uri = record.source_uri;
             status.manifest_uri = record.manifest_uri;
+            status.dependency_shape = asset_dependency_shape_t::scene_or_world_structure;
+            status.watch_mode = asset_iteration_watch_mode_t::not_polled;
+            status.dependency_summary =
+                "Depends on tilemap authored data, imported tileset/image references, and manifest import settings; changes affect world structure, collision, layering, and authored light data.";
             status.reload_policy = asset_reload_policy_t::restart_or_scene_rebuild_required;
             return status;
         }

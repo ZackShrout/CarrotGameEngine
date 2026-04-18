@@ -650,10 +650,49 @@ namespace carrot::scene {
 
         scene_load_options_t rebuild_options{ _active_options };
         rebuild_options.spawn_marker_override = _current_spawn_marker;
+        clear_pending_structural_refresh_context();
 
         LOG_CORE_INFO("Scene rebuild requested for current scene '{}' at spawn '{}'",
                       _current_scene_id,
                       _current_spawn_marker);
+        return request_scene_change(game,
+                                    *_current_scene_record,
+                                    _current_scene_id,
+                                    _current_spawn_marker,
+                                    rebuild_options,
+                                    scene_change_request_kind_t::rebuild);
+    }
+
+    bool scene_runtime_t::request_rebuild_current_scene_for_asset(core::game_context_t& game,
+                                                                  const assets::asset_iteration_status_t& status)
+    {
+        if (!can_request_rebuild_current_scene())
+            return false;
+
+        if (_current_scene_record == nullptr || _current_scene_id.empty() || _current_spawn_marker.empty())
+            return false;
+
+        const auto action{ assets::recommended_runtime_refresh_action(status, true) };
+        if (action != assets::asset_runtime_refresh_action_t::rebuild_current_scene)
+        {
+            LOG_CORE_WARN("Asset-driven scene rebuild request rejected for asset '{}' (kind='{}', action='{}')",
+                          status.logical_id,
+                          assets::to_string(status.kind),
+                          assets::to_string(action));
+            return false;
+        }
+
+        scene_load_options_t rebuild_options{ _active_options };
+        rebuild_options.spawn_marker_override = _current_spawn_marker;
+        _pending_structural_refresh_asset_kind = status.kind;
+        _pending_structural_refresh_asset_logical_id = status.logical_id;
+        _pending_structural_refresh_reason = std::string{ assets::describe_runtime_refresh_action_reason(status, true) };
+
+        LOG_CORE_INFO("Asset-driven scene rebuild requested for current scene '{}' at spawn '{}' by {} asset '{}'",
+                      _current_scene_id,
+                      _current_spawn_marker,
+                      assets::to_string(status.kind),
+                      status.logical_id);
         return request_scene_change(game,
                                     *_current_scene_record,
                                     _current_scene_id,
@@ -888,6 +927,15 @@ namespace carrot::scene {
                 .target_spawn_marker = diagnostics_visible && has_pending_scene()
                                            ? std::string{ state_snapshot.pending_spawn_marker }
                                            : _recent_transition_diagnostics.pending_spawn_marker,
+                .structural_refresh_asset_kind = diagnostics_visible && has_pending_scene()
+                                                     ? _pending_structural_refresh_asset_kind
+                                                     : _recent_transition_diagnostics.structural_refresh_asset_kind,
+                .structural_refresh_asset_logical_id = diagnostics_visible && has_pending_scene()
+                                                           ? _pending_structural_refresh_asset_logical_id
+                                                           : _recent_transition_diagnostics.structural_refresh_asset_logical_id,
+                .structural_refresh_reason = diagnostics_visible && has_pending_scene()
+                                                 ? _pending_structural_refresh_reason
+                                                 : _recent_transition_diagnostics.structural_refresh_reason,
                 .transition_progress = diagnostics_visible && has_pending_scene()
                                            ? state_snapshot.transition_progress
                                            : _recent_transition_diagnostics.transition_progress,
@@ -1353,8 +1401,18 @@ namespace carrot::scene {
         _recent_transition_diagnostics.active_scene_id = std::string{ state_snapshot.active_scene_id };
         _recent_transition_diagnostics.pending_scene_id = std::string{ state_snapshot.pending_scene_id };
         _recent_transition_diagnostics.pending_spawn_marker = std::string{ state_snapshot.pending_spawn_marker };
+        _recent_transition_diagnostics.structural_refresh_asset_kind = _pending_structural_refresh_asset_kind;
+        _recent_transition_diagnostics.structural_refresh_asset_logical_id = _pending_structural_refresh_asset_logical_id;
+        _recent_transition_diagnostics.structural_refresh_reason = _pending_structural_refresh_reason;
         _recent_transition_diagnostics.transition_progress = state_snapshot.transition_progress;
         _recent_transition_diagnostics.startup_waiting_for_first_present = _startup_overlay_waiting_for_first_present;
+    }
+
+    void scene_runtime_t::clear_pending_structural_refresh_context() noexcept
+    {
+        _pending_structural_refresh_asset_kind = assets::asset_kind_t::texture;
+        _pending_structural_refresh_asset_logical_id.clear();
+        _pending_structural_refresh_reason.clear();
     }
 
     void scene_runtime_t::render_transition_diagnostics(core::game_context_t& game) noexcept
@@ -1364,7 +1422,7 @@ namespace carrot::scene {
 
         constexpr float panel_y{ 12.f };
         constexpr float panel_width{ 340.f };
-        constexpr float panel_height{ 98.f };
+        constexpr float panel_height{ 114.f };
         constexpr float line_step{ 16.f };
         const float panel_x{ std::max(12.f, static_cast<float>(window::get_width()) - panel_width - 12.f) };
         const float text_x{ panel_x + 10.f };
@@ -1432,6 +1490,17 @@ namespace carrot::scene {
                                       to_string(_recent_transition_diagnostics.overlay_style).data(),
                                       _recent_transition_diagnostics.startup_waiting_for_first_present ? " (boot wait)" : "",
                                       _recent_transition_diagnostics.preserved_active_scene ? "yes" : "no");
+        }
+
+        if (!_recent_transition_diagnostics.structural_refresh_asset_logical_id.empty())
+        {
+            debug::text_colored_sized(text_x,
+                                      panel_y + 8.f + (line_step * 5.f),
+                                      k_transition_diagnostics_font_size,
+                                      0xFFD7CDBEu,
+                                      "refresh: %s %s",
+                                      assets::to_string(_recent_transition_diagnostics.structural_refresh_asset_kind).data(),
+                                      _recent_transition_diagnostics.structural_refresh_asset_logical_id.c_str());
         }
     }
 
@@ -1562,6 +1631,7 @@ namespace carrot::scene {
             _transition_overlay_hold_elapsed_seconds = 0.f;
             _startup_overlay_waiting_for_first_present = false;
         }
+        clear_pending_structural_refresh_context();
         _transition_diagnostics_hold_remaining_seconds = k_transition_diagnostics_linger_seconds;
     }
 
@@ -1590,6 +1660,7 @@ namespace carrot::scene {
             _transition_overlay_hold_elapsed_seconds = 0.f;
             _startup_overlay_waiting_for_first_present = false;
         }
+        clear_pending_structural_refresh_context();
         _transition_diagnostics_hold_remaining_seconds = k_transition_diagnostics_linger_seconds;
     }
 

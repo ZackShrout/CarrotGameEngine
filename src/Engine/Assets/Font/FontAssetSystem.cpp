@@ -19,6 +19,10 @@ namespace carrot::assets {
             status.logical_id = record.logical_id;
             status.source_uri = record.source_uri;
             status.manifest_uri = record.manifest_uri;
+            status.dependency_shape = asset_dependency_shape_t::layout_or_presentation_contract;
+            status.watch_mode = asset_iteration_watch_mode_t::not_polled;
+            status.dependency_summary =
+                "Depends on font source data and manifest import settings; changes affect text layout/presentation contracts and currently require rebuild-oriented handling.";
             status.reload_policy = asset_reload_policy_t::restart_or_scene_rebuild_required;
             return status;
         }

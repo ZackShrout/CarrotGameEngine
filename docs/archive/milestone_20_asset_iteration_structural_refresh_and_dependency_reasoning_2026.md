@@ -1,9 +1,11 @@
 # Carrot Game Engine - Milestone 20
 
-**Last Updated:** April 15, 2026
+**Last Updated:** April 18, 2026
 **Title:** Asset Iteration Structural Refresh and Dependency Reasoning
-**Status:** Proposed
+**Status:** Completed and archived
 **Focus:** Turn Carrot's first-pass runtime iteration work into a more permanent engine capability by making dependency reasoning, refresh actions, and rebuild requirements clearer, safer, and more explainable.
+
+Archived in April 2026 after Carrot strengthened dependency-shape reporting, refined refresh-action selection, added richer iteration diagnostics, connected structural refresh to asset-driven scene rebuild flow, and expanded regression coverage around iteration honesty.
 
 ---
 
@@ -253,3 +255,24 @@ Milestone 20 is complete when:
 
 Completion does not mean "perfect hot reload."
 It does mean Carrot's iteration architecture is becoming a durable engine strength instead of a set of useful but isolated mechanisms.
+
+---
+
+## Closeout Notes
+
+Milestone 20 closed with the intended minimum slice fully landed:
+
+* asset iteration status now exposes engine-owned dependency-shape, watch-mode, and dependency-summary reasoning for current major asset kinds
+* runtime refresh action selection now uses richer status context instead of only raw reload-policy enums
+* diagnostics now record and explain watch changes, request origin, requested action, attempt summaries, and invalidation detail
+* structural refresh now ties into scene runtime through asset-driven rebuild requests rather than only generic rebuild suggestions
+* regression coverage now exercises dependency-driven watch changes, richer explanation surfaces, and both acceptance and rejection paths for structural rebuild reasoning
+
+Important outcomes:
+
+* Carrot is more honest about the difference between watched changes and actual source-content invalidation
+* rebuild-oriented assets now participate in a clearer engine-owned runtime path
+* editor/runtime tooling is consuming shared engine explanations rather than inventing ad hoc interpretations
+
+This milestone did not try to make every asset live reloadable.
+It made the existing iteration model more explicit, safer, and easier to extend without folklore.

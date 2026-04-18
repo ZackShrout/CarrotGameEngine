@@ -3059,6 +3059,115 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(complete_snapshot.pending_request_kind == carrot::scene::scene_change_request_kind_t::none);
         }
 
+        void test_scene_runtime_asset_driven_rebuild_carries_structural_refresh_context()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t renderer{ vfs, graphics_config, window::invalid_window_id };
+
+            assets::asset_manager_t assets{ vfs, *renderer.get_rhi() };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            core::game_view_t view{ renderer };
+            input::controller_manager_t controllers;
+            core::game_context_t game{
+                .world = world,
+                .assets = assets,
+                .view = view,
+                .controllers = controllers
+            };
+
+            scene::scene_runtime_t runtime;
+            CARROT_TEST_REQUIRE(runtime.load(game,
+                                             "scene.sandbox.town",
+                                             carrot::scene::scene_load_options_t{
+                                                 .apply_scene_music = false,
+                                                 .transition_overlay = {
+                                                     .style = carrot::scene::scene_transition_overlay_style_t::none
+                                                 }
+                                             }));
+
+            carrot::assets::asset_iteration_status_t status;
+            status.kind = carrot::assets::asset_kind_t::tilemap;
+            status.logical_id = "tilemap.test.town";
+            status.reload_policy = carrot::assets::asset_reload_policy_t::restart_or_scene_rebuild_required;
+            status.dependency_shape = carrot::assets::asset_dependency_shape_t::scene_or_world_structure;
+
+            CARROT_TEST_REQUIRE(runtime.request_rebuild_current_scene_for_asset(game, status));
+            CARROT_TEST_REQUIRE(runtime.has_pending_scene());
+
+            const carrot::scene::scene_runtime_summary_t pending_summary{ runtime.summarize(game) };
+            CARROT_TEST_REQUIRE(pending_summary.diagnostics.has_structural_refresh_context());
+            CARROT_TEST_REQUIRE(pending_summary.diagnostics.structural_refresh_asset_kind ==
+                                carrot::assets::asset_kind_t::tilemap);
+            CARROT_TEST_REQUIRE(pending_summary.diagnostics.structural_refresh_asset_logical_id == "tilemap.test.town");
+            CARROT_TEST_REQUIRE(pending_summary.diagnostics.structural_refresh_reason.find("scene/world structure") !=
+                                std::string::npos);
+
+            while (runtime.has_pending_scene())
+                CARROT_TEST_REQUIRE(runtime.update(game));
+
+            const carrot::scene::scene_runtime_summary_t complete_summary{ runtime.summarize(game) };
+            CARROT_TEST_REQUIRE(complete_summary.diagnostics.has_structural_refresh_context());
+            CARROT_TEST_REQUIRE(complete_summary.diagnostics.structural_refresh_asset_kind ==
+                                carrot::assets::asset_kind_t::tilemap);
+            CARROT_TEST_REQUIRE(complete_summary.diagnostics.structural_refresh_asset_logical_id == "tilemap.test.town");
+        }
+
+        void test_scene_runtime_asset_driven_rebuild_rejects_non_structural_asset()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t renderer{ vfs, graphics_config, window::invalid_window_id };
+
+            assets::asset_manager_t assets{ vfs, *renderer.get_rhi() };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            core::game_view_t view{ renderer };
+            input::controller_manager_t controllers;
+            core::game_context_t game{
+                .world = world,
+                .assets = assets,
+                .view = view,
+                .controllers = controllers
+            };
+
+            scene::scene_runtime_t runtime;
+            CARROT_TEST_REQUIRE(runtime.load(game,
+                                             "scene.sandbox.town",
+                                             carrot::scene::scene_load_options_t{
+                                                 .apply_scene_music = false,
+                                                 .transition_overlay = {
+                                                     .style = carrot::scene::scene_transition_overlay_style_t::none
+                                                 }
+                                             }));
+
+            carrot::assets::asset_iteration_status_t status;
+            status.kind = carrot::assets::asset_kind_t::texture;
+            status.logical_id = "engine.carrot_engine_logo_512";
+            status.reload_policy = carrot::assets::asset_reload_policy_t::reloadable_live;
+            status.dependency_shape = carrot::assets::asset_dependency_shape_t::leaf_runtime_data;
+            status.loaded_in_runtime_cache = true;
+
+            CARROT_TEST_REQUIRE(!runtime.request_rebuild_current_scene_for_asset(game, status));
+            CARROT_TEST_REQUIRE(!runtime.has_pending_scene());
+
+            const carrot::scene::scene_runtime_summary_t summary{ runtime.summarize(game) };
+            CARROT_TEST_REQUIRE(!summary.diagnostics.has_structural_refresh_context());
+        }
+
         void test_scene_runtime_failed_rebuild_preserves_active_scene()
         {
             io::virtual_file_system_t vfs;
@@ -3918,6 +4027,10 @@ namespace carrot::tests {
                                test_game_runtime_debug_toggles_drive_world_overlay_state);
             tests.emplace_back("scene runtime can rebuild current scene",
                                test_scene_runtime_can_rebuild_current_scene);
+            tests.emplace_back("scene runtime asset driven rebuild carries structural refresh context",
+                               test_scene_runtime_asset_driven_rebuild_carries_structural_refresh_context);
+            tests.emplace_back("scene runtime asset driven rebuild rejects non structural asset",
+                               test_scene_runtime_asset_driven_rebuild_rejects_non_structural_asset);
             tests.emplace_back("scene runtime failed rebuild preserves active scene",
                                test_scene_runtime_failed_rebuild_preserves_active_scene);
             tests.emplace_back("incremental scene load task spreads work across multiple advances",

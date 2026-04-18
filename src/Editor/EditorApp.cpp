@@ -151,25 +151,37 @@ namespace carrot::editor {
             };
 
             const assets::asset_runtime_refresh_action_t action{
-                assets::recommended_runtime_refresh_action(status.reload_policy, has_active_scene)
+                assets::recommended_runtime_refresh_action(status, has_active_scene)
             };
             append_line("Kind", assets::to_string(status.kind));
+            append_line("Dependency Shape", assets::to_string(status.dependency_shape));
+            append_line("Watch Mode", assets::to_string(status.watch_mode));
+            append_line("Last Watch Change", assets::to_string(status.last_watch_change));
             append_line("Reload Policy", assets::to_string(status.reload_policy));
             append_line("Recommended Runtime Action", assets::to_string(action));
+            append_line("Action Reason", assets::describe_runtime_refresh_action_reason(status, has_active_scene));
             append_line("Source", status.source_uri);
             append_line("Manifest", status.manifest_uri.empty() ? std::string_view{ "<none>" } : std::string_view{ status.manifest_uri });
+            append_line("Dependency Summary",
+                        status.dependency_summary.empty() ? std::string_view{ "<none>" } : std::string_view{ status.dependency_summary });
+            append_line("Watch Detail", assets::describe_watch_change(status.last_watch_change));
             append_line("Cached In Runtime", status.loaded_in_runtime_cache ? std::string_view{ "yes" } : std::string_view{ "no" });
+            append_line("Last Request Origin", assets::to_string(status.last_refresh_request_origin));
+            append_line("Last Requested Action", assets::to_string(status.last_requested_action));
 
             if (!status.has_last_attempt)
             {
                 append_line("Last Attempt", "never");
+                append_line("Attempt Summary", assets::describe_last_attempt_summary(status));
                 return text;
             }
 
             append_line("Last Attempt", assets::to_string(status.last_result));
+            append_line("Attempt Summary", assets::describe_last_attempt_summary(status));
             append_line("Load Origin", assets::to_string(status.last_load_origin));
             append_line("Cooked Artifact", assets::to_string(status.last_cooked_artifact_state));
             append_line("Invalidation Reason", assets::to_string(status.last_invalidation_reason));
+            append_line("Invalidation Detail", assets::describe_invalidation_reason(status.last_invalidation_reason));
             append_line("Last Error", status.last_error.empty() ? std::string_view{ "<none>" } : std::string_view{ status.last_error });
 
             return text;
@@ -189,7 +201,7 @@ namespace carrot::editor {
             const assets::asset_iteration_status_t& status,
             const bool has_active_scene) noexcept
         {
-            return assets::recommended_runtime_refresh_action(status.reload_policy, has_active_scene);
+            return assets::recommended_runtime_refresh_action(status, has_active_scene);
         }
 
         [[nodiscard]] std::string_view action_button_label(const assets::asset_runtime_refresh_action_t action) noexcept
@@ -266,6 +278,14 @@ namespace carrot::editor {
                                         summary.diagnostics.preserved_active_scene ? "yes" : "no",
                                         std::round(std::clamp(summary.diagnostics.transition_progress, 0.f, 1.f) *
                                                    100.f)));
+                if (summary.diagnostics.has_structural_refresh_context())
+                {
+                    append_line("Structural Refresh",
+                                std::format("{} {}",
+                                            assets::to_string(summary.diagnostics.structural_refresh_asset_kind),
+                                            summary.diagnostics.structural_refresh_asset_logical_id));
+                    append_line("Refresh Reason", summary.diagnostics.structural_refresh_reason);
+                }
             }
             append_line("Camera", std::format("zoom {:.2f} at {}", summary.active_camera.zoom, format_vec2(summary.camera_center_world)));
             append_line("World", std::format("{} objects, {} triggers, {} colliders, {} static, {} lights, {} vis regions",
@@ -794,24 +814,29 @@ namespace carrot::editor {
             case assets::asset_runtime_refresh_action_t::reload_on_next_use:
             case assets::asset_runtime_refresh_action_t::manual_refresh:
                 succeeded = _game->assets.reload_asset(_selected_kind, _selected_id);
-                LOG_ASSET_INFO("Editor runtime refresh action '{}' for asset '{}' {}",
+                LOG_ASSET_INFO("Editor runtime refresh action '{}' for asset '{}' {}; reason={}",
                                assets::to_string(action),
                                status->logical_id,
-                               succeeded ? "succeeded" : "failed");
+                               succeeded ? "succeeded" : "failed",
+                               assets::describe_runtime_refresh_action_reason(*status, _scene_runtime.has_scene_loaded()));
                 break;
             case assets::asset_runtime_refresh_action_t::rebuild_current_scene:
-                succeeded = _scene_runtime.rebuild_current_scene(*_game);
-                LOG_CORE_INFO("Editor runtime refresh action '{}' for asset '{}' {}",
+                succeeded = _scene_runtime.request_rebuild_current_scene_for_asset(*_game, *status);
+                while (succeeded && _scene_runtime.has_pending_scene())
+                    succeeded = _scene_runtime.update(*_game);
+                LOG_CORE_INFO("Editor runtime refresh action '{}' for asset '{}' {}; reason={}",
                               assets::to_string(action),
                               status->logical_id,
-                              succeeded ? "succeeded" : "failed");
+                              succeeded ? "succeeded" : "failed",
+                              assets::describe_runtime_refresh_action_reason(*status, _scene_runtime.has_scene_loaded()));
                 break;
             case assets::asset_runtime_refresh_action_t::restart_runtime:
             case assets::asset_runtime_refresh_action_t::none:
             default:
-                LOG_CORE_WARN("Editor runtime refresh action '{}' for asset '{}' is not directly executable",
+                LOG_CORE_WARN("Editor runtime refresh action '{}' for asset '{}' is not directly executable; reason={}",
                               assets::to_string(action),
-                              status->logical_id);
+                              status->logical_id,
+                              assets::describe_runtime_refresh_action_reason(*status, _scene_runtime.has_scene_loaded()));
                 break;
         }
 

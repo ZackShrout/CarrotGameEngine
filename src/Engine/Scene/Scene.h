@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "Assets/AssetIteration.h"
 #include "Assets/Scene/SceneAsset.h"
 #include "Audio/Voice/VoiceHandle.h"
 #include "World/SceneLoader.h"
@@ -291,8 +292,16 @@ namespace carrot::scene {
             std::string active_scene_id;
             std::string target_scene_id;
             std::string target_spawn_marker;
+            assets::asset_kind_t structural_refresh_asset_kind{ assets::asset_kind_t::texture };
+            std::string structural_refresh_asset_logical_id;
+            std::string structural_refresh_reason;
             float transition_progress{ 0.f };
             bool startup_waiting_for_first_present{ false };
+
+            [[nodiscard]] bool has_structural_refresh_context() const noexcept
+            {
+                return !structural_refresh_asset_logical_id.empty();
+            }
         };
 
         scene_runtime_snapshot_t snapshot;
@@ -568,6 +577,8 @@ namespace carrot::scene {
                                       const scene_transition_request_t& request,
                                       const scene_load_options_t& options = {});
         [[nodiscard]] bool request_rebuild_current_scene(core::game_context_t& game);
+        [[nodiscard]] bool request_rebuild_current_scene_for_asset(core::game_context_t& game,
+                                                                   const assets::asset_iteration_status_t& status);
         [[nodiscard]] bool rebuild_current_scene(core::game_context_t& game);
         [[nodiscard]] bool can_request_rebuild_current_scene() const noexcept;
         void update_camera(core::game_context_t& game, float delta_time) noexcept;
@@ -640,6 +651,9 @@ namespace carrot::scene {
             std::string active_scene_id;
             std::string pending_scene_id;
             std::string pending_spawn_marker;
+            assets::asset_kind_t structural_refresh_asset_kind{ assets::asset_kind_t::texture };
+            std::string structural_refresh_asset_logical_id;
+            std::string structural_refresh_reason;
             float transition_progress{ 0.f };
             bool startup_waiting_for_first_present{ false };
         };
@@ -655,6 +669,7 @@ namespace carrot::scene {
         void refresh_scene_music(const assets::scene_asset_t& scene) noexcept;
         void capture_recent_transition_diagnostics(
             scene_change_outcome_t outcome = scene_change_outcome_t::in_progress) noexcept;
+        void clear_pending_structural_refresh_context() noexcept;
         void render_transition_diagnostics(core::game_context_t& game) noexcept;
         [[nodiscard]] bool request_scene_change(core::game_context_t& game,
                                                const assets::scene_asset_record_t& scene_record,
@@ -698,6 +713,9 @@ namespace carrot::scene {
         float _transition_overlay_opacity{ 0.f };
         float _transition_overlay_hold_elapsed_seconds{ 0.f };
         bool _startup_overlay_waiting_for_first_present{ false };
+        assets::asset_kind_t _pending_structural_refresh_asset_kind{ assets::asset_kind_t::texture };
+        std::string _pending_structural_refresh_asset_logical_id;
+        std::string _pending_structural_refresh_reason;
         recent_transition_diagnostics_t _recent_transition_diagnostics{ };
         float _transition_diagnostics_hold_remaining_seconds{ 0.f };
     };

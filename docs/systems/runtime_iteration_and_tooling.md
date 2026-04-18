@@ -218,3 +218,98 @@ This is consistent with the intended safety model:
 
 * simple leaf assets can be more aggressive
 * structure-shaping assets should remain explicit until rebuild rules are clearer
+
+## 12. Current Dependency Reasoning Model
+
+The engine now exposes a first-pass dependency surface for runtime iteration status.
+
+This is not yet a full dependency graph.
+It is an engine-owned summary of what kind of dependency truth each asset currently carries and how the runtime treats it.
+
+Current dependency shapes:
+
+* `leaf_runtime_data`
+  * texture assets
+  * audio assets
+  * these depend primarily on authored source bytes plus manifest/import settings
+* `referenced_runtime_assets`
+  * sprite assets
+  * these depend on authored sprite data plus at least one referenced runtime asset such as a texture
+* `layout_or_presentation_contract`
+  * font assets
+  * these affect text layout/presentation assumptions and remain rebuild-oriented today
+* `scene_or_world_structure`
+  * tilemap assets
+  * scene assets
+  * these affect active world composition, collision, layering, bindings, authored lights, or other structure-shaping runtime state
+
+Current watch modes:
+
+* `source_and_manifest_timestamps`
+  * currently used for textures, sprites, and audio
+  * this means the engine polls source/manifest write times and can attempt live runtime action when policy allows
+* `not_polled`
+  * currently used for fonts, tilemaps, and scenes
+  * this does not mean the dependency shape is unknown
+  * it means the engine is not yet polling that asset kind for automatic runtime timestamp-driven action
+
+This distinction matters:
+
+* dependency shape explains what the asset depends on
+* watch mode explains how the engine currently observes change for automatic runtime iteration
+
+That separation keeps the iteration model more honest:
+
+* some assets are well-understood but intentionally conservative
+* some assets are both well-understood and safe enough for live polling/reload
+
+## 13. Current Diagnostics Surface
+
+The engine now exposes a richer diagnostics surface for runtime iteration than just raw reload policy and last success/failure.
+
+Current diagnostics include:
+
+* `last_watch_change`
+  * records whether the most recently observed watched change came from source timestamps, manifest timestamps, both, or neither
+* `last_refresh_request_origin`
+  * records whether the most recent explicit runtime refresh request came from a manual request or automatic watch polling
+* `last_requested_action`
+  * records the engine-owned runtime action that was most recently requested for that asset
+* action-reason explanation
+  * explains why the engine chose `reload_now`, `reload_on_next_use`, `manual_refresh`, `rebuild_current_scene`, or `restart_runtime`
+* attempt summary
+  * explains the last recorded runtime result in more useful terms than enums alone, such as whether the asset came from cooked cache, regenerated from source, streamed directly, or failed
+* invalidation detail
+  * explains why the cooked artifact was considered stale or missing when that information is available
+
+This currently feeds two places:
+
+* engine log messages during automatic watch-driven refresh
+* `CarrotEditor` asset diagnostics/details panels
+
+The goal is not to create a second ad hoc debug language.
+The goal is for runtime/editor tooling to read the same engine-owned iteration explanation surfaces instead of inventing their own interpretations.
+
+## 14. Structural Refresh Integration
+
+Structural refresh is now tied more directly into scene runtime behavior than it was in the first iteration pass.
+
+Today:
+
+* structural or presentation-contract assets can still recommend `rebuild_current_scene`
+* `CarrotEditor` no longer treats that as only a generic button label
+* the rebuild path can now be requested as an asset-driven scene rebuild tied to a specific asset iteration status
+
+That means the scene runtime can carry:
+
+* which asset triggered the structural refresh request
+* what kind of asset it was
+* why the engine considered a scene rebuild the safest path
+
+That context is surfaced through runtime transition diagnostics, not just editor-local UI state.
+
+This is intentionally modest in scope:
+
+* it does not make every structural asset live reloadable
+* it does not promise background graph-driven rebuild automation
+* it does make rebuild-oriented iteration more explicit, traceable, and engine-owned

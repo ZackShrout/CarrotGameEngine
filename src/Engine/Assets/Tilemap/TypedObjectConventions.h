@@ -43,6 +43,29 @@ namespace carrot::assets {
         std::string_view visibility_zone_id;
     };
 
+    enum class typed_light_kind_t : uint8_t
+    {
+        ambient = 0,
+        point,
+        spot
+    };
+
+    enum class typed_light_behavior_t : uint8_t
+    {
+        stationary = 0,
+        follow
+    };
+
+    struct typed_light_object_t
+    {
+        typed_light_kind_t kind{ typed_light_kind_t::point };
+        typed_light_behavior_t behavior{ typed_light_behavior_t::stationary };
+        std::string_view color_hex;
+        float intensity{ 1.f };
+        std::optional<float> radius_world;
+        std::string_view follow_target;
+    };
+
     [[nodiscard]] bool is_known_tiled_object_type(std::string_view type) noexcept;
     [[nodiscard]] std::optional<typed_sign_object_t> as_typed_sign(const tilemap_object_t& object) noexcept;
     [[nodiscard]] std::optional<typed_sign_object_t> as_typed_sign(const world::world_object_t& object) noexcept;
@@ -54,4 +77,6 @@ namespace carrot::assets {
     [[nodiscard]] std::optional<typed_trigger_object_t> as_typed_trigger(const world::world_object_t& object) noexcept;
     [[nodiscard]] std::optional<typed_visibility_zone_object_t> as_typed_visibility_zone(const tilemap_object_t& object) noexcept;
     [[nodiscard]] std::optional<typed_visibility_zone_object_t> as_typed_visibility_zone(const world::world_object_t& object) noexcept;
+    [[nodiscard]] std::optional<typed_light_object_t> as_typed_light(const tilemap_object_t& object) noexcept;
+    [[nodiscard]] std::optional<typed_light_object_t> as_typed_light(const world::world_object_t& object) noexcept;
 } // namespace carrot::assets

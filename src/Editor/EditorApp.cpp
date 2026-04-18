@@ -246,6 +246,27 @@ namespace carrot::editor {
             append_line("State", std::string{ scene::to_string(summary.snapshot.runtime_state) });
             append_line("Phase", std::string{ scene::to_string(summary.snapshot.transition_phase) });
             append_line("Spawn", summary.snapshot.active_spawn_marker.empty() ? "<none>" : std::string{ summary.snapshot.active_spawn_marker });
+            if (summary.diagnostics.visible || summary.diagnostics.outcome != scene::scene_change_outcome_t::none)
+            {
+                append_line("Change",
+                            std::format("{} / {}",
+                                        scene::to_string(summary.diagnostics.request_kind),
+                                        scene::to_string(summary.diagnostics.outcome)));
+                append_line("Target",
+                            summary.diagnostics.target_scene_id.empty()
+                                ? "<none>"
+                                : std::format("{} @ {}",
+                                              summary.diagnostics.target_scene_id,
+                                              summary.diagnostics.target_spawn_marker.empty()
+                                                  ? "<none>"
+                                                  : summary.diagnostics.target_spawn_marker));
+                append_line("Refresh",
+                            std::format("overlay {}, preserved active scene {}, progress {:.0f}%",
+                                        scene::to_string(summary.diagnostics.overlay_style),
+                                        summary.diagnostics.preserved_active_scene ? "yes" : "no",
+                                        std::round(std::clamp(summary.diagnostics.transition_progress, 0.f, 1.f) *
+                                                   100.f)));
+            }
             append_line("Camera", std::format("zoom {:.2f} at {}", summary.active_camera.zoom, format_vec2(summary.camera_center_world)));
             append_line("World", std::format("{} objects, {} triggers, {} colliders, {} static, {} lights, {} vis regions",
                                              summary.world_object_count,

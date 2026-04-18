@@ -1,6 +1,6 @@
 # Carrot Tiled Authored Data Contract
 
-**Last Updated:** April 5, 2026
+**Last Updated:** April 17, 2026
 
 This document defines the current authored-data contract between Tiled exports and Carrot.
 
@@ -45,7 +45,7 @@ Current intentionally unsupported or only partially supported examples include:
 * polyline collision import
 * text objects as runtime-authored features
 
-Unsupported features should remain non-fatal when practical, but they should be diagnosed intentionally.
+Unsupported features remain non-fatal when practical, but they should still be diagnosed intentionally.
 
 ---
 
@@ -104,6 +104,17 @@ Carrot currently treats these Tiled object types as first-class authored convent
   * required: `trigger_kind`
 * `VisibilityZone`
   * required: `visibility_zone_id`
+* `Light`
+  * currently supported `kind` values:
+    * `ambient`
+    * `point`
+  * reserved for future expansion:
+    * `spot`
+  * optional: `behavior = stationary | follow`
+  * optional: `color = #RRGGBB | #RRGGBBAA`
+  * optional: `intensity = float`
+  * point lights require: `radius`
+  * follow lights require: `follow_target`
 
 These conventions are now shared across validation and runtime helper code rather than being reinterpreted independently in multiple places.
 
@@ -156,6 +167,157 @@ The intended long-term model is:
 * validation should eventually be extensible enough for game projects to register their own typed object rules when needed
 
 The goal is to keep users from needing custom types too often, while still leaving a clean path when project-specific authored semantics are truly needed.
+
+### `Light` Typed Object Contract
+
+Carrot now treats `type = Light` as an engine-owned authored-lighting convention.
+
+This is the path used to populate scene/world lighting from Tiled-authored data rather than relying on sandbox-local runtime glue.
+
+#### Supported Light Kinds Today
+
+Current supported `kind` values:
+
+* `ambient`
+* `point`
+
+Reserved for future expansion:
+
+* `spot`
+
+If a map authors `kind = spot` today, Carrot diagnoses it as not yet supported rather than pretending it behaves like a point light.
+
+#### Supported Behavior Values
+
+Current `behavior` values:
+
+* `stationary`
+* `follow`
+
+If `behavior` is omitted, Carrot assumes `stationary`.
+
+`behavior` is ignored for `kind = ambient`.
+
+#### Common Properties
+
+Recognized `Light` properties:
+
+* `kind`
+* `behavior`
+* `color`
+* `intensity`
+* `radius`
+* `follow_target`
+
+Defaults:
+
+* if `color` is omitted, the light defaults to white
+* if `intensity` is omitted, the light defaults to `1.0`
+* if no authored ambient light exists, scene ambient defaults to `1.0, 1.0, 1.0, 1.0`
+
+#### Color Format
+
+Carrot accepts both:
+
+* `#RRGGBB`
+* `#RRGGBBAA`
+
+Alpha is accepted for authoring convenience but ignored by the engine.
+
+Actual light strength comes from `intensity`, not color alpha.
+
+This is intentional so authors can safely paste colors from tools that export 8-digit hex values without accidentally changing light brightness semantics.
+
+#### Ambient Lights
+
+Author an ambient light like this:
+
+* set `type = Light`
+* set `kind = ambient`
+* optionally set `color`
+* optionally set `intensity`
+
+Ambient lights define scene-global ambient lighting.
+
+Ambient lights ignore:
+
+* object position
+* object size
+* `behavior`
+* `radius`
+* `follow_target`
+
+It is acceptable for an ambient light to be authored as a Tiled point object because Carrot ignores spatial meaning for ambient lights entirely.
+
+Current runtime rule:
+
+* at most one ambient light should be authored per scene-backed map
+* if multiple ambient lights are authored, Carrot warns and uses the first one
+
+#### Point Lights
+
+Author a stationary point light like this:
+
+* set `type = Light`
+* set `kind = point`
+* optionally set `behavior = stationary`
+* set `radius`
+* optionally set `color`
+* optionally set `intensity`
+
+Point lights use the authored object position as their world-space origin.
+
+Current runtime behavior intentionally does not infer point-light radius from Tiled object width or height.
+
+Use the explicit `radius` property instead.
+
+#### Follow Lights
+
+Follow lights are currently authored as point lights with a runtime behavior:
+
+* set `type = Light`
+* set `kind = point`
+* set `behavior = follow`
+* set `follow_target`
+* set `radius`
+* optionally set `color`
+* optionally set `intensity`
+
+Current supported `follow_target` value:
+
+* `player`
+
+For `follow_target = player`, Carrot uses the scene's default `player_spawn_marker` as the authoring reference.
+
+That means:
+
+* the authored light position defines the offset from the default player spawn marker
+* the runtime applies that offset relative to the live player object
+* the chosen entry spawn does not change the meaning of the authored follow-light offset
+
+This keeps follow lights stable across scenes with multiple valid player entry spawns.
+
+If a scene authors no `Light` objects at all, the runtime keeps the default world-lighting state:
+
+* ambient remains `1.0, 1.0, 1.0, 1.0`
+* no authored point lights are created
+
+#### Validation Expectations
+
+Light validation is meant to help authors catch real contract mistakes.
+
+Current important rules:
+
+* missing or unrecognized `kind` warns
+* `kind = point` without `radius` fails validation
+* `behavior = follow` without `follow_target` fails validation
+* `kind = ambient` with spatial or follow-only fields warns and ignores those fields
+* unsupported `kind = spot` warns until spot-light import exists
+
+The principle is:
+
+* if a field is irrelevant because another field fully determines semantics, Carrot may ignore it with a warning
+* if a chosen behavior is missing required data, Carrot fails validation instead of silently changing meaning
 
 
 ### Group Inheritance Is Supported, But Explicit

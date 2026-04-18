@@ -11,6 +11,7 @@
 #include "Assets/Scene/SceneAsset.h"
 #include "Assets/Sprite/LoadedSpriteAsset.h"
 #include "Assets/Tilemap/LoadedTilemapAsset.h"
+#include "Assets/Tilemap/TypedObjectConventions.h"
 #include "Core/GameContext.h"
 #include "World/Import/TilemapWorldBridge.h"
 #include "World/World.h"
@@ -18,9 +19,73 @@
 
 namespace carrot::world {
     namespace {
+        [[nodiscard]] bool parse_hex_u8(const std::string_view text, uint8_t& value) noexcept
+        {
+            if (text.size() != 2u)
+                return false;
+
+            const auto hex_value_for = [](const char ch) -> int
+            {
+                if (ch >= '0' && ch <= '9')
+                    return ch - '0';
+                if (ch >= 'a' && ch <= 'f')
+                    return 10 + (ch - 'a');
+                if (ch >= 'A' && ch <= 'F')
+                    return 10 + (ch - 'A');
+                return -1;
+            };
+
+            const int hi{ hex_value_for(text[0]) };
+            const int lo{ hex_value_for(text[1]) };
+            if (hi < 0 || lo < 0)
+                return false;
+
+            value = static_cast<uint8_t>((hi << 4) | lo);
+            return true;
+        }
+
+        [[nodiscard]] bool parse_light_color_hex(const std::string_view color_hex, chlm::float4& out_color) noexcept
+        {
+            if (color_hex.empty())
+            {
+                out_color = { 1.f, 1.f, 1.f, 1.f };
+                return true;
+            }
+
+            if ((color_hex.size() != 7u && color_hex.size() != 9u) || color_hex.front() != '#')
+                return false;
+
+            uint8_t red{ 0u };
+            uint8_t green{ 0u };
+            uint8_t blue{ 0u };
+            if (!parse_hex_u8(color_hex.substr(1u, 2u), red) ||
+                !parse_hex_u8(color_hex.substr(3u, 2u), green) ||
+                !parse_hex_u8(color_hex.substr(5u, 2u), blue))
+            {
+                return false;
+            }
+
+            out_color = {
+                static_cast<float>(red) / 255.f,
+                static_cast<float>(green) / 255.f,
+                static_cast<float>(blue) / 255.f,
+                1.f
+            };
+            return true;
+        }
+
         [[nodiscard]] const world_object_t* find_marker(const world_t& world, const std::string_view marker_name) noexcept
         {
             return world.find_object_by_name(marker_name);
+        }
+
+        [[nodiscard]] chlm::float2 object_position_world(const assets::tilemap_object_t& object,
+                                                         const chlm::float2 tilemap_origin_world) noexcept
+        {
+            return {
+                tilemap_origin_world.x + world_units_t::pixels_to_world(object.x),
+                tilemap_origin_world.y + world_units_t::pixels_to_world(object.y)
+            };
         }
 
         void create_player(world_t& world, const assets::scene_asset_t& scene, const assets::loaded_sprite_asset_t& player_sprite)
@@ -82,6 +147,112 @@ namespace carrot::world {
                 .sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp,
                 .color = 0xFFFFFFFFu
             };
+        }
+
+        void import_authored_lighting(const std::string_view scene_id,
+                                      world_t& world,
+                                      const assets::scene_asset_t& scene,
+                                      const assets::loaded_tilemap_asset_t& tilemap)
+        {
+            const chlm::float2 tilemap_origin_world{ scene.tilemap_world_position };
+            bool has_authored_ambient{ false };
+
+            for (const assets::tilemap_layer_t& layer : tilemap.tilemap().layers())
+            {
+                if (layer.kind != assets::tilemap_layer_kind_t::object)
+                    continue;
+
+                for (const assets::tilemap_object_t& object : layer.objects)
+                {
+                    const auto light{ assets::as_typed_light(object) };
+                    if (!light)
+                        continue;
+
+                    if (light->kind == assets::typed_light_kind_t::spot)
+                    {
+                        LOG_ASSET_WARN("Scene '{}' ignores Light '{}' because kind 'spot' is not yet supported",
+                                       scene_id,
+                                       object.name.empty() ? "<unnamed>" : object.name);
+                        continue;
+                    }
+
+                    chlm::float4 color{ 1.f, 1.f, 1.f, 1.f };
+                    if (!parse_light_color_hex(light->color_hex, color))
+                    {
+                        LOG_ASSET_WARN("Scene '{}' ignores invalid Light color '{}' on object '{}'",
+                                       scene_id,
+                                       light->color_hex,
+                                       object.name.empty() ? "<unnamed>" : object.name);
+                        continue;
+                    }
+
+                    if (light->kind == assets::typed_light_kind_t::ambient)
+                    {
+                        if (has_authored_ambient)
+                        {
+                            LOG_ASSET_WARN("Scene '{}' authored multiple ambient Light objects; only the first is used",
+                                           scene_id);
+                            continue;
+                        }
+
+                        world.lighting().ambient_color = {
+                            color.x * light->intensity,
+                            color.y * light->intensity,
+                            color.z * light->intensity,
+                            1.f
+                        };
+                        has_authored_ambient = true;
+                        continue;
+                    }
+
+                    if (!light->radius_world || *light->radius_world <= 0.f)
+                    {
+                        LOG_ASSET_WARN("Scene '{}' ignores point Light '{}' because it is missing a positive radius",
+                                       scene_id,
+                                       object.name.empty() ? "<unnamed>" : object.name);
+                        continue;
+                    }
+
+                    world_lighting_state_t::point_light_t point_light{
+                        .position_world = object_position_world(object, tilemap_origin_world),
+                        .radius_world = *light->radius_world,
+                        .reserved0 = 0.f,
+                        .color = color,
+                        .intensity = light->intensity
+                    };
+
+                    if (light->behavior == assets::typed_light_behavior_t::follow)
+                    {
+                        if (light->follow_target != "player")
+                        {
+                            LOG_ASSET_WARN("Scene '{}' ignores follow Light '{}' because follow_target '{}' is not supported",
+                                           scene_id,
+                                           object.name.empty() ? "<unnamed>" : object.name,
+                                           light->follow_target);
+                            continue;
+                        }
+
+                        const world_object_t* authoring_spawn{ world.find_object_by_name(scene.player_spawn_marker) };
+                        if (!authoring_spawn || !authoring_spawn->transform)
+                        {
+                            LOG_ASSET_WARN("Scene '{}' cannot resolve authored player follow Light '{}' because player_spawn_marker '{}' was not imported",
+                                           scene_id,
+                                           object.name.empty() ? "<unnamed>" : object.name,
+                                           scene.player_spawn_marker);
+                            continue;
+                        }
+
+                        point_light.behavior = world_lighting_state_t::point_light_t::runtime_behavior_t::follow_object;
+                        point_light.follow_object_name = scene.player_name;
+                        point_light.follow_offset_world = {
+                            point_light.position_world.x - authoring_spawn->transform->position.x,
+                            point_light.position_world.y - authoring_spawn->transform->position.y
+                        };
+                    }
+
+                    world.lighting().point_lights.push_back(std::move(point_light));
+                }
+            }
         }
     } // namespace
 
@@ -195,6 +366,7 @@ namespace carrot::world {
                                                               *_tilemap,
                                                               _prepared_tilemap_world_data)
                 };
+                import_authored_lighting(_scene_id, _staged_world, _scene_record->scene, *_tilemap);
                 LOG_ASSET_INFO("Scene '{}': imported {} marker object(s), {} tile object(s), {} static collider(s), {} trigger(s)",
                                _scene_id,
                                bridge_result.markers_created,
@@ -228,6 +400,7 @@ namespace carrot::world {
                 }
 
                 player->transform->position = spawn_marker->transform->position;
+                _staged_world.refresh_bound_lights();
 
                 LOG_ASSET_INFO("Loaded scene '{}': tilemap='{}', player='{}', spawn='{}', map_object='{}'",
                                _scene_id,

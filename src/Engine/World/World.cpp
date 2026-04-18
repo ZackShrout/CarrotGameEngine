@@ -8,6 +8,20 @@
 #include "World.h"
 
 namespace carrot::world {
+    namespace {
+        [[nodiscard]] world_object_t* find_world_object_by_name(std::vector<world_object_t>& objects,
+                                                          const std::string_view name) noexcept
+        {
+            for (world_object_t& object : objects)
+            {
+                if (object.name == name)
+                    return &object;
+            }
+
+            return nullptr;
+        }
+    } // namespace
+
     world_object_t& world_t::create_object()
     {
         world_object_t& object{ _objects.emplace_back() };
@@ -177,6 +191,13 @@ namespace carrot::world {
             if (object.sprite_animator)
                 object.sprite_animator->animator.update(delta_time);
         }
+
+        sync_follow_lights();
+    }
+
+    void world_t::refresh_bound_lights() noexcept
+    {
+        sync_follow_lights();
     }
 
     void world_t::set_layering_debug_snapshot(layering_debug_snapshot_t snapshot) const noexcept
@@ -208,5 +229,26 @@ namespace carrot::world {
         }
 
         return active_tags;
+    }
+
+    void world_t::sync_follow_lights() noexcept
+    {
+        for (world_lighting_state_t::point_light_t& light : _lighting.point_lights)
+        {
+            if (light.behavior != world_lighting_state_t::point_light_t::runtime_behavior_t::follow_object ||
+                light.follow_object_name.empty())
+            {
+                continue;
+            }
+
+            world_object_t* target{ find_world_object_by_name(_objects, light.follow_object_name) };
+            if (!target || !target->transform)
+                continue;
+
+            light.position_world = {
+                target->transform->position.x + light.follow_offset_world.x,
+                target->transform->position.y + light.follow_offset_world.y
+            };
+        }
     }
 } // namespace carrot::world

@@ -285,6 +285,19 @@ namespace carrot::scene {
         return "unknown";
     }
 
+    std::string_view to_string(const scene_change_outcome_t outcome) noexcept
+    {
+        switch (outcome)
+        {
+            case scene_change_outcome_t::none: return "none";
+            case scene_change_outcome_t::in_progress: return "in_progress";
+            case scene_change_outcome_t::succeeded: return "succeeded";
+            case scene_change_outcome_t::failed: return "failed";
+        }
+
+        return "unknown";
+    }
+
     std::string_view to_string(const scene_runtime_object_interaction_kind_t kind) noexcept
     {
         switch (kind)
@@ -843,8 +856,43 @@ namespace carrot::scene {
 
     scene_runtime_summary_t scene_runtime_t::summarize(core::game_context_t& game) const noexcept
     {
+        const scene_runtime_snapshot_t state_snapshot{ snapshot() };
+        const bool diagnostics_visible{
+            is_transitioning() || _transition_diagnostics_hold_remaining_seconds > 0.f
+        };
         scene_runtime_summary_t summary{
-            .snapshot = snapshot(),
+            .snapshot = state_snapshot,
+            .diagnostics = scene_runtime_summary_t::transition_diagnostics_t{
+                .visible = diagnostics_visible,
+                .request_kind = diagnostics_visible && has_pending_scene()
+                                    ? _pending_request_kind
+                                    : _recent_transition_diagnostics.request_kind,
+                .outcome = diagnostics_visible && has_pending_scene()
+                               ? scene_change_outcome_t::in_progress
+                               : _recent_transition_diagnostics.outcome,
+                .preserved_active_scene = diagnostics_visible && has_pending_scene()
+                                              ? has_scene_loaded()
+                                              : _recent_transition_diagnostics.preserved_active_scene,
+                .overlay_style = diagnostics_visible && has_pending_scene()
+                                     ? _active_transition_overlay_options.style
+                                     : _recent_transition_diagnostics.overlay_style,
+                .wipe_direction = diagnostics_visible && has_pending_scene()
+                                      ? _active_transition_overlay_options.wipe_direction
+                                      : _recent_transition_diagnostics.wipe_direction,
+                .active_scene_id = diagnostics_visible && has_pending_scene()
+                                       ? std::string{ state_snapshot.active_scene_id }
+                                       : _recent_transition_diagnostics.active_scene_id,
+                .target_scene_id = diagnostics_visible && has_pending_scene()
+                                       ? std::string{ state_snapshot.pending_scene_id }
+                                       : _recent_transition_diagnostics.pending_scene_id,
+                .target_spawn_marker = diagnostics_visible && has_pending_scene()
+                                           ? std::string{ state_snapshot.pending_spawn_marker }
+                                           : _recent_transition_diagnostics.pending_spawn_marker,
+                .transition_progress = diagnostics_visible && has_pending_scene()
+                                           ? state_snapshot.transition_progress
+                                           : _recent_transition_diagnostics.transition_progress,
+                .startup_waiting_for_first_present = _recent_transition_diagnostics.startup_waiting_for_first_present
+            },
             .active_camera = _active_camera_options,
             .camera_center_world = game.view.center_world_position(game.world),
             .static_collider_count = static_cast<uint32_t>(game.world.collision_world().static_colliders().size()),
@@ -1290,13 +1338,17 @@ namespace carrot::scene {
         render_transition_diagnostics(game);
     }
 
-    void scene_runtime_t::capture_recent_transition_diagnostics() noexcept
+    void scene_runtime_t::capture_recent_transition_diagnostics(const scene_change_outcome_t outcome) noexcept
     {
         const scene_runtime_snapshot_t state_snapshot{ snapshot() };
+        _recent_transition_diagnostics.request_kind = state_snapshot.pending_request_kind;
+        _recent_transition_diagnostics.outcome = outcome;
         _recent_transition_diagnostics.runtime_state = state_snapshot.runtime_state;
         _recent_transition_diagnostics.transition_phase = state_snapshot.transition_phase;
         _recent_transition_diagnostics.overlay_style = _active_transition_overlay_options.style;
         _recent_transition_diagnostics.wipe_direction = _active_transition_overlay_options.wipe_direction;
+        _recent_transition_diagnostics.preserved_active_scene =
+            outcome == scene_change_outcome_t::failed && has_scene_loaded();
         _recent_transition_diagnostics.active_scene_id = std::string{ state_snapshot.active_scene_id };
         _recent_transition_diagnostics.pending_scene_id = std::string{ state_snapshot.pending_scene_id };
         _recent_transition_diagnostics.pending_spawn_marker = std::string{ state_snapshot.pending_spawn_marker };
@@ -1311,7 +1363,7 @@ namespace carrot::scene {
 
         constexpr float panel_y{ 12.f };
         constexpr float panel_width{ 340.f };
-        constexpr float panel_height{ 82.f };
+        constexpr float panel_height{ 98.f };
         constexpr float line_step{ 16.f };
         const float panel_x{ std::max(12.f, static_cast<float>(window::get_width()) - panel_width - 12.f) };
         const float text_x{ panel_x + 10.f };
@@ -1347,6 +1399,13 @@ namespace carrot::scene {
                                   panel_y + 8.f + (line_step * 2.f),
                                   k_transition_diagnostics_font_size,
                                   0xFFD7CDBEu,
+                                  "request: %s  result: %s",
+                                  to_string(_recent_transition_diagnostics.request_kind).data(),
+                                  to_string(_recent_transition_diagnostics.outcome).data());
+        debug::text_colored_sized(text_x,
+                                  panel_y + 8.f + (line_step * 3.f),
+                                  k_transition_diagnostics_font_size,
+                                  0xFFD7CDBEu,
                                   "phase: %s  progress: %.0f%%",
                                   to_string(_recent_transition_diagnostics.transition_phase).data(),
                                   std::round(std::clamp(_recent_transition_diagnostics.transition_progress, 0.f, 1.f) * 100.f));
@@ -1354,22 +1413,24 @@ namespace carrot::scene {
         if (_recent_transition_diagnostics.overlay_style == scene_transition_overlay_style_t::wipe)
         {
             debug::text_colored_sized(text_x,
-                                      panel_y + 8.f + (line_step * 3.f),
+                                      panel_y + 8.f + (line_step * 4.f),
                                       k_transition_diagnostics_font_size,
                                       0xFFD7CDBEu,
-                                      "overlay: %s %s",
+                                      "overlay: %s %s  preserved: %s",
                                       to_string(_recent_transition_diagnostics.overlay_style).data(),
-                                      to_string(_recent_transition_diagnostics.wipe_direction).data());
+                                      to_string(_recent_transition_diagnostics.wipe_direction).data(),
+                                      _recent_transition_diagnostics.preserved_active_scene ? "yes" : "no");
         }
         else
         {
             debug::text_colored_sized(text_x,
-                                      panel_y + 8.f + (line_step * 3.f),
+                                      panel_y + 8.f + (line_step * 4.f),
                                       k_transition_diagnostics_font_size,
                                       0xFFD7CDBEu,
-                                      "overlay: %s%s",
+                                      "overlay: %s%s  preserved: %s",
                                       to_string(_recent_transition_diagnostics.overlay_style).data(),
-                                      _recent_transition_diagnostics.startup_waiting_for_first_present ? " (boot wait)" : "");
+                                      _recent_transition_diagnostics.startup_waiting_for_first_present ? " (boot wait)" : "",
+                                      _recent_transition_diagnostics.preserved_active_scene ? "yes" : "no");
         }
     }
 
@@ -1476,7 +1537,7 @@ namespace carrot::scene {
 
     void scene_runtime_t::fail_scene_change() noexcept
     {
-        capture_recent_transition_diagnostics();
+        capture_recent_transition_diagnostics(scene_change_outcome_t::failed);
         LOG_CORE_WARN("Scene {} failed: current='{}', pending='{}', phase='{}'",
                       to_string(_pending_request_kind),
                       _current_scene_id.empty() ? "<none>" : _current_scene_id,
@@ -1505,7 +1566,7 @@ namespace carrot::scene {
 
     void scene_runtime_t::complete_scene_change() noexcept
     {
-        capture_recent_transition_diagnostics();
+        capture_recent_transition_diagnostics(scene_change_outcome_t::succeeded);
         LOG_CORE_INFO("Scene {} complete: current='{}', spawn='{}'",
                       to_string(_pending_request_kind),
                       _current_scene_id.empty() ? "<none>" : _current_scene_id,

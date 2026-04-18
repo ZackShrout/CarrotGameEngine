@@ -68,11 +68,20 @@ namespace carrot::world {
 
         struct point_light_t
         {
+            enum class runtime_behavior_t : uint8_t
+            {
+                stationary = 0,
+                follow_object
+            };
+
             chlm::float2 position_world{ 0.f, 0.f };
             float radius_world{ 2.f };
             float reserved0{ 0.f };
             chlm::float4 color{ 1.f, 1.f, 1.f, 1.f };
             float intensity{ 1.f };
+            runtime_behavior_t behavior{ runtime_behavior_t::stationary };
+            chlm::float2 follow_offset_world{ 0.f, 0.f };
+            std::string follow_object_name;
         };
 
         std::vector<point_light_t> point_lights;
@@ -98,6 +107,7 @@ namespace carrot::world {
         [[nodiscard]] std::vector<world_object_t>& objects() noexcept { return _objects; }
         void clear() noexcept;
         void update(float delta_time) noexcept;
+        void refresh_bound_lights() noexcept;
         void set_presentation_origin_px(const chlm::float2 origin) noexcept { _presentation.origin_px = origin; }
         [[nodiscard]] const chlm::float2& presentation_origin_px() const noexcept { return _presentation.origin_px; }
         void set_presentation_pixels_per_unit(const float pixels_per_unit) noexcept
@@ -123,6 +133,8 @@ namespace carrot::world {
         [[nodiscard]] std::vector<std::string_view> collect_active_visibility_tags(const chlm::float2& point) const;
 
     private:
+        void sync_follow_lights() noexcept;
+
         world_object_id_t _next_id{ 1 };
         std::vector<world_object_t> _objects;
         world_presentation_t _presentation{ };

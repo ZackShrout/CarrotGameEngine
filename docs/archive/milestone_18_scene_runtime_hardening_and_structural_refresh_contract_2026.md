@@ -1,9 +1,11 @@
 # Carrot Game Engine - Milestone 18
 
-**Last Updated:** April 15, 2026
+**Last Updated:** April 17, 2026
 **Title:** Scene Runtime Hardening and Structural Refresh Contract
-**Status:** Proposed
+**Status:** Completed and archived
 **Focus:** Turn Carrot's already-real scene/runtime layer into a more permanent engine contract by hardening lifecycle ownership, refresh/rebuild behavior, and structural asset handling without slipping into editor-owned or sandbox-owned scene authority.
+
+Archived in April 2026 after Carrot hardened scene-runtime ownership, structural refresh and rebuild diagnostics, post-activation runtime binding, and moved authored scene lighting into the engine-owned scene load path instead of sandbox-local gameplay bootstrap code.
 
 ---
 
@@ -42,6 +44,18 @@ This milestone is successful if Carrot ends with:
 * stronger scene rebuild behavior and diagnostics
 * cleaner runtime binding between scene, world, camera, music, and gameplay-facing controllers
 * fewer hidden assumptions living only in sandbox flow
+
+Meaningful milestone progress is already landed:
+
+* scene-runtime listener and activation ordering are more explicit
+* rebuild requests and outcomes are more visible in diagnostics
+* structural refresh policy is surfaced more honestly in runtime/editor tooling
+* authored scene lighting now imports through engine scene load instead of sandbox gameplay bootstrap code
+
+Closeout assessment:
+
+* the milestone minimum slice is satisfied
+* the main remaining work is final closeout judgment and any small opportunistic cleanup, not another major architecture push
 
 ---
 
@@ -83,6 +97,7 @@ Current strengths:
 * runtime summary and inspection surfaces already exist
 * camera bootstrap/follow behavior is scene-aware
 * scene-owned music bootstrap exists
+* authored scene/world lighting now has a clear engine-owned contract instead of staying sandbox-local runtime glue
 * interaction and trigger flow can already drive scene transitions and authored outcomes
 
 Current risks:
@@ -93,6 +108,10 @@ Current risks:
 * successful sandbox patterns may silently become engine rules before they are formalized deliberately
 
 This is exactly the right time to harden the contract while the shape is already real but not yet overgrown.
+
+Recent proof point:
+
+* `CarrotEditor` and sandbox gameplay now report the same authored town lighting because both read the same engine-owned scene/world lighting state
 
 ---
 
@@ -110,8 +129,14 @@ Required consequence:
 * systems should not guess ad hoc whether existing world state is still structurally valid
 * diagnostics should make structural refresh requirements visible
 * games should not need sandbox-local glue to decide how to recover from scene-shaping asset changes
+* authored scene data such as lighting should flow through engine-owned import paths instead of gameplay-state bootstrap code
 
 If the runtime can only recover correctly because sandbox code knows a special case, that contract is not hardened enough for milestone closeout.
+
+Current assessment:
+
+* the most important previously hidden sandbox-specific scene/runtime special case was authored lighting
+* that case now lives in the engine-owned scene load path and shows up truthfully in both sandbox gameplay and `CarrotEditor`
 
 ---
 
@@ -176,6 +201,7 @@ Required outcomes:
   * camera follow target selection
   * scene music application
   * post-load runtime validation
+  * scene-authored lighting import and runtime follow binding
 * fewer hidden order dependencies between scene activation and gameplay-facing runtime code
 
 ### 5. Stronger Diagnostics Around Scene Refresh and Rebuild

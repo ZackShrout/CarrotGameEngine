@@ -308,8 +308,8 @@
                  "type":"",
                  "visible":true,
                  "width":32,
-                 "x":1093.91450361546,
-                 "y":838.87522802699
+                 "x":1093.91,
+                 "y":838.875
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -413,7 +413,7 @@
                  "y":507.282
                 }, 
                 {
-                 "height":21.3383202666091,
+                 "height":21.3383,
                  "id":15,
                  "name":"Trigger",
                  "properties":[
@@ -430,12 +430,12 @@
                  "rotation":0,
                  "type":"Trigger",
                  "visible":true,
-                 "width":25.4141791939389,
-                 "x":1045.09818024887,
-                 "y":522.668968328179
+                 "width":25.4142,
+                 "x":1045.1,
+                 "y":522.669
                 }, 
                 {
-                 "height":152.540882714964,
+                 "height":152.541,
                  "id":16,
                  "name":"InnRoofTrigger1",
                  "properties":[
@@ -447,12 +447,12 @@
                  "rotation":0,
                  "type":"VisibilityZone",
                  "visible":true,
-                 "width":134.956919289608,
-                 "x":828.644276419905,
-                 "y":376.29681730262
+                 "width":134.957,
+                 "x":828.644,
+                 "y":376.297
                 }, 
                 {
-                 "height":114.295762264815,
+                 "height":114.296,
                  "id":17,
                  "name":"ItemShopRoofTrigger",
                  "properties":[
@@ -464,12 +464,12 @@
                  "rotation":0,
                  "type":"VisibilityZone",
                  "visible":true,
-                 "width":106.382978723404,
-                 "x":283.101811148233,
-                 "y":415.860735009671
+                 "width":106.383,
+                 "x":283.102,
+                 "y":415.861
                 }, 
                 {
-                 "height":122.208545806225,
+                 "height":122.209,
                  "id":18,
                  "name":"InnRoofTrigger2",
                  "properties":[
@@ -481,9 +481,212 @@
                  "rotation":0,
                  "type":"VisibilityZone",
                  "visible":true,
-                 "width":133.198522947072,
-                 "x":960.084403024442,
-                 "y":375.857218216986
+                 "width":133.199,
+                 "x":960.084,
+                 "y":375.857
+                }, 
+                {
+                 "height":0,
+                 "id":19,
+                 "name":"BluePointLight",
+                 "point":true,
+                 "properties":[
+                        {
+                         "name":"color",
+                         "type":"string",
+                         "value":"#3394FF"
+                        }, 
+                        {
+                         "name":"intensity",
+                         "type":"float",
+                         "value":1
+                        }, 
+                        {
+                         "name":"kind",
+                         "type":"string",
+                         "value":"point"
+                        }, 
+                        {
+                         "name":"radius",
+                         "type":"float",
+                         "value":2.5
+                        }],
+                 "rotation":0,
+                 "type":"Light",
+                 "visible":true,
+                 "width":0,
+                 "x":1199.22536916001,
+                 "y":817.235536189785
+                }, 
+                {
+                 "height":0,
+                 "id":20,
+                 "name":"GreenPointLight",
+                 "point":true,
+                 "properties":[
+                        {
+                         "name":"color",
+                         "type":"string",
+                         "value":"#47FF6B"
+                        }, 
+                        {
+                         "name":"intensity",
+                         "type":"float",
+                         "value":0.95
+                        }, 
+                        {
+                         "name":"kind",
+                         "type":"string",
+                         "value":"point"
+                        }, 
+                        {
+                         "name":"radius",
+                         "type":"float",
+                         "value":2.35
+                        }],
+                 "rotation":0,
+                 "type":"Light",
+                 "visible":true,
+                 "width":0,
+                 "x":1041.39433551198,
+                 "y":816.751391914791
+                }, 
+                {
+                 "height":0,
+                 "id":21,
+                 "name":"PurplePointLight",
+                 "point":true,
+                 "properties":[
+                        {
+                         "name":"color",
+                         "type":"string",
+                         "value":"#D14DFF"
+                        }, 
+                        {
+                         "name":"intensity",
+                         "type":"float",
+                         "value":1.05
+                        }, 
+                        {
+                         "name":"kind",
+                         "type":"string",
+                         "value":"point"
+                        }, 
+                        {
+                         "name":"radius",
+                         "type":"float",
+                         "value":2.4
+                        }],
+                 "rotation":0,
+                 "type":"Light",
+                 "visible":true,
+                 "width":0,
+                 "x":1114.50012103607,
+                 "y":885.015734688937
+                }, 
+                {
+                 "height":0,
+                 "id":22,
+                 "name":"AmbientLight",
+                 "point":true,
+                 "properties":[
+                        {
+                         "name":"color",
+                         "type":"string",
+                         "value":"#5C6170"
+                        }, 
+                        {
+                         "name":"intensity",
+                         "type":"float",
+                         "value":1
+                        }, 
+                        {
+                         "name":"kind",
+                         "type":"string",
+                         "value":"ambient"
+                        }],
+                 "rotation":0,
+                 "type":"Light",
+                 "visible":true,
+                 "width":0,
+                 "x":945.533769063181,
+                 "y":610.505930767369
+                }, 
+                {
+                 "height":0,
+                 "id":23,
+                 "name":"FollowLight",
+                 "point":true,
+                 "properties":[
+                        {
+                         "name":"behavior",
+                         "type":"string",
+                         "value":"follow"
+                        }, 
+                        {
+                         "name":"color",
+                         "type":"string",
+                         "value":"#FFD194"
+                        }, 
+                        {
+                         "name":"follow_target",
+                         "type":"string",
+                         "value":"player"
+                        }, 
+                        {
+                         "name":"intensity",
+                         "type":"float",
+                         "value":1.15
+                        }, 
+                        {
+                         "name":"kind",
+                         "type":"string",
+                         "value":"point"
+                        }, 
+                        {
+                         "name":"radius",
+                         "type":"float",
+                         "value":3.25
+                        }],
+                 "rotation":0,
+                 "type":"Light",
+                 "visible":true,
+                 "width":0,
+                 "x":1251.63,
+                 "y":608.15
+                }, 
+                {
+                 "height":0,
+                 "id":24,
+                 "name":"BigPurpleLight",
+                 "point":true,
+                 "properties":[
+                        {
+                         "name":"color",
+                         "type":"string",
+                         "value":"#D14DFF"
+                        }, 
+                        {
+                         "name":"intensity",
+                         "type":"float",
+                         "value":2
+                        }, 
+                        {
+                         "name":"kind",
+                         "type":"string",
+                         "value":"point"
+                        }, 
+                        {
+                         "name":"radius",
+                         "type":"float",
+                         "value":3.25
+                        }],
+                 "rotation":0,
+                 "type":"Light",
+                 "visible":true,
+                 "width":0,
+                 "x":738.155184252689,
+                 "y":605.40169375143
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -1648,7 +1851,7 @@
          "y":0
         }],
  "nextlayerid":42,
- "nextobjectid":19,
+ "nextobjectid":25,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.11.0",
@@ -2286,7 +2489,7 @@
                      "name":"",
                      "objects":[
                             {
-                             "height":6.93549467731677,
+                             "height":6.93549,
                              "id":1,
                              "name":"",
                              "rotation":0,
@@ -2312,7 +2515,7 @@
                      "name":"",
                      "objects":[
                             {
-                             "height":12.0084648842382,
+                             "height":12.0085,
                              "id":1,
                              "name":"",
                              "rotation":0,
@@ -2338,7 +2541,7 @@
                      "name":"",
                      "objects":[
                             {
-                             "height":19.7529334425964,
+                             "height":19.7529,
                              "id":1,
                              "name":"",
                              "rotation":0,
@@ -2364,13 +2567,13 @@
                      "name":"",
                      "objects":[
                             {
-                             "height":19.9330373625582,
+                             "height":19.933,
                              "id":1,
                              "name":"",
                              "rotation":0,
                              "type":"",
                              "visible":true,
-                             "width":17.04714220105,
+                             "width":17.0471,
                              "x":0,
                              "y":0
                             }],
@@ -2390,14 +2593,14 @@
                      "name":"",
                      "objects":[
                             {
-                             "height":19.9330373625582,
+                             "height":19.933,
                              "id":1,
                              "name":"",
                              "rotation":0,
                              "type":"",
                              "visible":true,
-                             "width":17.04714220105,
-                             "x":14.95285779895,
+                             "width":17.0471,
+                             "x":14.9529,
                              "y":0
                             }],
                      "opacity":1,
@@ -2416,7 +2619,7 @@
                      "name":"",
                      "objects":[
                             {
-                             "height":20.0230893225391,
+                             "height":20.0231,
                              "id":1,
                              "name":"",
                              "rotation":0,
@@ -2442,7 +2645,7 @@
                      "name":"",
                      "objects":[
                             {
-                             "height":13.8995560438373,
+                             "height":13.8996,
                              "id":1,
                              "name":"",
                              "rotation":0,
@@ -2468,7 +2671,7 @@
                      "name":"",
                      "objects":[
                             {
-                             "height":8.04617864507821,
+                             "height":8.04618,
                              "id":1,
                              "name":"",
                              "rotation":0,
@@ -2494,7 +2697,7 @@
                      "name":"",
                      "objects":[
                             {
-                             "height":7.9561266850973,
+                             "height":7.95613,
                              "id":1,
                              "name":"",
                              "rotation":0,
@@ -2520,7 +2723,7 @@
                      "name":"",
                      "objects":[
                             {
-                             "height":13.8095040838564,
+                             "height":13.8095,
                              "id":1,
                              "name":"",
                              "rotation":0,
@@ -2546,7 +2749,7 @@
                      "name":"",
                      "objects":[
                             {
-                             "height":19.9330373625582,
+                             "height":19.933,
                              "id":1,
                              "name":"",
                              "rotation":0,
@@ -2572,13 +2775,13 @@
                      "name":"",
                      "objects":[
                             {
-                             "height":19.8429854025773,
+                             "height":19.843,
                              "id":1,
                              "name":"",
                              "rotation":0,
                              "type":"",
                              "visible":true,
-                             "width":16.9570902410691,
+                             "width":16.9571,
                              "x":0,
                              "y":0
                             }],
@@ -2747,7 +2950,7 @@
                              "visible":true,
                              "width":19,
                              "x":13,
-                             "y":20
+                             "y":19
                             }],
                      "opacity":1,
                      "type":"objectgroup",
@@ -2773,7 +2976,7 @@
                              "visible":true,
                              "width":32,
                              "x":0,
-                             "y":20
+                             "y":19
                             }],
                      "opacity":1,
                      "type":"objectgroup",
@@ -2799,7 +3002,7 @@
                              "visible":true,
                              "width":19,
                              "x":0,
-                             "y":20
+                             "y":19
                             }],
                      "opacity":1,
                      "type":"objectgroup",
@@ -2961,7 +3164,7 @@
                      "name":"",
                      "objects":[
                             {
-                             "height":9.42101092330274,
+                             "height":9.42101,
                              "id":1,
                              "name":"",
                              "rotation":0,
@@ -2969,7 +3172,7 @@
                              "visible":true,
                              "width":18,
                              "x":7,
-                             "y":15.5789890766973
+                             "y":15.579
                             }],
                      "opacity":1,
                      "type":"objectgroup",
@@ -2996,7 +3199,7 @@
         {
          "columns":30,
          "firstgid":8060,
-"image":"tilesets\/imges\/FL_Houses_int_sidesOfTheHouses.png",
+         "image":"..\/..\/..\/..\/..\/..\/Downloads\/80fd33e3c25294c6b2f86e9958a5519c84367485\/_PNG\/Interriors\/FL_Houses_int_sidesOfTheHouses.png",
          "imageheight":736,
          "imagewidth":960,
          "margin":0,
@@ -3009,7 +3212,7 @@
         {
          "columns":28,
          "firstgid":8750,
-"image":"tilesets\/imges\/FL_Houses_int_Floors.png",
+         "image":"..\/..\/..\/..\/..\/..\/Downloads\/80fd33e3c25294c6b2f86e9958a5519c84367485\/_PNG\/Interriors\/Floors\/FL_Houses_int_Floors.png",
          "imageheight":1024,
          "imagewidth":896,
          "margin":0,

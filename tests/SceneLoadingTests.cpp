@@ -37,6 +37,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -1017,22 +1018,30 @@ namespace carrot::tests {
             const assets::tilemap_object_t* door{ tilemap->find_object_by_name("DoorToInn") };
             const assets::tilemap_object_t* trigger{ tilemap->find_object_by_name("Trigger") };
             const assets::tilemap_object_t* visibility_zone{ tilemap->find_object_by_name("InnRoofTrigger1") };
+            const assets::tilemap_object_t* ambient_light{ tilemap->find_object_by_name("AmbientLight") };
+            const assets::tilemap_object_t* follow_light{ tilemap->find_object_by_name("FollowLight") };
             CARROT_TEST_REQUIRE(sign != nullptr);
             CARROT_TEST_REQUIRE(chest != nullptr);
             CARROT_TEST_REQUIRE(door != nullptr);
             CARROT_TEST_REQUIRE(trigger != nullptr);
             CARROT_TEST_REQUIRE(visibility_zone != nullptr);
+            CARROT_TEST_REQUIRE(ambient_light != nullptr);
+            CARROT_TEST_REQUIRE(follow_light != nullptr);
 
             const auto typed_sign{ assets::as_typed_sign(*sign) };
             const auto typed_container{ assets::as_typed_container(*chest) };
             const auto typed_door{ assets::as_typed_door(*door) };
             const auto typed_trigger{ assets::as_typed_trigger(*trigger) };
             const auto typed_visibility_zone{ assets::as_typed_visibility_zone(*visibility_zone) };
+            const auto typed_ambient_light{ assets::as_typed_light(*ambient_light) };
+            const auto typed_follow_light{ assets::as_typed_light(*follow_light) };
             CARROT_TEST_REQUIRE(typed_sign.has_value());
             CARROT_TEST_REQUIRE(typed_container.has_value());
             CARROT_TEST_REQUIRE(typed_door.has_value());
             CARROT_TEST_REQUIRE(typed_trigger.has_value());
             CARROT_TEST_REQUIRE(typed_visibility_zone.has_value());
+            CARROT_TEST_REQUIRE(typed_ambient_light.has_value());
+            CARROT_TEST_REQUIRE(typed_follow_light.has_value());
             CARROT_TEST_REQUIRE(typed_sign->message_id == "sign.welcome");
             CARROT_TEST_REQUIRE(typed_container->loot_table == "starter_chest");
             CARROT_TEST_REQUIRE(typed_door->target_scene == "scene.sandbox.inn");
@@ -1040,6 +1049,17 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(typed_trigger->trigger_id == "inn_trigger_1");
             CARROT_TEST_REQUIRE(typed_trigger->trigger_kind == "unlock_quest");
             CARROT_TEST_REQUIRE(typed_visibility_zone->visibility_zone_id == "inn_roof");
+            CARROT_TEST_REQUIRE(typed_ambient_light->kind == assets::typed_light_kind_t::ambient);
+            CARROT_TEST_REQUIRE(typed_ambient_light->behavior == assets::typed_light_behavior_t::stationary);
+            CARROT_TEST_REQUIRE(typed_ambient_light->color_hex == "#5C6170");
+            CARROT_TEST_REQUIRE(typed_ambient_light->intensity == 1.0f);
+            CARROT_TEST_REQUIRE(!typed_ambient_light->radius_world.has_value());
+            CARROT_TEST_REQUIRE(typed_follow_light->kind == assets::typed_light_kind_t::point);
+            CARROT_TEST_REQUIRE(typed_follow_light->behavior == assets::typed_light_behavior_t::follow);
+            CARROT_TEST_REQUIRE(typed_follow_light->follow_target == "player");
+            CARROT_TEST_REQUIRE(typed_follow_light->color_hex == "#FFD194");
+            CARROT_TEST_REQUIRE(typed_follow_light->radius_world.has_value());
+            CARROT_TEST_REQUIRE(*typed_follow_light->radius_world == 3.25f);
         }
 
         void test_tiled_authored_data_validation_reports_typed_object_contract_issues()
@@ -1115,6 +1135,72 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(has_issue_code("tiled.object.door.mixed_target_modes"));
             CARROT_TEST_REQUIRE(has_issue_code("tiled.object.trigger.missing_fields"));
             CARROT_TEST_REQUIRE(has_issue_code("tiled.object.unknown_type"));
+        }
+
+        void test_tiled_authored_data_validation_reports_light_contract_issues()
+        {
+            assets::tilemap_asset_t tilemap;
+            assets::tilemap_layer_t markers_layer{
+                .kind = assets::tilemap_layer_kind_t::object,
+                .name = "Markers"
+            };
+
+            assets::tilemap_object_t missing_kind{ };
+            missing_kind.name = "MissingKindLight";
+            missing_kind.type = "Light";
+            markers_layer.objects.push_back(std::move(missing_kind));
+
+            assets::tilemap_object_t bad_point{ };
+            bad_point.name = "BadPointLight";
+            bad_point.type = "Light";
+            bad_point.properties.push_back({ .name = "kind", .value = std::string{ "point" } });
+            bad_point.properties.push_back({ .name = "color", .value = std::string{ "#GGGGGG" } });
+            markers_layer.objects.push_back(std::move(bad_point));
+
+            assets::tilemap_object_t bad_follow{ };
+            bad_follow.name = "BadFollowLight";
+            bad_follow.type = "Light";
+            bad_follow.properties.push_back({ .name = "kind", .value = std::string{ "point" } });
+            bad_follow.properties.push_back({ .name = "behavior", .value = std::string{ "follow" } });
+            bad_follow.properties.push_back({ .name = "radius", .value = 2.0 });
+            markers_layer.objects.push_back(std::move(bad_follow));
+
+            assets::tilemap_object_t ambient_with_follow_target{ };
+            ambient_with_follow_target.name = "AmbientWithFollowTarget";
+            ambient_with_follow_target.type = "Light";
+            ambient_with_follow_target.properties.push_back({ .name = "kind", .value = std::string{ "ambient" } });
+            ambient_with_follow_target.properties.push_back({ .name = "behavior", .value = std::string{ "follow" } });
+            ambient_with_follow_target.properties.push_back({ .name = "follow_target", .value = std::string{ "player" } });
+            markers_layer.objects.push_back(std::move(ambient_with_follow_target));
+
+            assets::tilemap_object_t second_ambient{ };
+            second_ambient.name = "AmbientTwo";
+            second_ambient.type = "Light";
+            second_ambient.properties.push_back({ .name = "kind", .value = std::string{ "ambient" } });
+            markers_layer.objects.push_back(std::move(second_ambient));
+
+            assets::tilemap_object_t first_ambient{ };
+            first_ambient.name = "AmbientOne";
+            first_ambient.type = "Light";
+            first_ambient.properties.push_back({ .name = "kind", .value = std::string{ "ambient" } });
+            markers_layer.objects.push_back(std::move(first_ambient));
+
+            tilemap.add_layer(std::move(markers_layer));
+
+            const auto issues{ assets::validate_tiled_authored_data(tilemap) };
+            const auto has_issue_code{ [&issues](const std::string_view code) {
+                return std::ranges::any_of(issues, [code](const assets::tilemap_validation_issue_t& issue) {
+                    return issue.code == code;
+                });
+            } };
+
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.object.light.missing_kind"));
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.object.light.invalid_color"));
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.object.light.point.missing_radius"));
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.object.light.follow.missing_target"));
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.object.light.ambient.ignores_behavior"));
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.object.light.ambient.ignores_follow_target"));
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.object.light.multiple_ambient"));
         }
 
         void test_tiled_tile_animation_metadata_imports_from_sandbox_town()
@@ -1869,6 +1955,10 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_change_request_kind_t::load) == "load");
             CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_change_request_kind_t::transition) == "transition");
             CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_change_request_kind_t::rebuild) == "rebuild");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_change_outcome_t::none) == "none");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_change_outcome_t::in_progress) == "in_progress");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_change_outcome_t::succeeded) == "succeeded");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_change_outcome_t::failed) == "failed");
             CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_overlay_style_t::inherit) == "inherit");
             CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_overlay_style_t::none) == "none");
             CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_overlay_style_t::fade) == "fade");
@@ -1914,6 +2004,9 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(summary.snapshot.runtime_state == carrot::scene::scene_runtime_state_t::idle);
             CARROT_TEST_REQUIRE(summary.snapshot.transition_phase == carrot::scene::scene_transition_phase_t::none);
             CARROT_TEST_REQUIRE(summary.snapshot.active_scene_id.empty());
+            CARROT_TEST_REQUIRE(!summary.diagnostics.visible);
+            CARROT_TEST_REQUIRE(summary.diagnostics.request_kind == carrot::scene::scene_change_request_kind_t::none);
+            CARROT_TEST_REQUIRE(summary.diagnostics.outcome == carrot::scene::scene_change_outcome_t::none);
             CARROT_TEST_REQUIRE(summary.world_object_count == 0u);
             CARROT_TEST_REQUIRE(summary.trigger_count == 0u);
             CARROT_TEST_REQUIRE(summary.object_collider_count == 0u);
@@ -1965,6 +2058,12 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(summary.snapshot.runtime_state == carrot::scene::scene_runtime_state_t::active);
             CARROT_TEST_REQUIRE(summary.snapshot.transition_phase == carrot::scene::scene_transition_phase_t::none);
             CARROT_TEST_REQUIRE(summary.snapshot.transition_progress == 0.f);
+            CARROT_TEST_REQUIRE(summary.diagnostics.visible);
+            CARROT_TEST_REQUIRE(summary.diagnostics.request_kind == carrot::scene::scene_change_request_kind_t::load);
+            CARROT_TEST_REQUIRE(summary.diagnostics.outcome == carrot::scene::scene_change_outcome_t::succeeded);
+            CARROT_TEST_REQUIRE(summary.diagnostics.target_scene_id == "scene.sandbox.town");
+            CARROT_TEST_REQUIRE(summary.diagnostics.target_spawn_marker == "PlayerSpawn");
+            CARROT_TEST_REQUIRE(!summary.diagnostics.preserved_active_scene);
             CARROT_TEST_REQUIRE(summary.world_object_count > 0u);
             CARROT_TEST_REQUIRE(summary.trigger_count > 0u);
             CARROT_TEST_REQUIRE(summary.object_collider_count > 0u);
@@ -2162,6 +2261,7 @@ namespace carrot::tests {
                                                  }
                                              }));
 
+            world.lighting() = world::world_lighting_state_t{ };
             world.lighting().ambient_color = { 0.2f, 0.3f, 0.4f, 1.f };
             world.lighting().point_lights.push_back(world::world_lighting_state_t::point_light_t{
                 .position_world = { 12.f, 8.f },
@@ -2919,10 +3019,17 @@ namespace carrot::tests {
                                 carrot::scene::scene_runtime_state_t::transitioning);
             CARROT_TEST_REQUIRE(pending_summary.snapshot.pending_request_kind ==
                                 carrot::scene::scene_change_request_kind_t::rebuild);
+            CARROT_TEST_REQUIRE(pending_summary.diagnostics.visible);
+            CARROT_TEST_REQUIRE(pending_summary.diagnostics.request_kind ==
+                                carrot::scene::scene_change_request_kind_t::rebuild);
+            CARROT_TEST_REQUIRE(pending_summary.diagnostics.outcome ==
+                                carrot::scene::scene_change_outcome_t::in_progress);
             CARROT_TEST_REQUIRE(pending_summary.snapshot.active_scene_id == "scene.sandbox.town");
             CARROT_TEST_REQUIRE(pending_summary.snapshot.pending_scene_id == "scene.sandbox.town");
             CARROT_TEST_REQUIRE(pending_summary.snapshot.active_spawn_marker == "PlayerSpawn");
             CARROT_TEST_REQUIRE(pending_summary.snapshot.pending_spawn_marker == "PlayerSpawn");
+            CARROT_TEST_REQUIRE(pending_summary.diagnostics.target_scene_id == "scene.sandbox.town");
+            CARROT_TEST_REQUIRE(pending_summary.diagnostics.target_spawn_marker == "PlayerSpawn");
 
             while (runtime.has_pending_scene())
                 CARROT_TEST_REQUIRE(runtime.update(game));
@@ -2942,6 +3049,16 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(failed_snapshot.active_scene_id == "scene.sandbox.town");
             CARROT_TEST_REQUIRE(failed_snapshot.active_spawn_marker == "PlayerSpawn");
             CARROT_TEST_REQUIRE(!failed_snapshot.has_pending_scene());
+
+            const carrot::scene::scene_runtime_summary_t failed_summary{ runtime.summarize(game) };
+            CARROT_TEST_REQUIRE(failed_summary.diagnostics.visible);
+            CARROT_TEST_REQUIRE(failed_summary.diagnostics.request_kind ==
+                                carrot::scene::scene_change_request_kind_t::rebuild);
+            CARROT_TEST_REQUIRE(failed_summary.diagnostics.outcome ==
+                                carrot::scene::scene_change_outcome_t::failed);
+            CARROT_TEST_REQUIRE(failed_summary.diagnostics.preserved_active_scene);
+            CARROT_TEST_REQUIRE(failed_summary.diagnostics.target_scene_id == "scene.sandbox.town");
+            CARROT_TEST_REQUIRE(failed_summary.diagnostics.target_spawn_marker == "PlayerSpawn");
 
             const world::world_object_t* player_after{ game.world.find_object_by_name("Vraden") };
             CARROT_TEST_REQUIRE(player_after != nullptr);
@@ -3308,6 +3425,110 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(player->collision->debug_display->color == 0xFF00FFFFu);
         }
 
+        void test_scene_loader_imports_authored_lighting()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town"));
+            const assets::loaded_tilemap_asset_t* tilemap{ assets.tilemaps().get("tilemap.sandbox.town") };
+            CARROT_TEST_REQUIRE(tilemap != nullptr);
+
+            const auto require_light_object = [tilemap](const std::string_view name) -> const assets::tilemap_object_t& {
+                const assets::tilemap_object_t* object{ tilemap->find_object_by_name(name) };
+                CARROT_TEST_REQUIRE(object != nullptr);
+                return *object;
+            };
+
+            const auto ambient_channel = [](const uint8_t channel) {
+                return static_cast<float>(channel) / 255.f;
+            };
+
+            CARROT_TEST_REQUIRE(world.lighting().ambient_color.x == ambient_channel(0x5C));
+            CARROT_TEST_REQUIRE(world.lighting().ambient_color.y == ambient_channel(0x61));
+            CARROT_TEST_REQUIRE(world.lighting().ambient_color.z == ambient_channel(0x70));
+            CARROT_TEST_REQUIRE(world.lighting().point_lights.size() == 4u);
+
+            const auto has_authored_point_light = [&world](const assets::tilemap_object_t& object,
+                                                           const chlm::float4 color,
+                                                           const float radius_world,
+                                                           const float intensity) {
+                const chlm::float2 expected_position{
+                    world::world_units_t::pixels_to_world(object.x),
+                    world::world_units_t::pixels_to_world(object.y)
+                };
+                return std::ranges::any_of(world.lighting().point_lights,
+                                           [&](const world::world_lighting_state_t::point_light_t& light) {
+                                               return light.behavior == world::world_lighting_state_t::point_light_t::runtime_behavior_t::stationary &&
+                                                      std::abs(light.position_world.x - expected_position.x) < 0.001f &&
+                                                      std::abs(light.position_world.y - expected_position.y) < 0.001f &&
+                                                      std::abs(light.color.x - color.x) < 0.001f &&
+                                                      std::abs(light.color.y - color.y) < 0.001f &&
+                                                      std::abs(light.color.z - color.z) < 0.001f &&
+                                                      std::abs(light.radius_world - radius_world) < 0.001f &&
+                                                      std::abs(light.intensity - intensity) < 0.001f;
+                                           });
+            };
+
+            CARROT_TEST_REQUIRE(has_authored_point_light(require_light_object("BluePointLight"),
+                                                         chlm::float4{ ambient_channel(0x33), ambient_channel(0x94), 1.f, 1.f },
+                                                         2.5f,
+                                                         1.0f));
+            CARROT_TEST_REQUIRE(has_authored_point_light(require_light_object("GreenPointLight"),
+                                                         chlm::float4{ ambient_channel(0x47), 1.f, ambient_channel(0x6B), 1.f },
+                                                         2.35f,
+                                                         0.95f));
+            CARROT_TEST_REQUIRE(has_authored_point_light(require_light_object("PurplePointLight"),
+                                                         chlm::float4{ ambient_channel(0xD1), ambient_channel(0x4D), 1.f, 1.f },
+                                                         2.4f,
+                                                         1.05f));
+        }
+
+        void test_scene_loader_follow_light_tracks_player_from_authored_offset()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town", "InnExteriorSpawn"));
+
+            world::world_object_t* player{ world.find_object_by_name("Vraden") };
+            CARROT_TEST_REQUIRE(player != nullptr);
+            CARROT_TEST_REQUIRE(player->transform.has_value());
+
+            const auto follow_light_it{ std::ranges::find_if(world.lighting().point_lights,
+                                                             [](const world::world_lighting_state_t::point_light_t& light) {
+                                                                 return light.behavior == world::world_lighting_state_t::point_light_t::runtime_behavior_t::follow_object;
+                                                             }) };
+            CARROT_TEST_REQUIRE(follow_light_it != world.lighting().point_lights.end());
+            CARROT_TEST_REQUIRE(follow_light_it->follow_object_name == "Vraden");
+            CARROT_TEST_REQUIRE(std::abs(follow_light_it->follow_offset_world.x) < 0.001f);
+            CARROT_TEST_REQUIRE(std::abs(follow_light_it->follow_offset_world.y) < 0.001f);
+            CARROT_TEST_REQUIRE(std::abs(follow_light_it->position_world.x - player->transform->position.x) < 0.001f);
+            CARROT_TEST_REQUIRE(std::abs(follow_light_it->position_world.y - player->transform->position.y) < 0.001f);
+
+            player->transform->position.x += 1.5f;
+            player->transform->position.y -= 0.75f;
+            world.refresh_bound_lights();
+
+            const auto updated_follow_light_it{ std::ranges::find_if(world.lighting().point_lights,
+                                                                     [](const world::world_lighting_state_t::point_light_t& light) {
+                                                                         return light.behavior == world::world_lighting_state_t::point_light_t::runtime_behavior_t::follow_object;
+                                                                     }) };
+            CARROT_TEST_REQUIRE(updated_follow_light_it != world.lighting().point_lights.end());
+            CARROT_TEST_REQUIRE(std::abs(updated_follow_light_it->position_world.x - player->transform->position.x) < 0.001f);
+            CARROT_TEST_REQUIRE(std::abs(updated_follow_light_it->position_world.y - player->transform->position.y) < 0.001f);
+        }
+
         void test_scene_loader_imports_authored_trigger_component()
         {
             io::virtual_file_system_t vfs;
@@ -3477,6 +3698,8 @@ namespace carrot::tests {
                            test_typed_object_conventions_parse_current_sandbox_objects);
         tests.emplace_back("tiled authored data validation reports typed object contract issues",
                            test_tiled_authored_data_validation_reports_typed_object_contract_issues);
+        tests.emplace_back("tiled authored data validation reports light contract issues",
+                           test_tiled_authored_data_validation_reports_light_contract_issues);
         tests.emplace_back("tiled tile animation metadata imports from sandbox town",
                            test_tiled_tile_animation_metadata_imports_from_sandbox_town);
         tests.emplace_back("tile animation resolves expected frame by elapsed time",
@@ -3486,6 +3709,9 @@ namespace carrot::tests {
         tests.emplace_back("scene loader positive path", test_scene_loader_loads_scene_successfully);
         tests.emplace_back("scene loader loads sandbox town successfully", test_scene_loader_loads_sandbox_town_successfully);
         tests.emplace_back("scene loader assigns player collision config", test_scene_loader_assigns_player_collision_config);
+        tests.emplace_back("scene loader imports authored lighting", test_scene_loader_imports_authored_lighting);
+        tests.emplace_back("scene loader follow light tracks player from authored offset",
+                           test_scene_loader_follow_light_tracks_player_from_authored_offset);
         tests.emplace_back("scene loader imports authored trigger component",
                            test_scene_loader_imports_authored_trigger_component);
         tests.emplace_back("scene loader missing scene failure path", test_scene_loader_fails_for_missing_scene);

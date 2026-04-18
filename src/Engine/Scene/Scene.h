@@ -60,9 +60,18 @@ namespace carrot::scene {
         rebuild
     };
 
+    enum class scene_change_outcome_t : uint8_t
+    {
+        none = 0,
+        in_progress,
+        succeeded,
+        failed
+    };
+
     [[nodiscard]] std::string_view to_string(scene_runtime_state_t state) noexcept;
     [[nodiscard]] std::string_view to_string(scene_transition_phase_t phase) noexcept;
     [[nodiscard]] std::string_view to_string(scene_change_request_kind_t request_kind) noexcept;
+    [[nodiscard]] std::string_view to_string(scene_change_outcome_t outcome) noexcept;
 
     struct scene_transition_presentation_t
     {
@@ -271,7 +280,23 @@ namespace carrot::scene {
 
     struct scene_runtime_summary_t
     {
+        struct transition_diagnostics_t
+        {
+            bool visible{ false };
+            scene_change_request_kind_t request_kind{ scene_change_request_kind_t::none };
+            scene_change_outcome_t outcome{ scene_change_outcome_t::none };
+            bool preserved_active_scene{ false };
+            scene_transition_overlay_style_t overlay_style{ scene_transition_overlay_style_t::fade };
+            scene_transition_wipe_direction_t wipe_direction{ scene_transition_wipe_direction_t::left_to_right };
+            std::string active_scene_id;
+            std::string target_scene_id;
+            std::string target_spawn_marker;
+            float transition_progress{ 0.f };
+            bool startup_waiting_for_first_present{ false };
+        };
+
         scene_runtime_snapshot_t snapshot;
+        transition_diagnostics_t diagnostics;
         scene_camera_options_t active_camera;
         chlm::float2 camera_center_world{ 0.f, 0.f };
         world::world_object_id_t player_object_id{ 0 };
@@ -605,10 +630,13 @@ namespace carrot::scene {
 
         struct recent_transition_diagnostics_t
         {
+            scene_change_request_kind_t request_kind{ scene_change_request_kind_t::none };
+            scene_change_outcome_t outcome{ scene_change_outcome_t::none };
             scene_runtime_state_t runtime_state{ scene_runtime_state_t::idle };
             scene_transition_phase_t transition_phase{ scene_transition_phase_t::none };
             scene_transition_overlay_style_t overlay_style{ scene_transition_overlay_style_t::fade };
             scene_transition_wipe_direction_t wipe_direction{ scene_transition_wipe_direction_t::left_to_right };
+            bool preserved_active_scene{ false };
             std::string active_scene_id;
             std::string pending_scene_id;
             std::string pending_spawn_marker;
@@ -625,7 +653,8 @@ namespace carrot::scene {
                                    const scene_camera_override_t& override) noexcept;
         void center_camera_on_initial_target(core::game_context_t& game) noexcept;
         void refresh_scene_music(const assets::scene_asset_t& scene) noexcept;
-        void capture_recent_transition_diagnostics() noexcept;
+        void capture_recent_transition_diagnostics(
+            scene_change_outcome_t outcome = scene_change_outcome_t::in_progress) noexcept;
         void render_transition_diagnostics(core::game_context_t& game) noexcept;
         [[nodiscard]] bool request_scene_change(core::game_context_t& game,
                                                const assets::scene_asset_record_t& scene_record,

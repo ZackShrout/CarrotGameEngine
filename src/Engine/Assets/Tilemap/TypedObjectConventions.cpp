@@ -97,6 +97,69 @@ namespace carrot::assets {
                 .visibility_zone_id = *visibility_zone_id
             };
         }
+
+        [[nodiscard]] std::optional<typed_light_kind_t> parse_light_kind(const std::string_view kind) noexcept
+        {
+            if (kind == "ambient")
+                return typed_light_kind_t::ambient;
+            if (kind == "point")
+                return typed_light_kind_t::point;
+            if (kind == "spot")
+                return typed_light_kind_t::spot;
+
+            return std::nullopt;
+        }
+
+        [[nodiscard]] std::optional<typed_light_behavior_t> parse_light_behavior(
+            const std::string_view behavior) noexcept
+        {
+            if (behavior == "stationary")
+                return typed_light_behavior_t::stationary;
+            if (behavior == "follow")
+                return typed_light_behavior_t::follow;
+
+            return std::nullopt;
+        }
+
+        template <typename TObject>
+        [[nodiscard]] std::optional<typed_light_object_t> parse_light(const TObject& object) noexcept
+        {
+            if (object.type != "Light")
+                return std::nullopt;
+
+            const auto kind_name{ object.get_string_property("kind") };
+            if (!kind_name || kind_name->empty())
+                return std::nullopt;
+
+            const auto kind{ parse_light_kind(*kind_name) };
+            if (!kind)
+                return std::nullopt;
+
+            typed_light_behavior_t behavior{ typed_light_behavior_t::stationary };
+            if (const auto behavior_name{ object.get_string_property("behavior") };
+                behavior_name && !behavior_name->empty())
+            {
+                const auto parsed_behavior{ parse_light_behavior(*behavior_name) };
+                if (!parsed_behavior)
+                    return std::nullopt;
+
+                behavior = *parsed_behavior;
+            }
+
+            return typed_light_object_t{
+                .kind = *kind,
+                .behavior = behavior,
+                .color_hex = object.get_string_property("color").value_or(std::string_view{}),
+                .intensity = static_cast<float>(object.get_number_property("intensity").value_or(1.0)),
+                .radius_world = [&]() -> std::optional<float>
+                {
+                    if (const auto radius{ object.get_number_property("radius") })
+                        return static_cast<float>(*radius);
+                    return std::nullopt;
+                }(),
+                .follow_target = object.get_string_property("follow_target").value_or(std::string_view{})
+            };
+        }
     } // namespace
 
     bool is_known_tiled_object_type(const std::string_view type) noexcept
@@ -105,7 +168,8 @@ namespace carrot::assets {
                type == "Door" ||
                type == "Container" ||
                type == "Trigger" ||
-               type == "VisibilityZone";
+               type == "VisibilityZone" ||
+               type == "Light";
     }
 
     std::optional<typed_sign_object_t> as_typed_sign(const tilemap_object_t& object) noexcept { return parse_sign(object); }
@@ -118,4 +182,6 @@ namespace carrot::assets {
     std::optional<typed_trigger_object_t> as_typed_trigger(const world::world_object_t& object) noexcept { return parse_trigger(object); }
     std::optional<typed_visibility_zone_object_t> as_typed_visibility_zone(const tilemap_object_t& object) noexcept { return parse_visibility_zone(object); }
     std::optional<typed_visibility_zone_object_t> as_typed_visibility_zone(const world::world_object_t& object) noexcept { return parse_visibility_zone(object); }
+    std::optional<typed_light_object_t> as_typed_light(const tilemap_object_t& object) noexcept { return parse_light(object); }
+    std::optional<typed_light_object_t> as_typed_light(const world::world_object_t& object) noexcept { return parse_light(object); }
 } // namespace carrot::assets

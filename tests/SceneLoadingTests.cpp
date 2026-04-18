@@ -24,6 +24,7 @@
 #include "GameplayRuntimeState.h"
 #include "IO/VirtualFileSystem.h"
 #include "RHI/RHI.h"
+#include "RHI/Backends/Null/NullRHIContext.h"
 #include "Utils/JSON/Public/JsonDocument.h"
 #include "World/AuthoredInteractions.h"
 #include "World/Controllers/InteractionController.h"
@@ -2573,6 +2574,99 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(!resolved.show_loading_text);
         }
 
+        void test_renderer_fullscreen_overlay_compatibility_routes_to_composite_stage()
+        {
+            io::virtual_file_system_t vfs;
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t gfx{ vfs, graphics_config, window::invalid_window_id };
+
+            auto* null_rhi{ dynamic_cast<rhi::null::null_rhi_context_t*>(gfx.get_rhi()) };
+            CARROT_TEST_REQUIRE(null_rhi != nullptr);
+
+            gfx.begin_frame();
+            gfx.set_fullscreen_overlay_color(0xCC112233u);
+            gfx.end_frame();
+
+            const auto& textured_stages{ null_rhi->recorded_textured_stages() };
+            const auto& text_stages{ null_rhi->recorded_text_stages() };
+            const chlm::uint2 render_target_size{ gfx.current_render_target_pixel_size() };
+
+            CARROT_TEST_REQUIRE(textured_stages.size() == 1u);
+            CARROT_TEST_REQUIRE(text_stages.empty());
+            CARROT_TEST_REQUIRE(textured_stages[0].batch_count == 1u);
+            CARROT_TEST_REQUIRE(textured_stages[0].presentation_mask == rhi::presentation_channel_gameplay);
+            CARROT_TEST_REQUIRE(textured_stages[0].viewport.rect_px.position.x == 0u);
+            CARROT_TEST_REQUIRE(textured_stages[0].viewport.rect_px.position.y == 0u);
+            CARROT_TEST_REQUIRE(textured_stages[0].viewport.rect_px.size.x == render_target_size.x);
+            CARROT_TEST_REQUIRE(textured_stages[0].viewport.rect_px.size.y == render_target_size.y);
+            CARROT_TEST_REQUIRE(textured_stages[0].point_light_count == 0u);
+            CARROT_TEST_REQUIRE(textured_stages[0].ambient_color.x == 1.f);
+            CARROT_TEST_REQUIRE(textured_stages[0].ambient_color.y == 1.f);
+            CARROT_TEST_REQUIRE(textured_stages[0].ambient_color.z == 1.f);
+            CARROT_TEST_REQUIRE(textured_stages[0].ambient_color.w == 1.f);
+        }
+
+        void test_renderer_composite_and_overlay_debug_use_distinct_stage_spaces()
+        {
+            io::virtual_file_system_t vfs;
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t gfx{ vfs, graphics_config, window::invalid_window_id };
+
+            auto* null_rhi{ dynamic_cast<rhi::null::null_rhi_context_t*>(gfx.get_rhi()) };
+            CARROT_TEST_REQUIRE(null_rhi != nullptr);
+
+            gfx.get_rhi()->resize(1280u, 800u);
+            renderer::camera_2d_t camera{ gfx.get_camera_2d() };
+            camera.sizing_mode = renderer::camera_2d_sizing_mode_t::fixed_aspect_letterbox;
+            camera.design_view_size = { 1280.f, 720.f };
+            gfx.set_camera_2d(camera);
+
+            gfx.begin_frame();
+            gfx.draw_composite_solid_quad({
+                .x = 0.f,
+                .y = 0.f,
+                .width = 32.f,
+                .height = 32.f,
+                .layer = renderer::render_layer_t::ui,
+                .color = 0xFFFFFFFFu
+            });
+            gfx.draw_overlay_solid_quad({
+                .x = 0.f,
+                .y = 0.f,
+                .width = 32.f,
+                .height = 32.f,
+                .layer = renderer::render_layer_t::debug,
+                .color = 0xFFFFFFFFu
+            });
+            gfx.end_frame();
+
+            const auto& textured_stages{ null_rhi->recorded_textured_stages() };
+            CARROT_TEST_REQUIRE(textured_stages.size() == 2u);
+
+            const auto& composite_stage{ textured_stages[0] };
+            const auto& overlay_stage{ textured_stages[1] };
+
+            CARROT_TEST_REQUIRE(composite_stage.batch_count == 1u);
+            CARROT_TEST_REQUIRE(composite_stage.presentation_mask == rhi::presentation_channel_gameplay);
+            CARROT_TEST_REQUIRE(composite_stage.viewport.rect_px.position.x == 0u);
+            CARROT_TEST_REQUIRE(composite_stage.viewport.rect_px.position.y == 0u);
+            CARROT_TEST_REQUIRE(composite_stage.viewport.rect_px.size.x == 1280u);
+            CARROT_TEST_REQUIRE(composite_stage.viewport.rect_px.size.y == 800u);
+
+            CARROT_TEST_REQUIRE(overlay_stage.batch_count == 1u);
+            CARROT_TEST_REQUIRE(overlay_stage.presentation_mask == rhi::presentation_channel_gameplay);
+            CARROT_TEST_REQUIRE(overlay_stage.viewport.rect_px.position.x == 0u);
+            CARROT_TEST_REQUIRE(overlay_stage.viewport.rect_px.position.y == 40u);
+            CARROT_TEST_REQUIRE(overlay_stage.viewport.rect_px.size.x == 1280u);
+            CARROT_TEST_REQUIRE(overlay_stage.viewport.rect_px.size.y == 720u);
+        }
+
         void test_interaction_outcome_dispatch_routes_scene_transition_and_container()
         {
             bool transition_called{ false };
@@ -3804,6 +3898,10 @@ namespace carrot::tests {
                            test_transition_overlay_override_loading_screen_applies_text_configuration);
         tests.emplace_back("transition overlay override wipe selects wipe style",
                            test_transition_overlay_override_wipe_selects_wipe_style);
+        tests.emplace_back("renderer fullscreen overlay compatibility routes to composite stage",
+                           test_renderer_fullscreen_overlay_compatibility_routes_to_composite_stage);
+        tests.emplace_back("renderer composite and overlay debug use distinct stage spaces",
+                           test_renderer_composite_and_overlay_debug_use_distinct_stage_spaces);
             tests.emplace_back("interaction outcome dispatch routes scene transition and container",
                                test_interaction_outcome_dispatch_routes_scene_transition_and_container);
             tests.emplace_back("scene runtime rejects overlapping load requests",

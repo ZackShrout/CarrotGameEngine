@@ -1,8 +1,8 @@
 # Carrot Game Engine - Milestone 19
 
-**Last Updated:** April 15, 2026
+**Last Updated:** April 17, 2026
 **Title:** Renderer Frame Stage Separation and Pipeline Cleanup
-**Status:** Proposed
+**Status:** Completed and archived
 **Focus:** Strengthen Carrot's renderer as a permanent engine architecture by clarifying frame-stage boundaries, separating world/UI/composite/debug responsibilities more deliberately, and reducing central renderer coordination pressure before more rendering features land.
 
 ---
@@ -263,3 +263,26 @@ Milestone 19 is complete when:
 
 Completion does not mean the renderer is final.
 It does mean future rendering work can land on clearer architecture instead of continuing to widen the same coordination surface.
+
+---
+
+## Closeout Notes
+
+Milestone 19 landed successfully.
+
+The concrete architectural wins were:
+
+* frame-stage meaning is now explicit in code, including stage space, presentation mask, lighting awareness, and debug identity
+* stage planning, submission, and execution are less entangled inside `renderer_t`
+* the world stage now has a clearer internal submission/execution boundary of its own
+* non-world stages are treated as deliberate renderer surfaces rather than leftover paths
+* composite/full-screen presentation work now has a cleaner renderer-owned home instead of relying on a one-off overlay path
+* regression coverage now includes renderer-stage behavior through the null backend
+
+The milestone also surfaced one important future-facing note:
+
+* current `ui` rendering should remain screen-space by default
+* future world-space UI should not blur the meaning of the existing `ui` stage
+* when world-space widgets are added later, the durable direction is to let widget/render code choose a render space explicitly rather than making the current screen-space UI stage ambiguous
+
+That means milestone 19 is complete, but it also leaves a clear guideline for later work such as floating combat text, health bars above actors, selector arrows, or other authored/runtime widgets that need world-space presentation.

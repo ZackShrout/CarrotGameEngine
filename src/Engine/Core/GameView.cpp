@@ -18,14 +18,40 @@ namespace carrot::core {
         _renderer.set_camera_2d(camera);
     }
 
+    void game_view_t::set_composite_overlay_color(const uint32_t color_abgr) noexcept
+    {
+        _renderer.set_composite_overlay_color(color_abgr);
+    }
+
+    void game_view_t::clear_composite_overlay() noexcept
+    {
+        _renderer.clear_composite_overlay();
+    }
+
+    void game_view_t::draw_composite_solid_quad(const float x,
+                                                const float y,
+                                                const float width,
+                                                const float height,
+                                                const uint32_t color_abgr) noexcept
+    {
+        _renderer.draw_composite_solid_quad(renderer::solid_quad_draw_info_t{
+            .x = x,
+            .y = y,
+            .width = width,
+            .height = height,
+            .layer = renderer::render_layer_t::ui,
+            .color = color_abgr
+        });
+    }
+
     void game_view_t::set_fullscreen_overlay_color(const uint32_t color_abgr) noexcept
     {
-        _renderer.set_fullscreen_overlay_color(color_abgr);
+        set_composite_overlay_color(color_abgr);
     }
 
     void game_view_t::clear_fullscreen_overlay() noexcept
     {
-        _renderer.clear_fullscreen_overlay();
+        clear_composite_overlay();
     }
 
     void game_view_t::draw_overlay_solid_quad(const float x,
@@ -41,6 +67,11 @@ namespace carrot::core {
             .height = height,
             .color = color_abgr
         });
+    }
+
+    chlm::uint2 game_view_t::render_target_pixel_size() const noexcept
+    {
+        return _renderer.current_render_target_pixel_size();
     }
 
     chlm::float2 game_view_t::center_world_position(const world::world_t& world) const noexcept

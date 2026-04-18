@@ -162,6 +162,7 @@ namespace carrot::renderer {
         void draw_textured_quad(const textured_quad_draw_info_t& quad);
         void draw_overlay_textured_quad(const textured_quad_draw_info_t& quad);
         void draw_ui_textured_quad(const textured_quad_draw_info_t& quad);
+        void draw_composite_textured_quad(const textured_quad_draw_info_t& quad);
         void draw_log_console_textured_quad(const textured_quad_draw_info_t& quad);
         void draw_text_quad(const textured_quad_draw_info_t& quad);
         void draw_overlay_text_quad(const textured_quad_draw_info_t& quad);
@@ -170,7 +171,10 @@ namespace carrot::renderer {
         void draw_solid_quad(const solid_quad_draw_info_t& quad);
         void draw_overlay_solid_quad(const solid_quad_draw_info_t& quad);
         void draw_ui_solid_quad(const solid_quad_draw_info_t& quad);
+        void draw_composite_solid_quad(const solid_quad_draw_info_t& quad);
         void draw_log_console_solid_quad(const solid_quad_draw_info_t& quad);
+        void set_composite_overlay_color(uint32_t color_abgr) noexcept;
+        void clear_composite_overlay() noexcept;
         void set_fullscreen_overlay_color(uint32_t color_abgr) noexcept;
         void clear_fullscreen_overlay() noexcept;
         void draw_sprite(const sprite_draw_info_t& info);
@@ -190,6 +194,7 @@ namespace carrot::renderer {
             return _rhi ? _rhi->get_graphics_api() : _config.api;
         }
         [[nodiscard]] const camera_2d_t& get_camera_2d() const noexcept { return _active_camera; }
+        [[nodiscard]] chlm::uint2 current_render_target_pixel_size() const noexcept { return current_render_target_size(); }
         [[nodiscard]] resolved_camera_2d_t resolve_camera_2d() const noexcept
         {
             return _active_camera.resolve(current_render_target_size());
@@ -203,6 +208,13 @@ namespace carrot::renderer {
         };
 
         struct world_stage_draw_context_t;
+        enum class non_world_stage_target_t : std::uint8_t
+        {
+            ui = 0,
+            composite,
+            overlay_debug,
+            log_console
+        };
 
         struct frame_stage_plan_t
         {
@@ -221,14 +233,18 @@ namespace carrot::renderer {
 
         [[nodiscard]] chlm::uint2 current_render_target_size() const noexcept;
         [[nodiscard]] const frame_stage_plan_t& stage_plan(frame_stage_kind_t stage) const noexcept;
+        [[nodiscard]] const frame_stage_plan_t& non_world_stage_plan(non_world_stage_target_t target) const noexcept;
         [[nodiscard]] stage_submission_group_t stage_submission_group(frame_stage_kind_t stage) noexcept;
         [[nodiscard]] stage_execution_context_t resolve_stage_execution_context(const frame_stage_plan_t& stage_plan) const noexcept;
         void validate_frame_stage_plan() const noexcept;
-        void queue_fullscreen_overlay_if_needed();
+        void queue_composite_overlay_if_needed();
         void submit_world_textured_quad(const textured_quad_draw_info_t& quad);
         void submit_world_text_quad(const textured_quad_draw_info_t& quad);
-        void submit_textured_quad(frame_stage_kind_t stage, const textured_quad_draw_info_t& quad);
-        void submit_text_quad(frame_stage_kind_t stage, const textured_quad_draw_info_t& quad);
+        void submit_stage_textured_quad(const frame_stage_plan_t& stage_plan, const textured_quad_draw_info_t& quad);
+        void submit_stage_text_quad(const frame_stage_plan_t& stage_plan, const textured_quad_draw_info_t& quad);
+        void submit_non_world_textured_quad(non_world_stage_target_t target, const textured_quad_draw_info_t& quad);
+        void submit_non_world_text_quad(non_world_stage_target_t target, const textured_quad_draw_info_t& quad);
+        void submit_non_world_solid_quad(non_world_stage_target_t target, const solid_quad_draw_info_t& quad);
         void submit_solid_quad(frame_stage_kind_t stage, const solid_quad_draw_info_t& quad);
         void build_textured_quad_batches(textured_quad_state_t& state) const;
         void reset_stage_submission_group(const stage_submission_group_t& group) noexcept;
@@ -327,7 +343,7 @@ namespace carrot::renderer {
         std::array<forward_plus_tile_header_t, k_max_forward_plus_tiles> _world_forward_plus_tiles{ };
         std::array<packed_uint4_t, k_max_forward_plus_packed_light_index_words> _world_forward_plus_light_indices{ };
         std::unique_ptr<rhi::rhi_texture_t> _solid_white_texture;
-        bool _fullscreen_overlay_enabled{ false };
-        uint32_t _fullscreen_overlay_color{ 0x00000000u };
+        bool _composite_overlay_enabled{ false };
+        uint32_t _composite_overlay_color{ 0x00000000u };
     };
 } // namespace carrot::renderer

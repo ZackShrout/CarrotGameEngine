@@ -24,9 +24,13 @@ namespace carrot::core {
             : _renderer{ renderer } {}
 
         void set_zoom(float zoom) noexcept;
+        void set_composite_overlay_color(uint32_t color_abgr) noexcept;
+        void clear_composite_overlay() noexcept;
+        void draw_composite_solid_quad(float x, float y, float width, float height, uint32_t color_abgr) noexcept;
         void set_fullscreen_overlay_color(uint32_t color_abgr) noexcept;
         void clear_fullscreen_overlay() noexcept;
         void draw_overlay_solid_quad(float x, float y, float width, float height, uint32_t color_abgr) noexcept;
+        [[nodiscard]] chlm::uint2 render_target_pixel_size() const noexcept;
         [[nodiscard]] chlm::float2 center_world_position(const world::world_t& world) const noexcept;
         void set_center_world_position(const world::world_t& world, const chlm::float2& world_position) noexcept;
 

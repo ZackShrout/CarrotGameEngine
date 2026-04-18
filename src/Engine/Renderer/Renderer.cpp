@@ -215,8 +215,8 @@ namespace carrot::renderer {
             reset_stage_submission_group(stage_submission_group(stage_plan.kind));
 
         _stats = { };
-        _fullscreen_overlay_enabled = false;
-        _fullscreen_overlay_color = 0x00000000u;
+        _composite_overlay_enabled = false;
+        _composite_overlay_color = 0x00000000u;
         _world_ambient_color = { 1.f, 1.f, 1.f, 1.f };
         _world_point_lights = { };
         _world_point_light_count = 0u;
@@ -230,7 +230,7 @@ namespace carrot::renderer {
 
     void renderer_t::end_frame()
     {
-        queue_fullscreen_overlay_if_needed();
+        queue_composite_overlay_if_needed();
         execute_frame_stages();
         _last_completed_stats = _stats;
 
@@ -261,17 +261,22 @@ namespace carrot::renderer {
 
     void renderer_t::draw_overlay_textured_quad(const textured_quad_draw_info_t& quad)
     {
-        submit_textured_quad(frame_stage_kind_t::overlay_debug, quad);
+        submit_non_world_textured_quad(non_world_stage_target_t::overlay_debug, quad);
     }
 
     void renderer_t::draw_ui_textured_quad(const textured_quad_draw_info_t& quad)
     {
-        submit_textured_quad(frame_stage_kind_t::ui, quad);
+        submit_non_world_textured_quad(non_world_stage_target_t::ui, quad);
+    }
+
+    void renderer_t::draw_composite_textured_quad(const textured_quad_draw_info_t& quad)
+    {
+        submit_non_world_textured_quad(non_world_stage_target_t::composite, quad);
     }
 
     void renderer_t::draw_log_console_textured_quad(const textured_quad_draw_info_t& quad)
     {
-        submit_textured_quad(frame_stage_kind_t::log_console, quad);
+        submit_non_world_textured_quad(non_world_stage_target_t::log_console, quad);
     }
 
     void renderer_t::draw_text_quad(const textured_quad_draw_info_t& quad)
@@ -281,17 +286,17 @@ namespace carrot::renderer {
 
     void renderer_t::draw_overlay_text_quad(const textured_quad_draw_info_t& quad)
     {
-        submit_text_quad(frame_stage_kind_t::overlay_debug, quad);
+        submit_non_world_text_quad(non_world_stage_target_t::overlay_debug, quad);
     }
 
     void renderer_t::draw_ui_text_quad(const textured_quad_draw_info_t& quad)
     {
-        submit_text_quad(frame_stage_kind_t::ui, quad);
+        submit_non_world_text_quad(non_world_stage_target_t::ui, quad);
     }
 
     void renderer_t::draw_log_console_text_quad(const textured_quad_draw_info_t& quad)
     {
-        submit_text_quad(frame_stage_kind_t::log_console, quad);
+        submit_non_world_text_quad(non_world_stage_target_t::log_console, quad);
     }
 
     void renderer_t::draw_solid_quad(const solid_quad_draw_info_t& quad)
@@ -301,29 +306,44 @@ namespace carrot::renderer {
 
     void renderer_t::draw_overlay_solid_quad(const solid_quad_draw_info_t& quad)
     {
-        submit_solid_quad(frame_stage_kind_t::overlay_debug, quad);
+        submit_non_world_solid_quad(non_world_stage_target_t::overlay_debug, quad);
     }
 
     void renderer_t::draw_ui_solid_quad(const solid_quad_draw_info_t& quad)
     {
-        submit_solid_quad(frame_stage_kind_t::ui, quad);
+        submit_non_world_solid_quad(non_world_stage_target_t::ui, quad);
+    }
+
+    void renderer_t::draw_composite_solid_quad(const solid_quad_draw_info_t& quad)
+    {
+        submit_non_world_solid_quad(non_world_stage_target_t::composite, quad);
     }
 
     void renderer_t::draw_log_console_solid_quad(const solid_quad_draw_info_t& quad)
     {
-        submit_solid_quad(frame_stage_kind_t::log_console, quad);
+        submit_non_world_solid_quad(non_world_stage_target_t::log_console, quad);
+    }
+
+    void renderer_t::set_composite_overlay_color(const uint32_t color_abgr) noexcept
+    {
+        _composite_overlay_enabled = true;
+        _composite_overlay_color = color_abgr;
+    }
+
+    void renderer_t::clear_composite_overlay() noexcept
+    {
+        _composite_overlay_enabled = false;
+        _composite_overlay_color = 0x00000000u;
     }
 
     void renderer_t::set_fullscreen_overlay_color(const uint32_t color_abgr) noexcept
     {
-        _fullscreen_overlay_enabled = true;
-        _fullscreen_overlay_color = color_abgr;
+        set_composite_overlay_color(color_abgr);
     }
 
     void renderer_t::clear_fullscreen_overlay() noexcept
     {
-        _fullscreen_overlay_enabled = false;
-        _fullscreen_overlay_color = 0x00000000u;
+        clear_composite_overlay();
     }
 
     void renderer_t::submit_world_textured_quad(const textured_quad_draw_info_t& quad)
@@ -346,7 +366,7 @@ namespace carrot::renderer {
         _stats.textured_quad_count++;
     }
 
-    void renderer_t::submit_textured_quad(const frame_stage_kind_t stage, const textured_quad_draw_info_t& quad)
+    void renderer_t::submit_stage_textured_quad(const frame_stage_plan_t& stage_plan, const textured_quad_draw_info_t& quad)
     {
         if (quad.texture == nullptr)
         {
@@ -354,7 +374,10 @@ namespace carrot::renderer {
             return;
         }
 
-        textured_quad_state_t& stage_state{ _stage_textured_quads[frame_stage_index(stage)] };
+        CE_ASSERT(stage_plan.kind != frame_stage_kind_t::world,
+                  "Renderer non-world textured quad submission must not target the world stage");
+
+        textured_quad_state_t& stage_state{ _stage_textured_quads[frame_stage_index(stage_plan.kind)] };
         stage_state.submissions.push_back({
             .quad = quad,
             .world_material = {
@@ -365,6 +388,12 @@ namespace carrot::renderer {
         });
 
         _stats.textured_quad_count++;
+    }
+
+    void renderer_t::submit_non_world_textured_quad(const non_world_stage_target_t target,
+                                                    const textured_quad_draw_info_t& quad)
+    {
+        submit_stage_textured_quad(non_world_stage_plan(target), quad);
     }
 
     void renderer_t::submit_solid_quad(const frame_stage_kind_t stage, const solid_quad_draw_info_t& quad)
@@ -399,7 +428,7 @@ namespace carrot::renderer {
             return;
         }
 
-        submit_textured_quad(stage, textured_quad);
+        submit_stage_textured_quad(stage_plan(stage), textured_quad);
     }
 
     void renderer_t::submit_world_text_quad(const textured_quad_draw_info_t& quad)
@@ -422,7 +451,7 @@ namespace carrot::renderer {
         _stats.textured_quad_count++;
     }
 
-    void renderer_t::submit_text_quad(const frame_stage_kind_t stage, const textured_quad_draw_info_t& quad)
+    void renderer_t::submit_stage_text_quad(const frame_stage_plan_t& stage_plan, const textured_quad_draw_info_t& quad)
     {
         if (quad.texture == nullptr)
         {
@@ -430,7 +459,10 @@ namespace carrot::renderer {
             return;
         }
 
-        textured_quad_state_t& stage_state{ _stage_text_quads[frame_stage_index(stage)] };
+        CE_ASSERT(stage_plan.kind != frame_stage_kind_t::world,
+                  "Renderer non-world text quad submission must not target the world stage");
+
+        textured_quad_state_t& stage_state{ _stage_text_quads[frame_stage_index(stage_plan.kind)] };
         stage_state.submissions.push_back({
             .quad = quad,
             .world_material = {
@@ -441,6 +473,18 @@ namespace carrot::renderer {
         });
 
         _stats.textured_quad_count++;
+    }
+
+    void renderer_t::submit_non_world_text_quad(const non_world_stage_target_t target,
+                                                const textured_quad_draw_info_t& quad)
+    {
+        submit_stage_text_quad(non_world_stage_plan(target), quad);
+    }
+
+    void renderer_t::submit_non_world_solid_quad(const non_world_stage_target_t target,
+                                                 const solid_quad_draw_info_t& quad)
+    {
+        submit_solid_quad(non_world_stage_plan(target).kind, quad);
     }
 
     void renderer_t::draw_sprite(const sprite_draw_info_t& info)
@@ -1015,6 +1059,25 @@ namespace carrot::renderer {
         return _frame_stage_plan[frame_stage_index(stage)];
     }
 
+    const renderer_t::frame_stage_plan_t& renderer_t::non_world_stage_plan(
+        const non_world_stage_target_t target) const noexcept
+    {
+        switch (target)
+        {
+            case non_world_stage_target_t::ui:
+                return stage_plan(frame_stage_kind_t::ui);
+            case non_world_stage_target_t::composite:
+                return stage_plan(frame_stage_kind_t::composite);
+            case non_world_stage_target_t::overlay_debug:
+                return stage_plan(frame_stage_kind_t::overlay_debug);
+            case non_world_stage_target_t::log_console:
+                return stage_plan(frame_stage_kind_t::log_console);
+            default:
+                CE_ASSERT(false, "Renderer non-world stage target must resolve to a known frame stage");
+                return stage_plan(frame_stage_kind_t::ui);
+        }
+    }
+
     renderer_t::stage_submission_group_t renderer_t::stage_submission_group(const frame_stage_kind_t stage) noexcept
     {
         if (stage == frame_stage_kind_t::world)
@@ -1130,14 +1193,14 @@ namespace carrot::renderer {
         }
     }
 
-    void renderer_t::queue_fullscreen_overlay_if_needed()
+    void renderer_t::queue_composite_overlay_if_needed()
     {
-        if (!_fullscreen_overlay_enabled || _solid_white_texture == nullptr)
+        if (!_composite_overlay_enabled || _solid_white_texture == nullptr)
             return;
 
         const chlm::uint2 render_target_size{ current_render_target_size() };
 
-        submit_textured_quad(stage_plan(frame_stage_kind_t::composite).kind, textured_quad_draw_info_t{
+        draw_composite_textured_quad(textured_quad_draw_info_t{
             .texture = _solid_white_texture.get(),
             .x = 0.f,
             .y = 0.f,
@@ -1149,7 +1212,7 @@ namespace carrot::renderer {
             .v1 = 1.f,
             .layer = render_layer_t::ui,
             .order_in_layer = 0,
-            .color = _fullscreen_overlay_color,
+            .color = _composite_overlay_color,
             .sampler_preset = quad_sampler_preset_t::pixel_clamp
         });
     }

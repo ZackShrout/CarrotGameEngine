@@ -18,6 +18,15 @@ namespace carrot::rhi::null {
     class null_rhi_context_t final : public rhi_context_t
     {
     public:
+        struct recorded_stage_t
+        {
+            std::size_t batch_count{ 0u };
+            render_viewport_t viewport{ };
+            uint32_t presentation_mask{ presentation_channel_gameplay };
+            std::uint32_t point_light_count{ 0u };
+            chlm::float4 ambient_color{ 1.f, 1.f, 1.f, 1.f };
+        };
+
         explicit null_rhi_context_t(const rhi_desc_t& desc) noexcept;
 
         void begin_frame() override;
@@ -44,6 +53,16 @@ namespace carrot::rhi::null {
         bool remove_presentation_window(window::window_id_t window_id) override;
 
         void wait_idle() override;
+
+        [[nodiscard]] const std::vector<recorded_stage_t>& recorded_textured_stages() const noexcept
+        {
+            return _recorded_textured_stages;
+        }
+
+        [[nodiscard]] const std::vector<recorded_stage_t>& recorded_text_stages() const noexcept
+        {
+            return _recorded_text_stages;
+        }
 
     private:
         class null_texture_t final : public rhi_texture_t
@@ -113,5 +132,7 @@ namespace carrot::rhi::null {
         null_command_queue_t _command_queue;
         null_swapchain_t _swapchain;
         std::unordered_map<sampler_desc_t, std::unique_ptr<null_sampler_t>, sampler_desc_hash_t> _samplers;
+        std::vector<recorded_stage_t> _recorded_textured_stages;
+        std::vector<recorded_stage_t> _recorded_text_stages;
     };
 } // namespace carrot::rhi::null

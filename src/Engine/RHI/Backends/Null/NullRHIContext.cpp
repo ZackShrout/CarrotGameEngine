@@ -70,11 +70,33 @@ namespace carrot::rhi::null {
     {
     }
 
-    void null_rhi_context_t::begin_frame() {}
+    void null_rhi_context_t::begin_frame()
+    {
+        _recorded_textured_stages.clear();
+        _recorded_text_stages.clear();
+    }
 
-    void null_rhi_context_t::record_textured_quad_stage([[maybe_unused]] const textured_quad_stage_record_t& stage) {}
+    void null_rhi_context_t::record_textured_quad_stage(const textured_quad_stage_record_t& stage)
+    {
+        _recorded_textured_stages.push_back(recorded_stage_t{
+            .batch_count = stage.batches.size(),
+            .viewport = stage.viewport,
+            .presentation_mask = stage.presentation_mask,
+            .point_light_count = stage.point_light_count,
+            .ambient_color = stage.ambient_color
+        });
+    }
 
-    void null_rhi_context_t::record_text_quad_stage([[maybe_unused]] const textured_quad_stage_record_t& stage) {}
+    void null_rhi_context_t::record_text_quad_stage(const textured_quad_stage_record_t& stage)
+    {
+        _recorded_text_stages.push_back(recorded_stage_t{
+            .batch_count = stage.batches.size(),
+            .viewport = stage.viewport,
+            .presentation_mask = stage.presentation_mask,
+            .point_light_count = stage.point_light_count,
+            .ambient_color = stage.ambient_color
+        });
+    }
 
     void null_rhi_context_t::end_frame() {}
 

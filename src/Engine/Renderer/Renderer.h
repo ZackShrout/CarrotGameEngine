@@ -38,6 +38,7 @@ namespace carrot::assets {
 
 namespace carrot::world {
     class world_t;
+    class world_object_t;
     struct layering_debug_snapshot_t;
 }
 
@@ -48,11 +49,11 @@ namespace carrot::renderer {
 
     enum class frame_stage_kind_t : std::uint8_t
     {
-        world = 0,
-        ui,
-        composite,
-        overlay_debug,
-        log_console,
+        world = 0,       // Camera-space authored world rendering, including lighting-aware content.
+        ui,              // Screen-space gameplay UI in full render-target pixel coordinates.
+        composite,       // Full-screen presentation/composite work after world and UI submission.
+        overlay_debug,   // Camera-viewport-relative debug overlays that track the visible gameplay view.
+        log_console,     // Screen-space console/output presentation on the dedicated log-console channel.
         count
     };
 
@@ -201,28 +202,48 @@ namespace carrot::renderer {
             rhi::render_viewport_t viewport{ };
         };
 
+        struct world_stage_draw_context_t;
+
         struct frame_stage_plan_t
         {
             frame_stage_kind_t kind{ frame_stage_kind_t::world };
             frame_stage_space_t space{ frame_stage_space_t::world_camera };
+            std::uint32_t presentation_mask{ rhi::presentation_channel_gameplay };
+            bool lighting_aware{ false };
+            const char* debug_name{ "world" };
+        };
+
+        struct stage_submission_group_t
+        {
+            textured_quad_state_t* textured{ nullptr };
+            textured_quad_state_t* text{ nullptr };
         };
 
         [[nodiscard]] chlm::uint2 current_render_target_size() const noexcept;
+        [[nodiscard]] const frame_stage_plan_t& stage_plan(frame_stage_kind_t stage) const noexcept;
+        [[nodiscard]] stage_submission_group_t stage_submission_group(frame_stage_kind_t stage) noexcept;
         [[nodiscard]] stage_execution_context_t resolve_stage_execution_context(const frame_stage_plan_t& stage_plan) const noexcept;
+        void validate_frame_stage_plan() const noexcept;
         void queue_fullscreen_overlay_if_needed();
         void submit_world_textured_quad(const textured_quad_draw_info_t& quad);
         void submit_world_text_quad(const textured_quad_draw_info_t& quad);
         void submit_textured_quad(frame_stage_kind_t stage, const textured_quad_draw_info_t& quad);
         void submit_text_quad(frame_stage_kind_t stage, const textured_quad_draw_info_t& quad);
         void submit_solid_quad(frame_stage_kind_t stage, const solid_quad_draw_info_t& quad);
-        void build_world_textured_quad_batches(textured_quad_state_t& state) const;
         void build_textured_quad_batches(textured_quad_state_t& state) const;
+        void reset_stage_submission_group(const stage_submission_group_t& group) noexcept;
+        void record_stage_state(textured_quad_state_t& stage_state,
+                                const rhi::textured_quad_stage_record_t& record,
+                                bool is_text);
         void execute_world_frame_stage();
         void execute_frame_stage(const frame_stage_plan_t& stage_plan);
         void execute_frame_stages();
         void release_frame_resources();
         void ensure_textured_quad_frame_buffers(textured_quad_state_t& state);
         void upload_textured_quad_frame_data(const textured_quad_state_t& state) const;
+        void prepare_world_stage_context(const world::world_t& world, world_stage_draw_context_t& context);
+        void submit_world_object(const world::world_object_t& object, world_stage_draw_context_t& context);
+        void finalize_world_stage_context(world_stage_draw_context_t& context) const;
         void submit_tilemap(const tilemap_draw_info_t& info, world::layering_debug_snapshot_t* layering_debug_snapshot = nullptr);
         void submit_tile_object(const assets::loaded_tilemap_asset_t& tilemap,
                                 uint32_t gid,
@@ -260,11 +281,41 @@ namespace carrot::renderer {
         std::array<textured_quad_state_t, static_cast<size_t>(frame_stage_kind_t::count)> _stage_textured_quads;
         std::array<textured_quad_state_t, static_cast<size_t>(frame_stage_kind_t::count)> _stage_text_quads;
         std::array<frame_stage_plan_t, static_cast<size_t>(frame_stage_kind_t::count)> _frame_stage_plan{
-            frame_stage_plan_t{ .kind = frame_stage_kind_t::world, .space = frame_stage_space_t::world_camera },
-            frame_stage_plan_t{ .kind = frame_stage_kind_t::ui, .space = frame_stage_space_t::render_target_pixels },
-            frame_stage_plan_t{ .kind = frame_stage_kind_t::composite, .space = frame_stage_space_t::render_target_pixels },
-            frame_stage_plan_t{ .kind = frame_stage_kind_t::overlay_debug, .space = frame_stage_space_t::viewport_pixels },
-            frame_stage_plan_t{ .kind = frame_stage_kind_t::log_console, .space = frame_stage_space_t::render_target_pixels }
+            frame_stage_plan_t{
+                .kind = frame_stage_kind_t::world,
+                .space = frame_stage_space_t::world_camera,
+                .presentation_mask = rhi::presentation_channel_gameplay,
+                .lighting_aware = true,
+                .debug_name = "world"
+            },
+            frame_stage_plan_t{
+                .kind = frame_stage_kind_t::ui,
+                .space = frame_stage_space_t::render_target_pixels,
+                .presentation_mask = rhi::presentation_channel_gameplay,
+                .lighting_aware = false,
+                .debug_name = "ui"
+            },
+            frame_stage_plan_t{
+                .kind = frame_stage_kind_t::composite,
+                .space = frame_stage_space_t::render_target_pixels,
+                .presentation_mask = rhi::presentation_channel_gameplay,
+                .lighting_aware = false,
+                .debug_name = "composite"
+            },
+            frame_stage_plan_t{
+                .kind = frame_stage_kind_t::overlay_debug,
+                .space = frame_stage_space_t::viewport_pixels,
+                .presentation_mask = rhi::presentation_channel_gameplay,
+                .lighting_aware = false,
+                .debug_name = "overlay_debug"
+            },
+            frame_stage_plan_t{
+                .kind = frame_stage_kind_t::log_console,
+                .space = frame_stage_space_t::render_target_pixels,
+                .presentation_mask = rhi::presentation_channel_log_console,
+                .lighting_aware = false,
+                .debug_name = "log_console"
+            }
         };
 
         camera_2d_t _active_camera{ };

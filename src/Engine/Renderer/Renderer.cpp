@@ -20,6 +20,14 @@
 #include "World/WorldUnits.h"
 
 namespace carrot::renderer {
+    struct renderer_t::world_stage_draw_context_t
+    {
+        const world::world_t* world{ nullptr };
+        const world::world_presentation_t* presentation{ nullptr };
+        std::vector<std::string_view> active_visibility_tags;
+        world::layering_debug_snapshot_t layering_debug_snapshot{ };
+    };
+
     namespace {
         [[nodiscard]] constexpr size_t frame_stage_index(const frame_stage_kind_t stage) noexcept
         {
@@ -203,30 +211,8 @@ namespace carrot::renderer {
         _animated_tiles_elapsed_ms = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - _animated_tiles_clock_origin).count());
 
-        _world_textured_quads.submissions.clear();
-        _world_textured_quads.vertices_cpu.clear();
-        _world_textured_quads.indices_cpu.clear();
-        _world_textured_quads.batches.clear();
-
-        _world_text_quads.submissions.clear();
-        _world_text_quads.vertices_cpu.clear();
-        _world_text_quads.indices_cpu.clear();
-        _world_text_quads.batches.clear();
-
-        for (textured_quad_state_t& stage_state : _stage_textured_quads)
-        {
-            stage_state.submissions.clear();
-            stage_state.vertices_cpu.clear();
-            stage_state.indices_cpu.clear();
-            stage_state.batches.clear();
-        }
-        for (textured_quad_state_t& stage_state : _stage_text_quads)
-        {
-            stage_state.submissions.clear();
-            stage_state.vertices_cpu.clear();
-            stage_state.indices_cpu.clear();
-            stage_state.batches.clear();
-        }
+        for (const frame_stage_plan_t& stage_plan : _frame_stage_plan)
+            reset_stage_submission_group(stage_submission_group(stage_plan.kind));
 
         _stats = { };
         _fullscreen_overlay_enabled = false;
@@ -820,7 +806,24 @@ namespace carrot::renderer {
 
     void renderer_t::draw_world(const world::world_t& world)
     {
-        const world::world_presentation_t& presentation{ world.presentation() };
+        world_stage_draw_context_t context;
+        prepare_world_stage_context(world, context);
+
+        for (const world::world_object_t& object : world.objects())
+            submit_world_object(object, context);
+
+        finalize_world_stage_context(context);
+    }
+
+    void renderer_t::prepare_world_stage_context(const world::world_t& world, world_stage_draw_context_t& context)
+    {
+        context.world = &world;
+        context.presentation = &world.presentation();
+        context.active_visibility_tags.clear();
+        context.layering_debug_snapshot = world::layering_debug_snapshot_t{ };
+        context.layering_debug_snapshot.frame_index = _frame_index;
+
+        const world::world_presentation_t& presentation{ *context.presentation };
         _world_ambient_color = world.lighting().ambient_color;
         _world_point_lights = { };
         _world_point_light_count = 0u;
@@ -837,67 +840,68 @@ namespace carrot::renderer {
                 .color_intensity = { light.color.x, light.color.y, light.color.z, light.intensity }
             };
         }
-        std::vector<std::string_view> active_visibility_tags;
-        world::layering_debug_snapshot_t layering_debug_snapshot{ };
-        layering_debug_snapshot.frame_index = _frame_index;
+
         if (const world::world_object_t* visibility_anchor{ resolve_primary_visibility_anchor(world) };
             visibility_anchor && visibility_anchor->transform)
         {
-            layering_debug_snapshot.has_visibility_anchor = true;
-            layering_debug_snapshot.visibility_anchor_world = visibility_anchor->transform->position;
-            active_visibility_tags = world.collect_active_visibility_tags(visibility_anchor->transform->position);
+            context.layering_debug_snapshot.has_visibility_anchor = true;
+            context.layering_debug_snapshot.visibility_anchor_world = visibility_anchor->transform->position;
+            context.active_visibility_tags = world.collect_active_visibility_tags(visibility_anchor->transform->position);
         }
-        layering_debug_snapshot.active_visibility_tags.reserve(active_visibility_tags.size());
-        for (const std::string_view tag : active_visibility_tags)
-            layering_debug_snapshot.active_visibility_tags.emplace_back(tag);
+        context.layering_debug_snapshot.active_visibility_tags.reserve(context.active_visibility_tags.size());
+        for (const std::string_view tag : context.active_visibility_tags)
+            context.layering_debug_snapshot.active_visibility_tags.emplace_back(tag);
 
         for (const world::world_object_t& object : world.objects())
         {
             if (object.visibility_region)
-                layering_debug_snapshot.visibility_region_count++;
+                context.layering_debug_snapshot.visibility_region_count++;
+        }
+    }
+
+    void renderer_t::submit_world_object(const world::world_object_t& object, world_stage_draw_context_t& context)
+    {
+        CE_ASSERT(context.world != nullptr && context.presentation != nullptr,
+                  "Renderer world stage context must be prepared before submitting world objects");
+
+        if (!object.transform || (!object.sprite && !object.tilemap && !object.tile_object))
+            return;
+
+        const world::transform_component_t& transform{ *object.transform };
+        const chlm::float2 render_position_px{
+            context.presentation->world_position_to_pixels(transform.position)
+        };
+
+        if (object.tilemap)
+        {
+            const world::tilemap_component_t& tilemap{ *object.tilemap };
+            submit_tilemap({
+                .tilemap = tilemap.tilemap,
+                .origin = render_position_px,
+                .scale = transform.scale,
+                .source_pixels_per_unit = world::world_units_t::default_pixels_per_unit,
+                .render_pixels_per_unit = context.presentation->pixels_per_unit,
+                .include_object_layers = tilemap.include_object_layers,
+                .active_visibility_tags = context.active_visibility_tags,
+                .layer = tilemap.layer,
+                .order_mode = tilemap.order_mode,
+                .order_in_layer = tilemap.order_in_layer,
+                .sort_reference_y = tilemap.sort_reference_y,
+                .sampler_preset = tilemap.sampler_preset,
+                .color = tilemap.color
+            }, &context.layering_debug_snapshot);
         }
 
-        for (const world::world_object_t& object : world.objects())
+        if (object.tile_object)
         {
-            if (!object.transform || (!object.sprite && !object.tilemap && !object.tile_object))
-                continue;
-
-            const world::transform_component_t& transform{ *object.transform };
-            const chlm::float2 render_position_px{
-                presentation.world_position_to_pixels(transform.position)
-            };
-
-            if (object.tilemap)
+            const world::tile_object_component_t& tile_object{ *object.tile_object };
+            if (tile_object.tilemap && tile_object.gid != 0)
             {
-                const world::tilemap_component_t& tilemap{ *object.tilemap };
-                submit_tilemap({
-                    .tilemap = tilemap.tilemap,
-                    .origin = render_position_px,
-                    .scale = transform.scale,
-                    .source_pixels_per_unit = world::world_units_t::default_pixels_per_unit,
-                    .render_pixels_per_unit = presentation.pixels_per_unit,
-                    .include_object_layers = tilemap.include_object_layers,
-                    .active_visibility_tags = active_visibility_tags,
-                    .layer = tilemap.layer,
-                    .order_mode = tilemap.order_mode,
-                    .order_in_layer = tilemap.order_in_layer,
-                    .sort_reference_y = tilemap.sort_reference_y,
-                    .sampler_preset = tilemap.sampler_preset,
-                    .color = tilemap.color
-                }, &layering_debug_snapshot);
-            }
-
-            if (object.tile_object)
-            {
-                const world::tile_object_component_t& tile_object{ *object.tile_object };
-                if (!tile_object.tilemap || tile_object.gid == 0)
-                    continue;
-
                 const chlm::float2 world_size{
                     world::world_units_t::pixel_size_to_world(tile_object.size_source_px,
                                                               world::world_units_t::default_pixels_per_unit)
                 };
-                const chlm::float2 render_size_px{ presentation.world_size_to_pixels(world_size) };
+                const chlm::float2 render_size_px{ context.presentation->world_size_to_pixels(world_size) };
 
                 submit_tile_object(*tile_object.tilemap,
                                    tile_object.gid,
@@ -910,17 +914,17 @@ namespace carrot::renderer {
                                    tile_object.sampler_preset,
                                    tile_object.color);
             }
+        }
 
-            if (object.sprite)
+        if (object.sprite)
+        {
+            const world::sprite_component_t& sprite{ *object.sprite };
+            const assets::sprite_frame_t* frame{
+                object.sprite_animator ? object.sprite_animator->animator.current_frame() : sprite.frame
+            };
+
+            if (sprite.sprite && frame)
             {
-                const world::sprite_component_t& sprite{ *object.sprite };
-                const assets::sprite_frame_t* frame{
-                    object.sprite_animator ? object.sprite_animator->animator.current_frame() : sprite.frame
-                };
-
-                if (!sprite.sprite || !frame)
-                    continue;
-
                 const chlm::float2 pixel_size{
                     static_cast<float>(frame->pixel_rect.size.x),
                     static_cast<float>(frame->pixel_rect.size.y)
@@ -936,7 +940,7 @@ namespace carrot::renderer {
                 const chlm::float2 final_world_size{
                     sprite.use_size_override ? sprite.size_override_world : native_world_size
                 };
-                const chlm::float2 render_size_px{ presentation.world_size_to_pixels(final_world_size) };
+                const chlm::float2 render_size_px{ context.presentation->world_size_to_pixels(final_world_size) };
 
                 sprite_draw_info_t draw_info{ };
                 draw_info.sprite = sprite.sprite;
@@ -958,27 +962,32 @@ namespace carrot::renderer {
 
                 draw_sprite(draw_info);
             }
-
-            if (object.visibility_region && object.transform && world.layering_debug_view().show_visibility_regions)
-            {
-                const chlm::float2 render_size_px{
-                    presentation.world_size_to_pixels(object.visibility_region->size_world)
-                };
-                draw_overlay_solid_quad({
-                    .x = render_position_px.x,
-                    .y = render_position_px.y,
-                    .width = render_size_px.x,
-                    .height = render_size_px.y,
-                    .layer = render_layer_t::debug,
-                    .order_mode = render_order_mode_t::explicit_order,
-                    .order_in_layer = 0,
-                    .color = world.layering_debug_view().visibility_region_color,
-                    .sampler_preset = quad_sampler_preset_t::pixel_clamp
-                });
-            }
         }
 
-        world.set_layering_debug_snapshot(std::move(layering_debug_snapshot));
+        if (object.visibility_region && object.transform && context.world->layering_debug_view().show_visibility_regions)
+        {
+            const chlm::float2 render_size_px{
+                context.presentation->world_size_to_pixels(object.visibility_region->size_world)
+            };
+            draw_overlay_solid_quad({
+                .x = render_position_px.x,
+                .y = render_position_px.y,
+                .width = render_size_px.x,
+                .height = render_size_px.y,
+                .layer = render_layer_t::debug,
+                .order_mode = render_order_mode_t::explicit_order,
+                .order_in_layer = 0,
+                .color = context.world->layering_debug_view().visibility_region_color,
+                .sampler_preset = quad_sampler_preset_t::pixel_clamp
+            });
+        }
+    }
+
+    void renderer_t::finalize_world_stage_context(world_stage_draw_context_t& context) const
+    {
+        CE_ASSERT(context.world != nullptr,
+                  "Renderer world stage context must reference a world before finalization");
+        context.world->set_layering_debug_snapshot(std::move(context.layering_debug_snapshot));
     }
 
     void renderer_t::notify_shader_changed(std::string_view path)
@@ -999,6 +1008,68 @@ namespace carrot::renderer {
         }
 
         return { 1u, 1u };
+    }
+
+    const renderer_t::frame_stage_plan_t& renderer_t::stage_plan(const frame_stage_kind_t stage) const noexcept
+    {
+        return _frame_stage_plan[frame_stage_index(stage)];
+    }
+
+    renderer_t::stage_submission_group_t renderer_t::stage_submission_group(const frame_stage_kind_t stage) noexcept
+    {
+        if (stage == frame_stage_kind_t::world)
+        {
+            return {
+                .textured = &_world_textured_quads,
+                .text = &_world_text_quads
+            };
+        }
+
+        return {
+            .textured = &_stage_textured_quads[frame_stage_index(stage)],
+            .text = &_stage_text_quads[frame_stage_index(stage)]
+        };
+    }
+
+    void renderer_t::validate_frame_stage_plan() const noexcept
+    {
+        CE_ASSERT(_frame_stage_plan.size() == static_cast<size_t>(frame_stage_kind_t::count),
+                  "Renderer frame stage plan size must match frame_stage_kind_t count");
+
+        const frame_stage_plan_t& world_stage{ stage_plan(frame_stage_kind_t::world) };
+        CE_ASSERT(world_stage.kind == frame_stage_kind_t::world &&
+                      world_stage.space == frame_stage_space_t::world_camera &&
+                      world_stage.presentation_mask == rhi::presentation_channel_gameplay &&
+                      world_stage.lighting_aware,
+                  "Renderer world stage must remain gameplay-presented, world-camera, and lighting-aware");
+
+        const frame_stage_plan_t& ui_stage{ stage_plan(frame_stage_kind_t::ui) };
+        CE_ASSERT(ui_stage.kind == frame_stage_kind_t::ui &&
+                      ui_stage.space == frame_stage_space_t::render_target_pixels &&
+                      ui_stage.presentation_mask == rhi::presentation_channel_gameplay &&
+                      !ui_stage.lighting_aware,
+                  "Renderer UI stage must remain gameplay-presented, render-target-pixel, and unlit");
+
+        const frame_stage_plan_t& composite_stage{ stage_plan(frame_stage_kind_t::composite) };
+        CE_ASSERT(composite_stage.kind == frame_stage_kind_t::composite &&
+                      composite_stage.space == frame_stage_space_t::render_target_pixels &&
+                      composite_stage.presentation_mask == rhi::presentation_channel_gameplay &&
+                      !composite_stage.lighting_aware,
+                  "Renderer composite stage must remain gameplay-presented, render-target-pixel, and unlit");
+
+        const frame_stage_plan_t& overlay_stage{ stage_plan(frame_stage_kind_t::overlay_debug) };
+        CE_ASSERT(overlay_stage.kind == frame_stage_kind_t::overlay_debug &&
+                      overlay_stage.space == frame_stage_space_t::viewport_pixels &&
+                      overlay_stage.presentation_mask == rhi::presentation_channel_gameplay &&
+                      !overlay_stage.lighting_aware,
+                  "Renderer overlay debug stage must remain gameplay-presented, viewport-pixel, and unlit");
+
+        const frame_stage_plan_t& log_console_stage{ stage_plan(frame_stage_kind_t::log_console) };
+        CE_ASSERT(log_console_stage.kind == frame_stage_kind_t::log_console &&
+                      log_console_stage.space == frame_stage_space_t::render_target_pixels &&
+                      log_console_stage.presentation_mask == rhi::presentation_channel_log_console &&
+                      !log_console_stage.lighting_aware,
+                  "Renderer log console stage must remain log-console-presented, render-target-pixel, and unlit");
     }
 
     renderer_t::stage_execution_context_t renderer_t::resolve_stage_execution_context(
@@ -1066,7 +1137,7 @@ namespace carrot::renderer {
 
         const chlm::uint2 render_target_size{ current_render_target_size() };
 
-        submit_textured_quad(frame_stage_kind_t::composite, textured_quad_draw_info_t{
+        submit_textured_quad(stage_plan(frame_stage_kind_t::composite).kind, textured_quad_draw_info_t{
             .texture = _solid_white_texture.get(),
             .x = 0.f,
             .y = 0.f,
@@ -1176,105 +1247,60 @@ namespace carrot::renderer {
         }
     }
 
-    void renderer_t::build_world_textured_quad_batches(textured_quad_state_t& state) const
+    void renderer_t::reset_stage_submission_group(const stage_submission_group_t& group) noexcept
     {
-        state.vertices_cpu.clear();
-        state.indices_cpu.clear();
-        state.batches.clear();
+        const auto reset_state = [](textured_quad_state_t* state) noexcept
+        {
+            if (!state)
+                return;
 
-        if (state.submissions.empty())
+            state->submissions.clear();
+            state->vertices_cpu.clear();
+            state->indices_cpu.clear();
+            state->batches.clear();
+        };
+
+        reset_state(group.textured);
+        reset_state(group.text);
+    }
+
+    void renderer_t::record_stage_state(textured_quad_state_t& stage_state,
+                                        const rhi::textured_quad_stage_record_t& record,
+                                        const bool is_text)
+    {
+        build_textured_quad_batches(stage_state);
+
+        if (stage_state.batches.empty())
             return;
 
-        std::stable_sort(state.submissions.begin(), state.submissions.end(),
-                         [](const textured_quad_state_t::submission_t& lhs,
-                            const textured_quad_state_t::submission_t& rhs) noexcept
-                         {
-                             if (quad_sorts_before(lhs.quad, rhs.quad))
-                                 return true;
+        ensure_textured_quad_frame_buffers(stage_state);
+        upload_textured_quad_frame_data(stage_state);
 
-                             if (quad_sorts_before(rhs.quad, lhs.quad))
-                                 return false;
+        const auto& frame_buffers{ current_frame_buffers(stage_state) };
+        if (!frame_buffers.vertex_buffer || !frame_buffers.index_buffer)
+            return;
 
-                             return lhs.submission_index < rhs.submission_index;
-                         });
+        rhi::textured_quad_stage_record_t final_record{ record };
+        final_record.vertex_buffer = frame_buffers.vertex_buffer.get();
+        final_record.index_buffer = frame_buffers.index_buffer.get();
+        final_record.batches = stage_state.batches;
 
-        for (const textured_quad_state_t::submission_t& submission : state.submissions)
-        {
-            const textured_quad_draw_info_t& quad{ submission.quad };
+        if (is_text)
+            _rhi->record_text_quad_stage(final_record);
+        else
+            _rhi->record_textured_quad_stage(final_record);
 
-            if (state.batches.empty() ||
-                state.batches.back().texture != quad.texture ||
-                state.batches.back().sampler_preset != quad.sampler_preset ||
-                !(state.batches.back().world_material == submission.world_material))
-            {
-                state.batches.push_back(textured_quad_batch_t{
-                    .texture = quad.texture,
-                    .first_index = static_cast<uint32_t>(state.indices_cpu.size()),
-                    .index_count = 0,
-                    .sampler_preset = quad.sampler_preset,
-                    .world_material = submission.world_material
-                });
-            }
-
-            const uint32_t base_vertex{ static_cast<uint32_t>(state.vertices_cpu.size()) };
-
-            state.vertices_cpu.push_back(quad_vertex_t{
-                .x = quad.x,
-                .y = quad.y,
-                .u = quad.u0,
-                .v = quad.v0,
-                .color = quad.color,
-                .effect_mode = quad.effect_mode,
-                .effect_param0 = quad.effect_param0
-            });
-
-            state.vertices_cpu.push_back(quad_vertex_t{
-                .x = quad.x + quad.width,
-                .y = quad.y,
-                .u = quad.u1,
-                .v = quad.v0,
-                .color = quad.color,
-                .effect_mode = quad.effect_mode,
-                .effect_param0 = quad.effect_param0
-            });
-
-            state.vertices_cpu.push_back(quad_vertex_t{
-                .x = quad.x + quad.width,
-                .y = quad.y + quad.height,
-                .u = quad.u1,
-                .v = quad.v1,
-                .color = quad.color,
-                .effect_mode = quad.effect_mode,
-                .effect_param0 = quad.effect_param0
-            });
-
-            state.vertices_cpu.push_back(quad_vertex_t{
-                .x = quad.x,
-                .y = quad.y + quad.height,
-                .u = quad.u0,
-                .v = quad.v1,
-                .color = quad.color,
-                .effect_mode = quad.effect_mode,
-                .effect_param0 = quad.effect_param0
-            });
-
-            state.indices_cpu.push_back(base_vertex + 0);
-            state.indices_cpu.push_back(base_vertex + 1);
-            state.indices_cpu.push_back(base_vertex + 2);
-            state.indices_cpu.push_back(base_vertex + 0);
-            state.indices_cpu.push_back(base_vertex + 2);
-            state.indices_cpu.push_back(base_vertex + 3);
-
-            state.batches.back().index_count += 6;
-        }
+        _stats.vertex_count += static_cast<uint32_t>(stage_state.vertices_cpu.size());
+        _stats.index_count += static_cast<uint32_t>(stage_state.indices_cpu.size());
+        _stats.textured_quad_batch_count += static_cast<uint32_t>(stage_state.batches.size());
+        _stats.draw_calls += static_cast<uint32_t>(stage_state.batches.size());
     }
 
     void renderer_t::execute_world_frame_stage()
     {
-        const frame_stage_plan_t& world_stage_plan{ _frame_stage_plan[frame_stage_index(frame_stage_kind_t::world)] };
+        const frame_stage_plan_t& world_stage_plan{ stage_plan(frame_stage_kind_t::world) };
         const stage_execution_context_t stage_context{ resolve_stage_execution_context(world_stage_plan) };
         const resolved_camera_2d_t resolved_world_camera{ _active_camera.resolve(current_render_target_size()) };
-        constexpr uint32_t presentation_mask{ rhi::presentation_channel_gameplay };
 
         _world_forward_plus_grid_params = {
             _active_camera.position.x,
@@ -1360,122 +1386,66 @@ namespace carrot::renderer {
         }
         _stats.forward_plus_light_index_count = light_index_cursor;
 
-        auto record_stage = [&](textured_quad_state_t& stage_state, const bool is_text)
-        {
-            build_world_textured_quad_batches(stage_state);
+        const stage_submission_group_t group{ stage_submission_group(frame_stage_kind_t::world) };
+        CE_ASSERT(group.textured != nullptr && group.text != nullptr,
+                  "Renderer world stage must have both textured and text submission state");
 
-            if (stage_state.batches.empty())
-                return;
-
-            ensure_textured_quad_frame_buffers(stage_state);
-            upload_textured_quad_frame_data(stage_state);
-
-            const auto& frame_buffers{ current_frame_buffers(stage_state) };
-            if (!frame_buffers.vertex_buffer || !frame_buffers.index_buffer)
-                return;
-
-            const rhi::textured_quad_stage_record_t record{
-                .vertex_buffer = frame_buffers.vertex_buffer.get(),
-                .index_buffer = frame_buffers.index_buffer.get(),
-                .batches = stage_state.batches,
-                .view_projection = stage_context.view_projection,
-                .ambient_color = is_text ? chlm::float4{ 1.f, 1.f, 1.f, 1.f } : _world_ambient_color,
-                .forward_plus_grid_params = is_text ? chlm::float4{ 0.f, 0.f, static_cast<float>(k_forward_plus_tile_size_px), 0.f } : _world_forward_plus_grid_params,
-                .forward_plus_tile_counts = is_text ? std::array<std::uint32_t, 4>{ 0u, 0u, 0u, 0u } : _world_forward_plus_tile_counts,
-                .point_light_count = is_text ? 0u : _world_point_light_count,
-                .point_lights = is_text ? std::array<world_point_light_uniform_t, k_max_world_point_lights>{ } : _world_point_lights,
-                .forward_plus_tiles = is_text ? std::array<forward_plus_tile_header_t, k_max_forward_plus_tiles>{ } : _world_forward_plus_tiles,
-                .forward_plus_light_indices = is_text ? std::array<packed_uint4_t, k_max_forward_plus_packed_light_index_words>{ } : _world_forward_plus_light_indices,
-                .viewport = stage_context.viewport,
-                .presentation_mask = presentation_mask
-            };
-
-            if (is_text)
-                _rhi->record_text_quad_stage(record);
-            else
-                _rhi->record_textured_quad_stage(record);
-
-            _stats.vertex_count += static_cast<uint32_t>(stage_state.vertices_cpu.size());
-            _stats.index_count += static_cast<uint32_t>(stage_state.indices_cpu.size());
-            _stats.textured_quad_batch_count += static_cast<uint32_t>(stage_state.batches.size());
-            _stats.draw_calls += static_cast<uint32_t>(stage_state.batches.size());
+        const rhi::textured_quad_stage_record_t world_record{
+            .view_projection = stage_context.view_projection,
+            .ambient_color = _world_ambient_color,
+            .forward_plus_grid_params = _world_forward_plus_grid_params,
+            .forward_plus_tile_counts = _world_forward_plus_tile_counts,
+            .point_light_count = _world_point_light_count,
+            .point_lights = _world_point_lights,
+            .forward_plus_tiles = _world_forward_plus_tiles,
+            .forward_plus_light_indices = _world_forward_plus_light_indices,
+            .viewport = stage_context.viewport,
+            .presentation_mask = world_stage_plan.presentation_mask
+        };
+        const rhi::textured_quad_stage_record_t world_text_record{
+            .view_projection = stage_context.view_projection,
+            .ambient_color = { 1.f, 1.f, 1.f, 1.f },
+            .forward_plus_grid_params = { 0.f, 0.f, static_cast<float>(k_forward_plus_tile_size_px), 0.f },
+            .forward_plus_tile_counts = { 0u, 0u, 0u, 0u },
+            .point_light_count = 0u,
+            .point_lights = { },
+            .forward_plus_tiles = { },
+            .forward_plus_light_indices = { },
+            .viewport = stage_context.viewport,
+            .presentation_mask = world_stage_plan.presentation_mask
         };
 
-        record_stage(_world_textured_quads, false);
-        record_stage(_world_text_quads, true);
+        record_stage_state(*group.textured, world_record, false);
+        record_stage_state(*group.text, world_text_record, true);
     }
 
     void renderer_t::execute_frame_stage(const frame_stage_plan_t& stage_plan)
     {
         const stage_execution_context_t stage_context{ resolve_stage_execution_context(stage_plan) };
-        const uint32_t presentation_mask{ stage_plan.kind == frame_stage_kind_t::log_console
-                                              ? rhi::presentation_channel_log_console
-                                              : rhi::presentation_channel_gameplay };
+        const stage_submission_group_t group{ stage_submission_group(stage_plan.kind) };
+        CE_ASSERT(group.textured != nullptr && group.text != nullptr,
+                  "Renderer non-world stage must have both textured and text submission state");
 
-        auto record_stage = [&](textured_quad_state_t& stage_state, const bool is_text)
-        {
-            build_textured_quad_batches(stage_state);
-
-            if (stage_state.batches.empty())
-                return;
-
-            ensure_textured_quad_frame_buffers(stage_state);
-            upload_textured_quad_frame_data(stage_state);
-
-            const auto& frame_buffers{ current_frame_buffers(stage_state) };
-            if (!frame_buffers.vertex_buffer || !frame_buffers.index_buffer)
-                return;
-
-            const rhi::textured_quad_stage_record_t record{
-                .vertex_buffer = frame_buffers.vertex_buffer.get(),
-                .index_buffer = frame_buffers.index_buffer.get(),
-                .batches = stage_state.batches,
-                .view_projection = stage_context.view_projection,
-                .ambient_color = { 1.f, 1.f, 1.f, 1.f },
-                .forward_plus_grid_params = { 0.f, 0.f, static_cast<float>(k_forward_plus_tile_size_px), 0.f },
-                .forward_plus_tile_counts = { 0u, 0u, 0u, 0u },
-                .point_light_count = 0u,
-                .point_lights = { },
-                .forward_plus_tiles = { },
-                .forward_plus_light_indices = { },
-                .viewport = stage_context.viewport,
-                .presentation_mask = presentation_mask
-            };
-
-            if (is_text)
-                _rhi->record_text_quad_stage(record);
-            else
-                _rhi->record_textured_quad_stage(record);
-
-            _stats.vertex_count += static_cast<uint32_t>(stage_state.vertices_cpu.size());
-            _stats.index_count += static_cast<uint32_t>(stage_state.indices_cpu.size());
-            _stats.textured_quad_batch_count += static_cast<uint32_t>(stage_state.batches.size());
-            _stats.draw_calls += static_cast<uint32_t>(stage_state.batches.size());
+        const rhi::textured_quad_stage_record_t record{
+            .view_projection = stage_context.view_projection,
+            .ambient_color = { 1.f, 1.f, 1.f, 1.f },
+            .forward_plus_grid_params = { 0.f, 0.f, static_cast<float>(k_forward_plus_tile_size_px), 0.f },
+            .forward_plus_tile_counts = { 0u, 0u, 0u, 0u },
+            .point_light_count = 0u,
+            .point_lights = { },
+            .forward_plus_tiles = { },
+            .forward_plus_light_indices = { },
+            .viewport = stage_context.viewport,
+            .presentation_mask = stage_plan.presentation_mask
         };
 
-        record_stage(_stage_textured_quads[frame_stage_index(stage_plan.kind)], false);
-        record_stage(_stage_text_quads[frame_stage_index(stage_plan.kind)], true);
+        record_stage_state(*group.textured, record, false);
+        record_stage_state(*group.text, record, true);
     }
 
     void renderer_t::execute_frame_stages()
     {
-        CE_ASSERT(_frame_stage_plan.size() == static_cast<size_t>(frame_stage_kind_t::count),
-                  "Renderer frame stage plan size must match frame_stage_kind_t count");
-        CE_ASSERT(_frame_stage_plan[0].kind == frame_stage_kind_t::world &&
-                      _frame_stage_plan[0].space == frame_stage_space_t::world_camera,
-                  "Renderer stage 0 must remain the world stage in world-camera space");
-        CE_ASSERT(_frame_stage_plan[1].kind == frame_stage_kind_t::ui &&
-                      _frame_stage_plan[1].space == frame_stage_space_t::render_target_pixels,
-                  "Renderer stage 1 must remain the UI stage in render-target pixel space");
-        CE_ASSERT(_frame_stage_plan[2].kind == frame_stage_kind_t::composite &&
-                      _frame_stage_plan[2].space == frame_stage_space_t::render_target_pixels,
-                  "Renderer stage 2 must remain the composite stage in render-target pixel space");
-        CE_ASSERT(_frame_stage_plan[3].kind == frame_stage_kind_t::overlay_debug &&
-                      _frame_stage_plan[3].space == frame_stage_space_t::viewport_pixels,
-                  "Renderer stage 3 must remain the debug overlay stage in viewport pixel space");
-        CE_ASSERT(_frame_stage_plan[4].kind == frame_stage_kind_t::log_console &&
-                      _frame_stage_plan[4].space == frame_stage_space_t::render_target_pixels,
-                  "Renderer stage 4 must remain the log console stage in render-target pixel space");
+        validate_frame_stage_plan();
 
         _stats.vertex_count = 0;
         _stats.index_count = 0;
@@ -1508,14 +1478,14 @@ namespace carrot::renderer {
             }
         };
 
-        release_stage_buffers(_world_textured_quads);
-        release_stage_buffers(_world_text_quads);
-
-        for (textured_quad_state_t& stage_state : _stage_textured_quads)
-            release_stage_buffers(stage_state);
-
-        for (textured_quad_state_t& stage_state : _stage_text_quads)
-            release_stage_buffers(stage_state);
+        for (const frame_stage_plan_t& stage_plan : _frame_stage_plan)
+        {
+            const stage_submission_group_t group{ stage_submission_group(stage_plan.kind) };
+            if (group.textured)
+                release_stage_buffers(*group.textured);
+            if (group.text)
+                release_stage_buffers(*group.text);
+        }
 
         _stats = { };
     }

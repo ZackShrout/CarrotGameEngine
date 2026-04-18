@@ -3449,10 +3449,26 @@ namespace carrot::tests {
                 return static_cast<float>(channel) / 255.f;
             };
 
+            size_t authored_point_light_count{ 0u };
+            for (const assets::tilemap_layer_t& layer : tilemap->tilemap().layers())
+            {
+                if (layer.kind != assets::tilemap_layer_kind_t::object)
+                    continue;
+
+                for (const assets::tilemap_object_t& object : layer.objects)
+                {
+                    const auto light{ assets::as_typed_light(object) };
+                    if (!light || light->kind != assets::typed_light_kind_t::point)
+                        continue;
+
+                    ++authored_point_light_count;
+                }
+            }
+
             CARROT_TEST_REQUIRE(world.lighting().ambient_color.x == ambient_channel(0x5C));
             CARROT_TEST_REQUIRE(world.lighting().ambient_color.y == ambient_channel(0x61));
             CARROT_TEST_REQUIRE(world.lighting().ambient_color.z == ambient_channel(0x70));
-            CARROT_TEST_REQUIRE(world.lighting().point_lights.size() == 4u);
+            CARROT_TEST_REQUIRE(world.lighting().point_lights.size() == authored_point_light_count);
 
             const auto has_authored_point_light = [&world](const assets::tilemap_object_t& object,
                                                            const chlm::float4 color,
@@ -3487,6 +3503,10 @@ namespace carrot::tests {
                                                          chlm::float4{ ambient_channel(0xD1), ambient_channel(0x4D), 1.f, 1.f },
                                                          2.4f,
                                                          1.05f));
+            CARROT_TEST_REQUIRE(has_authored_point_light(require_light_object("BigPurpleLight"),
+                                                         chlm::float4{ ambient_channel(0xD1), ambient_channel(0x4D), 1.f, 1.f },
+                                                         3.25f,
+                                                         2.0f));
         }
 
         void test_scene_loader_follow_light_tracks_player_from_authored_offset()

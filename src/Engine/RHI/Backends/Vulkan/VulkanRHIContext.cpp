@@ -443,6 +443,28 @@ namespace carrot::rhi::vulkan {
             allocate_indirect_textured_quad_descriptor_set(*stage.texture, *stage.sampler)
         };
 
+        const renderer::world_forward_plus_uniform_t world_uniform{
+            renderer::pack_world_forward_plus_uniform(stage.view_projection,
+                                                      stage.ambient_color,
+                                                      stage.forward_plus_constants,
+                                                      stage.forward_plus_light_input,
+                                                      stage.forward_plus_output)
+        };
+
+        if (!_textured_quad.camera_uniform_buffers[_current_frame][stage_slot] ||
+            !_textured_quad.camera_uniform_buffers[_current_frame][stage_slot]->write(&world_uniform,
+                                                                                      sizeof(world_uniform),
+                                                                                      0))
+        {
+            LOG_GRAPHICS_WARN("Failed to upload Vulkan world forward+ uniform for indirect stage");
+            return;
+        }
+
+        write_textured_quad_camera_descriptor_set(_current_frame,
+                                                  stage_slot,
+                                                  stage.forward_plus_light_input_buffer,
+                                                  stage.forward_plus_output_buffer);
+
         _recorded_indirect_stages.push_back(recorded_indirect_stage_t{
             .stage = stage,
             .stage_slot = stage_slot,
@@ -1472,15 +1494,13 @@ namespace carrot::rhi::vulkan {
             return 0;
         }
 
-        renderer::world_forward_plus_uniform_t world_uniform{ };
-        world_uniform.view_projection = stage.view_projection;
-        world_uniform.ambient_color = stage.ambient_color;
-        world_uniform.forward_plus_grid_params = stage.forward_plus_grid_params;
-        world_uniform.forward_plus_tile_counts = stage.forward_plus_tile_counts;
-        world_uniform.point_light_counts[0] = stage.point_light_count;
-        world_uniform.point_lights = stage.point_lights;
-        world_uniform.forward_plus_tiles = stage.forward_plus_tiles;
-        world_uniform.forward_plus_light_indices = stage.forward_plus_light_indices;
+        const renderer::world_forward_plus_uniform_t world_uniform{
+            renderer::pack_world_forward_plus_uniform(stage.view_projection,
+                                                      stage.ambient_color,
+                                                      stage.forward_plus_constants,
+                                                      stage.forward_plus_light_input,
+                                                      stage.forward_plus_output)
+        };
         if (!_textured_quad.camera_uniform_buffers[_current_frame][stage_slot] ||
             !_textured_quad.camera_uniform_buffers[_current_frame][stage_slot]->write(&world_uniform,
                                                                                       sizeof(world_uniform), 0))
@@ -1488,7 +1508,10 @@ namespace carrot::rhi::vulkan {
             LOG_GRAPHICS_FATAL("Failed to upload Vulkan world forward+ uniform");
             return 0;
         }
-        write_textured_quad_camera_descriptor_set(_current_frame, stage_slot);
+        write_textured_quad_camera_descriptor_set(_current_frame,
+                                                  stage_slot,
+                                                  stage.forward_plus_light_input_buffer,
+                                                  stage.forward_plus_output_buffer);
 
         const uint32_t batch_count{ static_cast<uint32_t>(stage.batches.size()) };
         const uint32_t descriptor_set_offset{ _textured_quad_descriptor_set_cursor[_current_frame] };
@@ -1700,25 +1723,6 @@ namespace carrot::rhi::vulkan {
         const VkDeviceSize offsets[]{ 0 };
         vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
         vkCmdBindIndexBuffer(command_buffer, index_buffer->vk_buffer(), 0, VK_INDEX_TYPE_UINT32);
-
-        renderer::world_forward_plus_uniform_t world_uniform{ };
-        world_uniform.view_projection = stage.view_projection;
-        world_uniform.ambient_color = stage.ambient_color;
-        world_uniform.forward_plus_grid_params = stage.forward_plus_grid_params;
-        world_uniform.forward_plus_tile_counts = stage.forward_plus_tile_counts;
-        world_uniform.point_light_counts[0] = stage.point_light_count;
-        world_uniform.point_lights = stage.point_lights;
-        world_uniform.forward_plus_tiles = stage.forward_plus_tiles;
-        world_uniform.forward_plus_light_indices = stage.forward_plus_light_indices;
-
-        if (!_textured_quad.camera_uniform_buffers[_current_frame][stage_slot] ||
-            !_textured_quad.camera_uniform_buffers[_current_frame][stage_slot]->write(&world_uniform,
-                                                                                      sizeof(world_uniform),
-                                                                                      0))
-        {
-            LOG_GRAPHICS_WARN("Failed to upload Vulkan world forward+ uniform for indirect stage");
-            return;
-        }
 
         VkDescriptorSet camera_descriptor_set{ _textured_quad.camera_descriptor_sets[_current_frame][stage_slot] };
         const VkDescriptorSet descriptor_sets[]{
@@ -2373,14 +2377,20 @@ namespace carrot::rhi::vulkan {
     }
 
     void vulkan_rhi_context_t::write_textured_quad_camera_descriptor_set(const uint32_t frame_index,
-                                                                         const uint32_t stage_slot) const
+                                                                         const uint32_t stage_slot,
+                                                                         const rhi_buffer_t* forward_plus_light_input_buffer,
+                                                                         const rhi_buffer_t* forward_plus_output_buffer) const
     {
         const auto* camera_buffer = dynamic_cast<const vulkan_buffer_t*>(
             _textured_quad.camera_uniform_buffers[frame_index][stage_slot].get());
+        const auto* light_input_buffer = dynamic_cast<const vulkan_buffer_t*>(
+            forward_plus_light_input_buffer ? forward_plus_light_input_buffer : _default_compute_storage_buffer.get());
+        const auto* output_buffer = dynamic_cast<const vulkan_buffer_t*>(
+            forward_plus_output_buffer ? forward_plus_output_buffer : _default_compute_storage_buffer.get());
 
-        if (camera_buffer == nullptr)
+        if (camera_buffer == nullptr || light_input_buffer == nullptr || output_buffer == nullptr)
         {
-            LOG_GRAPHICS_FATAL("Textured quad world forward+ uniform buffer was not a Vulkan buffer");
+            LOG_GRAPHICS_FATAL("Textured quad forward+ descriptor resources were not Vulkan buffers");
             return;
         }
 
@@ -2389,16 +2399,47 @@ namespace carrot::rhi::vulkan {
         buffer_info.offset = 0;
         buffer_info.range = sizeof(renderer::world_forward_plus_uniform_t);
 
-        VkWriteDescriptorSet write{ };
-        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write.dstSet = _textured_quad.camera_descriptor_sets[frame_index][stage_slot];
-        write.dstBinding = 0;
-        write.dstArrayElement = 0;
-        write.descriptorCount = 1;
-        write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        write.pBufferInfo = &buffer_info;
+        VkDescriptorBufferInfo light_input_buffer_info{ };
+        light_input_buffer_info.buffer = light_input_buffer->vk_buffer();
+        light_input_buffer_info.offset = 0;
+        light_input_buffer_info.range = VK_WHOLE_SIZE;
 
-        vkUpdateDescriptorSets(_device->vk_device(), 1, &write, 0, nullptr);
+        VkDescriptorBufferInfo output_buffer_info{ };
+        output_buffer_info.buffer = output_buffer->vk_buffer();
+        output_buffer_info.offset = 0;
+        output_buffer_info.range = VK_WHOLE_SIZE;
+
+        std::array<VkWriteDescriptorSet, 3> writes{ };
+
+        writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[0].dstSet = _textured_quad.camera_descriptor_sets[frame_index][stage_slot];
+        writes[0].dstBinding = 0;
+        writes[0].dstArrayElement = 0;
+        writes[0].descriptorCount = 1;
+        writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        writes[0].pBufferInfo = &buffer_info;
+
+        writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[1].dstSet = _textured_quad.camera_descriptor_sets[frame_index][stage_slot];
+        writes[1].dstBinding = 1;
+        writes[1].dstArrayElement = 0;
+        writes[1].descriptorCount = 1;
+        writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writes[1].pBufferInfo = &light_input_buffer_info;
+
+        writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[2].dstSet = _textured_quad.camera_descriptor_sets[frame_index][stage_slot];
+        writes[2].dstBinding = 2;
+        writes[2].dstArrayElement = 0;
+        writes[2].descriptorCount = 1;
+        writes[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writes[2].pBufferInfo = &output_buffer_info;
+
+        vkUpdateDescriptorSets(_device->vk_device(),
+                               static_cast<uint32_t>(writes.size()),
+                               writes.data(),
+                               0,
+                               nullptr);
     }
 
 } // namespace carrot::rhi::vulkan

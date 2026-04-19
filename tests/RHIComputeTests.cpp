@@ -140,7 +140,9 @@ namespace carrot::tests {
                 .texture = texture.get(),
                 .sampler = sampler.get(),
                 .ambient_color = { 0.25f, 0.5f, 0.75f, 1.f },
-                .point_light_count = 3u,
+                .forward_plus_constants = {
+                    .point_light_counts = { 3u, 0u, 0u, 0u }
+                },
                 .viewport = render_viewport_t{
                     .rect_px = {
                         .position = { 8u, 12u },

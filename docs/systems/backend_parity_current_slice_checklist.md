@@ -2,7 +2,7 @@
 
 **BunnySoft**
 **Current validation checklist**
-**Last Updated: April 18, 2026**
+**Last Updated: April 19, 2026**
 
 ---
 
@@ -57,7 +57,7 @@ New renderer work should preserve these rules:
 
 The following limits are shared renderer-contract inputs, not backend-local tuning knobs:
 
-* forward+ world-light and tile caps from generated `ForwardPlusSharedConfig.h`
+* forward+ world-light and tile caps from the checked-in shared `Renderer/Draw/ForwardPlusSharedConfig.h`
 * `rhi::k_max_textured_quad_stage_slots_per_frame`
 * the current known presentation-channel mask (`gameplay` and `log_console`)
 
@@ -70,7 +70,7 @@ If one of these changes, parity work is not done until:
 Current visibility expectations:
 
 * world-light overflow should surface through renderer stats rather than disappearing silently
-* forward+ dropped light references should remain visible in renderer stats/debug output
+* forward+ dropped light references should remain visible in renderer stats/debug output, even though the current shared caps mean that value is normally expected to stay at zero
 * stage routing should continue to validate against known presentation channels
 
 ---
@@ -83,6 +83,7 @@ Current automated support includes:
 
 * null-backend renderer stage recording via [src/Engine/RHI/Backends/Null/NullRHIContext.h](/Users/zshrout/dev/CarrotGameEngine/src/Engine/RHI/Backends/Null/NullRHIContext.h:16)
 * null-backend compute and indirect contract regressions in [tests/RHIComputeTests.cpp](/Users/zshrout/dev/CarrotGameEngine/tests/RHIComputeTests.cpp:12)
+* shared buffer-usage contract regressions in [tests/RHIBufferTests.cpp](/Users/zshrout/dev/CarrotGameEngine/tests/RHIBufferTests.cpp:1)
 * renderer stage-space and presentation-mask regressions in [tests/SceneLoadingTests.cpp](/Users/zshrout/dev/CarrotGameEngine/tests/SceneLoadingTests.cpp:2750)
 * runtime window/presentation-channel expectations in [tests/WindowSystemTests.cpp](/Users/zshrout/dev/CarrotGameEngine/tests/WindowSystemTests.cpp:12)
 
@@ -97,6 +98,13 @@ At milestone closeout, the practical native checks should cover:
 * Metal still renders the current Sandbox slice correctly
 * DirectX 12 still renders the current Sandbox slice correctly when validated on Windows
 * current multi-window behavior still behaves correctly where supported
+
+Current milestone 24 validation snapshot:
+
+* Vulkan manual validation is current as of **April 19, 2026**
+* Metal manual validation is current as of **April 19, 2026**
+* DirectX 12 shared-code compilation is current as of **April 19, 2026**
+* DirectX 12 native runtime validation is still pending a follow-up Windows rerun, so milestone 24 closeout should remain visible in `docs/` rather than archived yet
 
 ---
 

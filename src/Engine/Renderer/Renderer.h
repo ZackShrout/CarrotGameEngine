@@ -137,6 +137,13 @@ namespace carrot::renderer {
         std::array<frame_buffers_t, k_textured_quad_frame_buffer_count> frame_buffers;
     };
 
+    struct forward_plus_gpu_buffers_t
+    {
+        std::unique_ptr<rhi::rhi_buffer_t> constants_buffer;
+        std::unique_ptr<rhi::rhi_buffer_t> light_input_buffer;
+        std::unique_ptr<rhi::rhi_buffer_t> classification_output_buffer;
+    };
+
     class renderer_t final : public core::module_t
     {
     public:
@@ -257,6 +264,9 @@ namespace carrot::renderer {
         void release_frame_resources();
         void ensure_textured_quad_frame_buffers(textured_quad_state_t& state);
         void upload_textured_quad_frame_data(const textured_quad_state_t& state) const;
+        void ensure_forward_plus_gpu_buffers();
+        void upload_forward_plus_gpu_data() const;
+        void update_forward_plus_diagnostics() noexcept;
         void prepare_world_stage_context(const world::world_t& world, world_stage_draw_context_t& context);
         void submit_world_object(const world::world_object_t& object, world_stage_draw_context_t& context);
         void finalize_world_stage_context(world_stage_draw_context_t& context) const;
@@ -274,6 +284,8 @@ namespace carrot::renderer {
         [[nodiscard]] uint32_t current_textured_quad_frame_buffer_slot() const noexcept;
         [[nodiscard]] textured_quad_state_t::frame_buffers_t& current_frame_buffers(textured_quad_state_t& state) const noexcept;
         [[nodiscard]] const textured_quad_state_t::frame_buffers_t& current_frame_buffers(const textured_quad_state_t& state) const noexcept;
+        [[nodiscard]] forward_plus_gpu_buffers_t& current_forward_plus_gpu_buffers() noexcept;
+        [[nodiscard]] const forward_plus_gpu_buffers_t& current_forward_plus_gpu_buffers() const noexcept;
 
         // ── External context / configuration ──────────────────────────────────────
         io::virtual_file_system_t&  _vfs;
@@ -282,6 +294,7 @@ namespace carrot::renderer {
 
         // ── Backend integration ───────────────────────────────────────────────────
         std::unique_ptr<rhi::rhi_context_t>                 _rhi;
+        std::unique_ptr<rhi::rhi_compute_pipeline_t>        _forward_plus_classify_pipeline;
         std::unique_ptr<assets::vfs_shader_file_provider_t> _shader_provider;
 
         // ── Frame progression / stats ─────────────────────────────────────────────
@@ -296,6 +309,7 @@ namespace carrot::renderer {
         textured_quad_state_t _world_text_quads;
         std::array<textured_quad_state_t, static_cast<size_t>(frame_stage_kind_t::count)> _stage_textured_quads;
         std::array<textured_quad_state_t, static_cast<size_t>(frame_stage_kind_t::count)> _stage_text_quads;
+        std::array<forward_plus_gpu_buffers_t, k_textured_quad_frame_buffer_count> _forward_plus_gpu_buffers;
         std::array<frame_stage_plan_t, static_cast<size_t>(frame_stage_kind_t::count)> _frame_stage_plan{
             frame_stage_plan_t{
                 .kind = frame_stage_kind_t::world,
@@ -336,12 +350,9 @@ namespace carrot::renderer {
 
         camera_2d_t _active_camera{ };
         chlm::float4 _world_ambient_color{ 1.f, 1.f, 1.f, 1.f };
-        std::array<world_point_light_uniform_t, k_max_world_point_lights> _world_point_lights{ };
-        std::uint32_t _world_point_light_count{ 0u };
-        chlm::float4 _world_forward_plus_grid_params{ 0.f, 0.f, static_cast<float>(k_forward_plus_tile_size_px), 0.f };
-        std::array<std::uint32_t, 4> _world_forward_plus_tile_counts{ 0u, 0u, 0u, 0u };
-        std::array<forward_plus_tile_header_t, k_max_forward_plus_tiles> _world_forward_plus_tiles{ };
-        std::array<packed_uint4_t, k_max_forward_plus_packed_light_index_words> _world_forward_plus_light_indices{ };
+        forward_plus_light_input_t _world_forward_plus_light_input{ };
+        forward_plus_frame_constants_t _world_forward_plus_constants{ };
+        forward_plus_classification_output_t _world_forward_plus_output{ };
         std::unique_ptr<rhi::rhi_texture_t> _solid_white_texture;
         bool _composite_overlay_enabled{ false };
         uint32_t _composite_overlay_color{ 0x00000000u };

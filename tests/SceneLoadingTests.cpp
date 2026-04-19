@@ -2944,6 +2944,8 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(stats.world_point_light_count == static_cast<uint32_t>(renderer::k_max_world_point_lights));
             CARROT_TEST_REQUIRE(stats.dropped_world_point_light_count == 3u);
             CARROT_TEST_REQUIRE(stats.forward_plus_tile_count > 0u);
+            CARROT_TEST_REQUIRE(stats.forward_plus_light_index_count > 0u);
+            CARROT_TEST_REQUIRE(stats.forward_plus_dropped_light_references == 0u);
         }
 
         void test_interaction_outcome_dispatch_routes_scene_transition_and_container()

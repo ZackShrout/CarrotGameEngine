@@ -16,6 +16,25 @@
 #include "Utils/File/FileUtils.h"
 
 namespace carrot::rhi::dx12 {
+    namespace {
+        constexpr uint32_t k_srv_descriptors_per_batch{ 3u };
+
+        void write_raw_buffer_srv(ID3D12Device* device,
+                                  const dx12_buffer_t& buffer,
+                                  const D3D12_CPU_DESCRIPTOR_HANDLE handle)
+        {
+            D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc{ };
+            srv_desc.Format = DXGI_FORMAT_R32_TYPELESS;
+            srv_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+            srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+            srv_desc.Buffer.FirstElement = 0;
+            srv_desc.Buffer.NumElements = static_cast<UINT>((buffer.size_bytes() + 3u) / 4u);
+            srv_desc.Buffer.StructureByteStride = 0;
+            srv_desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+            device->CreateShaderResourceView(buffer.resource(), &srv_desc, handle);
+        }
+    }
+
     dx12_textured_quad_pipeline_t::dx12_textured_quad_pipeline_t(ID3D12Device* device,
                                                                  assets::shader_file_provider_t& shader_files,
                                                                  const std::string_view vertex_shader_path,
@@ -30,7 +49,7 @@ namespace carrot::rhi::dx12 {
 
         D3D12_DESCRIPTOR_RANGE srv_range{ };
         srv_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-        srv_range.NumDescriptors = 1;
+        srv_range.NumDescriptors = k_srv_descriptors_per_batch;
         srv_range.BaseShaderRegister = 0;
         srv_range.RegisterSpace = 0;
         srv_range.OffsetInDescriptorsFromTableStart = 0;
@@ -286,7 +305,8 @@ namespace carrot::rhi::dx12 {
             write_batch_descriptors(i, batch, descriptor_context);
 
             D3D12_GPU_DESCRIPTOR_HANDLE srv_handle{ srv_heap_start };
-            srv_handle.ptr += static_cast<SIZE_T>(descriptor_context.tables.first_batch_srv_index + i) *
+            srv_handle.ptr += static_cast<SIZE_T>(descriptor_context.tables.first_batch_srv_index +
+                              i * k_srv_descriptors_per_batch) *
                               descriptor_context.tables.srv_descriptor_size;
 
             D3D12_GPU_DESCRIPTOR_HANDLE sampler_handle{ sampler_heap_start };
@@ -397,6 +417,17 @@ namespace carrot::rhi::dx12 {
             LOG_GRAPHICS_FATAL("DX12 textured quad batch has null texture");
             return;
         }
+        const dx12_buffer_t* light_input_buffer{
+            dynamic_cast<const dx12_buffer_t*>(descriptor_context.forward_plus_light_input_buffer)
+        };
+        const dx12_buffer_t* output_buffer{
+            dynamic_cast<const dx12_buffer_t*>(descriptor_context.forward_plus_output_buffer)
+        };
+        if (!light_input_buffer || !output_buffer)
+        {
+            LOG_GRAPHICS_FATAL("DX12 textured quad pipeline received non-DX12 forward+ buffers");
+            return;
+        }
 
         const dx12_texture_t* dx_texture{ dynamic_cast<const dx12_texture_t*>(batch.texture) };
         if (!dx_texture)
@@ -417,9 +448,13 @@ namespace carrot::rhi::dx12 {
         D3D12_CPU_DESCRIPTOR_HANDLE srv_handle{
             descriptor_context.tables.srv_heap->GetCPUDescriptorHandleForHeapStart()
         };
-        srv_handle.ptr += static_cast<SIZE_T>(descriptor_context.tables.first_batch_srv_index + batch_index) *
+        srv_handle.ptr += static_cast<SIZE_T>(descriptor_context.tables.first_batch_srv_index +
+                          batch_index * k_srv_descriptors_per_batch) *
                           descriptor_context.tables.srv_descriptor_size;
-
+        write_raw_buffer_srv(_device, *light_input_buffer, srv_handle);
+        srv_handle.ptr += descriptor_context.tables.srv_descriptor_size;
+        write_raw_buffer_srv(_device, *output_buffer, srv_handle);
+        srv_handle.ptr += descriptor_context.tables.srv_descriptor_size;
         _device->CreateShaderResourceView(dx_texture->resource(), &srv_desc, srv_handle);
 
         const sampler_desc_t sampler_desc{ sampler_desc_from_preset(batch.sampler_preset) };
@@ -443,6 +478,18 @@ namespace carrot::rhi::dx12 {
                                                                    const rhi_sampler_t& sampler,
                                                                    const descriptor_context_t& descriptor_context) const
     {
+        const dx12_buffer_t* light_input_buffer{
+            dynamic_cast<const dx12_buffer_t*>(descriptor_context.forward_plus_light_input_buffer)
+        };
+        const dx12_buffer_t* output_buffer{
+            dynamic_cast<const dx12_buffer_t*>(descriptor_context.forward_plus_output_buffer)
+        };
+        if (!light_input_buffer || !output_buffer)
+        {
+            LOG_GRAPHICS_FATAL("DX12 indirect textured quad received non-DX12 forward+ buffers");
+            return;
+        }
+
         const dx12_texture_t* dx_texture{ dynamic_cast<const dx12_texture_t*>(&texture) };
         if (!dx_texture)
         {
@@ -467,6 +514,10 @@ namespace carrot::rhi::dx12 {
         };
         srv_handle.ptr += static_cast<SIZE_T>(descriptor_context.tables.first_batch_srv_index) *
                           descriptor_context.tables.srv_descriptor_size;
+        write_raw_buffer_srv(_device, *light_input_buffer, srv_handle);
+        srv_handle.ptr += descriptor_context.tables.srv_descriptor_size;
+        write_raw_buffer_srv(_device, *output_buffer, srv_handle);
+        srv_handle.ptr += descriptor_context.tables.srv_descriptor_size;
         _device->CreateShaderResourceView(dx_texture->resource(), &srv_desc, srv_handle);
 
         if (!descriptor_context.sampler_provider->get_or_create_sampler(sampler.desc()))

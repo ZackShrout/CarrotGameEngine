@@ -26,6 +26,29 @@
 namespace carrot::rhi::metal {
     namespace {
         constexpr NS::UInteger k_textured_quad_root_argument_buffer_index{ 2 };
+        constexpr size_t k_textured_quad_srv_descriptors_per_batch{ 3u };
+
+        // NOTE:
+        // The metal-shaderconverter reflection JSON is useful for understanding
+        // top-level argument-buffer structure (table vs CBV/UAV/root resource),
+        // but it has not been a reliable source of truth for the final encoder
+        // bind index in Carrot's converted pipeline setup.
+        //
+        // In practice we treat the JSON as a layout hint, then confirm the
+        // actual bind point against:
+        // 1. an already-working converted path in this backend,
+        // 2. Metal validation errors, and
+        // 3. runtime behavior.
+        //
+        // Both the textured-quad render path and the current compute root path
+        // bind their top-level argument buffer at index 2 in this engine.
+        constexpr NS::UInteger k_compute_root_argument_buffer_index{ 2u };
+
+        struct compute_root_argument_buffer_t
+        {
+            std::uint64_t uav_table_gpu_address{ 0u };
+            std::uint64_t cbv_root_gpu_address{ 0u };
+        };
 
         [[nodiscard]] chlm::uint_rect clamp_scissor_rect(const chlm::uint_rect rect,
                                                          const chlm::uint2 target_size_px) noexcept
@@ -221,6 +244,7 @@ namespace carrot::rhi::metal {
         dispatch_semaphore_wait(_frame_semaphore, DISPATCH_TIME_FOREVER);
         _recorded_stages.clear();
         _recorded_indirect_stages.clear();
+        _transient_compute_buffers.clear();
 
         _swapchain->acquire_next_image(nullptr);
         _active_drawable = static_cast<const CA::MetalDrawable*>(_swapchain->get_current_drawable());
@@ -631,6 +655,23 @@ namespace carrot::rhi::metal {
 
         encoder->setComputePipelineState(pipeline->state());
 
+        auto uav_descriptor_table = std::make_unique<metal_buffer_t>(
+            _device->mtl_device()->newBuffer(sizeof(descriptor_table_entry_t) * k_max_compute_storage_buffer_bindings,
+                                             MTL::ResourceStorageModeShared),
+            sizeof(descriptor_table_entry_t) * k_max_compute_storage_buffer_bindings,
+            buffer_usage_t::uniform
+        );
+        if (!uav_descriptor_table || !uav_descriptor_table->mtl_buffer())
+        {
+            LOG_GRAPHICS_ERROR("Failed to allocate Metal compute UAV descriptor table");
+            encoder->endEncoding();
+            return;
+        }
+        std::memset(uav_descriptor_table->mtl_buffer()->contents(),
+                    0,
+                    sizeof(descriptor_table_entry_t) * k_max_compute_storage_buffer_bindings);
+        auto* uav_entries = reinterpret_cast<descriptor_table_entry_t*>(uav_descriptor_table->mtl_buffer()->contents());
+
         for (std::uint32_t slot{ 0u }; slot < k_max_compute_storage_buffer_bindings; ++slot)
         {
             const rhi_buffer_t* bound_buffer{ _default_compute_storage_buffer.get() };
@@ -651,7 +692,9 @@ namespace carrot::rhi::metal {
                 return;
             }
 
-            encoder->setBuffer(metal_buffer->mtl_buffer(), 0, slot);
+            uav_entries[slot] = encode_metal_raw_buffer_srv_descriptor(metal_buffer->mtl_buffer(),
+                                                                       0,
+                                                                       metal_buffer->size_bytes());
             const MTL::ResourceUsage usage{
                 record.graphics_handoff == compute_graphics_handoff_t::storage_write_to_graphics_read
                     ? static_cast<MTL::ResourceUsage>(MTL::ResourceUsageWrite | MTL::ResourceUsageRead)
@@ -660,12 +703,35 @@ namespace carrot::rhi::metal {
             encoder->useResource(metal_buffer->mtl_buffer(), usage);
         }
 
+        compute_root_argument_buffer_t root_argument_buffer{ };
+        root_argument_buffer.uav_table_gpu_address = metal_buffer_gpu_address(uav_descriptor_table->mtl_buffer());
+        encoder->useResource(uav_descriptor_table->mtl_buffer(), MTL::ResourceUsageRead);
+
         if (!record.constants.empty())
         {
-            encoder->setBytes(record.constants.data(),
-                              static_cast<NS::UInteger>(record.constants.size()),
-                              k_compute_constant_register);
+            auto constant_buffer = std::make_unique<metal_buffer_t>(
+                _device->mtl_device()->newBuffer(std::max<std::size_t>(record.constants.size(), 16u),
+                                                 MTL::ResourceStorageModeShared),
+                std::max<std::size_t>(record.constants.size(), 16u),
+                buffer_usage_t::uniform
+            );
+            if (!constant_buffer || !constant_buffer->mtl_buffer() ||
+                !constant_buffer->write(record.constants.data(), record.constants.size(), 0u))
+            {
+                LOG_GRAPHICS_ERROR("Failed to upload Metal compute constants");
+                encoder->endEncoding();
+                return;
+            }
+
+            root_argument_buffer.cbv_root_gpu_address = metal_buffer_gpu_address(constant_buffer->mtl_buffer());
+            encoder->useResource(constant_buffer->mtl_buffer(), MTL::ResourceUsageRead);
+            _transient_compute_buffers.push_back(std::move(constant_buffer));
         }
+
+        encoder->setBytes(&root_argument_buffer,
+                          static_cast<NS::UInteger>(sizeof(root_argument_buffer)),
+                          k_compute_root_argument_buffer_index);
+        _transient_compute_buffers.push_back(std::move(uav_descriptor_table));
 
         const MTL::Size threads_per_threadgroup{
             pipeline->info().threadgroup_size_x,
@@ -821,15 +887,13 @@ namespace carrot::rhi::metal {
         encoder->setRenderPipelineState(pipeline->state());
         encoder->setVertexBuffer(vertex_buffer->mtl_buffer(), 0, 0);
 
-        renderer::world_forward_plus_uniform_t world_uniform{ };
-        world_uniform.view_projection = stage.view_projection;
-        world_uniform.ambient_color = stage.ambient_color;
-        world_uniform.forward_plus_grid_params = stage.forward_plus_grid_params;
-        world_uniform.forward_plus_tile_counts = stage.forward_plus_tile_counts;
-        world_uniform.point_light_counts[0] = stage.point_light_count;
-        world_uniform.point_lights = stage.point_lights;
-        world_uniform.forward_plus_tiles = stage.forward_plus_tiles;
-        world_uniform.forward_plus_light_indices = stage.forward_plus_light_indices;
+        const renderer::world_forward_plus_uniform_t world_uniform{
+            renderer::pack_world_forward_plus_uniform(stage.view_projection,
+                                                      stage.ambient_color,
+                                                      stage.forward_plus_constants,
+                                                      stage.forward_plus_light_input,
+                                                      stage.forward_plus_output)
+        };
 
         if (!_textured_quad_camera_uniform_buffers[stage_slot] ||
             !_textured_quad_camera_uniform_buffers[stage_slot]->write(&world_uniform, sizeof(world_uniform), 0))
@@ -850,7 +914,15 @@ namespace carrot::rhi::metal {
             }
 
             size_t root_ab_offset{ 0 };
-            encode_textured_quad_argument_buffers(*texture, stage_slot, i, batch, root_ab_offset);
+            encode_textured_quad_argument_buffers(*texture,
+                                                 stage.forward_plus_light_input_buffer ? stage.forward_plus_light_input_buffer
+                                                                                      : _default_compute_storage_buffer.get(),
+                                                 stage.forward_plus_output_buffer ? stage.forward_plus_output_buffer
+                                                                                 : _default_compute_storage_buffer.get(),
+                                                 stage_slot,
+                                                 i,
+                                                 batch,
+                                                 root_ab_offset);
             encoder->setVertexBuffer(_textured_quad_root_argument_buffers[stage_slot]->mtl_buffer(),
                                      root_ab_offset,
                                      k_textured_quad_root_argument_buffer_index);
@@ -872,6 +944,20 @@ namespace carrot::rhi::metal {
 
             encoder->useResource(_textured_quad_sampler_descriptor_tables[stage_slot]->mtl_buffer(), MTL::ResourceUsageRead,
                                  MTL::RenderStageFragment);
+
+            if (const auto* light_input_buffer = dynamic_cast<const metal_buffer_t*>(
+                    stage.forward_plus_light_input_buffer ? stage.forward_plus_light_input_buffer
+                                                          : _default_compute_storage_buffer.get()))
+            {
+                encoder->useResource(light_input_buffer->mtl_buffer(), MTL::ResourceUsageRead, MTL::RenderStageFragment);
+            }
+
+            if (const auto* output_buffer = dynamic_cast<const metal_buffer_t*>(
+                    stage.forward_plus_output_buffer ? stage.forward_plus_output_buffer
+                                                     : _default_compute_storage_buffer.get()))
+            {
+                encoder->useResource(output_buffer->mtl_buffer(), MTL::ResourceUsageRead, MTL::RenderStageFragment);
+            }
 
             encoder->useResource(texture->mtl_texture(), MTL::ResourceUsageRead, MTL::RenderStageFragment);
 
@@ -931,15 +1017,13 @@ namespace carrot::rhi::metal {
         encoder->setRenderPipelineState(_textured_quad_pipeline->state());
         encoder->setVertexBuffer(vertex_buffer->mtl_buffer(), 0, 0);
 
-        renderer::world_forward_plus_uniform_t world_uniform{ };
-        world_uniform.view_projection = stage.view_projection;
-        world_uniform.ambient_color = stage.ambient_color;
-        world_uniform.forward_plus_grid_params = stage.forward_plus_grid_params;
-        world_uniform.forward_plus_tile_counts = stage.forward_plus_tile_counts;
-        world_uniform.point_light_counts[0] = stage.point_light_count;
-        world_uniform.point_lights = stage.point_lights;
-        world_uniform.forward_plus_tiles = stage.forward_plus_tiles;
-        world_uniform.forward_plus_light_indices = stage.forward_plus_light_indices;
+        const renderer::world_forward_plus_uniform_t world_uniform{
+            renderer::pack_world_forward_plus_uniform(stage.view_projection,
+                                                      stage.ambient_color,
+                                                      stage.forward_plus_constants,
+                                                      stage.forward_plus_light_input,
+                                                      stage.forward_plus_output)
+        };
 
         if (!_textured_quad_camera_uniform_buffers[stage_slot] ||
             !_textured_quad_camera_uniform_buffers[stage_slot]->write(&world_uniform, sizeof(world_uniform), 0))
@@ -948,9 +1032,22 @@ namespace carrot::rhi::metal {
             return;
         }
 
+        const metal_buffer_t* light_input_buffer{
+            dynamic_cast<const metal_buffer_t*>(stage.forward_plus_light_input_buffer
+                                                    ? stage.forward_plus_light_input_buffer
+                                                    : _default_compute_storage_buffer.get())
+        };
+        const metal_buffer_t* output_buffer{
+            dynamic_cast<const metal_buffer_t*>(stage.forward_plus_output_buffer
+                                                    ? stage.forward_plus_output_buffer
+                                                    : _default_compute_storage_buffer.get())
+        };
+        if (!light_input_buffer || !output_buffer)
+            return;
+
         constexpr size_t batch_index{ 0u };
         const size_t cbv_offset{ batch_index * _textured_quad_cbv_stride };
-        const size_t srv_offset{ batch_index * _textured_quad_srv_stride };
+        const size_t srv_offset{ batch_index * _textured_quad_srv_stride * k_textured_quad_srv_descriptors_per_batch };
         const size_t sampler_offset{ batch_index * _textured_quad_sampler_stride };
         const size_t root_offset{ batch_index * _textured_quad_root_stride };
 
@@ -982,7 +1079,13 @@ namespace carrot::rhi::metal {
         *cbv_ptr = encode_metal_constant_buffer_cbv_descriptor(_textured_quad_camera_uniform_buffers[stage_slot]->mtl_buffer(),
                                                                0,
                                                                sizeof(renderer::world_forward_plus_uniform_t));
-        *srv_ptr = encode_metal_texture_srv_descriptor(texture->mtl_texture());
+        srv_ptr[0] = encode_metal_raw_buffer_srv_descriptor(light_input_buffer->mtl_buffer(),
+                                                            0,
+                                                            light_input_buffer->size_bytes());
+        srv_ptr[1] = encode_metal_raw_buffer_srv_descriptor(output_buffer->mtl_buffer(),
+                                                            0,
+                                                            output_buffer->size_bytes());
+        srv_ptr[2] = encode_metal_texture_srv_descriptor(texture->mtl_texture());
         *sampler_ptr = encode_metal_sampler_descriptor(sampler->mtl_sampler());
         *root_ptr = encode_textured_quad_root_argument_buffer(_textured_quad_cbv_descriptor_tables[stage_slot]->mtl_buffer(),
                                                               cbv_offset,
@@ -1010,6 +1113,8 @@ namespace carrot::rhi::metal {
                              MTL::RenderStageFragment);
         encoder->useResource(_textured_quad_sampler_descriptor_tables[stage_slot]->mtl_buffer(), MTL::ResourceUsageRead,
                              MTL::RenderStageFragment);
+        encoder->useResource(light_input_buffer->mtl_buffer(), MTL::ResourceUsageRead, MTL::RenderStageFragment);
+        encoder->useResource(output_buffer->mtl_buffer(), MTL::ResourceUsageRead, MTL::RenderStageFragment);
         encoder->useResource(texture->mtl_texture(), MTL::ResourceUsageRead, MTL::RenderStageFragment);
         encoder->useResource(indirect_buffer->mtl_buffer(), MTL::ResourceUsageRead);
 
@@ -1024,6 +1129,7 @@ namespace carrot::rhi::metal {
     void metal_rhi_context_t::reset_frame_state() noexcept
     {
         _render_encoder.end();
+        _transient_compute_buffers.clear();
 
         if (_active_command_buffer)
         {
@@ -1048,7 +1154,9 @@ namespace carrot::rhi::metal {
 
         const size_t root_buffer_size{ _textured_quad_root_stride * new_capacity };
         const size_t cbv_buffer_size{ _textured_quad_cbv_stride * new_capacity };
-        const size_t srv_buffer_size{ _textured_quad_srv_stride * new_capacity };
+        const size_t srv_buffer_size{
+            _textured_quad_srv_stride * new_capacity * k_textured_quad_srv_descriptors_per_batch
+        };
         const size_t sampler_buffer_size{ _textured_quad_sampler_stride * new_capacity };
 
         MTL::Buffer* root_ab{ _device->mtl_device()->newBuffer(root_buffer_size, MTL::ResourceStorageModeShared) };
@@ -1094,6 +1202,8 @@ namespace carrot::rhi::metal {
     }
 
     void metal_rhi_context_t::encode_textured_quad_argument_buffers(const metal_texture_t& texture,
+                                                                    const rhi_buffer_t* forward_plus_light_input_buffer,
+                                                                    const rhi_buffer_t* forward_plus_output_buffer,
                                                                     const uint32_t stage_slot,
                                                                     const size_t batch_index,
                                                                     const renderer::textured_quad_batch_t& batch,
@@ -1116,8 +1226,22 @@ namespace carrot::rhi::metal {
 
         MTL::SamplerState* sampler{ metal_sampler->mtl_sampler() };
 
+        const metal_buffer_t* light_input_buffer{
+            dynamic_cast<const metal_buffer_t*>(forward_plus_light_input_buffer ? forward_plus_light_input_buffer
+                                                                                : _default_compute_storage_buffer.get())
+        };
+        const metal_buffer_t* output_buffer{
+            dynamic_cast<const metal_buffer_t*>(forward_plus_output_buffer ? forward_plus_output_buffer
+                                                                           : _default_compute_storage_buffer.get())
+        };
+        if (!light_input_buffer || !output_buffer)
+        {
+            LOG_GRAPHICS_WARN("Metal textured quad batch resolved non-Metal forward+ buffers");
+            return;
+        }
+
         const size_t cbv_offset{ batch_index * _textured_quad_cbv_stride };
-        const size_t srv_offset{ batch_index * _textured_quad_srv_stride };
+        const size_t srv_offset{ batch_index * _textured_quad_srv_stride * k_textured_quad_srv_descriptors_per_batch };
         const size_t sampler_offset{ batch_index * _textured_quad_sampler_stride };
         const size_t root_offset{ batch_index * _textured_quad_root_stride };
 
@@ -1149,7 +1273,13 @@ namespace carrot::rhi::metal {
         *cbv_ptr = encode_metal_constant_buffer_cbv_descriptor(_textured_quad_camera_uniform_buffers[stage_slot]->mtl_buffer(),
                                                                0,
                                                                sizeof(renderer::world_forward_plus_uniform_t));
-        *srv_ptr = encode_metal_texture_srv_descriptor(texture.mtl_texture());
+        srv_ptr[0] = encode_metal_raw_buffer_srv_descriptor(light_input_buffer->mtl_buffer(),
+                                                            0,
+                                                            light_input_buffer->size_bytes());
+        srv_ptr[1] = encode_metal_raw_buffer_srv_descriptor(output_buffer->mtl_buffer(),
+                                                            0,
+                                                            output_buffer->size_bytes());
+        srv_ptr[2] = encode_metal_texture_srv_descriptor(texture.mtl_texture());
         *sampler_ptr = encode_metal_sampler_descriptor(sampler);
 
         *root_ptr = encode_textured_quad_root_argument_buffer(_textured_quad_cbv_descriptor_tables[stage_slot]->mtl_buffer(),

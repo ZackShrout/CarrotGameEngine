@@ -1,8 +1,8 @@
 # Carrot Game Engine - Milestone 24
 
-**Last Updated:** April 18, 2026
+**Last Updated:** April 19, 2026
 **Title:** GPU Forward+ Light Classification
-**Status:** Planned
+**Status:** Implemented, pending DirectX 12 runtime validation
 **Focus:** Move world forward+ tile/light classification from CPU work to GPU compute while preserving current lit world behavior, shared limit ownership, and backend parity.
 
 ---
@@ -12,12 +12,12 @@
 Carrot already crossed into a real forward+ world-render architecture in milestone 14.
 That is valuable progress.
 
-What is still true today is that the actual tile/light list build remains CPU-owned:
+The milestone started from a renderer where the actual tile/light list build was still CPU-owned:
 
-* world point lights are gathered on CPU
-* tile coverage is evaluated on CPU
-* the tile/light index list is built on CPU
-* the result is uploaded for shader consumption
+* world point lights were gathered on CPU
+* tile coverage was evaluated on CPU
+* the tile/light index list was built on CPU
+* the result was uploaded for shader consumption
 
 That means the next forward+ question is no longer:
 
@@ -234,6 +234,14 @@ Integrate the compute path into the world stage while preserving:
 * the previous CPU nested tile/light classification loop is retired or relegated to narrow fallback/debug use only
 * the world stage remains the only lighting-aware stage
 
+#### Current Status
+
+Implemented on April 19, 2026 for the current milestone slice:
+
+* the live world stage dispatches compute classification before graphics
+* textured-quad world lighting reads GPU-built forward+ buffers instead of CPU-built tile/light lists
+* the previous CPU nested tile/light classification loop is retired from the live world path
+
 ### Ticket 24.5 - Forward+ Diagnostics and Validation
 
 **Priority:** P1
@@ -252,6 +260,16 @@ Preserve and update:
 * forward+ diagnostics remain truthful after the move
 * docs describe the new GPU-owned classification path honestly
 * milestone-closeout validation includes Vulkan, Metal, and DirectX 12 expectations
+
+#### Current Status
+
+Implemented on April 19, 2026 for the current milestone slice:
+
+* renderer stats/debug output still reports world light counts and dropped light overflow after the move to GPU classification
+* forward+ tile/light-reference diagnostics are recalculated through a narrow CPU-side mirror of the compute overlap math, without reviving the retired live CPU classification path
+* with the current shared caps, `forward_plus_dropped_light_references` is expected to remain `0` in normal operation because the total world-light cap matches the current per-tile light-index budget
+* Vulkan and Metal were manually validated against the live GPU forward+ path on April 19, 2026
+* DirectX 12 shared-code compilation is current, while native Windows runtime validation is still pending follow-up
 
 ---
 
@@ -279,6 +297,17 @@ Milestone 24 is complete when:
 
 * forward+ tile/light classification is GPU-driven
 * current lit world quads still behave correctly
-* shared limits remain coordinated across CMake, C++, and shader builds
+* shared limits remain coordinated across the checked-in shared config header, C++, and shader builds
 * dropped-light and dropped-reference diagnostics remain visible
 * Vulkan, Metal, and DirectX 12 remain aligned for the GPU forward+ slice
+
+## Current Closeout Note
+
+As of **April 19, 2026**, milestone 24 is implemented and effectively closed for active feature work, but it should remain in `docs/` rather than `docs/archive/` until DirectX 12 native runtime validation is completed.
+
+Current practical closeout state:
+
+* Vulkan runtime validation is current
+* Metal runtime validation is current
+* DirectX 12 shared-code compilation is current
+* DirectX 12 native runtime validation is still pending a Windows follow-up pass

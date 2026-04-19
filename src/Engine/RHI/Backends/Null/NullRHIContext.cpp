@@ -84,7 +84,7 @@ namespace carrot::rhi::null {
             .batch_count = stage.batches.size(),
             .viewport = stage.viewport,
             .presentation_mask = stage.presentation_mask,
-            .point_light_count = stage.point_light_count,
+            .point_light_count = stage.forward_plus_constants.point_light_counts[0],
             .ambient_color = stage.ambient_color
         });
     }
@@ -95,7 +95,7 @@ namespace carrot::rhi::null {
             .batch_count = stage.batches.size(),
             .viewport = stage.viewport,
             .presentation_mask = stage.presentation_mask,
-            .point_light_count = stage.point_light_count,
+            .point_light_count = stage.forward_plus_constants.point_light_counts[0],
             .ambient_color = stage.ambient_color
         });
     }
@@ -105,7 +105,7 @@ namespace carrot::rhi::null {
         _recorded_indirect_textured_stages.push_back(recorded_indirect_stage_t{
             .viewport = stage.viewport,
             .presentation_mask = stage.presentation_mask,
-            .point_light_count = stage.point_light_count,
+            .point_light_count = stage.forward_plus_constants.point_light_counts[0],
             .ambient_color = stage.ambient_color,
             .indirect_buffer_offset_bytes = stage.indirect_buffer_offset_bytes
         });

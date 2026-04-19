@@ -1,10 +1,7 @@
 #include "ShaderCommon.h"
 
-CARROT_VK_BINDING(0, 1)
-Texture2D g_texture;
-
-CARROT_VK_BINDING(1, 1)
-SamplerState g_sampler;
+CARROT_DECLARE_TEXTURE_2D(g_texture, 0, 1, 2);
+CARROT_DECLARE_SAMPLER_STATE(g_sampler, 1, 1, 0);
 
 struct PSInput
 {

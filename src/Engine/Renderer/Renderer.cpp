@@ -62,18 +62,6 @@ namespace carrot::renderer {
             return false;
         }
 
-        [[nodiscard]] bool circle_overlaps_aabb(const chlm::float2 center,
-                                                const float radius,
-                                                const chlm::float2 aabb_min,
-                                                const chlm::float2 aabb_max) noexcept
-        {
-            const float clamped_x{ std::clamp(center.x, aabb_min.x, aabb_max.x) };
-            const float clamped_y{ std::clamp(center.y, aabb_min.y, aabb_max.y) };
-            const float dx{ center.x - clamped_x };
-            const float dy{ center.y - clamped_y };
-            return (dx * dx) + (dy * dy) <= (radius * radius);
-        }
-
         [[nodiscard]] const world::world_object_t* resolve_primary_visibility_anchor(const world::world_t& world) noexcept
         {
             for (const world::world_object_t& object : world.objects())
@@ -89,6 +77,19 @@ namespace carrot::renderer {
             }
 
             return nullptr;
+        }
+
+        [[nodiscard]] bool circle_overlaps_aabb(const chlm::float2 center,
+                                                const float radius,
+                                                const chlm::float2 aabb_min,
+                                                const chlm::float2 aabb_max) noexcept
+        {
+            const chlm::float2 clamped{
+                std::clamp(center.x, aabb_min.x, aabb_max.x),
+                std::clamp(center.y, aabb_min.y, aabb_max.y)
+            };
+            const chlm::float2 delta{ center - clamped };
+            return ((delta.x * delta.x) + (delta.y * delta.y)) <= (radius * radius);
         }
 
         void append_layering_debug_entry(world::layering_debug_snapshot_t& snapshot,
@@ -180,6 +181,27 @@ namespace carrot::renderer {
             return;
         }
 
+        ensure_forward_plus_gpu_buffers();
+
+        const std::string_view forward_plus_shader_path{
+            _rhi->get_graphics_api() == rhi::graphics_api::vulkan
+                ? "engine://shaders/vulkan/forward_plus_classify.comp.spv"
+                : (_rhi->get_graphics_api() == rhi::graphics_api::metal
+                       ? "engine://shaders/metal/forward_plus_classify.comp.metallib"
+                       : (_rhi->get_graphics_api() == rhi::graphics_api::direct_x12
+                              ? "engine://shaders/dx12/forward_plus_classify.comp.dxil"
+                              : ""))
+        };
+        if (!forward_plus_shader_path.empty())
+        {
+            _forward_plus_classify_pipeline = _rhi->create_compute_pipeline({
+                .shader_path = forward_plus_shader_path,
+                .debug_name = "forward plus classify",
+                .threadgroup_size_x = 64u,
+                .max_constant_size_bytes = 0u
+            });
+        }
+
         _is_initialized = true;
         validate_shared_renderer_limits();
         LOG_GRAPHICS_INFO("Renderer initialized successfully (backend: {})",
@@ -199,6 +221,7 @@ namespace carrot::renderer {
         release_frame_resources();
 
         _solid_white_texture.reset();
+        _forward_plus_classify_pipeline.reset();
         _shader_provider.reset();
         _rhi.reset();
 
@@ -221,12 +244,9 @@ namespace carrot::renderer {
         _composite_overlay_enabled = false;
         _composite_overlay_color = 0x00000000u;
         _world_ambient_color = { 1.f, 1.f, 1.f, 1.f };
-        _world_point_lights = { };
-        _world_point_light_count = 0u;
-        _world_forward_plus_grid_params = { 0.f, 0.f, static_cast<float>(k_forward_plus_tile_size_px), 0.f };
-        _world_forward_plus_tile_counts = { 0u, 0u, 0u, 0u };
-        _world_forward_plus_tiles = { };
-        _world_forward_plus_light_indices = { };
+        _world_forward_plus_light_input = { };
+        _world_forward_plus_constants = { };
+        _world_forward_plus_output = { };
 
         _rhi->begin_frame();
     }
@@ -862,12 +882,11 @@ namespace carrot::renderer {
 
         const world::world_presentation_t& presentation{ *context.presentation };
         _world_ambient_color = world.lighting().ambient_color;
-        _world_point_lights = { };
-        _world_point_light_count = 0u;
+        _world_forward_plus_light_input = { };
         _stats.dropped_world_point_light_count = 0u;
         for (const world::world_lighting_state_t::point_light_t& light : world.lighting().point_lights)
         {
-            if (_world_point_light_count >= k_max_world_point_lights)
+            if (_world_forward_plus_constants.point_light_counts[0] >= k_max_world_point_lights)
             {
                 _stats.dropped_world_point_light_count++;
                 continue;
@@ -876,10 +895,11 @@ namespace carrot::renderer {
             const chlm::float2 light_position_px{ presentation.world_position_to_pixels(light.position_world) };
             const chlm::float2 light_radius_px{ presentation.world_size_to_pixels({ light.radius_world, light.radius_world }) };
 
-            _world_point_lights[_world_point_light_count++] = world_point_light_uniform_t{
+            _world_forward_plus_light_input.point_lights[_world_forward_plus_constants.point_light_counts[0]++] =
+                world_point_light_uniform_t{
                 .position_radius_px = { light_position_px.x, light_position_px.y, light_radius_px.x, 0.f },
                 .color_intensity = { light.color.x, light.color.y, light.color.z, light.intensity }
-            };
+                };
         }
 
         if (const world::world_object_t* visibility_anchor{ resolve_primary_visibility_anchor(world) };
@@ -1383,16 +1403,17 @@ namespace carrot::renderer {
         const frame_stage_plan_t& world_stage_plan{ stage_plan(frame_stage_kind_t::world) };
         const stage_execution_context_t stage_context{ resolve_stage_execution_context(world_stage_plan) };
         const resolved_camera_2d_t resolved_world_camera{ _active_camera.resolve(current_render_target_size()) };
+        const std::uint32_t point_light_count{ _world_forward_plus_constants.point_light_counts[0] };
 
-        _world_forward_plus_grid_params = {
+        _world_forward_plus_constants.grid_params = {
             _active_camera.position.x,
             _active_camera.position.y,
             static_cast<float>(k_forward_plus_tile_size_px),
             0.f
         };
-        _world_forward_plus_tile_counts = { 0u, 0u, 0u, 0u };
-        _world_forward_plus_tiles = { };
-        _world_forward_plus_light_indices = { };
+        _world_forward_plus_constants.tile_counts = { 0u, 0u, 0u, 0u };
+        _world_forward_plus_constants.point_light_counts = { point_light_count, 0u, 0u, 0u };
+        _world_forward_plus_output = { };
 
         const std::uint32_t tile_count_x{
             std::min<std::uint32_t>(
@@ -1408,91 +1429,64 @@ namespace carrot::renderer {
                     std::ceil(resolved_world_camera.visible_world_size.y / static_cast<float>(k_forward_plus_tile_size_px))))
             )
         };
-        _world_forward_plus_tile_counts = { tile_count_x, tile_count_y, static_cast<std::uint32_t>(k_forward_plus_tile_size_px), 0u };
-        _stats.world_point_light_count = _world_point_light_count;
+        _world_forward_plus_constants.tile_counts = {
+            tile_count_x,
+            tile_count_y,
+            static_cast<std::uint32_t>(k_forward_plus_tile_size_px),
+            0u
+        };
+        _stats.world_point_light_count = _world_forward_plus_constants.point_light_counts[0];
         _stats.forward_plus_tile_count = tile_count_x * tile_count_y;
         _stats.forward_plus_light_index_count = 0u;
         _stats.forward_plus_dropped_light_references = 0u;
+        update_forward_plus_diagnostics();
 
-        std::uint32_t light_index_cursor{ 0u };
-        for (std::uint32_t tile_y{ 0u }; tile_y < tile_count_y; ++tile_y)
+        upload_forward_plus_gpu_data();
+        if (_forward_plus_classify_pipeline)
         {
-            for (std::uint32_t tile_x{ 0u }; tile_x < tile_count_x; ++tile_x)
-            {
-                const std::uint32_t tile_index{ tile_y * tile_count_x + tile_x };
-                if (tile_index >= k_max_forward_plus_tiles)
-                    continue;
+            const forward_plus_gpu_buffers_t& gpu_buffers{ current_forward_plus_gpu_buffers() };
+            const std::uint32_t tile_count{ tile_count_x * tile_count_y };
+            const std::uint32_t group_count_x{ std::max(1u, (tile_count + 63u) / 64u) };
+            const std::array<rhi::compute_buffer_binding_t, 3> storage_bindings{
+                rhi::compute_buffer_binding_t{ .slot = 0u, .buffer = gpu_buffers.constants_buffer.get() },
+                rhi::compute_buffer_binding_t{ .slot = 1u, .buffer = gpu_buffers.light_input_buffer.get() },
+                rhi::compute_buffer_binding_t{ .slot = 2u, .buffer = gpu_buffers.classification_output_buffer.get() }
+            };
 
-                forward_plus_tile_header_t& tile_header{ _world_forward_plus_tiles[tile_index] };
-                tile_header.light_index_offset = light_index_cursor;
-                tile_header.light_count = 0u;
-
-                const chlm::float2 tile_min{
-                    _active_camera.position.x + (static_cast<float>(tile_x) * static_cast<float>(k_forward_plus_tile_size_px)),
-                    _active_camera.position.y + (static_cast<float>(tile_y) * static_cast<float>(k_forward_plus_tile_size_px))
-                };
-                const chlm::float2 tile_max{
-                    tile_min.x + static_cast<float>(k_forward_plus_tile_size_px),
-                    tile_min.y + static_cast<float>(k_forward_plus_tile_size_px)
-                };
-
-                for (std::uint32_t light_index{ 0u }; light_index < _world_point_light_count; ++light_index)
-                {
-                    const world_point_light_uniform_t& light{ _world_point_lights[light_index] };
-                    if (!circle_overlaps_aabb(chlm::float2{ light.position_radius_px.x, light.position_radius_px.y },
-                                              light.position_radius_px.z,
-                                              tile_min,
-                                              tile_max))
-                    {
-                        continue;
-                    }
-
-                    if (light_index_cursor >= k_max_forward_plus_tile_light_indices)
-                    {
-                        _stats.forward_plus_dropped_light_references++;
-                        continue;
-                    }
-
-                    packed_uint4_t& packed_light_indices{ _world_forward_plus_light_indices[light_index_cursor / 4u] };
-                    switch (light_index_cursor % 4u)
-                    {
-                        case 0u: packed_light_indices.x = light_index; break;
-                        case 1u: packed_light_indices.y = light_index; break;
-                        case 2u: packed_light_indices.z = light_index; break;
-                        default: packed_light_indices.w = light_index; break;
-                    }
-                    light_index_cursor++;
-                    tile_header.light_count++;
-                }
-            }
+            _rhi->dispatch_compute({
+                .pipeline = _forward_plus_classify_pipeline.get(),
+                .storage_buffers = storage_bindings,
+                .graphics_handoff = rhi::compute_graphics_handoff_t::storage_write_to_graphics_read,
+                .group_count_x = group_count_x,
+                .group_count_y = 1u,
+                .group_count_z = 1u
+            });
         }
-        _stats.forward_plus_light_index_count = light_index_cursor;
 
         const stage_submission_group_t group{ stage_submission_group(frame_stage_kind_t::world) };
         CE_ASSERT(group.textured != nullptr && group.text != nullptr,
                   "Renderer world stage must have both textured and text submission state");
+        const forward_plus_gpu_buffers_t& gpu_buffers{ current_forward_plus_gpu_buffers() };
 
         const rhi::textured_quad_stage_record_t world_record{
             .view_projection = stage_context.view_projection,
             .ambient_color = _world_ambient_color,
-            .forward_plus_grid_params = _world_forward_plus_grid_params,
-            .forward_plus_tile_counts = _world_forward_plus_tile_counts,
-            .point_light_count = _world_point_light_count,
-            .point_lights = _world_point_lights,
-            .forward_plus_tiles = _world_forward_plus_tiles,
-            .forward_plus_light_indices = _world_forward_plus_light_indices,
+            .forward_plus_constants = _world_forward_plus_constants,
+            .forward_plus_light_input = _world_forward_plus_light_input,
+            .forward_plus_output = _world_forward_plus_output,
+            .forward_plus_light_input_buffer = gpu_buffers.light_input_buffer.get(),
+            .forward_plus_output_buffer = gpu_buffers.classification_output_buffer.get(),
             .viewport = stage_context.viewport,
             .presentation_mask = world_stage_plan.presentation_mask
         };
         const rhi::textured_quad_stage_record_t world_text_record{
             .view_projection = stage_context.view_projection,
             .ambient_color = { 1.f, 1.f, 1.f, 1.f },
-            .forward_plus_grid_params = { 0.f, 0.f, static_cast<float>(k_forward_plus_tile_size_px), 0.f },
-            .forward_plus_tile_counts = { 0u, 0u, 0u, 0u },
-            .point_light_count = 0u,
-            .point_lights = { },
-            .forward_plus_tiles = { },
-            .forward_plus_light_indices = { },
+            .forward_plus_constants = { },
+            .forward_plus_light_input = { },
+            .forward_plus_output = { },
+            .forward_plus_light_input_buffer = gpu_buffers.light_input_buffer.get(),
+            .forward_plus_output_buffer = gpu_buffers.classification_output_buffer.get(),
             .viewport = stage_context.viewport,
             .presentation_mask = world_stage_plan.presentation_mask
         };
@@ -1511,12 +1505,11 @@ namespace carrot::renderer {
         const rhi::textured_quad_stage_record_t record{
             .view_projection = stage_context.view_projection,
             .ambient_color = { 1.f, 1.f, 1.f, 1.f },
-            .forward_plus_grid_params = { 0.f, 0.f, static_cast<float>(k_forward_plus_tile_size_px), 0.f },
-            .forward_plus_tile_counts = { 0u, 0u, 0u, 0u },
-            .point_light_count = 0u,
-            .point_lights = { },
-            .forward_plus_tiles = { },
-            .forward_plus_light_indices = { },
+            .forward_plus_constants = { },
+            .forward_plus_light_input = { },
+            .forward_plus_output = { },
+            .forward_plus_light_input_buffer = current_forward_plus_gpu_buffers().light_input_buffer.get(),
+            .forward_plus_output_buffer = current_forward_plus_gpu_buffers().classification_output_buffer.get(),
             .viewport = stage_context.viewport,
             .presentation_mask = stage_plan.presentation_mask
         };
@@ -1567,6 +1560,13 @@ namespace carrot::renderer {
                 release_stage_buffers(*group.textured);
             if (group.text)
                 release_stage_buffers(*group.text);
+        }
+
+        for (forward_plus_gpu_buffers_t& frame_buffers : _forward_plus_gpu_buffers)
+        {
+            frame_buffers.constants_buffer.reset();
+            frame_buffers.light_input_buffer.reset();
+            frame_buffers.classification_output_buffer.reset();
         }
 
         _stats = { };
@@ -1660,6 +1660,145 @@ namespace carrot::renderer {
             LOG_GRAPHICS_FATAL("Failed to upload textured quad index data");
     }
 
+    void renderer_t::ensure_forward_plus_gpu_buffers()
+    {
+        if (!_rhi)
+            return;
+
+        constexpr size_t constants_size_bytes{ sizeof(forward_plus_frame_constants_t) };
+        constexpr size_t light_input_size_bytes{ sizeof(forward_plus_light_input_t) };
+        constexpr size_t classification_output_size_bytes{ sizeof(forward_plus_classification_output_t) };
+
+        for (forward_plus_gpu_buffers_t& frame_buffers : _forward_plus_gpu_buffers)
+        {
+            if (!frame_buffers.constants_buffer)
+            {
+                frame_buffers.constants_buffer = _rhi->create_buffer({
+                    .size_bytes = constants_size_bytes,
+                    .usage = rhi::buffer_usage_t::storage,
+                    .cpu_writable = true
+                });
+            }
+
+            if (!frame_buffers.light_input_buffer)
+            {
+                frame_buffers.light_input_buffer = _rhi->create_buffer({
+                    .size_bytes = light_input_size_bytes,
+                    .usage = rhi::buffer_usage_t::storage,
+                    .cpu_writable = true
+                });
+            }
+
+            if (!frame_buffers.classification_output_buffer)
+            {
+                frame_buffers.classification_output_buffer = _rhi->create_buffer({
+                    .size_bytes = classification_output_size_bytes,
+                    .usage = rhi::buffer_usage_t::storage,
+                    .cpu_writable = true
+                });
+            }
+
+            if (!frame_buffers.constants_buffer ||
+                !frame_buffers.light_input_buffer ||
+                !frame_buffers.classification_output_buffer)
+            {
+                LOG_GRAPHICS_FATAL("Failed to create renderer forward+ GPU buffers");
+                return;
+            }
+        }
+    }
+
+    void renderer_t::upload_forward_plus_gpu_data() const
+    {
+        const forward_plus_gpu_buffers_t& frame_buffers{ current_forward_plus_gpu_buffers() };
+
+        if (!frame_buffers.constants_buffer ||
+            !frame_buffers.light_input_buffer ||
+            !frame_buffers.classification_output_buffer)
+        {
+            LOG_GRAPHICS_FATAL("Forward+ GPU buffers are not available for upload");
+            return;
+        }
+
+        if (!frame_buffers.constants_buffer->write(&_world_forward_plus_constants, sizeof(_world_forward_plus_constants), 0u))
+        {
+            LOG_GRAPHICS_FATAL("Failed to upload forward+ frame constants");
+            return;
+        }
+
+        if (!frame_buffers.light_input_buffer->write(&_world_forward_plus_light_input, sizeof(_world_forward_plus_light_input), 0u))
+        {
+            LOG_GRAPHICS_FATAL("Failed to upload forward+ light input");
+            return;
+        }
+
+        if (!frame_buffers.classification_output_buffer->write(&_world_forward_plus_output, sizeof(_world_forward_plus_output), 0u))
+            LOG_GRAPHICS_FATAL("Failed to upload forward+ classification output");
+    }
+
+    void renderer_t::update_forward_plus_diagnostics() noexcept
+    {
+        _stats.forward_plus_light_index_count = 0u;
+        _stats.forward_plus_dropped_light_references = 0u;
+
+        const std::uint32_t tile_count_x{ _world_forward_plus_constants.tile_counts[0] };
+        const std::uint32_t tile_count_y{ _world_forward_plus_constants.tile_counts[1] };
+        if (tile_count_x == 0u || tile_count_y == 0u)
+            return;
+
+        const float tile_size{ std::max(_world_forward_plus_constants.grid_params.z, 1.0f) };
+        const chlm::float2 grid_origin{
+            _world_forward_plus_constants.grid_params.x,
+            _world_forward_plus_constants.grid_params.y
+        };
+        const std::uint32_t point_light_count{
+            std::min(_world_forward_plus_constants.point_light_counts[0],
+                     static_cast<std::uint32_t>(k_max_world_point_lights))
+        };
+        constexpr std::uint32_t per_tile_light_budget{ static_cast<std::uint32_t>(k_max_world_point_lights) };
+
+        // This mirrors the compute overlap math only for renderer diagnostics.
+        // The GPU path still owns the live tile/light list used by rendering.
+        for (std::uint32_t tile_y{ 0u }; tile_y < tile_count_y; ++tile_y)
+        {
+            for (std::uint32_t tile_x{ 0u }; tile_x < tile_count_x; ++tile_x)
+            {
+                const chlm::float2 tile_min{
+                    grid_origin.x + (static_cast<float>(tile_x) * tile_size),
+                    grid_origin.y + (static_cast<float>(tile_y) * tile_size)
+                };
+                const chlm::float2 tile_max{
+                    tile_min.x + tile_size,
+                    tile_min.y + tile_size
+                };
+
+                std::uint32_t tile_light_count{ 0u };
+                for (std::uint32_t light_index{ 0u }; light_index < point_light_count; ++light_index)
+                {
+                    const world_point_light_uniform_t& light{ _world_forward_plus_light_input.point_lights[light_index] };
+                    if (!circle_overlaps_aabb(chlm::float2{ light.position_radius_px.x, light.position_radius_px.y },
+                                              light.position_radius_px.z,
+                                              tile_min,
+                                              tile_max))
+                    {
+                        continue;
+                    }
+
+                    if (tile_light_count < per_tile_light_budget)
+                    {
+                        ++tile_light_count;
+                    }
+                    else
+                    {
+                        ++_stats.forward_plus_dropped_light_references;
+                    }
+                }
+
+                _stats.forward_plus_light_index_count += tile_light_count;
+            }
+        }
+    }
+
     uint32_t renderer_t::current_textured_quad_frame_buffer_slot() const noexcept
     {
         return static_cast<uint32_t>(_frame_index % k_textured_quad_frame_buffer_count);
@@ -1673,5 +1812,15 @@ namespace carrot::renderer {
     const textured_quad_state_t::frame_buffers_t& renderer_t::current_frame_buffers(const textured_quad_state_t& state) const noexcept
     {
         return state.frame_buffers[current_textured_quad_frame_buffer_slot()];
+    }
+
+    forward_plus_gpu_buffers_t& renderer_t::current_forward_plus_gpu_buffers() noexcept
+    {
+        return _forward_plus_gpu_buffers[current_textured_quad_frame_buffer_slot()];
+    }
+
+    const forward_plus_gpu_buffers_t& renderer_t::current_forward_plus_gpu_buffers() const noexcept
+    {
+        return _forward_plus_gpu_buffers[current_textured_quad_frame_buffer_slot()];
     }
 } // namespace carrot::renderer

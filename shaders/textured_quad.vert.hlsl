@@ -1,24 +1,11 @@
-#include "ShaderCommon.h"
-
-struct PointLightData
-{
-    float4 position_radius;
-    float4 color_intensity;
-};
-
-struct ForwardPlusTileHeader
-{
-    uint4 data;
-};
+#include "ForwardPlusData.hlsli"
 
 CARROT_VK_BINDING(0, 0)
 cbuffer WorldForwardPlus
 {
     float4x4 g_view_projection;
     float4 g_ambient_color;
-    float4 g_forward_plus_grid_params;
-    uint4 g_forward_plus_tile_counts;
-    uint4 g_point_light_counts;
+    ForwardPlusFrameConstants g_forward_plus;
     PointLightData g_point_lights[CARROT_MAX_WORLD_POINT_LIGHTS];
     ForwardPlusTileHeader g_forward_plus_tiles[CARROT_MAX_FORWARD_PLUS_TILES];
     uint4 g_forward_plus_light_indices[CARROT_MAX_FORWARD_PLUS_PACKED_LIGHT_INDEX_WORDS];

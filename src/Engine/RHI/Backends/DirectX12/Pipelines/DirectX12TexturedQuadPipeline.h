@@ -75,6 +75,8 @@ namespace carrot::rhi::dx12 {
         descriptor_tables_t tables{ };
 
         dx12_textured_quad_sampler_provider_t* sampler_provider{ nullptr };
+        const rhi_buffer_t* forward_plus_light_input_buffer{ nullptr };
+        const rhi_buffer_t* forward_plus_output_buffer{ nullptr };
     };
 
     class dx12_textured_quad_pipeline_t final

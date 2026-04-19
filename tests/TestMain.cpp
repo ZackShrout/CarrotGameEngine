@@ -17,6 +17,7 @@ namespace carrot::tests {
     void register_controller_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
     void register_collision_world_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
     void register_font_asset_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
+    void register_forward_plus_data_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
     void register_rhi_buffer_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
     void register_rhi_compute_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
     void register_scene_loading_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
@@ -37,6 +38,7 @@ int main()
     carrot::tests::register_controller_tests(tests);
     carrot::tests::register_collision_world_tests(tests);
     carrot::tests::register_font_asset_tests(tests);
+    carrot::tests::register_forward_plus_data_tests(tests);
     carrot::tests::register_rhi_buffer_tests(tests);
     carrot::tests::register_rhi_compute_tests(tests);
     carrot::tests::register_scene_loading_tests(tests);

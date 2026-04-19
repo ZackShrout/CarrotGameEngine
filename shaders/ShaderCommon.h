@@ -6,7 +6,7 @@
 #ifndef CARROT_SHADER_COMMON_H
 #define CARROT_SHADER_COMMON_H
 
-#include "ForwardPlusSharedConfig.h"
+#include "Renderer/Draw/ForwardPlusSharedConfig.h"
 
 #if defined(CARROT_USE_ROOT_SIGNATURES)
     #define CARROT_ROOT_SIGNATURE(x) [RootSignature(x)]
@@ -28,10 +28,22 @@
     #define CARROT_DECLARE_PUSH_CONSTANT(type, name, binding_index) ConstantBuffer<type> name : register(CARROT_HLSL_REGISTER(b, binding_index))
 #endif
 
+#if defined(VULKAN)
+    #define CARROT_DECLARE_BYTE_ADDRESS_BUFFER(name, vk_binding, vk_set, hlsl_register) CARROT_VK_BINDING(vk_binding, vk_set) ByteAddressBuffer name
+    #define CARROT_DECLARE_RWBYTE_ADDRESS_BUFFER(name, vk_binding, vk_set, hlsl_register) CARROT_VK_BINDING(vk_binding, vk_set) RWByteAddressBuffer name
+    #define CARROT_DECLARE_TEXTURE_2D(name, vk_binding, vk_set, hlsl_register) CARROT_VK_BINDING(vk_binding, vk_set) Texture2D name
+    #define CARROT_DECLARE_SAMPLER_STATE(name, vk_binding, vk_set, hlsl_register) CARROT_VK_BINDING(vk_binding, vk_set) SamplerState name
+#else
+    #define CARROT_DECLARE_BYTE_ADDRESS_BUFFER(name, vk_binding, vk_set, hlsl_register) ByteAddressBuffer name : register(CARROT_HLSL_REGISTER(t, hlsl_register))
+    #define CARROT_DECLARE_RWBYTE_ADDRESS_BUFFER(name, vk_binding, vk_set, hlsl_register) RWByteAddressBuffer name : register(CARROT_HLSL_REGISTER(u, hlsl_register))
+    #define CARROT_DECLARE_TEXTURE_2D(name, vk_binding, vk_set, hlsl_register) Texture2D name : register(CARROT_HLSL_REGISTER(t, hlsl_register))
+    #define CARROT_DECLARE_SAMPLER_STATE(name, vk_binding, vk_set, hlsl_register) SamplerState name : register(CARROT_HLSL_REGISTER(s, hlsl_register))
+#endif
+
 #define CARROT_RS_TEXTURED_QUAD \
 "RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)," \
 "DescriptorTable(CBV(b0, numDescriptors=1))," \
-"DescriptorTable(SRV(t0, numDescriptors=1))," \
+"DescriptorTable(SRV(t0, numDescriptors=3))," \
 "DescriptorTable(Sampler(s0, numDescriptors=1))"
 
 #define CARROT_RS_COMPUTE \

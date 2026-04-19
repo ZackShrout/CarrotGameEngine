@@ -107,6 +107,8 @@ namespace carrot::rhi::metal {
 
         void ensure_textured_quad_argument_capacity(uint32_t stage_slot, size_t batch_count);
         void encode_textured_quad_argument_buffers(const metal_texture_t& texture,
+                                                   const rhi_buffer_t* forward_plus_light_input_buffer,
+                                                   const rhi_buffer_t* forward_plus_output_buffer,
                                                    uint32_t stage_slot,
                                                    size_t batch_index,
                                                    const renderer::textured_quad_batch_t& batch,
@@ -148,6 +150,7 @@ namespace carrot::rhi::metal {
                                                       _textured_quad_srv_descriptor_tables;
         std::array<std::unique_ptr<metal_buffer_t>, k_max_textured_quad_stage_slots_per_frame>
                                                       _textured_quad_sampler_descriptor_tables;
+        std::vector<std::unique_ptr<metal_buffer_t>> _transient_compute_buffers;
 
         size_t                                          _textured_quad_root_stride{ 0 };
         size_t                                          _textured_quad_cbv_stride{ 0 };

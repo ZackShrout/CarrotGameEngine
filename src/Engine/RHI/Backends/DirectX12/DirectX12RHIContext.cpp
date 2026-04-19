@@ -263,15 +263,13 @@ namespace carrot::rhi::dx12 {
 
             const dx12_frame_t& frame{ _frames[_frame_index] };
 
-            renderer::world_forward_plus_uniform_t world_uniform{ };
-            world_uniform.view_projection = stage.view_projection;
-            world_uniform.ambient_color = stage.ambient_color;
-            world_uniform.forward_plus_grid_params = stage.forward_plus_grid_params;
-            world_uniform.forward_plus_tile_counts = stage.forward_plus_tile_counts;
-            world_uniform.point_light_counts[0] = stage.point_light_count;
-            world_uniform.point_lights = stage.point_lights;
-            world_uniform.forward_plus_tiles = stage.forward_plus_tiles;
-            world_uniform.forward_plus_light_indices = stage.forward_plus_light_indices;
+            const renderer::world_forward_plus_uniform_t world_uniform{
+                renderer::pack_world_forward_plus_uniform(stage.view_projection,
+                                                          stage.ambient_color,
+                                                          stage.forward_plus_constants,
+                                                          stage.forward_plus_light_input,
+                                                          stage.forward_plus_output)
+            };
 
             if (!frame.textured_quad_camera_uniform_buffers[stage_slot] ||
                 !frame.textured_quad_camera_uniform_buffers[stage_slot]->write(&world_uniform,
@@ -298,7 +296,13 @@ namespace carrot::rhi::dx12 {
                     .sampler_heap = frame.textured_quad_sampler_heaps[stage_slot],
                     .sampler_descriptor_size = _sampler_descriptor_stride
                 },
-                .sampler_provider = this
+                .sampler_provider = this,
+                .forward_plus_light_input_buffer = stage.forward_plus_light_input_buffer
+                                                       ? stage.forward_plus_light_input_buffer
+                                                       : _default_compute_storage_buffer.get(),
+                .forward_plus_output_buffer = stage.forward_plus_output_buffer
+                                                  ? stage.forward_plus_output_buffer
+                                                  : _default_compute_storage_buffer.get()
             };
 
             pipeline->draw(draw_context, descriptor_context);
@@ -986,15 +990,13 @@ namespace carrot::rhi::dx12 {
 
         const dx12_frame_t& frame{ _frames[_frame_index] };
 
-        renderer::world_forward_plus_uniform_t world_uniform{ };
-        world_uniform.view_projection = stage.view_projection;
-        world_uniform.ambient_color = stage.ambient_color;
-        world_uniform.forward_plus_grid_params = stage.forward_plus_grid_params;
-        world_uniform.forward_plus_tile_counts = stage.forward_plus_tile_counts;
-        world_uniform.point_light_counts[0] = stage.point_light_count;
-        world_uniform.point_lights = stage.point_lights;
-        world_uniform.forward_plus_tiles = stage.forward_plus_tiles;
-        world_uniform.forward_plus_light_indices = stage.forward_plus_light_indices;
+        const renderer::world_forward_plus_uniform_t world_uniform{
+            renderer::pack_world_forward_plus_uniform(stage.view_projection,
+                                                      stage.ambient_color,
+                                                      stage.forward_plus_constants,
+                                                      stage.forward_plus_light_input,
+                                                      stage.forward_plus_output)
+        };
 
         if (!frame.textured_quad_camera_uniform_buffers[stage_slot] ||
             !frame.textured_quad_camera_uniform_buffers[stage_slot]->write(&world_uniform, sizeof(world_uniform), 0))
@@ -1025,7 +1027,13 @@ namespace carrot::rhi::dx12 {
                 .sampler_descriptor_size = _sampler_descriptor_stride,
                 .first_batch_sampler_index = 0u
             },
-            .sampler_provider = this
+            .sampler_provider = this,
+            .forward_plus_light_input_buffer = stage.forward_plus_light_input_buffer
+                                                   ? stage.forward_plus_light_input_buffer
+                                                   : _default_compute_storage_buffer.get(),
+            .forward_plus_output_buffer = stage.forward_plus_output_buffer
+                                              ? stage.forward_plus_output_buffer
+                                              : _default_compute_storage_buffer.get()
         };
 
         const auto* dx_indirect_buffer{ dynamic_cast<const dx12_buffer_t*>(stage.indirect_buffer) };
@@ -1074,7 +1082,7 @@ namespace carrot::rhi::dx12 {
             return;
 
         const uint32_t target_capacity{ std::max(required_capacity, 16u) };
-        const uint32_t srv_heap_descriptor_count{ target_capacity + 1u };
+        const uint32_t srv_heap_descriptor_count{ (target_capacity * 3u) + 1u };
 
         for (uint32_t frame_index{ 0 }; frame_index < k_max_frames_in_flight; ++frame_index)
         {
@@ -1157,7 +1165,7 @@ namespace carrot::rhi::dx12 {
                 {
                     D3D12_DESCRIPTOR_HEAP_DESC srv_heap_desc{ };
                     srv_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-                    srv_heap_desc.NumDescriptors = 2u;
+                    srv_heap_desc.NumDescriptors = 4u;
                     srv_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
                     srv_heap_desc.NodeMask = 0;
 

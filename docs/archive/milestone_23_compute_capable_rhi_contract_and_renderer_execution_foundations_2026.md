@@ -1,9 +1,11 @@
 # Carrot Game Engine - Milestone 23
 
-**Last Updated:** April 18, 2026
+**Last Updated:** April 19, 2026
 **Title:** Compute-Capable RHI Contract and Renderer Execution Foundations
-**Status:** Planned
+**Status:** Completed and archived
 **Focus:** Add the minimum honest cross-backend contract needed for compute work, storage resources, indirect execution, and renderer-owned GPU execution planning before more renderer growth lands on the wrong architectural seams.
+
+Archived in April 2026 after Carrot gained a real compute-capable context-level RHI surface, expanded storage/indirect/readback buffer usage support, explicit compute-to-graphics handoff rules, and one narrow shared indexed-indirect textured-quad path across Vulkan, Metal, and DirectX 12.
 
 ---
 
@@ -287,6 +289,21 @@ Introduce one shared indirect draw form suitable for the future GPU-driven world
 * tests or validation scaffolding cover the new contract where practical
 * milestone-closeout notes define what "supported" means for this expanded slice
 
+#### Closeout Notes
+
+As of **April 19, 2026**, milestone 23 support means:
+
+* the shared RHI contract includes compute pipeline creation, compute dispatch, explicit compute-to-graphics handoff declaration, expanded buffer usages, and one narrow textured-quad indexed-indirect path
+* Vulkan and Metal have been manually exercised against the milestone 23 slice after the follow-up validation fixes that landed during implementation
+* DirectX 12 compiles the milestone 23 shared codepath, but native runtime validation is still pending a clean Windows rerun
+* null-backend regressions cover shared buffer-usage growth, compute dispatch recording, and indirect textured-quad stage recording
+* `CarrotEngineTests` passes on `build/macos-clang-debug` with **195 passed tests**
+
+This closeout status is intentionally narrow:
+
+* it means the compute-capable contract is live and guarded
+* it does not mean the renderer is already using compute for live culling, forward+ classification, or generic GPU-driven world execution
+
 ---
 
 ## Required Minimum Slice
@@ -317,3 +334,23 @@ Milestone 23 is complete when:
 * resource-state and pass-boundary behavior are explicit enough for forward+, culling, and post work
 * indirect draw readiness exists through a narrow shared path
 * parity docs remain honest about what is truly supported
+
+---
+
+## Closeout Notes
+
+Milestone 23 closed successfully with the renderer/RHI boundary in a much more honest place for upcoming GPU-driven work.
+
+Concrete closeout wins:
+
+* the shared RHI now exposes compute pipeline creation and dispatch as real context-level contract surface
+* storage, indirect, and readback buffer usages are available through shared resource descriptions instead of backend-local side doors
+* the live milestone slice has explicit compute-before-graphics handoff declaration for storage data
+* the engine now has one intentionally narrow indexed-indirect textured-quad path that later world execution work can target without another contract rewrite
+* null-backend regressions and parity docs now protect the compute-capable slice instead of leaving it implicit
+
+Closeout validation status at archive time:
+
+* `CarrotEngineTests` passes on `build/macos-clang-debug` with `195` tests
+* Vulkan and Metal have been manually exercised successfully for the milestone 23 slice after implementation-time validation fixes
+* DirectX 12 compiles the milestone 23 shared codepath, with native Windows runtime validation still pending a follow-up environment cleanup/rerun

@@ -164,10 +164,29 @@ namespace carrot::rhi::vulkan {
         camera_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
         camera_binding.pImmutableSamplers = nullptr;
 
+        VkDescriptorSetLayoutBinding light_input_binding{ };
+        light_input_binding.binding = 1;
+        light_input_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        light_input_binding.descriptorCount = 1;
+        light_input_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        light_input_binding.pImmutableSamplers = nullptr;
+
+        VkDescriptorSetLayoutBinding output_binding{ };
+        output_binding.binding = 2;
+        output_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        output_binding.descriptorCount = 1;
+        output_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        output_binding.pImmutableSamplers = nullptr;
+
         VkDescriptorSetLayoutCreateInfo camera_layout_info{ };
         camera_layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        camera_layout_info.bindingCount = 1;
-        camera_layout_info.pBindings = &camera_binding;
+        const std::array<VkDescriptorSetLayoutBinding, 3> camera_bindings{
+            camera_binding,
+            light_input_binding,
+            output_binding
+        };
+        camera_layout_info.bindingCount = static_cast<uint32_t>(camera_bindings.size());
+        camera_layout_info.pBindings = camera_bindings.data();
 
         VK_CHECK_FATAL(vkCreateDescriptorSetLayout(
             _device->vk_device(),

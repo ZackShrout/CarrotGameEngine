@@ -38,8 +38,7 @@ namespace sandbox {
                                 const carrot::scene::scene_runtime_context_t& current_context) override;
 
     private:
-        [[nodiscard]] carrot::scene::scene_load_options_t make_scene_load_options(
-            std::string_view spawn_marker_override = { }) noexcept;
+        [[nodiscard]] carrot::scene::scene_runtime_bindings_t make_scene_runtime_bindings() noexcept;
         void prepare_for_scene_change(const carrot::scene::scene_runtime_context_t* current_context) noexcept;
         void finalize_scene_change(const carrot::scene::scene_runtime_context_t& current_context) noexcept;
         void consume_pending_runtime_events() noexcept;

@@ -721,13 +721,14 @@ namespace carrot {
                     static_cast<unsigned long long>(_renderer->get_frame_index()));
         debug::text(16.f,
                     44.f,
-                    "World Lights: %u | F+ Tiles: %u | Tile Light Refs: %u",
+                    "World Lights: %u | Dropped Lights: %u | F+ Tiles: %u",
                     stats.world_point_light_count,
-                    stats.forward_plus_tile_count,
-                    stats.forward_plus_light_index_count);
+                    stats.dropped_world_point_light_count,
+                    stats.forward_plus_tile_count);
         debug::text(16.f,
                     72.f,
-                    "F+ Dropped Refs: %u | Tile Size: %u px",
+                    "Tile Light Refs: %u | F+ Dropped Refs: %u | Tile Size: %u px",
+                    stats.forward_plus_light_index_count,
                     stats.forward_plus_dropped_light_references,
                     static_cast<unsigned>(renderer::k_forward_plus_tile_size_px));
         debug::text(16.f,

@@ -241,6 +241,42 @@ namespace carrot::scene {
         scene_transition_overlay_override_t transition_overlay;
     };
 
+    struct scene_runtime_bindings_t
+    {
+        world::player_controller_t* player_controller{ nullptr };
+        world::interaction_controller_t* interaction_controller{ nullptr };
+        scene_validation_callback_t validate_loaded_scene{ nullptr };
+        scene_runtime_listener_t* listener{ nullptr };
+
+        [[nodiscard]] bool empty() const noexcept
+        {
+            return player_controller == nullptr &&
+                   interaction_controller == nullptr &&
+                   validate_loaded_scene == nullptr &&
+                   listener == nullptr;
+        }
+    };
+
+    /**
+     * @brief Engine-owned helper for the most common gameplay-facing scene load packet.
+     *
+     * This keeps the public "runtime participation" seam explicit instead of
+     * requiring game code to manually remember which fields on
+     * scene_load_options_t represent controller/listener/validation bindings.
+     */
+    [[nodiscard]] constexpr scene_load_options_t make_scene_load_options(
+        const scene_runtime_bindings_t& bindings = {},
+        const std::string_view spawn_marker_override = {}) noexcept
+    {
+        scene_load_options_t options;
+        options.spawn_marker_override = spawn_marker_override;
+        options.player_controller = bindings.player_controller;
+        options.interaction_controller = bindings.interaction_controller;
+        options.validate_loaded_scene = bindings.validate_loaded_scene;
+        options.listener = bindings.listener;
+        return options;
+    }
+
     struct scene_runtime_context_t
     {
         world::world_t& world;
@@ -614,9 +650,14 @@ namespace carrot::scene {
         {
             return _transition_overlay_options;
         }
+        [[nodiscard]] const scene_runtime_bindings_t& default_runtime_bindings() const noexcept
+        {
+            return _default_runtime_bindings;
+        }
         [[nodiscard]] const scene_camera_options_t& engine_camera_options() const noexcept { return _engine_camera_options; }
         [[nodiscard]] const scene_camera_options_t& default_camera_options() const noexcept { return _camera_options; }
         [[nodiscard]] const scene_camera_options_t& active_camera_options() const noexcept { return _active_camera_options; }
+        void set_default_runtime_bindings(scene_runtime_bindings_t bindings) noexcept;
         void set_default_camera_options(scene_camera_options_t options) noexcept;
         void set_default_camera_override(scene_camera_override_t override) noexcept;
         void set_default_transition_overlay_options(scene_transition_overlay_options_t options) noexcept;
@@ -671,6 +712,7 @@ namespace carrot::scene {
             scene_change_outcome_t outcome = scene_change_outcome_t::in_progress) noexcept;
         void clear_pending_structural_refresh_context() noexcept;
         void render_transition_diagnostics(core::game_context_t& game) noexcept;
+        [[nodiscard]] scene_load_options_t resolve_load_options(const scene_load_options_t& options) const noexcept;
         [[nodiscard]] bool request_scene_change(core::game_context_t& game,
                                                const assets::scene_asset_record_t& scene_record,
                                                std::string_view scene_id,
@@ -702,6 +744,7 @@ namespace carrot::scene {
         bool _last_scene_change_succeeded{ false };
         world::player_controller_t* _player_controller{ nullptr };
         world::interaction_controller_t* _interaction_controller{ nullptr };
+        scene_runtime_bindings_t _default_runtime_bindings{ };
         scene_camera_options_t _engine_camera_options{ make_default_scene_camera_options() };
         scene_camera_options_t _camera_options{ make_default_scene_camera_options() };
         scene_camera_options_t _active_camera_options{ make_default_scene_camera_options() };

@@ -12,19 +12,6 @@
 
 namespace sandbox {
     namespace {
-        [[nodiscard]] const char* routing_mode_to_string(
-            const carrot::input::gameplay_input_routing_mode_t mode) noexcept
-        {
-            switch (mode)
-            {
-                case carrot::input::gameplay_input_routing_mode_t::single_player_auto: return "single_player_auto";
-                case carrot::input::gameplay_input_routing_mode_t::local_multiplayer_fixed: return
-                            "local_multiplayer_fixed";
-            }
-
-            return "unknown";
-        }
-
         [[nodiscard]] bool validate_loaded_sandbox_scene(const carrot::assets::asset_manager_t& assets,
                                                          const carrot::world::world_t& world,
                                                          const std::string_view scene_id)
@@ -72,8 +59,9 @@ namespace sandbox {
         });
         _player_controller.set_move_speed(4.0f);
         _interaction_controller.set_interaction_radius(3.0f);
+        _scene_runtime.set_default_runtime_bindings(make_scene_runtime_bindings());
         constexpr std::string_view k_initial_scene_id{ "scene.sandbox.town" };
-        (void)_scene_runtime.request_load(game(), k_initial_scene_id, make_scene_load_options());
+        (void)_scene_runtime.request_load(game(), k_initial_scene_id);
     }
 
     void gameplay_state_t::before_scene_change([[maybe_unused]] carrot::core::game_context_t& game,
@@ -93,11 +81,9 @@ namespace sandbox {
         finalize_scene_change(current_context);
     }
 
-    carrot::scene::scene_load_options_t gameplay_state_t::make_scene_load_options(
-        const std::string_view spawn_marker_override) noexcept
+    carrot::scene::scene_runtime_bindings_t gameplay_state_t::make_scene_runtime_bindings() noexcept
     {
-        return carrot::scene::scene_load_options_t{
-            .spawn_marker_override = spawn_marker_override,
+        return carrot::scene::scene_runtime_bindings_t{
             .player_controller = &_player_controller,
             .interaction_controller = &_interaction_controller,
             .validate_loaded_scene = validate_loaded_sandbox_scene,
@@ -182,12 +168,14 @@ namespace sandbox {
 
     bool gameplay_state_t::load_scene(const std::string_view scene_id, const std::string_view spawn_marker)
     {
-        return _scene_runtime.request_load(game(), scene_id, make_scene_load_options(spawn_marker));
+        return _scene_runtime.request_load(game(),
+                                          scene_id,
+                                          carrot::scene::make_scene_load_options({}, spawn_marker));
     }
 
     bool gameplay_state_t::transition_scene(const carrot::scene::scene_transition_request_t& request)
     {
-        return _scene_runtime.request_transition(game(), request, make_scene_load_options());
+        return _scene_runtime.request_transition(game(), request);
     }
 
     void gameplay_state_t::tick(const float delta_time)
@@ -219,22 +207,21 @@ namespace sandbox {
                                         156.f,
                                         0xFF9AD0FFu,
                                         "Routing: %s | Players: %zu",
-                                        routing_mode_to_string(_input.routing_mode()),
+                                        carrot::input::to_string(_input.routing_mode()).data(),
                                         _input.player_count());
 
             for (size_t player_index{ 0u }; player_index < std::min<size_t>(_input.player_count(), 2u); ++player_index)
             {
                 const carrot::input::player_input_context_t* context{ _input.player(player_index) };
                 const chlm::float2 intent{ _input.movement_intent(player_index, game(), k_input_profile) };
+                const std::string context_summary{
+                    context ? carrot::input::describe_player_input_context(*context) : "missing player context"
+                };
                 carrot::debug::text_colored(16.f,
                                             184.f + (28.f * static_cast<float>(player_index)),
                                             player_index == 0u ? 0xFF88FF88u : 0xFFFFC888u,
-                                            "P%zu keyboard=%s gamepad=%s move=(%.2f, %.2f) interact=%s",
-                                            player_index + 1u,
-                                            context && context->receives_keyboard() ? "yes" : "no",
-                                            context && context->gamepad_slot().has_value()
-                                                ? std::to_string(*context->gamepad_slot()).c_str()
-                                                : "none",
+                                            "%s move=(%.2f, %.2f) interact=%s",
+                                            context_summary.c_str(),
                                             intent.x,
                                             intent.y,
                                             _input.is_pressed(player_index, k_input_actions.interact) ? "down" : "up");
@@ -248,10 +235,7 @@ namespace sandbox {
             return;
 
         _input.on_focus_lost();
-        _player_controller.set_move_up(false);
-        _player_controller.set_move_down(false);
-        _player_controller.set_move_left(false);
-        _player_controller.set_move_right(false);
+        _player_controller.clear_movement_input();
     }
 
     void gameplay_state_t::on_key(const carrot::events::key_event_t& e)

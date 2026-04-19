@@ -94,21 +94,33 @@ If they do not configure multiplayer, Carrot should behave exactly as it does to
 
 ## 5. API Direction (High-Level)
 
-Exact API names can evolve, but the shape should be:
+Current engine-facing setup should stay simple and explicit:
 
 * keep `active_gamepad()` and current single-player helpers
-* add opt-in routing setup from game code
-* add per-player input context access
+* keep broader routing opt-in from game code
+* expose per-player input context access
+* provide engine-owned setup helpers so games do not need to hand-roll the default config shape
 
-Pseudo-shape:
+Current shape:
 
 ```cpp
-game.input.configure_routing(policy);
+game.input.configure_routing(carrot::input::make_single_player_routing_config());
+
+game.input.configure_routing(
+    carrot::input::make_fixed_local_multiplayer_routing_config(2u));
+
 auto& p1 = game.input.player(0);
 auto& p2 = game.input.player(1);
 ```
 
 Games that never call routing setup should keep single-player semantics only.
+
+Important behavior:
+
+* `single_player_auto` is normalized to one primary gameplay context
+* the normalized single-player context receives keyboard input and uses active-gamepad convenience
+* `local_multiplayer_fixed` keeps authored assignments and exposes one runtime context per configured player
+* `describe_routing()` and per-player description helpers should be used for diagnostics rather than local string formatting
 
 ---
 
@@ -141,4 +153,3 @@ This direction is successful if:
 * a game can explicitly enable two-player local input without raw-device gameplay code
 * controller assignment logic is testable and engine-owned
 * future multiplayer input work can expand without replacing the single-player path
-

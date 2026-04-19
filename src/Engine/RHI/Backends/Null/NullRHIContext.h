@@ -11,6 +11,8 @@
 #include "RHI/Semaphore.h"
 #include "RHI/Swapchain.h"
 
+#include <cstdint>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -62,6 +64,17 @@ namespace carrot::rhi::null {
         [[nodiscard]] const std::vector<recorded_stage_t>& recorded_text_stages() const noexcept
         {
             return _recorded_text_stages;
+        }
+
+        struct presentation_window_record_t
+        {
+            window::window_id_t window_id{ window::invalid_window_id };
+            uint32_t presentation_channel_mask{ presentation_channel_gameplay };
+        };
+
+        [[nodiscard]] const std::vector<presentation_window_record_t>& registered_presentation_windows() const noexcept
+        {
+            return _presentation_windows;
         }
 
     private:
@@ -134,5 +147,6 @@ namespace carrot::rhi::null {
         std::unordered_map<sampler_desc_t, std::unique_ptr<null_sampler_t>, sampler_desc_hash_t> _samplers;
         std::vector<recorded_stage_t> _recorded_textured_stages;
         std::vector<recorded_stage_t> _recorded_text_stages;
+        std::vector<presentation_window_record_t> _presentation_windows;
     };
 } // namespace carrot::rhi::null

@@ -163,6 +163,15 @@ namespace carrot::world {
         _move_right = right;
     }
 
+    void player_controller_t::clear_movement_input() noexcept
+    {
+        _move_up = false;
+        _move_down = false;
+        _move_left = false;
+        _move_right = false;
+        _move_intent = { 0.f, 0.f };
+    }
+
     void player_controller_t::set_animation_set(player_controller_animation_set_t animation_set)
     {
         _animation_set = std::move(animation_set);

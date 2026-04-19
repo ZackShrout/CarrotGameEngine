@@ -263,8 +263,13 @@ Current renderer milestone status:
 
 * the world renderer has crossed into a first-pass forward+ architecture
 * world lighting is now an engine-owned runtime concern rather than sandbox-local proof code
-* Vulkan, Metal, and DirectX 12 all support the current forward+ world slice
+* Vulkan, Metal, and DirectX 12 all participate in the current context-level renderer slice, including the current forward+ world path
 * the current implementation is intentionally CPU-submission-driven, with CPU-built tiled light lists as the first-pass forward+ structure
+
+Current parity wording should be read narrowly and honestly:
+
+* parity is attached to the exercised renderer slice, not every conceivable low-level backend helper surface
+* native backend validation still includes manual Sandbox checks where automated regressions cannot directly prove pixel output
 
 The renderer should keep evolving toward a stronger world-aware rendering system, but it no longer needs to be described as a pre-foundation “test scene” renderer.
 

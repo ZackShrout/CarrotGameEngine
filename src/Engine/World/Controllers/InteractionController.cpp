@@ -8,6 +8,18 @@
 #include "InteractionController.h"
 
 namespace carrot::world {
+    std::string_view to_string(const interaction_attempt_result_t result) noexcept
+    {
+        switch (result)
+        {
+            case interaction_attempt_result_t::no_actor: return "no_actor";
+            case interaction_attempt_result_t::actor_missing_transform: return "actor_missing_transform";
+            case interaction_attempt_result_t::no_candidate: return "no_candidate";
+            case interaction_attempt_result_t::queued: return "queued";
+            default: return "unknown";
+        }
+    }
+
     namespace {
         [[nodiscard]] float distance_sq(const chlm::float2 a, const chlm::float2 b) noexcept
         {
@@ -69,14 +81,19 @@ namespace carrot::world {
         return std::sqrt((dx * dx) + (dy * dy));
     }
 
-    bool interaction_controller_t::try_interact(core::game_context_t& game)
+    interaction_attempt_result_t interaction_controller_t::attempt_interaction(core::game_context_t& game)
     {
+        if (!_actor)
+            return interaction_attempt_result_t::no_actor;
+        if (!_actor->transform)
+            return interaction_attempt_result_t::actor_missing_transform;
+
         const world_object_t* candidate{ find_candidate(game.world) };
         if (!candidate)
-            return false;
+            return interaction_attempt_result_t::no_candidate;
 
         on_interact(game, *candidate);
-        return true;
+        return interaction_attempt_result_t::queued;
     }
 
     std::optional<authored::interaction_outcome_t> interaction_controller_t::consume_pending_interaction() noexcept

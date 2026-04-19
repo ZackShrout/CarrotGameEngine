@@ -23,8 +23,8 @@ The engine already includes meaningful progress in several major areas:
 * Cross-platform native windowing
 * Multi-backend rendering architecture
 * Vulkan backend functional and actively used as the baseline renderer
-* Metal textured quad renderer at practical parity with Vulkan
-* DirectX 12 textured quad renderer at practical parity with Vulkan and Metal
+* Metal participates in the current context-level renderer slice at practical parity with Vulkan
+* DirectX 12 participates in the current context-level renderer slice at practical parity with Vulkan and Metal
 * Custom audio engine architecture
 * Virtual file system and asset pipeline foundations
 * Texture, audio, font, sprite, tilemap, and scene asset systems
@@ -85,6 +85,8 @@ Carrot is being built around a few non-negotiable ideas:
 
 Carrot’s rendering architecture is built around a custom **RHI (Rendering Hardware Interface)** so higher-level engine systems are not tied directly to one graphics API.
 
+Current backend support is documented more explicitly in [docs/systems/backend_support_current_state.md](/Users/zshrout/dev/CarrotGameEngine/docs/systems/backend_support_current_state.md:1) and [docs/systems/rhi_contract_current_slice.md](/Users/zshrout/dev/CarrotGameEngine/docs/systems/rhi_contract_current_slice.md:1).
+
 ---
 
 ## Content Tooling Direction
@@ -109,7 +111,7 @@ This is one of the reasons Carrot leans heavily into **JSON-based authored metad
 
 * Cross-platform rendering abstraction (RHI)
 * Textured quad rendering
-* Practical textured quad parity between Vulkan / Metal / DirectX 12
+* Practical current-slice renderer parity between Vulkan / Metal / DirectX 12
 * Shared HLSL shader source pipeline across Vulkan / Metal / DirectX 12
 * 2D camera / projection support with both:
   * responsive world-view framing
@@ -164,6 +166,10 @@ This is one of the reasons Carrot leans heavily into **JSON-based authored metad
   * asset diagnostics and reload surfaces
   * texture/sprite preview
   * runtime scene/object/system inspection
+* Current backend support discipline including:
+  * context-level renderer parity expectations
+  * explicit presentation-channel routing
+  * shared forward+ / stage-slot limit ownership
 * Future direction includes:
 
     * higher-quality runtime text rendering

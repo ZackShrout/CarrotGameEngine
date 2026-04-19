@@ -55,6 +55,9 @@ namespace carrot::rhi {
         uint32_t presentation_mask{ 1u };
     };
 
+    // Shared renderer-facing RHI limit:
+    // every native backend provisions per-frame textured/text stage resources
+    // against this stage-slot budget, so changes here are parity-sensitive.
     constexpr uint32_t k_max_textured_quad_stage_slots_per_frame{ 16u };
 
     enum presentation_channel_bits_t : uint32_t
@@ -64,9 +67,19 @@ namespace carrot::rhi {
         presentation_channel_all = 0xFFFFFFFFu
     };
 
+    // Current shared presentation routing contract for the practical renderer slice.
+    constexpr uint32_t k_known_presentation_channel_mask{
+        presentation_channel_gameplay | presentation_channel_log_console
+    };
+
     [[nodiscard]] constexpr bool presentation_mask_includes(const uint32_t mask, const uint32_t channel) noexcept
     {
         return (mask & channel) != 0u;
+    }
+
+    [[nodiscard]] constexpr bool presentation_mask_uses_known_channels(const uint32_t mask) noexcept
+    {
+        return (mask & ~k_known_presentation_channel_mask) == 0u;
     }
 
     enum class graphics_api { vulkan, direct_x12, metal, null_backend, default_api, count };
@@ -99,6 +112,18 @@ namespace carrot::rhi {
     public:
         virtual ~rhi_context_t() = default;
 
+        /**
+         * Practical live renderer contract:
+         * - frame lifecycle (`begin_frame`, `record_*_stage`, `end_frame`)
+         * - dynamic texture/buffer/sampler creation through the context itself
+         * - sampler binding/cache support for textured quad pipelines
+         * - resize / auxiliary presentation window management
+         * - explicit `wait_idle` for shutdown or resource replacement boundaries
+         *
+         * The engine's current renderer path is context-centric. `rhi_device_t`
+         * remains available as a backend-owned low-level object, but it is not
+         * a shared factory contract for the live renderer slice.
+         */
         virtual void begin_frame() = 0;
         virtual void record_textured_quad_stage(const textured_quad_stage_record_t& stage) = 0;
         virtual void record_text_quad_stage(const textured_quad_stage_record_t& stage) = 0;
@@ -108,6 +133,8 @@ namespace carrot::rhi {
 
         virtual void resize(uint32_t width, uint32_t height) = 0;
 
+        // Backend-owned low-level access point. The live renderer slice should
+        // prefer the context-level resource and frame APIs above.
         [[nodiscard]] virtual rhi_device_t* get_device() const noexcept = 0;
         [[nodiscard]] virtual rhi_swapchain_t* get_swapchain() const noexcept = 0;
         [[nodiscard]] virtual rhi_command_queue_t* get_command_queue() const noexcept = 0;

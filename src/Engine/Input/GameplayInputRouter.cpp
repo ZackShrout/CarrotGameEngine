@@ -16,6 +16,16 @@
 
 namespace carrot::input {
     namespace {
+        [[nodiscard]] gameplay_input_routing_config_t normalize_routing_config(gameplay_input_routing_config_t config) noexcept
+        {
+            config.player_count = std::clamp<size_t>(config.player_count, 1u, controller_manager_t::max_gamepad_slots);
+
+            if (config.mode == gameplay_input_routing_mode_t::single_player_auto)
+                return make_single_player_routing_config();
+
+            return config;
+        }
+
         [[nodiscard]] bool consume_repeat(const bool pressed,
                                           const float delta_time,
                                           gameplay_input_router_t::repeat_state_t& state,
@@ -98,6 +108,70 @@ namespace carrot::input {
         }
     } // namespace
 
+    std::string_view to_string(const gameplay_input_routing_mode_t mode) noexcept
+    {
+        switch (mode)
+        {
+            case gameplay_input_routing_mode_t::single_player_auto: return "single_player_auto";
+            case gameplay_input_routing_mode_t::local_multiplayer_fixed: return "local_multiplayer_fixed";
+        }
+
+        return "unknown";
+    }
+
+    gameplay_input_routing_config_t make_single_player_routing_config() noexcept
+    {
+        gameplay_input_routing_config_t config{ };
+        config.mode = gameplay_input_routing_mode_t::single_player_auto;
+        config.player_count = 1u;
+        config.assignments[0] = player_input_assignment_t{
+            .receives_keyboard = true,
+            .gamepad_slot = std::nullopt
+        };
+        return config;
+    }
+
+    gameplay_input_routing_config_t make_fixed_local_multiplayer_routing_config(
+        const size_t player_count,
+        const bool primary_player_receives_keyboard) noexcept
+    {
+        gameplay_input_routing_config_t config{ };
+        config.mode = gameplay_input_routing_mode_t::local_multiplayer_fixed;
+        config.player_count = std::clamp<size_t>(player_count, 1u, controller_manager_t::max_gamepad_slots);
+
+        for (size_t index{ 0u }; index < config.player_count; ++index)
+        {
+            config.assignments[index] = player_input_assignment_t{
+                .receives_keyboard = primary_player_receives_keyboard && index == 0u,
+                .gamepad_slot = static_cast<uint32_t>(index)
+            };
+        }
+
+        return config;
+    }
+
+    std::string describe_player_input_assignment(const player_input_assignment_t& assignment)
+    {
+        std::string description{ assignment.receives_keyboard ? "keyboard" : "no keyboard" };
+        description += ", gamepad=";
+        if (assignment.gamepad_slot.has_value())
+            description += std::to_string(*assignment.gamepad_slot);
+        else
+            description += "none";
+
+        return description;
+    }
+
+    std::string describe_player_input_context(const player_input_context_t& context)
+    {
+        std::string description{ "P" };
+        description += std::to_string(context.player_index + 1u);
+        description += " (";
+        description += describe_player_input_assignment(context.assignment);
+        description += ')';
+        return description;
+    }
+
     gameplay_input_router_t::gameplay_input_router_t() noexcept
     {
         reset_routing_defaults();
@@ -106,8 +180,7 @@ namespace carrot::input {
 
     void gameplay_input_router_t::configure_routing(gameplay_input_routing_config_t config) noexcept
     {
-        config.player_count = std::clamp<size_t>(config.player_count, 1u, controller_manager_t::max_gamepad_slots);
-        _routing_config = config;
+        _routing_config = normalize_routing_config(config);
         rebuild_player_contexts();
     }
 
@@ -117,6 +190,22 @@ namespace carrot::input {
             return &context->descriptor;
 
         return nullptr;
+    }
+
+    std::string gameplay_input_router_t::describe_routing() const
+    {
+        std::string description{ "mode=" };
+        description += to_string(_routing_config.mode);
+        description += ", players=";
+        description += std::to_string(player_count());
+
+        for (size_t index{ 0u }; index < _player_contexts.size(); ++index)
+        {
+            description += ", ";
+            description += describe_player_input_context(_player_contexts[index].descriptor);
+        }
+
+        return description;
     }
 
     void gameplay_input_router_t::bind(const input_action_handle_t action, const key_code key, const uint8_t required_mods)
@@ -449,30 +538,29 @@ namespace carrot::input {
         if (!was_just_pressed(player_index, profile.interact))
             return false;
 
-        if (!controller.actor() || !controller.actor()->transform)
+        const world::interaction_attempt_result_t result{ controller.attempt_interaction(game) };
+        switch (result)
         {
-            LOG_CORE_WARN("Interaction failed: controlled player world object is missing a transform");
-            return false;
+            case world::interaction_attempt_result_t::queued:
+                return true;
+            case world::interaction_attempt_result_t::actor_missing_transform:
+                LOG_CORE_WARN("Interaction failed: controlled player world object is missing a transform");
+                return false;
+            case world::interaction_attempt_result_t::no_actor:
+                LOG_CORE_WARN("Interaction failed: no actor is bound to the interaction controller");
+                return false;
+            case world::interaction_attempt_result_t::no_candidate:
+                LOG_CORE_INFO("No interactable in range");
+                return false;
+            default:
+                LOG_CORE_WARN("Interaction failed with unexpected controller result '{}'", world::to_string(result));
+                return false;
         }
-
-        if (!controller.try_interact(game))
-        {
-            LOG_CORE_INFO("No interactable in range");
-            return false;
-        }
-
-        return true;
     }
 
     void gameplay_input_router_t::reset_routing_defaults() noexcept
     {
-        _routing_config = {};
-        _routing_config.mode = gameplay_input_routing_mode_t::single_player_auto;
-        _routing_config.player_count = 1u;
-        _routing_config.assignments[0] = player_input_assignment_t{
-            .receives_keyboard = true,
-            .gamepad_slot = std::nullopt
-        };
+        _routing_config = make_single_player_routing_config();
     }
 
     void gameplay_input_router_t::rebuild_player_contexts() noexcept

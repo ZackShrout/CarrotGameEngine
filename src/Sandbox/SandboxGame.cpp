@@ -153,19 +153,9 @@ namespace sandbox {
 
     void sandbox_game_t::configure_input_routing() noexcept
     {
-        carrot::input::gameplay_input_routing_config_t routing_config{
-            .mode = carrot::input::gameplay_input_routing_mode_t::local_multiplayer_fixed,
-            .player_count = 2u
-        };
-        routing_config.assignments[0] = carrot::input::player_input_assignment_t{
-            .receives_keyboard = true,
-            .gamepad_slot = 0u
-        };
-        routing_config.assignments[1] = carrot::input::player_input_assignment_t{
-            .receives_keyboard = false,
-            .gamepad_slot = 1u
-        };
-        _input.configure_routing(routing_config);
+        // _input.configure_routing(carrot::input::make_fixed_local_multiplayer_routing_config(2u));
+        _input.configure_routing(carrot::input::make_single_player_routing_config());
+        LOG_CORE_INFO("Sandbox input routing configured: {}", _input.describe_routing());
     }
 
     void sandbox_game_t::bootstrap_runtime_ui() noexcept

@@ -86,30 +86,4 @@ namespace carrot::rhi::dx12 {
         }
     }
 
-    rhi_command_queue_t* dx12_device_t::create_command_queue([[maybe_unused]] queue_type type)
-    {
-        return nullptr;
-    }
-
-    rhi_swapchain_t* dx12_device_t::create_swapchain([[maybe_unused]] uint32_t width, [[maybe_unused]] uint32_t height)
-    {
-        return nullptr;
-    }
-
-    rhi_buffer_t* dx12_device_t::create_buffer([[maybe_unused]] const buffer_desc_t& desc)
-    {
-        return nullptr;
-    }
-
-    rhi_texture_t* dx12_device_t::create_texture()
-    {
-        return nullptr;
-    }
-
-    rhi_graphics_pipeline_t* dx12_device_t::create_graphics_pipeline()
-    {
-        return nullptr;
-    }
-
-    void dx12_device_t::destroy_buffer([[maybe_unused]] rhi_buffer_t* buffer) {}
 } // namespace carrot::rhi::dx12

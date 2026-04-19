@@ -10,6 +10,8 @@
 
 #include <array>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -34,6 +36,8 @@ namespace carrot::input {
         local_multiplayer_fixed
     };
 
+    [[nodiscard]] std::string_view to_string(gameplay_input_routing_mode_t mode) noexcept;
+
     struct player_input_assignment_t
     {
         bool receives_keyboard{ false };
@@ -47,6 +51,12 @@ namespace carrot::input {
         std::array<player_input_assignment_t, controller_manager_t::max_gamepad_slots> assignments{ };
     };
 
+    [[nodiscard]] gameplay_input_routing_config_t make_single_player_routing_config() noexcept;
+    [[nodiscard]] gameplay_input_routing_config_t make_fixed_local_multiplayer_routing_config(
+        size_t player_count,
+        bool primary_player_receives_keyboard = true) noexcept;
+    [[nodiscard]] std::string describe_player_input_assignment(const player_input_assignment_t& assignment);
+
     struct player_input_context_t
     {
         size_t player_index{ 0u };
@@ -55,6 +65,8 @@ namespace carrot::input {
         [[nodiscard]] bool receives_keyboard() const noexcept { return assignment.receives_keyboard; }
         [[nodiscard]] std::optional<uint32_t> gamepad_slot() const noexcept { return assignment.gamepad_slot; }
     };
+
+    [[nodiscard]] std::string describe_player_input_context(const player_input_context_t& context);
 
     struct gameplay_input_profile_t
     {
@@ -99,6 +111,7 @@ namespace carrot::input {
         [[nodiscard]] gameplay_input_routing_mode_t routing_mode() const noexcept { return _routing_config.mode; }
         [[nodiscard]] size_t player_count() const noexcept { return _player_contexts.size(); }
         [[nodiscard]] const player_input_context_t* player(size_t index) const noexcept;
+        [[nodiscard]] std::string describe_routing() const;
 
         void bind(input_action_handle_t action, key_code key, uint8_t required_mods = 0);
         void bind(std::string action, key_code key, uint8_t required_mods = 0);

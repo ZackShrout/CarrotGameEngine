@@ -149,13 +149,40 @@ namespace carrot::rhi::null {
     }
 
     bool null_rhi_context_t::add_presentation_window([[maybe_unused]] window::window_id_t window_id,
-                                                     [[maybe_unused]] uint32_t presentation_channel_mask)
+                                                     const uint32_t presentation_channel_mask)
     {
+        const auto existing{
+            std::find_if(_presentation_windows.begin(),
+                         _presentation_windows.end(),
+                         [window_id](const presentation_window_record_t& record)
+                         {
+                             return record.window_id == window_id;
+                         })
+        };
+        if (existing != _presentation_windows.end())
+            return false;
+
+        _presentation_windows.push_back({
+            .window_id = window_id,
+            .presentation_channel_mask = presentation_channel_mask
+        });
         return true;
     }
 
-    bool null_rhi_context_t::remove_presentation_window([[maybe_unused]] window::window_id_t window_id)
+    bool null_rhi_context_t::remove_presentation_window(const window::window_id_t window_id)
     {
+        const auto existing{
+            std::find_if(_presentation_windows.begin(),
+                         _presentation_windows.end(),
+                         [window_id](const presentation_window_record_t& record)
+                         {
+                             return record.window_id == window_id;
+                         })
+        };
+        if (existing == _presentation_windows.end())
+            return false;
+
+        _presentation_windows.erase(existing);
         return true;
     }
 

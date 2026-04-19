@@ -6,6 +6,7 @@
 #pragma once
 
 #include "MetalCommon.h"
+#include "RHI/CommandQueue.h"
 #include "RHI/Device.h"
 
 namespace carrot::rhi::metal {
@@ -15,14 +16,7 @@ namespace carrot::rhi::metal {
         explicit metal_device_t(MTL::Device* device);
         ~metal_device_t() override;
 
-        rhi_command_queue_t* create_command_queue(queue_type type) override;
-        rhi_swapchain_t* create_swapchain(uint32_t width, uint32_t height) override;
-
-        rhi_buffer_t* create_buffer(const buffer_desc_t& desc) override;
-        rhi_texture_t* create_texture() override;
-        rhi_graphics_pipeline_t* create_graphics_pipeline() override;
-
-        void destroy_buffer(rhi_buffer_t* buffer) override;
+        [[nodiscard]] rhi_command_queue_t* create_command_queue(queue_type type);
 
         // Accessors for internal use
         [[nodiscard]] MTL::Device* mtl_device() const noexcept { return _device; }

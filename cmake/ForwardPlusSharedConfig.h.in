@@ -1,5 +1,13 @@
 #pragma once
 
+/*
+ * Shared renderer/RHI forward+ limits.
+ *
+ * These values are compiled into renderer code, native backends, and shader
+ * compilation. Changing them is parity-sensitive and should be treated as a
+ * coordinated renderer-contract change rather than a backend-local tweak.
+ */
+
 #define CARROT_MAX_WORLD_POINT_LIGHTS @CARROT_MAX_WORLD_POINT_LIGHTS@
 #define CARROT_FORWARD_PLUS_TILE_SIZE_PX @CARROT_FORWARD_PLUS_TILE_SIZE_PX@
 #define CARROT_MAX_FORWARD_PLUS_TILES_X @CARROT_MAX_FORWARD_PLUS_TILES_X@

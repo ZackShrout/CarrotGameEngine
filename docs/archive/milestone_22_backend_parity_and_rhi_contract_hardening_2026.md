@@ -1,8 +1,8 @@
 # Carrot Game Engine - Milestone 22
 
-**Last Updated:** April 15, 2026
+**Last Updated:** April 18, 2026
 **Title:** Backend Parity and RHI Contract Hardening
-**Status:** Proposed
+**Status:** Completed and archived
 **Focus:** Preserve Carrot's native multi-backend identity by hardening the practical RHI contract, reducing uneven or stale backend surfaces, and making parity a more durable architectural property before more renderer features expand the gap.
 
 ---
@@ -170,6 +170,11 @@ Deliverables:
 * map of practically used RHI contract surfaces
 * identification of stale, misleading, or underexercised areas
 
+Current landing note:
+
+* the live renderer slice is now explicitly documented as context-centric in `docs/systems/rhi_contract_current_slice.md`
+* the audit identifies `rhi_device_t` as a broader legacy/backend-owned surface whose factory methods currently overstate practical parity more than the context-level contract does
+
 ### Ticket 22.2 - Backend Contract Cleanup
 
 Clean up the most problematic mismatches between abstraction and reality.
@@ -178,6 +183,11 @@ Deliverables:
 
 * narrowed or clarified surfaces where appropriate
 * clearer backend expectations in code and docs
+
+Current landing note:
+
+* the shared `rhi_device_t` contract is now reduced to a backend-owned low-level object instead of a broader inherited factory surface
+* queue/swapchain creation helpers now remain only where a concrete backend still wants them locally, rather than posing as shared parity requirements
 
 ### Ticket 22.3 - Renderer Slice Parity Validation
 
@@ -188,6 +198,11 @@ Deliverables:
 * validation checklist or regression support for milestone-relevant behavior
 * clearer expectations for world/text/UI/debug/log paths across the three backends
 
+Current landing note:
+
+* null-backend regressions now explicitly protect presentation-channel behavior for UI text versus log-console text and auxiliary presentation window delegation
+* `docs/systems/backend_parity_current_slice_checklist.md` now defines the renderer slice Carrot currently treats as the parity-relevant contract
+
 ### Ticket 22.4 - Shared Constraint and Limit Review
 
 Review shared renderer/backend assumptions that affect parity.
@@ -197,6 +212,12 @@ Deliverables:
 * clearer ownership of shared limits and assumptions
 * better visibility where backend behavior depends on those limits
 
+Current landing note:
+
+* forward+ limits are now documented as a shared renderer/RHI/shader contract rather than backend-local tuning
+* renderer validation now explicitly protects stage-slot budget and known presentation-channel assumptions
+* world-light overflow is now visible through renderer stats/debug output instead of being silently truncated
+
 ### Ticket 22.5 - Documentation and Closeout Discipline
 
 Update docs so they describe backend support honestly.
@@ -205,6 +226,12 @@ Deliverables:
 
 * current-state documentation on practical backend support
 * clearer wording around parity scope and current limitations
+
+Current landing note:
+
+* the repo now has a dedicated current-state backend support note in `docs/systems/backend_support_current_state.md`
+* top-level docs now describe parity as the current context-level renderer slice rather than a blanket claim about every backend surface
+* current limitations and the need for native DirectX 12 validation on Windows are now written down explicitly
 
 ---
 
@@ -235,3 +262,26 @@ Milestone 22 is complete when:
 
 Completion does not mean all backend work is finished.
 It does mean Carrot is less likely to lose its multi-backend identity through quiet architectural drift.
+
+---
+
+## Archive Note
+
+Milestone 22 closed successfully with the practical backend story in a much more honest state than it started.
+
+Concrete closeout wins:
+
+* the live renderer contract is now explicitly context-centric
+* the old shared `rhi_device_t` factory surface has been reduced to a backend-owned low-level object
+* current parity expectations are tied to the real renderer slice rather than an oversized abstraction promise
+* shared forward+ / stage-slot / presentation-channel assumptions are now treated as contract-level limits instead of backend-local trivia
+* docs now distinguish between:
+  * the low-level RHI contract
+  * the parity checklist for the current slice
+  * the broader current-state backend support note
+
+Closeout validation status at archive time:
+
+* automated regression coverage protects the current shared renderer slice
+* Vulkan and Metal have been manually exercised successfully after the contract cleanup work
+* DirectX 12 remains part of the intended supported slice, with native Windows validation still expected whenever milestone-closeout confidence is needed on that platform

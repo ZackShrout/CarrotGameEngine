@@ -103,6 +103,7 @@ namespace carrot::renderer {
         uint32_t vertex_count{ 0 };
         uint32_t index_count{ 0 };
         uint32_t world_point_light_count{ 0 };
+        uint32_t dropped_world_point_light_count{ 0 };
         uint32_t forward_plus_tile_count{ 0 };
         uint32_t forward_plus_light_index_count{ 0 };
         uint32_t forward_plus_dropped_light_references{ 0 };
@@ -175,8 +176,6 @@ namespace carrot::renderer {
         void draw_log_console_solid_quad(const solid_quad_draw_info_t& quad);
         void set_composite_overlay_color(uint32_t color_abgr) noexcept;
         void clear_composite_overlay() noexcept;
-        void set_fullscreen_overlay_color(uint32_t color_abgr) noexcept;
-        void clear_fullscreen_overlay() noexcept;
         void draw_sprite(const sprite_draw_info_t& info);
         void draw_tilemap(const tilemap_draw_info_t& info);
         void draw_world(const world::world_t& world);
@@ -236,6 +235,7 @@ namespace carrot::renderer {
         [[nodiscard]] const frame_stage_plan_t& non_world_stage_plan(non_world_stage_target_t target) const noexcept;
         [[nodiscard]] stage_submission_group_t stage_submission_group(frame_stage_kind_t stage) noexcept;
         [[nodiscard]] stage_execution_context_t resolve_stage_execution_context(const frame_stage_plan_t& stage_plan) const noexcept;
+        void validate_shared_renderer_limits() const noexcept;
         void validate_frame_stage_plan() const noexcept;
         void queue_composite_overlay_if_needed();
         void submit_world_textured_quad(const textured_quad_draw_info_t& quad);

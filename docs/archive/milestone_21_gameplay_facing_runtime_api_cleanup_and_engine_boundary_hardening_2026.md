@@ -1,9 +1,11 @@
 # Carrot Game Engine - Milestone 21
 
-**Last Updated:** April 15, 2026
+**Last Updated:** April 18, 2026
 **Title:** Gameplay-Facing Runtime API Cleanup and Engine Boundary Hardening
-**Status:** Proposed
+**Status:** Completed and archived
 **Focus:** Strengthen Carrot's game-facing APIs by making runtime, scene, view, controller, and input surfaces cleaner and more intentional while preventing sandbox-specific conventions from quietly becoming permanent engine architecture.
+
+Archived in April 2026 after the engine gained a cleaner gameplay-facing scene/runtime participation surface, a more deliberate view/camera API, stronger controller and routing contracts, default scene-runtime bindings, and a small engine-facing examples doc that captures the intended usage without requiring a reader to reverse-engineer Sandbox flow.
 
 ---
 
@@ -205,6 +207,11 @@ Deliverables:
 * cleaner intended usage for routing modes and player contexts
 * better diagnostics or doc support where the current flow is easy to misunderstand
 
+Current landing note:
+
+* engine-owned routing setup helpers and description helpers now define the intended game-facing setup/diagnostic shape
+* `single_player_auto` now normalizes to the simple primary-context path instead of letting odd caller configs silently redefine the contract
+
 ### Ticket 21.5 - Sandbox Leakage Reduction
 
 Explicitly audit where engine API truth still depends too heavily on Sandbox proof.
@@ -215,6 +222,11 @@ Deliverables:
 * leave game-specific meaning in Sandbox where it belongs
 * update docs to preserve the line
 
+Current landing note:
+
+* `scene_runtime_t` can now hold default runtime bindings for player controller, interaction controller, scene validation callback, and scene listener so games do not need to rebuild the same participation packet on every scene request
+* scene-local meaning such as trigger responses, authored object semantics, and gameplay runtime-state application remains game-owned
+
 ### Ticket 21.6 - Regression Coverage and API Examples
 
 Add or improve tests and examples around the cleaned surfaces.
@@ -223,6 +235,11 @@ Deliverables:
 
 * tests for the most important gameplay-facing contracts
 * stronger docs or sample usage where API intent is subtle
+
+Current landing note:
+
+* regression coverage now explicitly protects default scene-runtime bindings and per-request override behavior
+* `docs/systems/gameplay_runtime_api_examples.md` now captures the intended scene/view/input usage shape without requiring a reader to reverse-engineer Sandbox flow
 
 ---
 
@@ -253,3 +270,22 @@ Milestone 21 is complete when:
 
 Completion does not mean the engine now owns gameplay.
 It does mean game code has stronger permanent seams to build on without copying engine-adjacent glue.
+
+---
+
+## Closeout Summary
+
+Milestone 21 landed the right kind of cleanup work:
+
+* `scene_runtime_bindings_t`, default scene-runtime bindings, and related load helpers now make scene participation more reusable and less Sandbox-shaped
+* `game_view_t` now exposes explicitly camera-named APIs instead of renderer-flavored compatibility wrappers
+* controller helpers now carry clearer movement-reset and interaction-attempt contracts
+* gameplay input routing now has engine-owned setup helpers and better diagnostic descriptions
+* docs and tests now describe and protect the intended gameplay-facing seams directly
+
+The important ownership line also held:
+
+* reusable runtime structure moved into the engine where justified
+* gameplay meaning such as authored object interpretation, trigger responses, continuity rules, and content-specific policy remained in Sandbox
+
+This is a successful milestone closeout because future games should need much less implicit Sandbox knowledge to use Carrot's core runtime systems correctly.

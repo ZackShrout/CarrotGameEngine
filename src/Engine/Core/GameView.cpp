@@ -11,11 +11,55 @@
 #include "World/World.h"
 
 namespace carrot::core {
-    void game_view_t::set_zoom(const float zoom) noexcept
+    float game_view_t::camera_zoom() const noexcept
+    {
+        return _renderer.get_camera_2d().zoom;
+    }
+
+    void game_view_t::set_camera_zoom(const float zoom) noexcept
     {
         renderer::camera_2d_t camera{ _renderer.get_camera_2d() };
         camera.zoom = zoom > 0.f ? zoom : camera.zoom;
         _renderer.set_camera_2d(camera);
+    }
+
+    chlm::float2 game_view_t::camera_center_world_position(const world::world_t& world) const noexcept
+    {
+        const renderer::camera_2d_t camera{ _renderer.get_camera_2d() };
+        const chlm::float2 visible_world_size{ _renderer.resolve_camera_2d().visible_world_size };
+        const chlm::float2 center_render_position{
+            camera.position.x + (visible_world_size.x * 0.5f),
+            camera.position.y + (visible_world_size.y * 0.5f)
+        };
+        return world.presentation().pixel_position_to_world(center_render_position);
+    }
+
+    void game_view_t::center_camera_on_world_position(const world::world_t& world,
+                                                      const chlm::float2& world_position) noexcept
+    {
+        renderer::camera_2d_t camera{ _renderer.get_camera_2d() };
+        const chlm::float2 render_position_px{ world.presentation().world_position_to_pixels(world_position) };
+        const chlm::float2 visible_world_size{ _renderer.resolve_camera_2d().visible_world_size };
+
+        camera.position = {
+            render_position_px.x - visible_world_size.x * 0.5f, render_position_px.y - visible_world_size.y * 0.5f
+        };
+
+        _renderer.set_camera_2d(camera);
+    }
+
+    game_view_camera_t game_view_t::camera_state(const world::world_t& world) const noexcept
+    {
+        return game_view_camera_t{
+            .zoom = camera_zoom(),
+            .center_world = camera_center_world_position(world)
+        };
+    }
+
+    void game_view_t::set_camera_state(const world::world_t& world, const game_view_camera_t& state) noexcept
+    {
+        set_camera_zoom(state.zoom);
+        center_camera_on_world_position(world, state.center_world);
     }
 
     void game_view_t::set_composite_overlay_color(const uint32_t color_abgr) noexcept
@@ -44,16 +88,6 @@ namespace carrot::core {
         });
     }
 
-    void game_view_t::set_fullscreen_overlay_color(const uint32_t color_abgr) noexcept
-    {
-        set_composite_overlay_color(color_abgr);
-    }
-
-    void game_view_t::clear_fullscreen_overlay() noexcept
-    {
-        clear_composite_overlay();
-    }
-
     void game_view_t::draw_overlay_solid_quad(const float x,
                                               const float y,
                                               const float width,
@@ -72,30 +106,5 @@ namespace carrot::core {
     chlm::uint2 game_view_t::render_target_pixel_size() const noexcept
     {
         return _renderer.current_render_target_pixel_size();
-    }
-
-    chlm::float2 game_view_t::center_world_position(const world::world_t& world) const noexcept
-    {
-        const renderer::camera_2d_t camera{ _renderer.get_camera_2d() };
-        const chlm::float2 visible_world_size{ _renderer.resolve_camera_2d().visible_world_size };
-        const chlm::float2 center_render_position{
-            camera.position.x + (visible_world_size.x * 0.5f),
-            camera.position.y + (visible_world_size.y * 0.5f)
-        };
-        return world.presentation().pixel_position_to_world(center_render_position);
-    }
-
-    void game_view_t::set_center_world_position(const world::world_t& world,
-                                                const chlm::float2& world_position) noexcept
-    {
-        renderer::camera_2d_t camera{ _renderer.get_camera_2d() };
-        const chlm::float2 render_position_px{ world.presentation().world_position_to_pixels(world_position) };
-        const chlm::float2 visible_world_size{ _renderer.resolve_camera_2d().visible_world_size };
-
-        camera.position = {
-            render_position_px.x - visible_world_size.x * 0.5f, render_position_px.y - visible_world_size.y * 0.5f
-        };
-
-        _renderer.set_camera_2d(camera);
     }
 } // namespace carrot::core

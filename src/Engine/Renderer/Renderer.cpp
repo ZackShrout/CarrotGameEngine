@@ -181,6 +181,7 @@ namespace carrot::renderer {
         }
 
         _is_initialized = true;
+        validate_shared_renderer_limits();
         LOG_GRAPHICS_INFO("Renderer initialized successfully (backend: {})",
                           carrot::rhi::graphics_api_to_string(_rhi->get_graphics_api()));
     }
@@ -207,6 +208,8 @@ namespace carrot::renderer {
 
     void renderer_t::begin_frame()
     {
+        validate_shared_renderer_limits();
+
         _frame_index++;
         _animated_tiles_elapsed_ms = static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - _animated_tiles_clock_origin).count());
@@ -334,16 +337,6 @@ namespace carrot::renderer {
     {
         _composite_overlay_enabled = false;
         _composite_overlay_color = 0x00000000u;
-    }
-
-    void renderer_t::set_fullscreen_overlay_color(const uint32_t color_abgr) noexcept
-    {
-        set_composite_overlay_color(color_abgr);
-    }
-
-    void renderer_t::clear_fullscreen_overlay() noexcept
-    {
-        clear_composite_overlay();
     }
 
     void renderer_t::submit_world_textured_quad(const textured_quad_draw_info_t& quad)
@@ -871,10 +864,14 @@ namespace carrot::renderer {
         _world_ambient_color = world.lighting().ambient_color;
         _world_point_lights = { };
         _world_point_light_count = 0u;
+        _stats.dropped_world_point_light_count = 0u;
         for (const world::world_lighting_state_t::point_light_t& light : world.lighting().point_lights)
         {
             if (_world_point_light_count >= k_max_world_point_lights)
-                break;
+            {
+                _stats.dropped_world_point_light_count++;
+                continue;
+            }
 
             const chlm::float2 light_position_px{ presentation.world_position_to_pixels(light.position_world) };
             const chlm::float2 light_radius_px{ presentation.world_size_to_pixels({ light.radius_world, light.radius_world }) };
@@ -1096,6 +1093,8 @@ namespace carrot::renderer {
 
     void renderer_t::validate_frame_stage_plan() const noexcept
     {
+        validate_shared_renderer_limits();
+
         CE_ASSERT(_frame_stage_plan.size() == static_cast<size_t>(frame_stage_kind_t::count),
                   "Renderer frame stage plan size must match frame_stage_kind_t count");
 
@@ -1103,6 +1102,7 @@ namespace carrot::renderer {
         CE_ASSERT(world_stage.kind == frame_stage_kind_t::world &&
                       world_stage.space == frame_stage_space_t::world_camera &&
                       world_stage.presentation_mask == rhi::presentation_channel_gameplay &&
+                      rhi::presentation_mask_uses_known_channels(world_stage.presentation_mask) &&
                       world_stage.lighting_aware,
                   "Renderer world stage must remain gameplay-presented, world-camera, and lighting-aware");
 
@@ -1110,6 +1110,7 @@ namespace carrot::renderer {
         CE_ASSERT(ui_stage.kind == frame_stage_kind_t::ui &&
                       ui_stage.space == frame_stage_space_t::render_target_pixels &&
                       ui_stage.presentation_mask == rhi::presentation_channel_gameplay &&
+                      rhi::presentation_mask_uses_known_channels(ui_stage.presentation_mask) &&
                       !ui_stage.lighting_aware,
                   "Renderer UI stage must remain gameplay-presented, render-target-pixel, and unlit");
 
@@ -1117,6 +1118,7 @@ namespace carrot::renderer {
         CE_ASSERT(composite_stage.kind == frame_stage_kind_t::composite &&
                       composite_stage.space == frame_stage_space_t::render_target_pixels &&
                       composite_stage.presentation_mask == rhi::presentation_channel_gameplay &&
+                      rhi::presentation_mask_uses_known_channels(composite_stage.presentation_mask) &&
                       !composite_stage.lighting_aware,
                   "Renderer composite stage must remain gameplay-presented, render-target-pixel, and unlit");
 
@@ -1124,6 +1126,7 @@ namespace carrot::renderer {
         CE_ASSERT(overlay_stage.kind == frame_stage_kind_t::overlay_debug &&
                       overlay_stage.space == frame_stage_space_t::viewport_pixels &&
                       overlay_stage.presentation_mask == rhi::presentation_channel_gameplay &&
+                      rhi::presentation_mask_uses_known_channels(overlay_stage.presentation_mask) &&
                       !overlay_stage.lighting_aware,
                   "Renderer overlay debug stage must remain gameplay-presented, viewport-pixel, and unlit");
 
@@ -1131,8 +1134,24 @@ namespace carrot::renderer {
         CE_ASSERT(log_console_stage.kind == frame_stage_kind_t::log_console &&
                       log_console_stage.space == frame_stage_space_t::render_target_pixels &&
                       log_console_stage.presentation_mask == rhi::presentation_channel_log_console &&
+                      rhi::presentation_mask_uses_known_channels(log_console_stage.presentation_mask) &&
                       !log_console_stage.lighting_aware,
                   "Renderer log console stage must remain log-console-presented, render-target-pixel, and unlit");
+    }
+
+    void renderer_t::validate_shared_renderer_limits() const noexcept
+    {
+        CE_ASSERT(rhi::k_max_textured_quad_stage_slots_per_frame >= static_cast<uint32_t>(frame_stage_kind_t::count),
+                  "Renderer stage-slot budget must cover every declared frame stage");
+        CE_ASSERT(k_max_world_point_lights > 0u,
+                  "Renderer forward+ lighting contract requires at least one world point-light slot");
+        CE_ASSERT(k_max_forward_plus_tiles == (k_max_forward_plus_tiles_x * k_max_forward_plus_tiles_y),
+                  "Renderer forward+ tile budget must remain derived from x/y tile caps");
+        CE_ASSERT(rhi::presentation_channel_gameplay != 0u &&
+                      rhi::presentation_channel_log_console != 0u &&
+                      rhi::presentation_channel_gameplay != rhi::presentation_channel_log_console &&
+                      rhi::presentation_mask_uses_known_channels(rhi::k_known_presentation_channel_mask),
+                  "Renderer presentation-channel routing must use distinct known shared channels");
     }
 
     renderer_t::stage_execution_context_t renderer_t::resolve_stage_execution_context(

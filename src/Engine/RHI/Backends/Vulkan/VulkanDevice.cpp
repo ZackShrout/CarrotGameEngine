@@ -37,21 +37,4 @@ namespace carrot::rhi::vulkan {
     {
         return new vulkan_swapchain_t{ this, _surface, width, height };
     }
-
-    rhi_buffer_t* vulkan_device_t::create_buffer([[maybe_unused]] const buffer_desc_t& desc)
-    {
-        return nullptr; // temporary
-    }
-
-    rhi_texture_t* vulkan_device_t::create_texture()
-    {
-        return nullptr; // temporary
-    }
-
-    rhi_graphics_pipeline_t* vulkan_device_t::create_graphics_pipeline()
-    {
-        return nullptr; // temporary
-    }
-
-    void vulkan_device_t::destroy_buffer([[maybe_unused]] rhi_buffer_t* buffer) {}
 } // namespace carrot::rhi::vulkan

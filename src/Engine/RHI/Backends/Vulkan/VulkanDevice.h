@@ -5,7 +5,9 @@
 
 #pragma once
 
+#include "RHI/CommandQueue.h"
 #include "RHI/Device.h"
+#include "RHI/Swapchain.h"
 #include "VulkanCommon.h"
 #include "VulkanCore.h"
 
@@ -18,14 +20,8 @@ namespace carrot::rhi::vulkan {
 
         ~vulkan_device_t() override;
 
-        rhi_command_queue_t* create_command_queue(queue_type queue) override;
-        rhi_swapchain_t* create_swapchain(uint32_t width, uint32_t height) override;
-
-        rhi_buffer_t* create_buffer(const buffer_desc_t& desc) override;
-        rhi_texture_t* create_texture() override;
-        rhi_graphics_pipeline_t* create_graphics_pipeline() override;
-
-        void destroy_buffer(rhi_buffer_t* buffer) override;
+        [[nodiscard]] rhi_command_queue_t* create_command_queue(queue_type queue);
+        [[nodiscard]] rhi_swapchain_t* create_swapchain(uint32_t width, uint32_t height);
 
         // Accessors for internal use
         [[nodiscard]] VkDevice vk_device() const noexcept { return _device.device; }

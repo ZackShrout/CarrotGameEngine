@@ -547,20 +547,21 @@ namespace carrot::scene {
         if (!can_accept_scene_change_request())
             return false;
 
+        const scene_load_options_t resolved_options{ resolve_load_options(options) };
         const assets::scene_asset_record_t* scene_record{ game.assets.scenes().registry().find(scene_id) };
         if (!scene_record)
             return false;
 
         const std::string resolved_spawn_marker{
-            options.spawn_marker_override.empty()
+            resolved_options.spawn_marker_override.empty()
                 ? std::string{ scene_record->scene.player_spawn_marker }
-                : std::string{ options.spawn_marker_override }
+                : std::string{ resolved_options.spawn_marker_override }
         };
         return request_scene_change(game,
                                     *scene_record,
                                     scene_id,
                                     resolved_spawn_marker,
-                                    options,
+                                    resolved_options,
                                     scene_change_request_kind_t::load);
     }
 
@@ -568,7 +569,7 @@ namespace carrot::scene {
                                              const scene_transition_request_t& request,
                                              const scene_load_options_t& options)
     {
-        scene_load_options_t transition_options{ options };
+        scene_load_options_t transition_options{ resolve_load_options(options) };
         transition_options.spawn_marker_override = request.marker_name;
         const assets::scene_asset_record_t* scene_record{ game.assets.scenes().registry().find(request.scene_id) };
         if (!scene_record || !can_accept_scene_change_request())
@@ -721,6 +722,11 @@ namespace carrot::scene {
                can_accept_scene_change_request();
     }
 
+    void scene_runtime_t::set_default_runtime_bindings(scene_runtime_bindings_t bindings) noexcept
+    {
+        _default_runtime_bindings = bindings;
+    }
+
     void scene_runtime_t::update_camera(core::game_context_t& game, const float delta_time) noexcept
     {
         if (_active_camera_options.follow_mode != assets::scene_camera_follow_mode_t::player || !_player_controller)
@@ -729,7 +735,7 @@ namespace carrot::scene {
         if (const world::world_object_t* player{ _player_controller->controlled_object() };
             player && player->transform)
         {
-            const chlm::float2 current_center{ game.view.center_world_position(game.world) };
+            const chlm::float2 current_center{ game.view.camera_center_world_position(game.world) };
             const chlm::float2 target_position{ player->transform->position };
             const chlm::float2 half_dead_zone{
                 _active_camera_options.dead_zone_size_world.x * 0.5f,
@@ -750,7 +756,7 @@ namespace carrot::scene {
                 };
             }
 
-            game.view.set_center_world_position(game.world, desired_center);
+            game.view.center_camera_on_world_position(game.world, desired_center);
         }
     }
 
@@ -820,7 +826,7 @@ namespace carrot::scene {
         _active_camera_options = resolve_scene_camera_options(
             resolve_scene_camera_options(_camera_options, make_scene_camera_override(scene.camera)),
             override);
-        game.view.set_zoom(_active_camera_options.zoom);
+        game.view.set_camera_zoom(_active_camera_options.zoom);
     }
 
     void scene_runtime_t::center_camera_on_initial_target(core::game_context_t& game) noexcept
@@ -830,7 +836,7 @@ namespace carrot::scene {
             if (const world::world_object_t* marker{ find_spawn_marker(game.world, _current_spawn_marker) };
                 marker && marker->transform)
             {
-                game.view.set_center_world_position(game.world, marker->transform->position);
+                game.view.center_camera_on_world_position(game.world, marker->transform->position);
                 return;
             }
         }
@@ -840,7 +846,7 @@ namespace carrot::scene {
             if (const world::world_object_t* player{ _player_controller->controlled_object() };
                 player && player->transform)
             {
-                game.view.set_center_world_position(game.world, player->transform->position);
+                game.view.center_camera_on_world_position(game.world, player->transform->position);
             }
         }
     }
@@ -942,7 +948,7 @@ namespace carrot::scene {
                 .startup_waiting_for_first_present = _recent_transition_diagnostics.startup_waiting_for_first_present
             },
             .active_camera = _active_camera_options,
-            .camera_center_world = game.view.center_world_position(game.world),
+            .camera_center_world = game.view.camera_center_world_position(game.world),
             .static_collider_count = static_cast<uint32_t>(game.world.collision_world().static_colliders().size()),
             .point_light_count = static_cast<uint32_t>(game.world.lighting().point_lights.size())
         };
@@ -1502,6 +1508,20 @@ namespace carrot::scene {
                                       assets::to_string(_recent_transition_diagnostics.structural_refresh_asset_kind).data(),
                                       _recent_transition_diagnostics.structural_refresh_asset_logical_id.c_str());
         }
+    }
+
+    scene_load_options_t scene_runtime_t::resolve_load_options(const scene_load_options_t& options) const noexcept
+    {
+        scene_load_options_t resolved{ options };
+        if (resolved.player_controller == nullptr)
+            resolved.player_controller = _default_runtime_bindings.player_controller;
+        if (resolved.interaction_controller == nullptr)
+            resolved.interaction_controller = _default_runtime_bindings.interaction_controller;
+        if (resolved.validate_loaded_scene == nullptr)
+            resolved.validate_loaded_scene = _default_runtime_bindings.validate_loaded_scene;
+        if (resolved.listener == nullptr)
+            resolved.listener = _default_runtime_bindings.listener;
+        return resolved;
     }
 
     void scene_runtime_t::begin_scene_change(const assets::scene_asset_record_t& scene_record,

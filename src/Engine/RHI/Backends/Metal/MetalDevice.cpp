@@ -35,27 +35,4 @@ namespace carrot::rhi::metal {
 
         return new metal_command_queue_t{ native_queue };
     }
-
-    rhi_swapchain_t* metal_device_t::create_swapchain([[maybe_unused]] uint32_t width,
-                                                      [[maybe_unused]] uint32_t height)
-    {
-        return nullptr; // temporary
-    }
-
-    rhi_buffer_t* metal_device_t::create_buffer([[maybe_unused]] const buffer_desc_t& desc)
-    {
-        return nullptr; // temporary
-    }
-
-    rhi_texture_t* metal_device_t::create_texture()
-    {
-        return nullptr; // temporary
-    }
-
-    rhi_graphics_pipeline_t* metal_device_t::create_graphics_pipeline()
-    {
-        return nullptr; // temporary
-    }
-
-    void metal_device_t::destroy_buffer([[maybe_unused]] rhi_buffer_t* buffer) {}
 } // namespace carrot::rhi::metal

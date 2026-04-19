@@ -103,8 +103,7 @@ Current milestone 24 validation snapshot:
 
 * Vulkan manual validation is current as of **April 19, 2026**
 * Metal manual validation is current as of **April 19, 2026**
-* DirectX 12 shared-code compilation is current as of **April 19, 2026**
-* DirectX 12 native runtime validation is still pending a follow-up Windows rerun, so milestone 24 closeout should remain visible in `docs/` rather than archived yet
+* DirectX 12 runtime validation is current as of **April 19, 2026**
 
 ---
 

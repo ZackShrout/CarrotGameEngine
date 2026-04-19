@@ -2,7 +2,7 @@
 
 **Last Updated:** April 19, 2026
 **Title:** GPU Forward+ Light Classification
-**Status:** Implemented, pending DirectX 12 runtime validation
+**Status:** Completed and archived
 **Focus:** Move world forward+ tile/light classification from CPU work to GPU compute while preserving current lit world behavior, shared limit ownership, and backend parity.
 
 ---
@@ -269,7 +269,7 @@ Implemented on April 19, 2026 for the current milestone slice:
 * forward+ tile/light-reference diagnostics are recalculated through a narrow CPU-side mirror of the compute overlap math, without reviving the retired live CPU classification path
 * with the current shared caps, `forward_plus_dropped_light_references` is expected to remain `0` in normal operation because the total world-light cap matches the current per-tile light-index budget
 * Vulkan and Metal were manually validated against the live GPU forward+ path on April 19, 2026
-* DirectX 12 shared-code compilation is current, while native Windows runtime validation is still pending follow-up
+* DirectX 12 runtime validation is now current alongside Vulkan and Metal
 * the current DirectX 12 follow-up surfaced an important contract clarification: `cpu_writable` storage buffers are a logical renderer/RHI contract, not a guarantee that the final GPU-visible storage resource is directly host-mapped on every backend
 * on DirectX 12, the current milestone slice now satisfies CPU-authored forward+ storage uploads through an upload-backed shadow resource that is flushed into the real default-heap UAV buffer before compute dispatch; this is acceptable backend adaptation for milestone 24, but the contract wording should remain documented clearly until a later RHI cleanup makes CPU upload vs GPU storage intent more explicit
 
@@ -303,14 +303,13 @@ Milestone 24 is complete when:
 * dropped-light and dropped-reference diagnostics remain visible
 * Vulkan, Metal, and DirectX 12 remain aligned for the GPU forward+ slice
 
-## Current Closeout Note
+## Archive Note
 
-As of **April 19, 2026**, milestone 24 is implemented and effectively closed for active feature work, but it should remain in `docs/` rather than `docs/archive/` until DirectX 12 native runtime validation is completed.
+As of **April 19, 2026**, milestone 24 is complete and ready for archive. Vulkan, Metal, and DirectX 12 have all been runtime-validated against the current milestone slice.
 
 Current practical closeout state:
 
 * Vulkan runtime validation is current
 * Metal runtime validation is current
-* DirectX 12 shared-code compilation is current
-* DirectX 12 native runtime validation is still pending a Windows follow-up pass
+* DirectX 12 runtime validation is current
 * the current DirectX 12 path uses upload-backed staging for CPU-authored storage-buffer writes before compute, which is considered acceptable for the milestone 24 slice and should be preserved as a documented backend-specific implementation detail rather than treated as a retired CPU fallback returning through the renderer

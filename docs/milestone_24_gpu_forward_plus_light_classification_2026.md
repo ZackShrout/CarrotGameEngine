@@ -270,6 +270,8 @@ Implemented on April 19, 2026 for the current milestone slice:
 * with the current shared caps, `forward_plus_dropped_light_references` is expected to remain `0` in normal operation because the total world-light cap matches the current per-tile light-index budget
 * Vulkan and Metal were manually validated against the live GPU forward+ path on April 19, 2026
 * DirectX 12 shared-code compilation is current, while native Windows runtime validation is still pending follow-up
+* the current DirectX 12 follow-up surfaced an important contract clarification: `cpu_writable` storage buffers are a logical renderer/RHI contract, not a guarantee that the final GPU-visible storage resource is directly host-mapped on every backend
+* on DirectX 12, the current milestone slice now satisfies CPU-authored forward+ storage uploads through an upload-backed shadow resource that is flushed into the real default-heap UAV buffer before compute dispatch; this is acceptable backend adaptation for milestone 24, but the contract wording should remain documented clearly until a later RHI cleanup makes CPU upload vs GPU storage intent more explicit
 
 ---
 
@@ -311,3 +313,4 @@ Current practical closeout state:
 * Metal runtime validation is current
 * DirectX 12 shared-code compilation is current
 * DirectX 12 native runtime validation is still pending a Windows follow-up pass
+* the current DirectX 12 path uses upload-backed staging for CPU-authored storage-buffer writes before compute, which is considered acceptable for the milestone 24 slice and should be preserved as a documented backend-specific implementation detail rather than treated as a retired CPU fallback returning through the renderer

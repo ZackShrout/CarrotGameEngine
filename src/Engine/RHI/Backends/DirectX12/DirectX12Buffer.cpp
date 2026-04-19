@@ -19,7 +19,11 @@ namespace carrot::rhi::dx12 {
 
         const bool use_upload_heap{ info.cpu_writable || buffer_usage_prefers_upload_memory(info.usage) };
         const bool use_readback_heap{ buffer_usage_prefers_readback_memory(info.usage) };
-        _cpu_writable = use_upload_heap && !use_readback_heap;
+        const bool use_upload_shadow_for_storage{
+            info.usage == buffer_usage_t::storage && info.cpu_writable && !use_readback_heap
+        };
+        const bool use_direct_upload_heap{ use_upload_heap && !use_upload_shadow_for_storage };
+        _cpu_writable = (use_direct_upload_heap || use_upload_shadow_for_storage) && !use_readback_heap;
 
         if (use_readback_heap && info.cpu_writable)
             LOG_GRAPHICS_FATAL("dx12 readback buffer cannot also request cpu_writable");
@@ -29,7 +33,7 @@ namespace carrot::rhi::dx12 {
 
         D3D12_HEAP_PROPERTIES heap_props{ };
         heap_props.Type = use_readback_heap ? D3D12_HEAP_TYPE_READBACK
-                                            : (use_upload_heap ? D3D12_HEAP_TYPE_UPLOAD : D3D12_HEAP_TYPE_DEFAULT);
+                                            : (use_direct_upload_heap ? D3D12_HEAP_TYPE_UPLOAD : D3D12_HEAP_TYPE_DEFAULT);
         heap_props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
         heap_props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
         heap_props.CreationNodeMask = 1;
@@ -51,7 +55,7 @@ namespace carrot::rhi::dx12 {
 
         const D3D12_RESOURCE_STATES initial_state{
             use_readback_heap ? D3D12_RESOURCE_STATE_COPY_DEST
-                              : (use_upload_heap ? D3D12_RESOURCE_STATE_GENERIC_READ : D3D12_RESOURCE_STATE_COMMON)
+                              : (use_direct_upload_heap ? D3D12_RESOURCE_STATE_GENERIC_READ : D3D12_RESOURCE_STATE_COMMON)
         };
 
         DX12_CHECK(
@@ -79,9 +83,33 @@ namespace carrot::rhi::dx12 {
 
         DX12_NAME(_resource, debug_name);
 
-        if (use_upload_heap || use_readback_heap)
+        if (use_upload_shadow_for_storage)
         {
-            DX12_CHECK(_resource->Map(0, nullptr, &_mapped_ptr));
+            D3D12_HEAP_PROPERTIES upload_heap_props{ };
+            upload_heap_props.Type = D3D12_HEAP_TYPE_UPLOAD;
+            upload_heap_props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+            upload_heap_props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+            upload_heap_props.CreationNodeMask = 1;
+            upload_heap_props.VisibleNodeMask = 1;
+
+            D3D12_RESOURCE_DESC upload_desc{ resource_desc };
+            upload_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+            DX12_CHECK(device->CreateCommittedResource(&upload_heap_props,
+                                                       D3D12_HEAP_FLAG_NONE,
+                                                       &upload_desc,
+                                                       D3D12_RESOURCE_STATE_GENERIC_READ,
+                                                       nullptr,
+                                                       IID_PPV_ARGS(&_upload_resource)));
+            DX12_NAME(_upload_resource, L"DX12 Storage Upload Buffer");
+
+            _mapped_resource = _upload_resource;
+            DX12_CHECK(_mapped_resource->Map(0, nullptr, &_mapped_ptr));
+        }
+        else if (use_direct_upload_heap || use_readback_heap)
+        {
+            _mapped_resource = _resource;
+            DX12_CHECK(_mapped_resource->Map(0, nullptr, &_mapped_ptr));
         }
 
         if (info.initial_data)
@@ -93,14 +121,21 @@ namespace carrot::rhi::dx12 {
 
     dx12_buffer_t::~dx12_buffer_t()
     {
+        if (_mapped_resource)
+        {
+            _mapped_resource->Unmap(0, nullptr);
+            _mapped_resource = nullptr;
+            _mapped_ptr = nullptr;
+        }
+
+        if (_upload_resource)
+        {
+            _upload_resource->Release();
+            _upload_resource = nullptr;
+        }
+
         if (_resource)
         {
-            if (_mapped_ptr)
-            {
-                _resource->Unmap(0, nullptr);
-                _mapped_ptr = nullptr;
-            }
-
             _resource->Release();
             _resource = nullptr;
         }
@@ -129,7 +164,41 @@ namespace carrot::rhi::dx12 {
         }
 
         std::memcpy(static_cast<std::byte*>(_mapped_ptr) + offset_bytes, data, size_bytes);
+        _pending_upload = _upload_resource != nullptr;
 
+        return true;
+    }
+
+    bool dx12_buffer_t::flush_pending_upload(ID3D12GraphicsCommandList* command_list) const
+    {
+        if (!_pending_upload)
+            return true;
+
+        if (!command_list || !_resource || !_upload_resource)
+        {
+            LOG_GRAPHICS_ERROR("dx12_buffer_t::flush_pending_upload called without a valid upload-backed resource");
+            return false;
+        }
+
+        D3D12_RESOURCE_BARRIER to_copy_dest{ };
+        to_copy_dest.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        to_copy_dest.Transition.pResource = _resource;
+        to_copy_dest.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        to_copy_dest.Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
+        to_copy_dest.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+
+        D3D12_RESOURCE_BARRIER to_common{ };
+        to_common.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        to_common.Transition.pResource = _resource;
+        to_common.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        to_common.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+        to_common.Transition.StateAfter = D3D12_RESOURCE_STATE_COMMON;
+
+        command_list->ResourceBarrier(1, &to_copy_dest);
+        command_list->CopyBufferRegion(_resource, 0u, _upload_resource, 0u, size_bytes());
+        command_list->ResourceBarrier(1, &to_common);
+
+        _pending_upload = false;
         return true;
     }
 } // namespace carrot::rhi::dx12

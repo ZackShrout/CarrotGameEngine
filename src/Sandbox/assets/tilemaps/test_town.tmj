@@ -3199,7 +3199,7 @@
         {
          "columns":30,
          "firstgid":8060,
-         "image":"..\/..\/..\/..\/..\/..\/Downloads\/80fd33e3c25294c6b2f86e9958a5519c84367485\/_PNG\/Interriors\/FL_Houses_int_sidesOfTheHouses.png",
+         "image":"tilesets\/imges\/FL_Houses_int_sidesOfTheHouses.png",
          "imageheight":736,
          "imagewidth":960,
          "margin":0,
@@ -3212,7 +3212,7 @@
         {
          "columns":28,
          "firstgid":8750,
-         "image":"..\/..\/..\/..\/..\/..\/Downloads\/80fd33e3c25294c6b2f86e9958a5519c84367485\/_PNG\/Interriors\/Floors\/FL_Houses_int_Floors.png",
+         "image":"tilesets\/imges\/FL_Houses_int_Floors.png",
          "imageheight":1024,
          "imagewidth":896,
          "margin":0,

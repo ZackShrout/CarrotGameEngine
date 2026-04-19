@@ -678,7 +678,87 @@ namespace carrot::rhi::dx12 {
 
     std::unique_ptr<rhi_buffer_t> dx12_rhi_context_t::create_buffer(const buffer_create_info_t& info)
     {
-        return std::make_unique<dx12_buffer_t>(_device->id3d12_device(), info);
+        ID3D12Device* device{ _device ? _device->id3d12_device() : nullptr };
+        if (!device)
+        {
+            LOG_GRAPHICS_ERROR("DX12 create_buffer called without a valid device");
+            return nullptr;
+        }
+
+        const bool cpu_visible{
+            info.cpu_writable || buffer_usage_prefers_upload_memory(info.usage) ||
+            buffer_usage_prefers_readback_memory(info.usage)
+        };
+
+        if (cpu_visible || !info.initial_data)
+            return std::make_unique<dx12_buffer_t>(device, info);
+
+        auto gpu_buffer{ std::make_unique<dx12_buffer_t>(device, buffer_create_info_t{
+            .size_bytes = info.size_bytes,
+            .usage = info.usage,
+            .initial_data = nullptr,
+            .cpu_writable = info.cpu_writable
+        }) };
+
+        auto upload_buffer{ std::make_unique<dx12_buffer_t>(device, buffer_create_info_t{
+            .size_bytes = info.size_bytes,
+            .usage = buffer_usage_t::staging,
+            .initial_data = nullptr,
+            .cpu_writable = true
+        }) };
+
+        if (!upload_buffer->write(info.initial_data, info.size_bytes, 0))
+        {
+            LOG_GRAPHICS_ERROR("Failed to initialize DX12 upload buffer contents");
+            return nullptr;
+        }
+
+        ID3D12CommandAllocator* allocator{ nullptr };
+        ID3D12GraphicsCommandList* cmd{ nullptr };
+
+        DX12_CHECK(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&allocator)));
+        DX12_CHECK(device->CreateCommandList(0,
+                                             D3D12_COMMAND_LIST_TYPE_DIRECT,
+                                             allocator,
+                                             nullptr,
+                                             IID_PPV_ARGS(&cmd)));
+
+        DX12_NAME(allocator, L"DX12 Buffer Upload Command Allocator");
+        DX12_NAME(cmd, L"DX12 Buffer Upload Command List");
+
+        D3D12_RESOURCE_BARRIER to_copy_dest{ };
+        to_copy_dest.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        to_copy_dest.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        to_copy_dest.Transition.pResource = gpu_buffer->resource();
+        to_copy_dest.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        to_copy_dest.Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
+        to_copy_dest.Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+        cmd->ResourceBarrier(1, &to_copy_dest);
+
+        cmd->CopyBufferRegion(gpu_buffer->resource(), 0, upload_buffer->resource(), 0, info.size_bytes);
+
+        D3D12_RESOURCE_BARRIER to_common{ };
+        to_common.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        to_common.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+        to_common.Transition.pResource = gpu_buffer->resource();
+        to_common.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        to_common.Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+        to_common.Transition.StateAfter = D3D12_RESOURCE_STATE_COMMON;
+        cmd->ResourceBarrier(1, &to_common);
+
+        DX12_CHECK(cmd->Close());
+
+        ID3D12CommandList* command_lists[]{ cmd };
+        _graphics_queue->id3d12_command_queue()->ExecuteCommandLists(1, command_lists);
+
+        auto upload_fence{ std::make_unique<dx12_fence_t>(device) };
+        upload_fence->signal(_graphics_queue->id3d12_command_queue());
+        upload_fence->wait();
+
+        cmd->Release();
+        allocator->Release();
+
+        return gpu_buffer;
     }
 
     std::unique_ptr<rhi_compute_pipeline_t> dx12_rhi_context_t::create_compute_pipeline(
@@ -775,6 +855,12 @@ namespace carrot::rhi::dx12 {
             if (!dx_buffer)
             {
                 LOG_GRAPHICS_ERROR("DX12 compute dispatch received invalid storage buffer");
+                return;
+            }
+
+            if (!dx_buffer->flush_pending_upload(cmd))
+            {
+                LOG_GRAPHICS_ERROR("DX12 compute dispatch failed to flush pending storage-buffer upload");
                 return;
             }
 

@@ -737,7 +737,7 @@ namespace carrot::scene {
         const assets::scene_asset_record_t* _pending_scene_record{ nullptr };
         scene_load_options_t _active_options{ };
         scene_load_options_t _pending_options{ };
-        std::optional<world::scene_load_task_t> _pending_load_task;
+        std::unique_ptr<world::scene_load_task_t> _pending_load_task;
         scene_change_request_kind_t _pending_request_kind{ scene_change_request_kind_t::none };
         scene_runtime_state_t _runtime_state{ scene_runtime_state_t::idle };
         scene_transition_phase_t _transition_phase{ scene_transition_phase_t::none };

@@ -349,11 +349,23 @@ namespace carrot::world {
                     return false;
                 }
 
-                std::lock_guard lock{ _background_prepare_state->mutex };
-                if (!_background_prepare_state->complete)
-                    return true;
+                std::optional<import::prepared_tilemap_world_data_t> prepared_data;
+                {
+                    std::lock_guard lock{ _background_prepare_state->mutex };
+                    if (!_background_prepare_state->complete)
+                        return true;
 
-                _prepared_tilemap_world_data = std::move(*_background_prepare_state->prepared_data);
+                    prepared_data = std::move(_background_prepare_state->prepared_data);
+                }
+
+                if (!prepared_data.has_value())
+                {
+                    LOG_ASSET_ERROR("Scene '{}' background prepare completed without prepared data", _scene_id);
+                    fail();
+                    return false;
+                }
+
+                _prepared_tilemap_world_data = std::move(*prepared_data);
                 _background_prepare_thread.reset();
                 _background_prepare_state.reset();
                 _phase = phase_t::activate_authored_content;

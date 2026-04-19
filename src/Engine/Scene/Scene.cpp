@@ -590,7 +590,7 @@ namespace carrot::scene {
 
     bool scene_runtime_t::update(core::game_context_t& game)
     {
-        if (!_pending_load_task.has_value())
+        if (!_pending_load_task)
             return false;
 
         if (!_pending_load_task->advance(game.assets))
@@ -1583,7 +1583,7 @@ namespace carrot::scene {
                       scene_id,
                       spawn_marker,
                       to_string(_active_transition_overlay_options.style));
-        _pending_load_task.emplace(scene_id, spawn_marker);
+        _pending_load_task = std::make_unique<world::scene_load_task_t>(scene_id, spawn_marker);
         _last_scene_change_succeeded = false;
         begin_scene_change(scene_record, scene_id, spawn_marker);
 

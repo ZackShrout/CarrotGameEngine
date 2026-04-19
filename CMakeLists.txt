@@ -606,6 +606,10 @@ set(MSDF_ATLAS_BUILD_STANDALONE OFF CACHE BOOL "" FORCE)
 set(MSDF_ATLAS_USE_VCPKG OFF CACHE BOOL "" FORCE)
 set(MSDF_ATLAS_USE_SKIA OFF CACHE BOOL "" FORCE)
 set(MSDF_ATLAS_NO_ARTERY_FONT ON CACHE BOOL "" FORCE)
+if(WIN32)
+    # Match the default Windows/vcpkg CRT selection used by the rest of the build.
+    set(MSDF_ATLAS_DYNAMIC_RUNTIME ON CACHE BOOL "" FORCE)
+endif()
 set(MSDFGEN_BUILD_STANDALONE OFF CACHE BOOL "" FORCE)
 set(MSDFGEN_USE_VCPKG OFF CACHE BOOL "" FORCE)
 set(MSDFGEN_USE_SKIA OFF CACHE BOOL "" FORCE)
@@ -713,19 +717,11 @@ endif()
 
 
 target_compile_options(CarrotEngine PUBLIC
-        $<$<AND:$<CONFIG:Debug>,$<NOT:$<BOOL:APPLE>>>: -fsanitize=address,undefined -fno-omit-frame-pointer>
+        $<$<AND:$<CONFIG:Debug>,$<NOT:$<BOOL:MSVC>>,$<NOT:$<BOOL:APPLE>>>:-fsanitize=address,undefined -fno-omit-frame-pointer>
 )
 
 target_link_options(CarrotEngine PUBLIC
-        $<$<AND:$<CONFIG:Debug>,$<NOT:$<BOOL:APPLE>>>: -fsanitize=address,undefined>
-)
-
-# Explicitly turn off sanitizers on Apple (in case any leak through)
-target_compile_options(CarrotEngine PUBLIC
-        $<$<AND:$<CONFIG:Debug>,$<BOOL:APPLE>>: -fno-sanitize=all>
-)
-target_link_options(CarrotEngine PUBLIC
-        $<$<AND:$<CONFIG:Debug>,$<BOOL:APPLE>>: -fno-sanitize=all>
+        $<$<AND:$<CONFIG:Debug>,$<NOT:$<BOOL:MSVC>>,$<NOT:$<BOOL:APPLE>>>:-fsanitize=address,undefined>
 )
 
 # ------------------------------------------------------------------------

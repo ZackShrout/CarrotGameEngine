@@ -8,6 +8,7 @@
 #include "VulkanRHIContext.h"
 
 #include "HotReload/ShaderWatcher.h"
+#include "Pipelines/VulkanComputePipeline.h"
 #include "Pipelines/VulkanTexturedQuadPipeline.h"
 #include "RHI/SamplerPresets.h"
 #include "Renderer/Draw/TexturedQuadCameraUniform.h"
@@ -83,6 +84,12 @@ namespace carrot::rhi::vulkan {
                     return VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
                 case staging:
                     return VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+                case storage:
+                    return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+                case indirect:
+                    return VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
+                case readback:
+                    return VK_BUFFER_USAGE_TRANSFER_DST_BIT;
                 default:
                     return 0;
             }
@@ -161,6 +168,7 @@ namespace carrot::rhi::vulkan {
         destroy_descriptor_pool();
 
         release_textured_quad_resources();
+        _default_compute_storage_buffer.reset();
 
         _sampler_cache.clear();
         _textured_quad_pipeline.reset();
@@ -215,6 +223,7 @@ namespace carrot::rhi::vulkan {
         _frame_active = false;
         _render_pass_active = false;
         _recorded_stages.clear();
+        _recorded_indirect_stages.clear();
         _textured_quad_descriptor_set_cursor[_current_frame] = 0;
 
         if (!window::is_ready_for_present(_presentation_window_id))
@@ -237,6 +246,15 @@ namespace carrot::rhi::vulkan {
 
         // Wait for the previous use of this frame to finish
         VK_CHECK_FATAL(vkWaitForFences(_device->vk_device(), 1, &frame.in_flight, VK_TRUE, UINT64_MAX));
+
+        if (_descriptor_pool != VK_NULL_HANDLE && !_transient_compute_descriptor_sets[_current_frame].empty())
+        {
+            vkFreeDescriptorSets(_device->vk_device(),
+                                 _descriptor_pool,
+                                 static_cast<std::uint32_t>(_transient_compute_descriptor_sets[_current_frame].size()),
+                                 _transient_compute_descriptor_sets[_current_frame].data());
+            _transient_compute_descriptor_sets[_current_frame].clear();
+        }
 
         // Hot-reload check: safe here because previous frames are done
         if (_pending_pipeline_reload)
@@ -303,8 +321,14 @@ namespace carrot::rhi::vulkan {
         begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT; // or 0 if we reuse
 
         VK_CHECK_FATAL(vkBeginCommandBuffer(frame.command_buffer, &begin_info));
+        _frame_active = true;
+    }
 
-        // Begin render pass
+    void vulkan_rhi_context_t::begin_main_render_pass_if_needed()
+    {
+        if (_skip_frame || !_frame_active || _render_pass_active)
+            return;
+
         constexpr VkClearValue clear_color{ { { 0.02f, 0.02f, 0.04f, 1.0f } } };
 
         VkRenderPassBeginInfo rp_begin{ };
@@ -316,9 +340,8 @@ namespace carrot::rhi::vulkan {
         rp_begin.clearValueCount = 1;
         rp_begin.pClearValues = &clear_color;
 
-        vkCmdBeginRenderPass(frame.command_buffer, &rp_begin, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBeginRenderPass(_frames[_current_frame].command_buffer, &rp_begin, VK_SUBPASS_CONTENTS_INLINE);
         _render_pass_active = true;
-        _frame_active = true;
     }
 
     void vulkan_rhi_context_t::record_textured_quad_stage(const textured_quad_stage_record_t& stage)
@@ -326,7 +349,7 @@ namespace carrot::rhi::vulkan {
         if (_skip_frame || !_frame_active)
             return;
 
-        const uint32_t stage_slot{ static_cast<uint32_t>(_recorded_stages.size()) };
+        const uint32_t stage_slot{ static_cast<uint32_t>(_recorded_stages.size() + _recorded_indirect_stages.size()) };
         if (stage_slot >= k_max_textured_quad_stage_slots_per_frame)
         {
             LOG_GRAPHICS_FATAL("Vulkan textured quad stage slot {} exceeds max supported stage slots {}",
@@ -350,6 +373,7 @@ namespace carrot::rhi::vulkan {
 
         if (presentation_mask_includes(stage.presentation_mask, presentation_channel_gameplay))
         {
+            begin_main_render_pass_if_needed();
             encode_quad_stage_to_command_buffer(_frames[_current_frame].command_buffer,
                                                 stage,
                                                 stage_slot,
@@ -364,7 +388,7 @@ namespace carrot::rhi::vulkan {
         if (_skip_frame || !_frame_active)
             return;
 
-        const uint32_t stage_slot{ static_cast<uint32_t>(_recorded_stages.size()) };
+        const uint32_t stage_slot{ static_cast<uint32_t>(_recorded_stages.size() + _recorded_indirect_stages.size()) };
         if (stage_slot >= k_max_textured_quad_stage_slots_per_frame)
         {
             LOG_GRAPHICS_FATAL("Vulkan textured quad stage slot {} exceeds max supported stage slots {}",
@@ -388,12 +412,50 @@ namespace carrot::rhi::vulkan {
 
         if (presentation_mask_includes(stage.presentation_mask, presentation_channel_gameplay))
         {
+            begin_main_render_pass_if_needed();
             encode_quad_stage_to_command_buffer(_frames[_current_frame].command_buffer,
                                                 stage,
                                                 stage_slot,
                                                 descriptor_set_offset,
                                                 batch_count,
                                                 quad_pipeline_kind_t::text);
+        }
+    }
+
+    void vulkan_rhi_context_t::record_indirect_textured_quad_stage(const indirect_textured_quad_stage_record_t& stage)
+    {
+        if (_skip_frame || !_frame_active)
+            return;
+
+        const uint32_t stage_slot{ static_cast<uint32_t>(_recorded_stages.size() + _recorded_indirect_stages.size()) };
+        if (stage_slot >= k_max_textured_quad_stage_slots_per_frame)
+        {
+            LOG_GRAPHICS_FATAL("Vulkan textured quad stage slot {} exceeds max supported stage slots {}",
+                               stage_slot,
+                               k_max_textured_quad_stage_slots_per_frame);
+            return;
+        }
+
+        if (!stage.texture || !stage.sampler)
+            return;
+
+        const VkDescriptorSet texture_descriptor_set{
+            allocate_indirect_textured_quad_descriptor_set(*stage.texture, *stage.sampler)
+        };
+
+        _recorded_indirect_stages.push_back(recorded_indirect_stage_t{
+            .stage = stage,
+            .stage_slot = stage_slot,
+            .texture_descriptor_set = texture_descriptor_set
+        });
+
+        if (presentation_mask_includes(stage.presentation_mask, presentation_channel_gameplay))
+        {
+            begin_main_render_pass_if_needed();
+            encode_indirect_textured_quad_stage_to_command_buffer(_frames[_current_frame].command_buffer,
+                                                                  stage,
+                                                                  stage_slot,
+                                                                  texture_descriptor_set);
         }
     }
 
@@ -412,6 +474,8 @@ namespace carrot::rhi::vulkan {
             !main_window_resizing &&
             !_swapchain_dirty
         };
+
+        begin_main_render_pass_if_needed();
 
         // 1. End render pass (if not already ended in record_frame)
         if (_render_pass_active)
@@ -479,6 +543,17 @@ namespace carrot::rhi::vulkan {
                                                     recorded_stage.descriptor_set_offset,
                                                     recorded_stage.descriptor_set_count,
                                                     recorded_stage.pipeline_kind);
+            }
+            for (const recorded_indirect_stage_t& recorded_stage : _recorded_indirect_stages)
+            {
+                if (!presentation_mask_includes(recorded_stage.stage.presentation_mask,
+                                                aux_surface.presentation_channel_mask))
+                    continue;
+
+                encode_indirect_textured_quad_stage_to_command_buffer(frame.command_buffer,
+                                                                      recorded_stage.stage,
+                                                                      recorded_stage.stage_slot,
+                                                                      recorded_stage.texture_descriptor_set);
             }
             vkCmdEndRenderPass(frame.command_buffer);
 
@@ -894,7 +969,7 @@ namespace carrot::rhi::vulkan {
         const VkBufferUsageFlags base_usage{ to_vk_buffer_usage(info.usage) };
 
         // Explicit CPU-writable path
-        if (info.cpu_writable || info.usage == buffer_usage_t::staging)
+        if (info.cpu_writable || buffer_usage_prefers_upload_memory(info.usage))
         {
             VkBuffer buffer{ VK_NULL_HANDLE };
             VkDeviceMemory memory{ VK_NULL_HANDLE };
@@ -912,6 +987,38 @@ namespace carrot::rhi::vulkan {
                 std::memcpy(mapped, info.initial_data, info.size_bytes);
                 vkUnmapMemory(device, memory);
             }
+
+            auto result{ std::make_unique<vulkan_buffer_t>(device, info.size_bytes, info.usage) };
+            result->set_buffer(buffer);
+            result->set_memory(memory);
+            result->set_memory_properties(memory_properties);
+
+            return result;
+        }
+
+        // Readback buffers are GPU-written and host-visible for later diagnostics/validation reads.
+        if (buffer_usage_prefers_readback_memory(info.usage))
+        {
+            if (info.cpu_writable)
+            {
+                LOG_GRAPHICS_ERROR("create_buffer failed: readback buffers cannot also request cpu_writable");
+                return nullptr;
+            }
+
+            if (info.initial_data != nullptr)
+            {
+                LOG_GRAPHICS_ERROR("create_buffer failed: readback buffers cannot be initialized with CPU data");
+                return nullptr;
+            }
+
+            VkBuffer buffer{ VK_NULL_HANDLE };
+            VkDeviceMemory memory{ VK_NULL_HANDLE };
+
+            constexpr VkMemoryPropertyFlags memory_properties{
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+            };
+
+            create_vk_buffer(size, base_usage, memory_properties, buffer, memory);
 
             auto result{ std::make_unique<vulkan_buffer_t>(device, info.size_bytes, info.usage) };
             result->set_buffer(buffer);
@@ -965,6 +1072,15 @@ namespace carrot::rhi::vulkan {
         return result;
     }
 
+    std::unique_ptr<rhi_compute_pipeline_t> vulkan_rhi_context_t::create_compute_pipeline(
+        const compute_pipeline_create_info_t& info)
+    {
+        if (!_device || !_shader_files)
+            return nullptr;
+
+        return std::make_unique<vulkan_compute_pipeline_t>( _device.get(), *_shader_files, info );
+    }
+
     std::unique_ptr<rhi_sampler_t> vulkan_rhi_context_t::create_sampler(const sampler_desc_t& desc) const
     {
         if (!_device)
@@ -1011,6 +1127,134 @@ namespace carrot::rhi::vulkan {
         _sampler_cache.emplace(desc, std::move(sampler));
 
         return result;
+    }
+
+    void vulkan_rhi_context_t::dispatch_compute(const compute_dispatch_record_t& record)
+    {
+        if (_skip_frame || !_frame_active || !record.pipeline)
+            return;
+
+        if (record.order != compute_dispatch_order_t::before_graphics)
+        {
+            LOG_GRAPHICS_ERROR("Vulkan compute dispatch received unsupported dispatch order");
+            return;
+        }
+
+        if (!_recorded_stages.empty() || _render_pass_active)
+        {
+            LOG_GRAPHICS_ERROR("Vulkan compute dispatch currently must happen before graphics stage recording");
+            return;
+        }
+
+        const auto* pipeline{ dynamic_cast<const vulkan_compute_pipeline_t*>(record.pipeline) };
+        if (!pipeline || !pipeline->is_valid())
+        {
+            LOG_GRAPHICS_ERROR("dispatch_compute received non-Vulkan or invalid compute pipeline");
+            return;
+        }
+
+        if (record.constants.size() > pipeline->info().max_constant_size_bytes)
+        {
+            LOG_GRAPHICS_ERROR("Vulkan compute constants exceed pipeline limit");
+            return;
+        }
+
+        std::array<VkDescriptorBufferInfo, k_max_compute_storage_buffer_bindings> buffer_infos{ };
+        std::array<VkWriteDescriptorSet, k_max_compute_storage_buffer_bindings> writes{ };
+
+        const auto* default_buffer{ dynamic_cast<const vulkan_buffer_t*>(_default_compute_storage_buffer.get()) };
+        if (!default_buffer)
+        {
+            LOG_GRAPHICS_ERROR("Vulkan default compute storage buffer is not available");
+            return;
+        }
+
+        for (std::uint32_t slot{ 0u }; slot < k_max_compute_storage_buffer_bindings; ++slot)
+        {
+            const rhi_buffer_t* bound_buffer{ _default_compute_storage_buffer.get() };
+            for (const compute_buffer_binding_t& binding : record.storage_buffers)
+            {
+                if (binding.slot == slot && binding.buffer)
+                {
+                    bound_buffer = binding.buffer;
+                    break;
+                }
+            }
+
+            const auto* vulkan_buffer{ dynamic_cast<const vulkan_buffer_t*>(bound_buffer) };
+            if (!vulkan_buffer)
+            {
+                LOG_GRAPHICS_ERROR("Vulkan compute dispatch received non-Vulkan storage buffer");
+                return;
+            }
+
+            buffer_infos[slot].buffer = vulkan_buffer->vk_buffer();
+            buffer_infos[slot].offset = 0u;
+            buffer_infos[slot].range = vulkan_buffer->size_bytes();
+        }
+
+        VkDescriptorSet descriptor_set{ VK_NULL_HANDLE };
+        VkDescriptorSetAllocateInfo alloc_info{ };
+        alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        alloc_info.descriptorPool = _descriptor_pool;
+        const VkDescriptorSetLayout descriptor_set_layout{ pipeline->descriptor_set_layout() };
+        alloc_info.descriptorSetCount = 1;
+        alloc_info.pSetLayouts = &descriptor_set_layout;
+        VK_CHECK_FATAL(vkAllocateDescriptorSets(_device->vk_device(), &alloc_info, &descriptor_set));
+        _transient_compute_descriptor_sets[_current_frame].push_back(descriptor_set);
+
+        for (std::uint32_t slot{ 0u }; slot < k_max_compute_storage_buffer_bindings; ++slot)
+        {
+            writes[slot].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            writes[slot].dstSet = descriptor_set;
+            writes[slot].dstBinding = slot;
+            writes[slot].descriptorCount = 1;
+            writes[slot].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            writes[slot].pBufferInfo = &buffer_infos[slot];
+        }
+        vkUpdateDescriptorSets(_device->vk_device(), static_cast<std::uint32_t>(writes.size()), writes.data(), 0, nullptr);
+
+        VkCommandBuffer command_buffer{ _frames[_current_frame].command_buffer };
+        vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline->pipeline());
+        vkCmdBindDescriptorSets(command_buffer,
+                                VK_PIPELINE_BIND_POINT_COMPUTE,
+                                pipeline->layout(),
+                                0,
+                                1,
+                                &descriptor_set,
+                                0,
+                                nullptr);
+
+        if (!record.constants.empty())
+        {
+            vkCmdPushConstants(command_buffer,
+                               pipeline->layout(),
+                               VK_SHADER_STAGE_COMPUTE_BIT,
+                               0u,
+                               static_cast<std::uint32_t>(record.constants.size()),
+                               record.constants.data());
+        }
+
+        vkCmdDispatch(command_buffer, record.group_count_x, record.group_count_y, record.group_count_z);
+
+        if (record.graphics_handoff == compute_graphics_handoff_t::storage_write_to_graphics_read)
+        {
+            VkMemoryBarrier barrier{ };
+            barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+            barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+            vkCmdPipelineBarrier(command_buffer,
+                                 VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                 VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                 0,
+                                 1,
+                                 &barrier,
+                                 0,
+                                 nullptr,
+                                 0,
+                                 nullptr);
+        }
     }
 
     void vulkan_rhi_context_t::wait_idle()
@@ -1386,6 +1630,117 @@ namespace carrot::rhi::vulkan {
         }
     }
 
+    VkDescriptorSet vulkan_rhi_context_t::allocate_indirect_textured_quad_descriptor_set(const rhi_texture_t& texture,
+                                                                                          const rhi_sampler_t& sampler)
+    {
+        if (_descriptor_pool == VK_NULL_HANDLE || !_textured_quad_pipeline)
+            return VK_NULL_HANDLE;
+
+        VkDescriptorSet descriptor_set{ VK_NULL_HANDLE };
+        const VkDescriptorSetLayout layout{ _textured_quad_pipeline->vk_texture_descriptor_set_layout() };
+
+        VkDescriptorSetAllocateInfo alloc_info{ };
+        alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        alloc_info.descriptorPool = _descriptor_pool;
+        alloc_info.descriptorSetCount = 1;
+        alloc_info.pSetLayouts = &layout;
+
+        VK_CHECK_FATAL(vkAllocateDescriptorSets(_device->vk_device(), &alloc_info, &descriptor_set));
+        _transient_compute_descriptor_sets[_current_frame].push_back(descriptor_set);
+        write_textured_quad_descriptor_set(descriptor_set, texture, sampler);
+        return descriptor_set;
+    }
+
+    void vulkan_rhi_context_t::encode_indirect_textured_quad_stage_to_command_buffer(
+        const VkCommandBuffer command_buffer,
+        const indirect_textured_quad_stage_record_t& stage,
+        const uint32_t stage_slot,
+        const VkDescriptorSet texture_descriptor_set)
+    {
+        if (!_textured_quad_pipeline)
+            return;
+
+        const auto* vertex_buffer{ dynamic_cast<const vulkan_buffer_t*>(stage.vertex_buffer) };
+        const auto* index_buffer{ dynamic_cast<const vulkan_buffer_t*>(stage.index_buffer) };
+        const auto* indirect_buffer{ dynamic_cast<const vulkan_buffer_t*>(stage.indirect_buffer) };
+        if (!vertex_buffer || !index_buffer || !indirect_buffer || texture_descriptor_set == VK_NULL_HANDLE)
+            return;
+
+        if (stage_slot >= k_max_textured_quad_stage_slots_per_frame)
+            return;
+
+        const chlm::uint_rect viewport_rect{ stage.viewport.rect_px };
+
+        VkViewport viewport{ };
+        viewport.x = static_cast<float>(viewport_rect.position.x);
+        viewport.y = static_cast<float>(viewport_rect.position.y);
+        viewport.width = static_cast<float>(viewport_rect.size.x);
+        viewport.height = static_cast<float>(viewport_rect.size.y);
+        viewport.minDepth = 0.f;
+        viewport.maxDepth = 1.f;
+
+        VkRect2D scissor{ };
+        scissor.offset = {
+            static_cast<int32_t>(viewport_rect.position.x),
+            static_cast<int32_t>(viewport_rect.position.y)
+        };
+        scissor.extent = {
+            viewport_rect.size.x,
+            viewport_rect.size.y
+        };
+
+        vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+        vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+
+        vkCmdBindPipeline(command_buffer,
+                          VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          _textured_quad_pipeline->vk_pipeline());
+
+        const VkBuffer vertex_buffers[]{ vertex_buffer->vk_buffer() };
+        const VkDeviceSize offsets[]{ 0 };
+        vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
+        vkCmdBindIndexBuffer(command_buffer, index_buffer->vk_buffer(), 0, VK_INDEX_TYPE_UINT32);
+
+        renderer::world_forward_plus_uniform_t world_uniform{ };
+        world_uniform.view_projection = stage.view_projection;
+        world_uniform.ambient_color = stage.ambient_color;
+        world_uniform.forward_plus_grid_params = stage.forward_plus_grid_params;
+        world_uniform.forward_plus_tile_counts = stage.forward_plus_tile_counts;
+        world_uniform.point_light_counts[0] = stage.point_light_count;
+        world_uniform.point_lights = stage.point_lights;
+        world_uniform.forward_plus_tiles = stage.forward_plus_tiles;
+        world_uniform.forward_plus_light_indices = stage.forward_plus_light_indices;
+
+        if (!_textured_quad.camera_uniform_buffers[_current_frame][stage_slot] ||
+            !_textured_quad.camera_uniform_buffers[_current_frame][stage_slot]->write(&world_uniform,
+                                                                                      sizeof(world_uniform),
+                                                                                      0))
+        {
+            LOG_GRAPHICS_WARN("Failed to upload Vulkan world forward+ uniform for indirect stage");
+            return;
+        }
+
+        VkDescriptorSet camera_descriptor_set{ _textured_quad.camera_descriptor_sets[_current_frame][stage_slot] };
+        const VkDescriptorSet descriptor_sets[]{
+            camera_descriptor_set,
+            texture_descriptor_set
+        };
+        vkCmdBindDescriptorSets(command_buffer,
+                                VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                _textured_quad_pipeline->vk_layout(),
+                                0,
+                                2,
+                                descriptor_sets,
+                                0,
+                                nullptr);
+
+        vkCmdDrawIndexedIndirect(command_buffer,
+                                 indirect_buffer->vk_buffer(),
+                                 stage.indirect_buffer_offset_bytes,
+                                 1,
+                                 sizeof(indexed_indirect_draw_command_t));
+    }
+
     // PRIVATE
     void vulkan_rhi_context_t::init(const rhi_desc_t& desc)
     {
@@ -1629,6 +1984,13 @@ namespace carrot::rhi::vulkan {
                     .cpu_writable = true
                 });
 
+        const std::uint32_t zero_value{ 0u };
+        _default_compute_storage_buffer = create_buffer({
+            .size_bytes = sizeof(zero_value),
+            .usage = buffer_usage_t::storage,
+            .initial_data = &zero_value
+        });
+
         allocate_textured_quad_camera_descriptor_sets();
 
         // ── 9. Create Framebuffers ────────────────────────────────────────────────
@@ -1804,7 +2166,7 @@ namespace carrot::rhi::vulkan {
 
     void vulkan_rhi_context_t::create_descriptor_pool()
     {
-        std::array<VkDescriptorPoolSize, 3> pool_sizes{ };
+        std::array<VkDescriptorPoolSize, 4> pool_sizes{ };
 
         // Set 0: one camera UBO per frame-in-flight stage slot
         pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -1818,12 +2180,16 @@ namespace carrot::rhi::vulkan {
         pool_sizes[2].type = VK_DESCRIPTOR_TYPE_SAMPLER;
         pool_sizes[2].descriptorCount = k_max_textured_quad_descriptor_sets;
 
+        pool_sizes[3].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        pool_sizes[3].descriptorCount = 256u;
+
         VkDescriptorPoolCreateInfo pool_info{ };
         pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
         pool_info.poolSizeCount = static_cast<uint32_t>(pool_sizes.size());
         pool_info.pPoolSizes = pool_sizes.data();
         pool_info.maxSets =
-            (k_max_frames_in_flight * k_max_textured_quad_stage_slots_per_frame) + k_max_textured_quad_descriptor_sets;
+            (k_max_frames_in_flight * k_max_textured_quad_stage_slots_per_frame) + k_max_textured_quad_descriptor_sets + 64u;
 
         VK_CHECK_FATAL(vkCreateDescriptorPool(_device->vk_device(), &pool_info, nullptr, &_descriptor_pool));
 
@@ -1832,6 +2198,9 @@ namespace carrot::rhi::vulkan {
 
     void vulkan_rhi_context_t::destroy_descriptor_pool() noexcept
     {
+        for (auto& frame_compute_sets : _transient_compute_descriptor_sets)
+            frame_compute_sets.clear();
+
         for (auto& frame_descriptor_sets: _textured_quad.camera_descriptor_sets)
             frame_descriptor_sets.fill(VK_NULL_HANDLE);
 

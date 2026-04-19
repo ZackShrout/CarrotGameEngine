@@ -21,6 +21,7 @@
 
 namespace carrot::rhi::vulkan {
     class vulkan_buffer_t;
+    class vulkan_compute_pipeline_t;
     class vulkan_textured_quad_pipeline_t;
     class vulkan_pipeline_t;
     class vulkan_render_pass_t;
@@ -50,6 +51,7 @@ namespace carrot::rhi::vulkan {
 
         void begin_frame() override;
         void record_textured_quad_stage(const textured_quad_stage_record_t& stage) override;
+        void record_indirect_textured_quad_stage(const indirect_textured_quad_stage_record_t& stage) override;
         void record_text_quad_stage(const textured_quad_stage_record_t& stage) override;
         void end_frame() override;
 
@@ -64,11 +66,14 @@ namespace carrot::rhi::vulkan {
 
         [[nodiscard]] std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) override;
+        [[nodiscard]] std::unique_ptr<rhi_compute_pipeline_t> create_compute_pipeline(
+            const compute_pipeline_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_sampler_t> create_sampler(const sampler_desc_t& desc) const override;
 
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
         void bind_textured_quad_resources([[maybe_unused]] const rhi_texture_t& texture,
                                           [[maybe_unused]] const rhi_sampler_t& sampler) override {}
+        void dispatch_compute(const compute_dispatch_record_t& record) override;
         bool add_presentation_window(window::window_id_t window_id,
                                      uint32_t presentation_channel_mask = presentation_channel_gameplay) override;
         bool remove_presentation_window(window::window_id_t window_id) override;
@@ -107,10 +112,18 @@ namespace carrot::rhi::vulkan {
             quad_pipeline_kind_t pipeline_kind{ quad_pipeline_kind_t::textured };
         };
 
+        struct recorded_indirect_stage_t
+        {
+            indirect_textured_quad_stage_record_t stage;
+            uint32_t stage_slot{ 0 };
+            VkDescriptorSet texture_descriptor_set{ VK_NULL_HANDLE };
+        };
+
         void init(const rhi_desc_t& desc);
         void recreate_swapchain_dependent_resources();
         void recreate_render_finished_semaphores();
         void collect_retired_present_semaphores() noexcept;
+        void begin_main_render_pass_if_needed();
         bool create_surface_for_window(window::window_id_t window_id, VkSurfaceKHR& out_surface) const;
         bool create_auxiliary_surface(window::window_id_t window_id, uint32_t presentation_channel_mask);
         void destroy_auxiliary_surface(auxiliary_surface_t& surface) noexcept;
@@ -125,6 +138,12 @@ namespace carrot::rhi::vulkan {
                                                  uint32_t descriptor_set_offset,
                                                  uint32_t batch_count,
                                                  quad_pipeline_kind_t pipeline_kind);
+        [[nodiscard]] VkDescriptorSet allocate_indirect_textured_quad_descriptor_set(const rhi_texture_t& texture,
+                                                                                     const rhi_sampler_t& sampler);
+        void encode_indirect_textured_quad_stage_to_command_buffer(VkCommandBuffer command_buffer,
+                                                                   const indirect_textured_quad_stage_record_t& stage,
+                                                                   uint32_t stage_slot,
+                                                                   VkDescriptorSet texture_descriptor_set);
         [[nodiscard]] uint32_t find_memory_type(uint32_t type_filter, VkMemoryPropertyFlags properties) const;
         [[nodiscard]] VkCommandBuffer begin_single_time_commands() const;
         void end_single_time_commands(VkCommandBuffer cmd) const;
@@ -159,10 +178,12 @@ namespace carrot::rhi::vulkan {
         std::unique_ptr<vulkan_render_pass_t>               _render_pass;
         std::unique_ptr<vulkan_textured_quad_pipeline_t>    _textured_quad_pipeline;
         std::unique_ptr<vulkan_textured_quad_pipeline_t>    _text_quad_pipeline;
+        std::unique_ptr<rhi_buffer_t>                       _default_compute_storage_buffer;
         framebuffer_array_t                                 _framebuffers;
 
         // ── Per-frame GPU resources ──
         std::array<frame_resources_t, k_max_frames_in_flight>   _frames;
+        std::array<std::vector<VkDescriptorSet>, k_max_frames_in_flight> _transient_compute_descriptor_sets;
         std::vector<VkSemaphore>                                _render_finished_semaphores;
         std::vector<VkSemaphore>                                _retired_render_finished_semaphores;
 
@@ -188,5 +209,6 @@ namespace carrot::rhi::vulkan {
         window::window_id_t _presentation_window_id{ window::invalid_window_id };
         std::vector<auxiliary_surface_t> _auxiliary_surfaces;
         std::vector<recorded_stage_t> _recorded_stages;
+        std::vector<recorded_indirect_stage_t> _recorded_indirect_stages;
     };
 } // namespace carrot::rhi::vulkan

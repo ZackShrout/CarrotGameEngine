@@ -9,7 +9,7 @@
 
 namespace carrot::rhi::dx12 {
     dx12_buffer_t::dx12_buffer_t(ID3D12Device* device, const buffer_create_info_t& info)
-        : rhi_buffer_t{ info.size_bytes, info.usage }, _cpu_writable{ info.cpu_writable }
+        : rhi_buffer_t{ info.size_bytes, info.usage }
     {
         if (!device)
             LOG_GRAPHICS_FATAL("dx12_buffer_t created with null device");
@@ -17,8 +17,19 @@ namespace carrot::rhi::dx12 {
         if (info.size_bytes == 0)
             LOG_GRAPHICS_FATAL("dx12_buffer_t created with zero size");
 
+        const bool use_upload_heap{ info.cpu_writable || buffer_usage_prefers_upload_memory(info.usage) };
+        const bool use_readback_heap{ buffer_usage_prefers_readback_memory(info.usage) };
+        _cpu_writable = use_upload_heap && !use_readback_heap;
+
+        if (use_readback_heap && info.cpu_writable)
+            LOG_GRAPHICS_FATAL("dx12 readback buffer cannot also request cpu_writable");
+
+        if (use_readback_heap && info.initial_data)
+            LOG_GRAPHICS_FATAL("dx12 readback buffer cannot be initialized with CPU data");
+
         D3D12_HEAP_PROPERTIES heap_props{ };
-        heap_props.Type = info.cpu_writable ? D3D12_HEAP_TYPE_UPLOAD : D3D12_HEAP_TYPE_DEFAULT;
+        heap_props.Type = use_readback_heap ? D3D12_HEAP_TYPE_READBACK
+                                            : (use_upload_heap ? D3D12_HEAP_TYPE_UPLOAD : D3D12_HEAP_TYPE_DEFAULT);
         heap_props.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
         heap_props.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
         heap_props.CreationNodeMask = 1;
@@ -35,10 +46,12 @@ namespace carrot::rhi::dx12 {
         resource_desc.SampleDesc.Count = 1;
         resource_desc.SampleDesc.Quality = 0;
         resource_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-        resource_desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+        resource_desc.Flags = info.usage == buffer_usage_t::storage ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS
+                                                                    : D3D12_RESOURCE_FLAG_NONE;
 
         const D3D12_RESOURCE_STATES initial_state{
-            info.cpu_writable ? D3D12_RESOURCE_STATE_GENERIC_READ : D3D12_RESOURCE_STATE_COMMON
+            use_readback_heap ? D3D12_RESOURCE_STATE_COPY_DEST
+                              : (use_upload_heap ? D3D12_RESOURCE_STATE_GENERIC_READ : D3D12_RESOURCE_STATE_COMMON)
         };
 
         DX12_CHECK(
@@ -47,8 +60,10 @@ namespace carrot::rhi::dx12 {
 
         const wchar_t* debug_name{ L"DX12 Buffer" };
 
-        if (info.cpu_writable)
+        if (use_upload_heap)
             debug_name = L"DX12 Upload Buffer";
+        else if (use_readback_heap)
+            debug_name = L"DX12 Readback Buffer";
         else if (info.usage == buffer_usage_t::vertex)
             debug_name = L"DX12 Vertex Buffer";
         else if (info.usage == buffer_usage_t::index)
@@ -57,10 +72,14 @@ namespace carrot::rhi::dx12 {
             debug_name = L"DX12 Uniform Buffer";
         else if (info.usage == buffer_usage_t::staging)
             debug_name = L"DX12 Staging Buffer";
+        else if (info.usage == buffer_usage_t::storage)
+            debug_name = L"DX12 Storage Buffer";
+        else if (info.usage == buffer_usage_t::indirect)
+            debug_name = L"DX12 Indirect Buffer";
 
         DX12_NAME(_resource, debug_name);
 
-        if (info.cpu_writable)
+        if (use_upload_heap || use_readback_heap)
         {
             DX12_CHECK(_resource->Map(0, nullptr, &_mapped_ptr));
         }
@@ -97,7 +116,8 @@ namespace carrot::rhi::dx12 {
 
         if (!_cpu_writable || !_mapped_ptr)
         {
-            LOG_GRAPHICS_ERROR("dx12_buffer_t::write called on non-CPU-writable buffer");
+            LOG_GRAPHICS_ERROR("dx12_buffer_t::write called on non-CPU-writable {} buffer",
+                               buffer_usage_to_string(usage()));
             return false;
         }
 

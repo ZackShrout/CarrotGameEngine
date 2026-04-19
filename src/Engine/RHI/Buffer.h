@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string_view>
 
 namespace carrot::rhi {
     enum class buffer_usage_t : uint8_t
@@ -14,8 +15,36 @@ namespace carrot::rhi {
         vertex,
         index,
         uniform,
-        staging
+        staging,
+        storage,
+        indirect,
+        readback
     };
+
+    [[nodiscard]] constexpr std::string_view buffer_usage_to_string(const buffer_usage_t usage) noexcept
+    {
+        switch (usage)
+        {
+            case buffer_usage_t::vertex: return "vertex";
+            case buffer_usage_t::index: return "index";
+            case buffer_usage_t::uniform: return "uniform";
+            case buffer_usage_t::staging: return "staging";
+            case buffer_usage_t::storage: return "storage";
+            case buffer_usage_t::indirect: return "indirect";
+            case buffer_usage_t::readback: return "readback";
+            default: return "unknown";
+        }
+    }
+
+    [[nodiscard]] constexpr bool buffer_usage_prefers_upload_memory(const buffer_usage_t usage) noexcept
+    {
+        return usage == buffer_usage_t::staging;
+    }
+
+    [[nodiscard]] constexpr bool buffer_usage_prefers_readback_memory(const buffer_usage_t usage) noexcept
+    {
+        return usage == buffer_usage_t::readback;
+    }
 
     struct buffer_create_info_t
     {

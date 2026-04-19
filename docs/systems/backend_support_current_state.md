@@ -58,6 +58,11 @@ It does **not** mean:
 * every older abstraction surface remains equally important
 * every possible future renderer feature is already parity-hardened
 
+It also does not yet mean:
+
+* compute/state handoff is already a broad arbitrary-pass feature
+* pass-boundary synchronization expectations for compute-driven work are already implemented end to end
+
 The current parity story is therefore:
 
 * honest for the current renderer slice
@@ -96,6 +101,9 @@ Current limitations and cautions include:
 * backend-local helper methods are allowed where useful, but they are not shared parity promises by default
 * future renderer work still needs discipline so new features do not quietly become one-backend-first
 * native backend pixel-output validation is still partly manual outside the null-backend regression harness
+* the compute-capable contract described in milestone 23 is now partially live through shared compute pipeline creation, dispatch, and expanded buffer usages, but resource-state rules are still intentionally narrow
+* the currently supported synchronization slice is explicit compute-before-graphics handoff for storage data, not a general arbitrary-pass synchronization model
+* the currently supported indirect slice is one context-level textured-quad indexed-indirect path, not a broad generic indirect-command surface
 
 ---
 

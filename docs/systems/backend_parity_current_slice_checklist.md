@@ -49,6 +49,9 @@ New renderer work should preserve these rules:
 * gameplay-facing stages stay on `presentation_channel_gameplay`
 * text rendering remains part of the same practical cross-backend slice as textured-quad rendering
 * auxiliary presentation support should remain explicit rather than silently assumed
+* shared compute pipeline creation and dispatch should remain parity-relevant through the same context-level contract as the graphics slice
+* compute-to-graphics handoff should be declared explicitly rather than inferred from backend-local command ordering
+* the current indirect path should stay limited to the shared textured-quad indexed-indirect contract unless a wider contract is deliberately documented
 
 ## 3.1 Shared Limits That Belong To The Contract
 
@@ -79,6 +82,7 @@ Current visibility expectations:
 Current automated support includes:
 
 * null-backend renderer stage recording via [src/Engine/RHI/Backends/Null/NullRHIContext.h](/Users/zshrout/dev/CarrotGameEngine/src/Engine/RHI/Backends/Null/NullRHIContext.h:16)
+* null-backend compute and indirect contract regressions in [tests/RHIComputeTests.cpp](/Users/zshrout/dev/CarrotGameEngine/tests/RHIComputeTests.cpp:12)
 * renderer stage-space and presentation-mask regressions in [tests/SceneLoadingTests.cpp](/Users/zshrout/dev/CarrotGameEngine/tests/SceneLoadingTests.cpp:2750)
 * runtime window/presentation-channel expectations in [tests/WindowSystemTests.cpp](/Users/zshrout/dev/CarrotGameEngine/tests/WindowSystemTests.cpp:12)
 
@@ -104,6 +108,7 @@ Parity for the current slice should be considered at risk if:
 * one backend starts requiring a special renderer path for world/text/UI/log behavior
 * a backend keeps compiling but no longer supports a stage the renderer treats as part of the current slice
 * backend-local helper growth starts reintroducing a fake shared contract that other backends do not actually implement
+* compute/storage/indirect work begins shipping through backend-local escape hatches before the shared milestone 23 contract lands
 
 ---
 

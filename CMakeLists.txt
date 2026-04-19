@@ -182,6 +182,8 @@ set(CARROT_ENGINE_SOURCES
         # ========================================
         src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.cpp
         src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanTexturedQuadPipeline.h
+        src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanComputePipeline.cpp
+        src/Engine/RHI/Backends/Vulkan/Pipelines/VulkanComputePipeline.h
         src/Engine/RHI/Backends/Vulkan/VulkanBuffer.cpp
         src/Engine/RHI/Backends/Vulkan/VulkanBuffer.h
         src/Engine/RHI/Backends/Vulkan/VulkanCommandQueue.cpp
@@ -472,6 +474,8 @@ if (APPLE)
             src/Engine/RHI/Backends/Metal/MetalTexture.h
             src/Engine/RHI/Backends/Metal/Pipelines/MetalTexturedQuadPipeline.cpp
             src/Engine/RHI/Backends/Metal/Pipelines/MetalTexturedQuadPipeline.h
+            src/Engine/RHI/Backends/Metal/Pipelines/MetalComputePipeline.cpp
+            src/Engine/RHI/Backends/Metal/Pipelines/MetalComputePipeline.h
             src/Engine/RHI/Backends/Metal/MetalUtils.h
             src/Engine/RHI/Backends/Metal/MetalDescriptorEncoding.h
             src/Engine/RHI/Backends/Metal/MetalSampler.h
@@ -510,6 +514,8 @@ elseif (WIN32)
             src/Engine/RHI/Backends/DirectX12/DirectX12Buffer.cpp
             src/Engine/RHI/Backends/DirectX12/DirectX12Buffer.h
             src/Engine/RHI/Backends/DirectX12/DirectX12Texture.h
+            src/Engine/RHI/Backends/DirectX12/Pipelines/DirectX12ComputePipeline.cpp
+            src/Engine/RHI/Backends/DirectX12/Pipelines/DirectX12ComputePipeline.h
             src/Engine/RHI/Backends/DirectX12/Pipelines/DirectX12TexturedQuadPipeline.cpp
             src/Engine/RHI/Backends/DirectX12/Pipelines/DirectX12TexturedQuadPipeline.h
 
@@ -884,6 +890,8 @@ set(CARROT_TEST_SOURCES
         tests/ControllerTests.cpp
         tests/CollisionWorldTests.cpp
         tests/FontAssetTests.cpp
+        tests/RHIBufferTests.cpp
+        tests/RHIComputeTests.cpp
         tests/SceneLoadingTests.cpp
         tests/UITests.cpp
         tests/UILayoutTests.cpp
@@ -925,7 +933,7 @@ target_link_libraries(CarrotEditor PRIVATE CarrotEngine)
 # ------------------------------------------------------------------------
 include(CompileShaders.cmake)
 
-file(GLOB HLSL_SOURCES "shaders/*.vert.hlsl" "shaders/*.frag.hlsl")
+file(GLOB HLSL_SOURCES "shaders/*.vert.hlsl" "shaders/*.frag.hlsl" "shaders/*.comp.hlsl")
 set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders")
 
 # Platform-native shaders

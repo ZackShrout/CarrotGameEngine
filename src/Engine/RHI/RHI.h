@@ -6,6 +6,7 @@
 #pragma once
 
 #include "Buffer.h"
+#include "Pipeline.h"
 #include "Renderer/Draw/TexturedQuadBatch.h"
 #include "Renderer/Draw/TexturedQuadCameraUniform.h"
 #include "Sampler.h"
@@ -52,6 +53,26 @@ namespace carrot::rhi {
         std::array<renderer::forward_plus_tile_header_t, renderer::k_max_forward_plus_tiles> forward_plus_tiles{ };
         std::array<renderer::packed_uint4_t, renderer::k_max_forward_plus_packed_light_index_words> forward_plus_light_indices{ };
         render_viewport_t viewport{ };
+        uint32_t presentation_mask{ 1u };
+    };
+
+    struct indirect_textured_quad_stage_record_t
+    {
+        const rhi_buffer_t* vertex_buffer{ nullptr };
+        const rhi_buffer_t* index_buffer{ nullptr };
+        const rhi_buffer_t* indirect_buffer{ nullptr };
+        const rhi_texture_t* texture{ nullptr };
+        const rhi_sampler_t* sampler{ nullptr };
+        chlm::float4x4 view_projection{ chlm::float4x4::identity() };
+        chlm::float4 ambient_color{ 1.f, 1.f, 1.f, 1.f };
+        chlm::float4 forward_plus_grid_params{ 0.f, 0.f, static_cast<float>(renderer::k_forward_plus_tile_size_px), 0.f };
+        std::array<std::uint32_t, 4> forward_plus_tile_counts{ 0u, 0u, 0u, 0u };
+        std::uint32_t point_light_count{ 0u };
+        std::array<renderer::world_point_light_uniform_t, renderer::k_max_world_point_lights> point_lights{ };
+        std::array<renderer::forward_plus_tile_header_t, renderer::k_max_forward_plus_tiles> forward_plus_tiles{ };
+        std::array<renderer::packed_uint4_t, renderer::k_max_forward_plus_packed_light_index_words> forward_plus_light_indices{ };
+        render_viewport_t viewport{ };
+        std::uint32_t indirect_buffer_offset_bytes{ 0u };
         uint32_t presentation_mask{ 1u };
     };
 
@@ -126,6 +147,7 @@ namespace carrot::rhi {
          */
         virtual void begin_frame() = 0;
         virtual void record_textured_quad_stage(const textured_quad_stage_record_t& stage) = 0;
+        virtual void record_indirect_textured_quad_stage(const indirect_textured_quad_stage_record_t& stage) = 0;
         virtual void record_text_quad_stage(const textured_quad_stage_record_t& stage) = 0;
         virtual void end_frame() = 0;
 
@@ -142,10 +164,17 @@ namespace carrot::rhi {
 
         [[nodiscard]] virtual std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) = 0;
         [[nodiscard]] virtual std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) = 0;
+        [[nodiscard]] virtual std::unique_ptr<rhi_compute_pipeline_t> create_compute_pipeline(
+            const compute_pipeline_create_info_t& info) = 0;
         [[nodiscard]] virtual std::unique_ptr<rhi_sampler_t> create_sampler(const sampler_desc_t& desc) const = 0;
 
         [[nodiscard]] virtual rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) = 0;
         virtual void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) = 0;
+        // Current explicit pass-boundary contract:
+        // - the first live compute slice dispatches before graphics stage recording
+        // - the caller must declare whether later graphics stages will read compute-written storage data
+        // - backends own the native barriers/encoder boundaries needed to honor that shared declaration
+        virtual void dispatch_compute(const compute_dispatch_record_t& record) = 0;
 
         // Multi-window presentation surface management.
         // Backends can override these when they support more than one presentation surface.

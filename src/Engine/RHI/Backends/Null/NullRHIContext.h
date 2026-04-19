@@ -12,6 +12,7 @@
 #include "RHI/Swapchain.h"
 
 #include <cstdint>
+#include <string>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
@@ -29,10 +30,32 @@ namespace carrot::rhi::null {
             chlm::float4 ambient_color{ 1.f, 1.f, 1.f, 1.f };
         };
 
+        struct recorded_indirect_stage_t
+        {
+            render_viewport_t viewport{ };
+            uint32_t presentation_mask{ presentation_channel_gameplay };
+            std::uint32_t point_light_count{ 0u };
+            chlm::float4 ambient_color{ 1.f, 1.f, 1.f, 1.f };
+            std::uint32_t indirect_buffer_offset_bytes{ 0u };
+        };
+
+        struct recorded_compute_dispatch_t
+        {
+            std::string debug_name;
+            std::uint32_t storage_buffer_count{ 0u };
+            std::size_t constant_size_bytes{ 0u };
+            compute_dispatch_order_t order{ compute_dispatch_order_t::before_graphics };
+            compute_graphics_handoff_t graphics_handoff{ compute_graphics_handoff_t::none };
+            std::uint32_t group_count_x{ 1u };
+            std::uint32_t group_count_y{ 1u };
+            std::uint32_t group_count_z{ 1u };
+        };
+
         explicit null_rhi_context_t(const rhi_desc_t& desc) noexcept;
 
         void begin_frame() override;
         void record_textured_quad_stage(const textured_quad_stage_record_t& stage) override;
+        void record_indirect_textured_quad_stage(const indirect_textured_quad_stage_record_t& stage) override;
         void record_text_quad_stage(const textured_quad_stage_record_t& stage) override;
         void end_frame() override;
         void release_asset_references() override;
@@ -45,10 +68,13 @@ namespace carrot::rhi::null {
 
         [[nodiscard]] std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) override;
+        [[nodiscard]] std::unique_ptr<rhi_compute_pipeline_t> create_compute_pipeline(
+            const compute_pipeline_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_sampler_t> create_sampler(const sampler_desc_t& desc) const override;
 
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
         void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) override;
+        void dispatch_compute(const compute_dispatch_record_t& record) override;
 
         bool add_presentation_window(window::window_id_t window_id,
                                      uint32_t presentation_channel_mask = presentation_channel_gameplay) override;
@@ -66,6 +92,11 @@ namespace carrot::rhi::null {
             return _recorded_text_stages;
         }
 
+        [[nodiscard]] const std::vector<recorded_indirect_stage_t>& recorded_indirect_textured_stages() const noexcept
+        {
+            return _recorded_indirect_textured_stages;
+        }
+
         struct presentation_window_record_t
         {
             window::window_id_t window_id{ window::invalid_window_id };
@@ -75,6 +106,11 @@ namespace carrot::rhi::null {
         [[nodiscard]] const std::vector<presentation_window_record_t>& registered_presentation_windows() const noexcept
         {
             return _presentation_windows;
+        }
+
+        [[nodiscard]] const std::vector<recorded_compute_dispatch_t>& recorded_compute_dispatches() const noexcept
+        {
+            return _recorded_compute_dispatches;
         }
 
     private:
@@ -109,6 +145,13 @@ namespace carrot::rhi::null {
         public:
             explicit null_sampler_t(const sampler_desc_t& desc) noexcept
                 : rhi_sampler_t{ desc } {}
+        };
+
+        class null_compute_pipeline_t final : public rhi_compute_pipeline_t
+        {
+        public:
+            explicit null_compute_pipeline_t(const compute_pipeline_create_info_t& info) noexcept
+                : rhi_compute_pipeline_t{ info } {}
         };
 
         class null_command_queue_t final : public rhi_command_queue_t
@@ -146,7 +189,9 @@ namespace carrot::rhi::null {
         null_swapchain_t _swapchain;
         std::unordered_map<sampler_desc_t, std::unique_ptr<null_sampler_t>, sampler_desc_hash_t> _samplers;
         std::vector<recorded_stage_t> _recorded_textured_stages;
+        std::vector<recorded_indirect_stage_t> _recorded_indirect_textured_stages;
         std::vector<recorded_stage_t> _recorded_text_stages;
+        std::vector<recorded_compute_dispatch_t> _recorded_compute_dispatches;
         std::vector<presentation_window_record_t> _presentation_windows;
     };
 } // namespace carrot::rhi::null

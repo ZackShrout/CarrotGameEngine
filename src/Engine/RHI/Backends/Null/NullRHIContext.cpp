@@ -73,7 +73,9 @@ namespace carrot::rhi::null {
     void null_rhi_context_t::begin_frame()
     {
         _recorded_textured_stages.clear();
+        _recorded_indirect_textured_stages.clear();
         _recorded_text_stages.clear();
+        _recorded_compute_dispatches.clear();
     }
 
     void null_rhi_context_t::record_textured_quad_stage(const textured_quad_stage_record_t& stage)
@@ -95,6 +97,17 @@ namespace carrot::rhi::null {
             .presentation_mask = stage.presentation_mask,
             .point_light_count = stage.point_light_count,
             .ambient_color = stage.ambient_color
+        });
+    }
+
+    void null_rhi_context_t::record_indirect_textured_quad_stage(const indirect_textured_quad_stage_record_t& stage)
+    {
+        _recorded_indirect_textured_stages.push_back(recorded_indirect_stage_t{
+            .viewport = stage.viewport,
+            .presentation_mask = stage.presentation_mask,
+            .point_light_count = stage.point_light_count,
+            .ambient_color = stage.ambient_color,
+            .indirect_buffer_offset_bytes = stage.indirect_buffer_offset_bytes
         });
     }
 
@@ -127,6 +140,12 @@ namespace carrot::rhi::null {
         return std::make_unique<null_buffer_t>(info);
     }
 
+    std::unique_ptr<rhi_compute_pipeline_t> null_rhi_context_t::create_compute_pipeline(
+        const compute_pipeline_create_info_t& info)
+    {
+        return std::make_unique<null_compute_pipeline_t>(info);
+    }
+
     std::unique_ptr<rhi_sampler_t> null_rhi_context_t::create_sampler(const sampler_desc_t& desc) const
     {
         return std::make_unique<null_sampler_t>(desc);
@@ -146,6 +165,23 @@ namespace carrot::rhi::null {
     void null_rhi_context_t::bind_textured_quad_resources([[maybe_unused]] const rhi_texture_t& texture,
                                                            [[maybe_unused]] const rhi_sampler_t& sampler)
     {
+    }
+
+    void null_rhi_context_t::dispatch_compute(const compute_dispatch_record_t& record)
+    {
+        if (!record.pipeline)
+            return;
+
+        _recorded_compute_dispatches.push_back({
+            .debug_name = std::string{ record.pipeline->info().debug_name },
+            .storage_buffer_count = static_cast<std::uint32_t>(record.storage_buffers.size()),
+            .constant_size_bytes = record.constants.size(),
+            .order = record.order,
+            .graphics_handoff = record.graphics_handoff,
+            .group_count_x = record.group_count_x,
+            .group_count_y = record.group_count_y,
+            .group_count_z = record.group_count_z
+        });
     }
 
     bool null_rhi_context_t::add_presentation_window([[maybe_unused]] window::window_id_t window_id,

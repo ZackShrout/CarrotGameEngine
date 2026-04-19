@@ -23,7 +23,9 @@
 #if defined(VULKAN)
     #define CARROT_DECLARE_PUSH_CONSTANT(type, name, binding_index) [[vk::push_constant]] type name
 #else
-    #define CARROT_DECLARE_PUSH_CONSTANT(type, name, binding_index) ConstantBuffer<type> name : register(b##binding_index)
+    #define CARROT_HLSL_REGISTER_IMPL(prefix, index) prefix##index
+    #define CARROT_HLSL_REGISTER(prefix, index) CARROT_HLSL_REGISTER_IMPL(prefix, index)
+    #define CARROT_DECLARE_PUSH_CONSTANT(type, name, binding_index) ConstantBuffer<type> name : register(CARROT_HLSL_REGISTER(b, binding_index))
 #endif
 
 #define CARROT_RS_TEXTURED_QUAD \
@@ -31,6 +33,12 @@
 "DescriptorTable(CBV(b0, numDescriptors=1))," \
 "DescriptorTable(SRV(t0, numDescriptors=1))," \
 "DescriptorTable(Sampler(s0, numDescriptors=1))"
+
+#define CARROT_RS_COMPUTE \
+"DescriptorTable(UAV(u0, numDescriptors=4))," \
+"CBV(b7)"
+
+#define CARROT_COMPUTE_CONSTANT_REGISTER 7
 
 // Backend-specific clip-space normalization.
 //

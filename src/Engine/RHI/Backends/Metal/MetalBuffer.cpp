@@ -23,10 +23,14 @@ namespace carrot::rhi::metal {
         if (!_buffer || !data)
             return false;
 
+        void* contents{ _buffer->contents() };
+        if (!contents)
+            return false;
+
         if ((offset_bytes + size_bytes) > this->size_bytes())
             return false;
 
-        std::memcpy(static_cast<uint8_t*>(_buffer->contents()) + offset_bytes, data, size_bytes);
+        std::memcpy(static_cast<uint8_t*>(contents) + offset_bytes, data, size_bytes);
 
         if (_buffer->storageMode() == MTL::StorageModeManaged)
             _buffer->didModifyRange(NS::Range(offset_bytes, size_bytes));

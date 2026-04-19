@@ -43,6 +43,21 @@ namespace carrot::rhi::dx12 {
         std::span<const renderer::textured_quad_batch_t> batches{ };
     };
 
+    struct indirect_draw_context_t
+    {
+        ID3D12GraphicsCommandList* command_list{ nullptr };
+        ID3D12CommandSignature* draw_indexed_indirect_signature{ nullptr };
+
+        render_viewport_t viewport{ };
+
+        const rhi_buffer_t* vertex_buffer{ nullptr };
+        const rhi_buffer_t* index_buffer{ nullptr };
+        const rhi_buffer_t* indirect_buffer{ nullptr };
+        std::uint32_t indirect_buffer_offset_bytes{ 0u };
+        const rhi_texture_t* texture{ nullptr };
+        const rhi_sampler_t* sampler{ nullptr };
+    };
+
     struct descriptor_tables_t
     {
         ID3D12DescriptorHeap* srv_heap{ nullptr };
@@ -76,10 +91,15 @@ namespace carrot::rhi::dx12 {
         }
 
         void draw(const draw_context_t& draw_context, const descriptor_context_t& descriptor_context) const;
+        void draw_indirect(const indirect_draw_context_t& draw_context,
+                           const descriptor_context_t& descriptor_context) const;
 
     private:
         void write_batch_descriptors(uint32_t batch_index, const renderer::textured_quad_batch_t& batch,
                                      const descriptor_context_t& descriptor_context) const;
+        void write_indirect_descriptors(const rhi_texture_t& texture,
+                                        const rhi_sampler_t& sampler,
+                                        const descriptor_context_t& descriptor_context) const;
 
         ID3D12Device* _device{ nullptr };
         ID3D12RootSignature* _root_signature{ nullptr };

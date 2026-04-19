@@ -299,6 +299,95 @@ namespace carrot::rhi::dx12 {
         }
     }
 
+    void dx12_textured_quad_pipeline_t::draw_indirect(const indirect_draw_context_t& draw_context,
+                                                      const descriptor_context_t& descriptor_context) const
+    {
+        if (!draw_context.command_list ||
+            !draw_context.draw_indexed_indirect_signature ||
+            !draw_context.vertex_buffer ||
+            !draw_context.index_buffer ||
+            !draw_context.indirect_buffer ||
+            !draw_context.texture ||
+            !draw_context.sampler ||
+            !descriptor_context.tables.srv_heap ||
+            !descriptor_context.tables.sampler_heap ||
+            descriptor_context.tables.camera_cbv_handle.ptr == 0 ||
+            !descriptor_context.sampler_provider)
+        {
+            return;
+        }
+
+        ID3D12GraphicsCommandList* cmd{ draw_context.command_list };
+
+        const dx12_buffer_t& dx_vertex_buffer{ dynamic_cast<const dx12_buffer_t&>(*draw_context.vertex_buffer) };
+        const dx12_buffer_t& dx_index_buffer{ dynamic_cast<const dx12_buffer_t&>(*draw_context.index_buffer) };
+        const dx12_buffer_t& dx_indirect_buffer{ dynamic_cast<const dx12_buffer_t&>(*draw_context.indirect_buffer) };
+
+        D3D12_VIEWPORT viewport{ };
+        viewport.TopLeftX = static_cast<float>(draw_context.viewport.rect_px.position.x);
+        viewport.TopLeftY = static_cast<float>(draw_context.viewport.rect_px.position.y);
+        viewport.Width = static_cast<float>(draw_context.viewport.rect_px.size.x);
+        viewport.Height = static_cast<float>(draw_context.viewport.rect_px.size.y);
+        viewport.MinDepth = 0.f;
+        viewport.MaxDepth = 1.f;
+
+        D3D12_RECT scissor{ };
+        scissor.left = static_cast<LONG>(draw_context.viewport.rect_px.position.x);
+        scissor.top = static_cast<LONG>(draw_context.viewport.rect_px.position.y);
+        scissor.right = static_cast<LONG>(draw_context.viewport.rect_px.position.x + draw_context.viewport.rect_px.size.x);
+        scissor.bottom = static_cast<LONG>(draw_context.viewport.rect_px.position.y + draw_context.viewport.rect_px.size.y);
+
+        D3D12_VERTEX_BUFFER_VIEW vbv{ };
+        vbv.BufferLocation = dx_vertex_buffer.resource()->GetGPUVirtualAddress();
+        vbv.SizeInBytes = static_cast<UINT>(dx_vertex_buffer.size_bytes());
+        vbv.StrideInBytes = sizeof(renderer::quad_vertex_t);
+
+        D3D12_INDEX_BUFFER_VIEW ibv{ };
+        ibv.BufferLocation = dx_index_buffer.resource()->GetGPUVirtualAddress();
+        ibv.SizeInBytes = static_cast<UINT>(dx_index_buffer.size_bytes());
+        ibv.Format = DXGI_FORMAT_R32_UINT;
+
+        ID3D12DescriptorHeap* descriptor_heaps[] = {
+            descriptor_context.tables.srv_heap,
+            descriptor_context.tables.sampler_heap
+        };
+
+        cmd->SetGraphicsRootSignature(_root_signature);
+        cmd->SetPipelineState(_pipeline_state);
+        cmd->SetDescriptorHeaps(_countof(descriptor_heaps), descriptor_heaps);
+        cmd->RSSetViewports(1, &viewport);
+        cmd->RSSetScissorRects(1, &scissor);
+        cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        cmd->IASetVertexBuffers(0, 1, &vbv);
+        cmd->IASetIndexBuffer(&ibv);
+        cmd->SetGraphicsRootDescriptorTable(0, descriptor_context.tables.camera_cbv_handle);
+        write_indirect_descriptors(*draw_context.texture, *draw_context.sampler, descriptor_context);
+
+        const D3D12_GPU_DESCRIPTOR_HANDLE srv_heap_start{
+            descriptor_context.tables.srv_heap->GetGPUDescriptorHandleForHeapStart()
+        };
+        const D3D12_GPU_DESCRIPTOR_HANDLE sampler_heap_start{
+            descriptor_context.tables.sampler_heap->GetGPUDescriptorHandleForHeapStart()
+        };
+
+        D3D12_GPU_DESCRIPTOR_HANDLE srv_handle{ srv_heap_start };
+        srv_handle.ptr += static_cast<SIZE_T>(descriptor_context.tables.first_batch_srv_index) *
+                          descriptor_context.tables.srv_descriptor_size;
+
+        D3D12_GPU_DESCRIPTOR_HANDLE sampler_handle{ sampler_heap_start };
+        sampler_handle.ptr += static_cast<SIZE_T>(descriptor_context.tables.first_batch_sampler_index) *
+                              descriptor_context.tables.sampler_descriptor_size;
+
+        cmd->SetGraphicsRootDescriptorTable(1, srv_handle);
+        cmd->SetGraphicsRootDescriptorTable(2, sampler_handle);
+        cmd->ExecuteIndirect(draw_context.draw_indexed_indirect_signature,
+                             1,
+                             dx_indirect_buffer.resource(),
+                             draw_context.indirect_buffer_offset_bytes,
+                             nullptr,
+                             0);
+    }
+
     void dx12_textured_quad_pipeline_t::write_batch_descriptors(const uint32_t batch_index,
                                                                 const renderer::textured_quad_batch_t& batch,
                                                                 const descriptor_context_t& descriptor_context) const
@@ -347,6 +436,52 @@ namespace carrot::rhi::dx12 {
                               descriptor_context.tables.sampler_descriptor_size;
 
         const D3D12_SAMPLER_DESC d3d_sampler_desc{ dx12_sampler_desc(sampler_desc) };
+        _device->CreateSampler(&d3d_sampler_desc, sampler_handle);
+    }
+
+    void dx12_textured_quad_pipeline_t::write_indirect_descriptors(const rhi_texture_t& texture,
+                                                                   const rhi_sampler_t& sampler,
+                                                                   const descriptor_context_t& descriptor_context) const
+    {
+        const dx12_texture_t* dx_texture{ dynamic_cast<const dx12_texture_t*>(&texture) };
+        if (!dx_texture)
+        {
+            LOG_GRAPHICS_FATAL("DX12 indirect textured quad texture is not a dx12_texture_t");
+            return;
+        }
+
+        const D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc{
+            .Format = dx_texture->srv_format(),
+            .ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D,
+            .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+            .Texture2D = {
+                .MostDetailedMip = 0,
+                .MipLevels = 1,
+                .PlaneSlice = 0,
+                .ResourceMinLODClamp = 0.f
+            }
+        };
+
+        D3D12_CPU_DESCRIPTOR_HANDLE srv_handle{
+            descriptor_context.tables.srv_heap->GetCPUDescriptorHandleForHeapStart()
+        };
+        srv_handle.ptr += static_cast<SIZE_T>(descriptor_context.tables.first_batch_srv_index) *
+                          descriptor_context.tables.srv_descriptor_size;
+        _device->CreateShaderResourceView(dx_texture->resource(), &srv_desc, srv_handle);
+
+        if (!descriptor_context.sampler_provider->get_or_create_sampler(sampler.desc()))
+        {
+            LOG_GRAPHICS_FATAL("DX12 indirect textured quad failed to retrieve sampler");
+            return;
+        }
+
+        D3D12_CPU_DESCRIPTOR_HANDLE sampler_handle{
+            descriptor_context.tables.sampler_heap->GetCPUDescriptorHandleForHeapStart()
+        };
+        sampler_handle.ptr += static_cast<SIZE_T>(descriptor_context.tables.first_batch_sampler_index) *
+                              descriptor_context.tables.sampler_descriptor_size;
+
+        const D3D12_SAMPLER_DESC d3d_sampler_desc{ dx12_sampler_desc(sampler.desc()) };
         _device->CreateSampler(&d3d_sampler_desc, sampler_handle);
     }
 } // namespace carrot::rhi::dx12

@@ -10,6 +10,7 @@
 #include "DirectX12Core.h"
 #include "DirectX12Sampler.h"
 #include "DirectX12Texture.h"
+#include "Pipelines/DirectX12ComputePipeline.h"
 #include "Pipelines/DirectX12TexturedQuadPipeline.h"
 #include "RHI/RHI.h"
 #include "Renderer/Draw/TexturedQuadCameraUniform.h"
@@ -21,6 +22,7 @@
 #include <vector>
 
 namespace carrot::rhi::dx12 {
+    namespace assets = carrot::assets;
     class dx12_device_t;
     class dx12_command_queue_t;
     class dx12_swapchain_t;
@@ -35,10 +37,14 @@ namespace carrot::rhi::dx12 {
         uint64_t fence_value{ 0 };
         std::array<std::unique_ptr<dx12_buffer_t>, k_max_textured_quad_stage_slots_per_frame>
             textured_quad_camera_uniform_buffers;
+        std::vector<std::unique_ptr<dx12_buffer_t>> transient_compute_constant_buffers;
 
         std::array<ID3D12DescriptorHeap*, k_max_textured_quad_stage_slots_per_frame> textured_quad_srv_heaps{ };
         std::array<ID3D12DescriptorHeap*, k_max_textured_quad_stage_slots_per_frame> textured_quad_sampler_heaps{ };
+        std::array<ID3D12DescriptorHeap*, k_max_textured_quad_stage_slots_per_frame> indirect_textured_quad_srv_heaps{ };
+        std::array<ID3D12DescriptorHeap*, k_max_textured_quad_stage_slots_per_frame> indirect_textured_quad_sampler_heaps{ };
         uint32_t textured_quad_descriptor_capacity{ 0 };
+        ID3D12DescriptorHeap* compute_uav_heap{ nullptr };
     };
 
     class dx12_rhi_context_t final : public rhi_context_t, public dx12_textured_quad_sampler_provider_t
@@ -49,6 +55,7 @@ namespace carrot::rhi::dx12 {
 
         void begin_frame() override;
         void record_textured_quad_stage(const textured_quad_stage_record_t& stage) override;
+        void record_indirect_textured_quad_stage(const indirect_textured_quad_stage_record_t& stage) override;
         void record_text_quad_stage(const textured_quad_stage_record_t& stage) override;
         void end_frame() override;
 
@@ -63,10 +70,13 @@ namespace carrot::rhi::dx12 {
 
         [[nodiscard]] std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) override;
+        [[nodiscard]] std::unique_ptr<rhi_compute_pipeline_t> create_compute_pipeline(
+            const compute_pipeline_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_sampler_t> create_sampler(const sampler_desc_t& desc) const override;
 
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
         void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) override;
+        void dispatch_compute(const compute_dispatch_record_t& record) override;
         bool add_presentation_window(window::window_id_t window_id,
                                      uint32_t presentation_channel_mask = presentation_channel_gameplay) override;
         bool remove_presentation_window(window::window_id_t window_id) override;
@@ -96,21 +106,33 @@ namespace carrot::rhi::dx12 {
             quad_pipeline_kind_t pipeline_kind{ quad_pipeline_kind_t::textured };
         };
 
+        struct recorded_indirect_stage_t
+        {
+            indirect_textured_quad_stage_record_t stage;
+            uint32_t stage_slot{ 0 };
+        };
+
         void record_quad_stage_to_active_target(const textured_quad_stage_record_t& stage,
                                                 uint32_t stage_slot,
                                                 quad_pipeline_kind_t pipeline_kind);
+        void record_indirect_textured_quad_stage_to_active_target(const indirect_textured_quad_stage_record_t& stage,
+                                                                  uint32_t stage_slot);
         void sync_auxiliary_surface_sizes();
         bool create_auxiliary_surface(window::window_id_t window_id, uint32_t presentation_channel_mask);
         void destroy_auxiliary_surface(auxiliary_surface_t& surface) noexcept;
 
         void ensure_textured_quad_descriptor_capacity(uint32_t required_capacity);
+        void ensure_indirect_textured_quad_descriptor_capacity(uint32_t required_capacity);
+        void ensure_compute_descriptor_capacity();
 
         // ── Backend-owned services and persistent objects ──
+        assets::shader_file_provider_t*                _shader_files{ nullptr };
         std::unique_ptr<dx12_device_t>                    _device;
         std::unique_ptr<dx12_command_queue_t>             _graphics_queue;
         std::unique_ptr<dx12_swapchain_t>                 _swapchain;
         std::unique_ptr<dx12_textured_quad_pipeline_t>    _textured_quad_pipeline;
         std::unique_ptr<dx12_textured_quad_pipeline_t>    _text_quad_pipeline;
+        std::unique_ptr<rhi_buffer_t>                     _default_compute_storage_buffer;
 
         // ── Per-frame GPU resources and frame progression ──
         std::array<dx12_frame_t, k_max_frames_in_flight>  _frames;
@@ -118,6 +140,7 @@ namespace carrot::rhi::dx12 {
         window::window_id_t                               _presentation_window_id{ window::invalid_window_id };
         std::vector<auxiliary_surface_t>                  _auxiliary_surfaces;
         std::vector<recorded_stage_t>                     _recorded_stages;
+        std::vector<recorded_indirect_stage_t>            _recorded_indirect_stages;
 
         // ── Swapchain / render-target descriptor bookkeeping ──
         uint32_t                                          _rtv_descriptor_stride{ 0 };
@@ -125,6 +148,7 @@ namespace carrot::rhi::dx12 {
         // ── Dynamic per-batch descriptor state ──
         uint32_t                                          _srv_descriptor_stride{ 0 };
         uint32_t                                          _sampler_descriptor_stride{ 0 };
+        ID3D12CommandSignature*                           _draw_indexed_indirect_signature{ nullptr };
 
         // ── Sampler caching ──
         std::unordered_map<sampler_desc_t, std::unique_ptr<dx12_sampler_t>, sampler_desc_hash_t> _sampler_cache;

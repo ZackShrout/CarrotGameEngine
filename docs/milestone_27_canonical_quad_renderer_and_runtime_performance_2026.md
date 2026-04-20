@@ -59,6 +59,10 @@ The key rule is:
 
 **Milestone 27 should ship Carrot's canonical 2D quad renderer path, not attempt to complete every future renderer feature.**
 
+See also:
+
+* [milestone_27_canonical_renderer_implementation_plan.md](/Users/zshrout/dev/CarrotGameEngine/docs/systems/milestone_27_canonical_renderer_implementation_plan.md:1) for the concrete implementation sequencing, Vulkan-first backend transition policy, and canonical contract decisions adopted for this milestone
+
 ---
 
 ## Why This Milestone Comes Next
@@ -94,6 +98,24 @@ For the validated milestone slice, that means:
 * the renderer should expose honest performance truth rather than forcing contributors to guess where frame time went
 
 If the milestone improves raw speed temporarily but leaves the renderer's internal ownership unclear, it has not gone far enough.
+
+## Locked Implementation Direction
+
+Milestone 27 now adopts the following implementation policy for the renderer refactor.
+
+These decisions are no longer open questions for the milestone:
+
+* Carrot is building one backend-neutral canonical renderer, not a Vulkan-shaped renderer
+* Vulkan is the first backend that will fully implement the new canonical bucketed instanced quad path
+* Metal and DirectX 12 may be temporarily stubbed during the refactor as long as they continue to compile and fail explicitly instead of degrading silently
+* backend parity is restored before milestone closeout, but does not need to be preserved continuously during the structural rewrite
+* compatibility layers should not be kept merely because the old path existed; if current renderer-facing or public APIs obstruct the canonical path, Milestone 27 is allowed to replace them cleanly
+
+That means this milestone is allowed to be a prolonged renderer surgery milestone rather than a short compatibility-preserving increment.
+
+The rule is:
+
+**Carrot should prefer the canonical renderer over temporary compatibility if the two are in conflict.**
 
 ---
 
@@ -172,6 +194,17 @@ Required outcomes:
 * world/UI/composite-facing quad submission routes that can map into that canonical path
 * explicit retirement or relegation of legacy CPU-expanded geometry paths where they are no longer the default
 
+The validated milestone slice for that path is:
+
+* world textured quads
+* world text quads
+* UI textured and text quads
+* overlay debug textured and text quads
+* log console textured and text quads
+* composite textured and solid fullscreen/quad work that belongs to the current 2D/composite path
+
+The milestone should treat that whole slice as the target architecture, not as unrelated mini-renderers.
+
 ### 2. Instanced Quad Execution
 
 Carrot should execute the validated quad slice through instanced rendering instead of treating per-frame CPU-expanded quad geometry as the permanent approach.
@@ -247,6 +280,15 @@ Define and implement the canonical quad contract for the validated milestone sli
 * the renderer's internal ownership of quad execution is clearer after the change
 * obsolete or provisional legacy paths are clearly demoted, retired, or documented as non-canonical
 
+#### Locked Direction
+
+For Milestone 27, "canonical quad path" means:
+
+* one renderer-owned quad instance contract shared across the validated 2D slice where stage semantics allow it
+* one renderer-owned bucket/build/dispatch path for quad execution
+* no equal-status split between world indirect execution and non-world CPU-expanded direct execution
+* gameplay-facing draw APIs may remain intent-shaped, but renderer-facing execution APIs may be replaced outright if needed
+
 ### Ticket 27.2 - Instanced Quad Execution for the Validated Slice
 
 **Priority:** P0
@@ -272,6 +314,15 @@ Implement the instanced path and migrate the milestone slice onto it:
 * the validated milestone slice uses instanced quad rendering as the default execution path
 * the renderer no longer depends primarily on fully expanded per-frame quad geometry there
 * output correctness is preserved for real engine content
+
+#### Backend Transition Rule
+
+Milestone 27 may sequence backend implementation as follows:
+
+* Vulkan first: full implementation and validation target during the initial refactor passes
+* Metal and DirectX 12 secondarily: compile-preserving stubs are acceptable while the shared contract is still moving
+* re-enable one suspended backend at a time after Vulkan stabilizes
+* choose the second restored backend based on which backend best tests the abstraction rather than by habit
 
 ### Ticket 27.3 - Renderer Extraction, Batching, and Submission Audit
 
@@ -397,6 +448,16 @@ Update validation and docs for the new canonical path:
 * backend parity expectations remain explicit
 * validation is written down instead of assumed
 
+#### Sequencing Clarification
+
+This ticket intentionally closes the temporary Vulkan-first refactor window.
+
+That means:
+
+* Vulkan being first to full implementation is acceptable
+* temporary Metal/DirectX 12 stubbing is acceptable during the milestone body
+* milestone closeout still requires all three backends to participate in the canonical shared path again
+
 ---
 
 ## Non-Goals
@@ -426,6 +487,12 @@ Milestone 27 should not be considered complete until it validates:
 * that the canonical quad path remains structurally compatible with current composite behavior
 * that current future-facing readiness for shaft-light/composite growth was preserved or consciously migrated
 
+During the transition period, milestone progress notes should explicitly distinguish:
+
+* the backend currently used as the active implementation truth source
+* backends that still compile but are temporarily stubbed for the new path
+* backends that have been re-enabled against the canonical contract
+
 ---
 
 ## Success Criteria
@@ -440,3 +507,11 @@ Milestone 27 is succeeding when:
 * future shaft-light readiness is still present even though shaft lighting itself remains out of scope
 
 That is enough for Milestone 27 to be a major renderer milestone without pretending it is the end of renderer evolution.
+
+## Implementation Plan Reference
+
+The concrete implementation plan adopted for this milestone lives in:
+
+* [milestone_27_canonical_renderer_implementation_plan.md](/Users/zshrout/dev/CarrotGameEngine/docs/systems/milestone_27_canonical_renderer_implementation_plan.md:1)
+
+That companion note should be treated as the milestone's operational plan unless this milestone document is later amended.

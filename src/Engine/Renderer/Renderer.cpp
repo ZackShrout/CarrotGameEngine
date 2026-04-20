@@ -430,6 +430,19 @@ namespace carrot::renderer {
         _composite_overlay_color = 0x00000000u;
     }
 
+    light_shaft_readiness_t renderer_t::light_shaft_readiness() const noexcept
+    {
+        return light_shaft_readiness_t{
+            .renderer_contract_ready = true,
+            .composite_capture_source_available = true,
+            .fullscreen_pass_orchestration_available = true,
+            .point_light_source_input_available = true,
+            .requires_world_occlusion_mask = true,
+            .requires_source_mask_texture = true,
+            .requires_authored_shaft_source_selection = true
+        };
+    }
+
     void renderer_t::submit_world_textured_quad(const textured_quad_draw_info_t& quad)
     {
         if (quad.texture == nullptr)

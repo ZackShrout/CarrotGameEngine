@@ -245,6 +245,17 @@ namespace carrot::renderer {
         bool incoming{ false };
     };
 
+    struct light_shaft_readiness_t
+    {
+        bool renderer_contract_ready{ true };
+        bool composite_capture_source_available{ true };
+        bool fullscreen_pass_orchestration_available{ true };
+        bool point_light_source_input_available{ true };
+        bool requires_world_occlusion_mask{ true };
+        bool requires_source_mask_texture{ true };
+        bool requires_authored_shaft_source_selection{ true };
+    };
+
     class renderer_t final : public core::module_t
     {
     public:
@@ -302,6 +313,7 @@ namespace carrot::renderer {
         [[nodiscard]] const renderer_stats_t& get_last_completed_stats() const noexcept { return _last_completed_stats; }
         [[nodiscard]] uint64_t get_frame_index() const noexcept { return _frame_index; }
         [[nodiscard]] rhi::rhi_context_t* get_rhi() const noexcept { return _rhi.get(); }
+        [[nodiscard]] light_shaft_readiness_t light_shaft_readiness() const noexcept;
         [[nodiscard]] std::size_t pending_world_render_item_count() const noexcept { return _world_render_items.items.size(); }
         [[nodiscard]] std::size_t pending_composite_fullscreen_pass_count() const noexcept
         {

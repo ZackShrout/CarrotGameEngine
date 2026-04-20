@@ -319,6 +319,29 @@ The principle is:
 * if a field is irrelevant because another field fully determines semantics, Carrot may ignore it with a warning
 * if a chosen behavior is missing required data, Carrot fails validation instead of silently changing meaning
 
+#### Light Shaft Readiness Expectations
+
+Carrot's milestone 26 renderer is now considered architecturally ready for future light shafts, but shafts still depend on authored inputs that are not yet part of the shipped effect set.
+
+The current readiness contract is:
+
+* authored `Light` objects with `kind = point` are the future shaft-source candidates
+* ambient lights are not shaft sources
+* the renderer already has the fullscreen/composite substrate and captured presentation seam needed for a shaft-style post pass
+* the remaining missing inputs are authored shaft-source selection plus mask/occlusion data, not another renderer architecture milestone
+
+If light shafts land later, the expected authored/input shape is:
+
+* shaft source selection should come from explicit authored light-source semantics rather than "every point light always emits shafts"
+* world occlusion should come from a renderer-consumable mask that hides shafts behind authored blockers
+* richer selective glow/shaft contribution may also want an emissive/source mask separate from the base captured gameplay presentation
+
+So the honest current state is:
+
+* renderer/composite readiness is in place
+* authored/import dependencies still need to be defined for final shaft quality
+* shafts are currently deferred because of content/input readiness, not because the renderer lacks a home for them
+
 
 ### Group Inheritance Is Supported, But Explicit
 

@@ -127,4 +127,14 @@ namespace carrot::core {
     {
         return _renderer.current_render_target_pixel_size();
     }
+
+    renderer::bloom_settings_t game_view_t::bloom_settings() const noexcept
+    {
+        return _renderer.bloom_settings();
+    }
+
+    renderer::light_shaft_readiness_t game_view_t::light_shaft_readiness() const noexcept
+    {
+        return _renderer.light_shaft_readiness();
+    }
 } // namespace carrot::core

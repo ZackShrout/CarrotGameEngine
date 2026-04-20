@@ -2,7 +2,7 @@
 
 **BunnySoft**
 **Current validation checklist**
-**Last Updated: April 19, 2026**
+**Last Updated: April 20, 2026**
 
 ---
 
@@ -111,6 +111,13 @@ Current milestone 25 validation snapshot:
 * Metal manual validation is current as of **April 19, 2026**
 * DirectX 12 runtime validation is current as of **April 19, 2026**
 * the validated world-stage slice is renderer-owned world-item extraction, GPU cull/compaction, and indirect textured world draws; world text, UI, overlay debug, composite, and log console remain intentionally simpler direct paths
+
+Current milestone 26 validation snapshot:
+
+* Vulkan manual validation is current as of **April 20, 2026**
+* Metal manual validation is current as of **April 20, 2026**
+* DirectX 12 runtime validation is current as of **April 20, 2026**
+* the validated composite/transition slice is renderer-owned composite fullscreen-pass orchestration plus the captured battle-swirl transition path, including auxiliary-window behavior where the backend currently supports that presentation surface
 
 ---
 

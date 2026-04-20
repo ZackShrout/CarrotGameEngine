@@ -1008,6 +1008,8 @@ namespace carrot::scene {
                 .transition_progress = diagnostics_visible && has_pending_scene()
                                            ? state_snapshot.transition_progress
                                            : _recent_transition_diagnostics.transition_progress,
+                .overlay_opacity = _transition_overlay_opacity,
+                .show_loading_text = _active_transition_overlay_options.show_loading_text,
                 .startup_waiting_for_first_present = _recent_transition_diagnostics.startup_waiting_for_first_present
             },
             .active_camera = _active_camera_options,
@@ -1099,6 +1101,28 @@ namespace carrot::scene {
                 .intensity = light.intensity
             });
         }
+
+        const renderer::bloom_settings_t bloom{ game.view.bloom_settings() };
+        summary.post_fx = scene_runtime_post_fx_summary_t{
+            .bloom_enabled = bloom.enabled,
+            .bloom_baseline_strength = bloom.baseline_strength,
+            .bloom_max_strength = bloom.max_strength,
+            .bloom_tint_abgr = bloom.tint_abgr,
+            .battle_swirl_supported = true,
+            .capture_based_transition_effects_available = true
+        };
+
+        const renderer::light_shaft_readiness_t shaft_readiness{ game.view.light_shaft_readiness() };
+        summary.light_shafts = scene_runtime_light_shaft_summary_t{
+            .renderer_contract_ready = shaft_readiness.renderer_contract_ready,
+            .composite_capture_source_available = shaft_readiness.composite_capture_source_available,
+            .fullscreen_pass_orchestration_available = shaft_readiness.fullscreen_pass_orchestration_available,
+            .point_light_source_input_available = shaft_readiness.point_light_source_input_available,
+            .requires_world_occlusion_mask = shaft_readiness.requires_world_occlusion_mask,
+            .requires_source_mask_texture = shaft_readiness.requires_source_mask_texture,
+            .requires_authored_shaft_source_selection = shaft_readiness.requires_authored_shaft_source_selection,
+            .available_point_light_source_count = summary.lighting.point_light_count
+        };
 
         const world::collision_debug_view_t& collision_debug{ game.world.collision_debug_view() };
         summary.collision = scene_runtime_collision_system_summary_t{

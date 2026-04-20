@@ -2,7 +2,7 @@
 
 **BunnySoft**
 **Current backend support note**
-**Last Updated: April 19, 2026**
+**Last Updated: April 20, 2026**
 
 ---
 
@@ -92,6 +92,9 @@ At the time of this note:
 * On **April 19, 2026**, Vulkan was manually exercised against the current milestone 25 world-stage GPU-driven slice and rendered correctly
 * On **April 19, 2026**, Metal was manually exercised against the same slice and rendered correctly
 * On **April 19, 2026**, DirectX 12 was manually exercised on Windows against the same slice and rendered correctly
+* On **April 20, 2026**, Vulkan was manually exercised against the current milestone 26 composite/transition slice, including battle swirl and auxiliary presentation behavior, and rendered correctly
+* On **April 20, 2026**, Metal was manually exercised against the same milestone 26 slice, including battle swirl and auxiliary presentation behavior, and rendered correctly
+* On **April 20, 2026**, DirectX 12 was manually exercised on Windows against the same milestone 26 slice and rendered correctly
 
 ---
 
@@ -111,6 +114,7 @@ Current limitations and cautions include:
 * for Metal shader-converter pipelines, offline reflection JSON should be treated as a layout hint rather than a final authority for encoder bind indices; actual bind points still need confirmation against working backend patterns, validation output, and runtime behavior
 * the current milestone 25 slice now uses renderer-owned world render-item extraction, GPU visibility compaction, and indirect textured world draws on Vulkan, Metal, and DirectX 12, while world text, UI, overlay debug, composite, and log console rendering intentionally remain on simpler direct paths
 * shader compilation now needs to stay honest about shared include/header dependencies; cross-machine rebuilds should not rely on top-level `.hlsl` timestamps alone when shared shader-side contracts change
+* the current milestone 26 slice now adds renderer-owned composite fullscreen-pass orchestration plus a captured battle-swirl transition path on Vulkan, Metal, and DirectX 12; the validated swirl path includes auxiliary-window behavior where that presentation surface is supported
 
 ---
 

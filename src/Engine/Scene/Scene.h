@@ -347,6 +347,8 @@ namespace carrot::scene {
             std::string structural_refresh_asset_logical_id;
             std::string structural_refresh_reason;
             float transition_progress{ 0.f };
+            float overlay_opacity{ 0.f };
+            bool show_loading_text{ false };
             bool startup_waiting_for_first_present{ false };
 
             [[nodiscard]] bool has_structural_refresh_context() const noexcept
@@ -526,6 +528,28 @@ namespace carrot::scene {
         std::vector<scene_runtime_light_summary_t> point_lights;
     };
 
+    struct scene_runtime_light_shaft_summary_t
+    {
+        bool renderer_contract_ready{ false };
+        bool composite_capture_source_available{ false };
+        bool fullscreen_pass_orchestration_available{ false };
+        bool point_light_source_input_available{ false };
+        bool requires_world_occlusion_mask{ true };
+        bool requires_source_mask_texture{ true };
+        bool requires_authored_shaft_source_selection{ true };
+        uint32_t available_point_light_source_count{ 0u };
+    };
+
+    struct scene_runtime_post_fx_summary_t
+    {
+        bool bloom_enabled{ false };
+        float bloom_baseline_strength{ 0.f };
+        float bloom_max_strength{ 0.f };
+        uint32_t bloom_tint_abgr{ 0xFFFFFFFFu };
+        bool battle_swirl_supported{ true };
+        bool capture_based_transition_effects_available{ true };
+    };
+
     struct scene_runtime_collision_system_summary_t
     {
         uint32_t static_collider_count{ 0u };
@@ -593,6 +617,8 @@ namespace carrot::scene {
     struct scene_runtime_systems_summary_t
     {
         scene_runtime_lighting_summary_t lighting;
+        scene_runtime_post_fx_summary_t post_fx;
+        scene_runtime_light_shaft_summary_t light_shafts;
         scene_runtime_collision_system_summary_t collision;
         scene_runtime_layering_system_summary_t layering;
         scene_runtime_player_controller_summary_t player_controller;

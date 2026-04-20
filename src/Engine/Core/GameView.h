@@ -7,9 +7,9 @@
 
 #include <chlm/CarrotHLM.h>
 
+#include "Renderer/Renderer.h"
+
 namespace carrot::renderer {
-    class renderer_t;
-    struct solid_quad_draw_info_t;
 }
 
 namespace carrot::world {
@@ -44,6 +44,8 @@ namespace carrot::core {
         void draw_composite_solid_quad(float x, float y, float width, float height, uint32_t color_abgr) noexcept;
         void draw_overlay_solid_quad(float x, float y, float width, float height, uint32_t color_abgr) noexcept;
         [[nodiscard]] chlm::uint2 render_target_pixel_size() const noexcept;
+        [[nodiscard]] renderer::bloom_settings_t bloom_settings() const noexcept;
+        [[nodiscard]] renderer::light_shaft_readiness_t light_shaft_readiness() const noexcept;
 
     private:
         renderer::renderer_t& _renderer;

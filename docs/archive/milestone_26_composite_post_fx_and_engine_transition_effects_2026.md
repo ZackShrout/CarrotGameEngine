@@ -1,9 +1,9 @@
 # Carrot Game Engine - Milestone 26
 
-**Last Updated:** April 18, 2026
+**Last Updated:** April 20, 2026
 **Title:** Composite/Post-FX and Engine Transition Effects
-**Status:** In progress
-**Focus:** Build the renderer foundation for bloom, future shafts, and engine-owned fullscreen transition effects, with bloom and battle swirl implemented on the milestone closeout path.
+**Status:** Completed and archived
+**Focus:** Build the renderer foundation for bloom, future shafts, and engine-owned fullscreen transition effects, with the current composite/fade/bloom/battle-swirl slices runtime-validated on Vulkan, Metal, and DirectX 12 and the milestone now closed.
 
 ---
 
@@ -337,6 +337,15 @@ Define:
 * authored/import dependencies are documented clearly
 * if shafts are not implemented yet, it is because content/input work is still pending rather than because the renderer remains unready
 
+#### Current Status
+
+Implemented on April 20, 2026 for the readiness-contract slice:
+
+* the renderer now exposes an explicit light-shaft readiness contract instead of leaving future shaft inputs implicit in bloom/swirl/composite code paths
+* scene runtime summaries now surface that contract together with the current authored point-light source count, which makes the "renderer ready, waiting on content/masks" state queryable and testable instead of only implied in milestone prose
+* the current contract says plainly what later shaft work will depend on: composite capture/fullscreen-pass infrastructure is already present, point-light source input is already available, and the remaining prerequisites are authored shaft-source selection plus world/emissive occlusion-mask inputs rather than another renderer architecture milestone
+* shafts are still not implemented in this milestone slice, but the reason is now documented honestly as content/input readiness rather than missing presentation/composite architecture
+
 ### Ticket 26.7 - Transition and Post-FX Diagnostics
 
 **Priority:** P1
@@ -347,6 +356,15 @@ Define:
 * transition diagnostics remain truthful
 * active effect identity/state can be surfaced where appropriate
 * docs explain clearly which effects are implemented and which are only architecturally enabled
+
+#### Current Status
+
+Implemented on April 20, 2026 for the diagnostics slice:
+
+* scene runtime summaries now surface richer active transition state, including the named effect, overlay style, live overlay opacity, and whether loading-text presentation is active, so transition diagnostics remain queryable instead of being trapped only in on-screen debug text
+* runtime systems summaries now include a renderer-derived post-FX summary for the currently shipped slice, covering bloom enablement/tuning plus whether battle-swirl/capture-based transition presentation is supported on the current renderer path
+* milestone and authored-data docs now state clearly which effects are actually implemented today (`fade`, `wipe`, `loading_screen`, `battle_swirl`, modest bloom) and which remain only architecturally enabled (`light shafts`)
+* this keeps milestone 26 honest: richer transition and post work now has visible runtime truth surfaces, but the engine still distinguishes between shipped effects and future readiness instead of quietly implying more than the renderer currently does
 
 ---
 
@@ -379,3 +397,18 @@ Milestone 26 is complete when:
 * bloom is implemented
 * battle swirl is implemented and gameplay-requestable as a transition override
 * light shafts are enabled by the architecture even if final implementation is deferred for authored/import reasons
+
+#### Closeout Note
+
+Milestone 26 was closed and archived on **April 20, 2026** after the current slice was runtime-validated on Vulkan, Metal, and DirectX 12.
+
+The validated shipped slice is:
+
+* renderer-owned composite fullscreen-pass orchestration
+* named engine transition effects with truthful runtime diagnostics
+* default fade migrated onto the effect-owned seam
+* modest bloom on the composite path
+* captured battle-swirl transition presentation, including auxiliary-window behavior where supported
+* light-shaft architectural readiness with remaining work explicitly constrained to authored/input masks and source-selection data rather than another renderer architecture milestone
+
+This closeout is intentionally scoped to the current milestone slice, not to a claim that Carrot's final long-term selective post stack is already finished.

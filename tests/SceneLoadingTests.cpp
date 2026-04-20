@@ -2187,6 +2187,8 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(!summary.diagnostics.visible);
             CARROT_TEST_REQUIRE(summary.diagnostics.request_kind == carrot::scene::scene_change_request_kind_t::none);
             CARROT_TEST_REQUIRE(summary.diagnostics.outcome == carrot::scene::scene_change_outcome_t::none);
+            CARROT_TEST_REQUIRE(summary.diagnostics.overlay_opacity == 0.f);
+            CARROT_TEST_REQUIRE(!summary.diagnostics.show_loading_text);
             CARROT_TEST_REQUIRE(summary.world_object_count == 0u);
             CARROT_TEST_REQUIRE(summary.trigger_count == 0u);
             CARROT_TEST_REQUIRE(summary.object_collider_count == 0u);
@@ -2241,6 +2243,10 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(summary.diagnostics.visible);
             CARROT_TEST_REQUIRE(summary.diagnostics.request_kind == carrot::scene::scene_change_request_kind_t::load);
             CARROT_TEST_REQUIRE(summary.diagnostics.outcome == carrot::scene::scene_change_outcome_t::succeeded);
+            CARROT_TEST_REQUIRE(summary.diagnostics.transition_effect == carrot::scene::scene_transition_effect_t::fade);
+            CARROT_TEST_REQUIRE(summary.diagnostics.overlay_style == carrot::scene::scene_transition_overlay_style_t::fade);
+            CARROT_TEST_REQUIRE(summary.diagnostics.overlay_opacity == 0.f);
+            CARROT_TEST_REQUIRE(!summary.diagnostics.show_loading_text);
             CARROT_TEST_REQUIRE(summary.diagnostics.target_scene_id == "scene.sandbox.town");
             CARROT_TEST_REQUIRE(summary.diagnostics.target_spawn_marker == "PlayerSpawn");
             CARROT_TEST_REQUIRE(!summary.diagnostics.preserved_active_scene);
@@ -2390,6 +2396,19 @@ namespace carrot::tests {
 
             CARROT_TEST_REQUIRE(summary.lighting.point_light_count == 0u);
             CARROT_TEST_REQUIRE(summary.lighting.point_lights.empty());
+            CARROT_TEST_REQUIRE(!summary.post_fx.bloom_enabled);
+            CARROT_TEST_REQUIRE(summary.post_fx.bloom_baseline_strength == 0.f);
+            CARROT_TEST_REQUIRE(summary.post_fx.bloom_max_strength > 0.f);
+            CARROT_TEST_REQUIRE(summary.post_fx.battle_swirl_supported);
+            CARROT_TEST_REQUIRE(summary.post_fx.capture_based_transition_effects_available);
+            CARROT_TEST_REQUIRE(summary.light_shafts.renderer_contract_ready);
+            CARROT_TEST_REQUIRE(summary.light_shafts.composite_capture_source_available);
+            CARROT_TEST_REQUIRE(summary.light_shafts.fullscreen_pass_orchestration_available);
+            CARROT_TEST_REQUIRE(summary.light_shafts.point_light_source_input_available);
+            CARROT_TEST_REQUIRE(summary.light_shafts.requires_world_occlusion_mask);
+            CARROT_TEST_REQUIRE(summary.light_shafts.requires_source_mask_texture);
+            CARROT_TEST_REQUIRE(summary.light_shafts.requires_authored_shaft_source_selection);
+            CARROT_TEST_REQUIRE(summary.light_shafts.available_point_light_source_count == 0u);
             CARROT_TEST_REQUIRE(summary.collision.static_collider_count == 0u);
             CARROT_TEST_REQUIRE(!summary.collision.show_map_collision);
             CARROT_TEST_REQUIRE(!summary.collision.show_object_colliders);
@@ -2449,6 +2468,15 @@ namespace carrot::tests {
                 .color = { 1.f, 0.8f, 0.4f, 1.f },
                 .intensity = 1.5f
             });
+            renderer.set_bloom_settings(renderer::bloom_settings_t{
+                .enabled = true,
+                .baseline_strength = 0.18f,
+                .peak_light_response = 0.12f,
+                .accumulated_light_response = 0.08f,
+                .ambient_response = 0.06f,
+                .max_strength = 0.3f,
+                .tint_abgr = 0xFFE8F6FFu
+            });
             world.collision_debug_view().show_map_collision = true;
             world.collision_debug_view().show_object_colliders = true;
             world.collision_debug_view().show_trigger_volumes = true;
@@ -2494,6 +2522,20 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(summary.lighting.point_lights.size() == 1u);
             CARROT_TEST_REQUIRE(summary.lighting.ambient_color.x == 0.2f);
             CARROT_TEST_REQUIRE(summary.lighting.point_lights.front().position_world.x == 12.f);
+            CARROT_TEST_REQUIRE(summary.post_fx.bloom_enabled);
+            CARROT_TEST_REQUIRE(summary.post_fx.bloom_baseline_strength == 0.18f);
+            CARROT_TEST_REQUIRE(summary.post_fx.bloom_max_strength == 0.3f);
+            CARROT_TEST_REQUIRE(summary.post_fx.bloom_tint_abgr == 0xFFE8F6FFu);
+            CARROT_TEST_REQUIRE(summary.post_fx.battle_swirl_supported);
+            CARROT_TEST_REQUIRE(summary.post_fx.capture_based_transition_effects_available);
+            CARROT_TEST_REQUIRE(summary.light_shafts.renderer_contract_ready);
+            CARROT_TEST_REQUIRE(summary.light_shafts.composite_capture_source_available);
+            CARROT_TEST_REQUIRE(summary.light_shafts.fullscreen_pass_orchestration_available);
+            CARROT_TEST_REQUIRE(summary.light_shafts.point_light_source_input_available);
+            CARROT_TEST_REQUIRE(summary.light_shafts.requires_world_occlusion_mask);
+            CARROT_TEST_REQUIRE(summary.light_shafts.requires_source_mask_texture);
+            CARROT_TEST_REQUIRE(summary.light_shafts.requires_authored_shaft_source_selection);
+            CARROT_TEST_REQUIRE(summary.light_shafts.available_point_light_source_count == 1u);
             CARROT_TEST_REQUIRE(summary.collision.static_collider_count > 0u);
             CARROT_TEST_REQUIRE(summary.collision.show_map_collision);
             CARROT_TEST_REQUIRE(summary.collision.show_object_colliders);

@@ -50,8 +50,10 @@ namespace carrot::rhi::dx12 {
         resource_desc.SampleDesc.Count = 1;
         resource_desc.SampleDesc.Quality = 0;
         resource_desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-        resource_desc.Flags = info.usage == buffer_usage_t::storage ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS
-                                                                    : D3D12_RESOURCE_FLAG_NONE;
+        resource_desc.Flags =
+            (info.usage == buffer_usage_t::storage || info.usage == buffer_usage_t::indirect)
+                ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS
+                : D3D12_RESOURCE_FLAG_NONE;
 
         const D3D12_RESOURCE_STATES initial_state{
             use_readback_heap ? D3D12_RESOURCE_STATE_COPY_DEST

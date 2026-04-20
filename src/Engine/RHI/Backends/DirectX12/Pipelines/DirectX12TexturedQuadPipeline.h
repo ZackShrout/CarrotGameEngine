@@ -77,6 +77,8 @@ namespace carrot::rhi::dx12 {
         dx12_textured_quad_sampler_provider_t* sampler_provider{ nullptr };
         const rhi_buffer_t* forward_plus_light_input_buffer{ nullptr };
         const rhi_buffer_t* forward_plus_output_buffer{ nullptr };
+        const rhi_buffer_t* world_item_buffer{ nullptr };
+        const rhi_buffer_t* visible_item_index_buffer{ nullptr };
     };
 
     class dx12_textured_quad_pipeline_t final

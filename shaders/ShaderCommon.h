@@ -43,7 +43,7 @@
 #define CARROT_RS_TEXTURED_QUAD \
 "RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT)," \
 "DescriptorTable(CBV(b0, numDescriptors=1))," \
-"DescriptorTable(SRV(t0, numDescriptors=3))," \
+"DescriptorTable(SRV(t0, numDescriptors=5))," \
 "DescriptorTable(Sampler(s0, numDescriptors=1))"
 
 #define CARROT_RS_COMPUTE \

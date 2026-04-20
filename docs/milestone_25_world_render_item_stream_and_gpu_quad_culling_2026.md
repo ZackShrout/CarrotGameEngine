@@ -1,6 +1,6 @@
 # Carrot Game Engine - Milestone 25
 
-**Last Updated:** April 18, 2026
+**Last Updated:** April 19, 2026
 **Title:** World Render Item Stream and GPU Quad Culling
 **Status:** Planned
 **Focus:** Replace CPU-baked world quad geometry with a renderer-owned world render-item stream and introduce GPU-driven world visibility, compaction, and draw preparation while keeping non-world stages intentionally simpler.
@@ -177,6 +177,15 @@ Define a world render item structure that can carry:
 * sprites, tile objects, and tilemap-backed content can all map into it
 * renderer code is structurally less tied to immediate baked quads
 
+#### Current Status
+
+Implemented on April 19, 2026 for the current milestone slice:
+
+* world textured submissions now extract into a renderer-owned `world_render_item_t` stream instead of writing directly into baked world stage submissions
+* the world execution step materializes that item stream into the existing stage submission path immediately before world-stage execution, preserving current output while moving the architectural seam
+* sprites, tile objects, tilemap tiles, and world-space solid quads all reach the same extracted world render-item stream through the shared world textured submission path
+* non-world stages remain on the simpler direct submission path for this ticket
+
 ### Ticket 25.2 - Tilemap Chunking and Coarse Visibility Preparation
 
 **Priority:** P0
@@ -195,6 +204,15 @@ Introduce chunked tilemap render data suitable for the world stage while preserv
 * tilemap rendering has a chunk/coarse-visibility direction in the live renderer path
 * authored visibility and layering semantics remain correct
 * the renderer is no longer architecturally dependent on walking every drawable tile every frame forever
+
+#### Current Status
+
+Implemented on April 19, 2026 for the current milestone slice:
+
+* loaded tilemap assets now build sparse tile-layer render chunks for non-empty authored cells
+* the renderer uses those chunks as a coarse visibility gate against the active world camera before extracting per-tile world render items
+* authored layer ordering and visibility-zone semantics remain unchanged because chunking only narrows which tile cells are visited inside already-resolved visible layers
+* object layers intentionally remain on the simpler per-object path for now; this ticket only establishes chunk/coarse-visibility direction for tile layers
 
 ### Ticket 25.3 - GPU World Item Culling and Compaction
 
@@ -215,6 +233,15 @@ Add GPU work that:
 * the output is usable by later draw execution without CPU re-expansion
 * correctness is preserved for the tested world slice
 
+#### Current Status
+
+Implemented on April 19, 2026 for the current milestone slice:
+
+* the renderer now uploads extracted world-item bounds into a GPU input buffer and dispatches a dedicated world-item cull compute pass before world-stage execution
+* that compute pass compacts visible world item submission indices into a GPU-visible index buffer and writes a small cull-state header for later draw-path consumption
+* the current slice preserves validated ordering and bucketing by using a deliberately narrow sequential GPU compaction pass rather than a wider parallel prefix-sum implementation yet
+* live world drawing stayed on the existing materialized submission path only for this ticket; the GPU cull output was shaped for the later 25.4 execution step rather than forcing premature CPU readback or half-finished indirect drawing here
+
 ### Ticket 25.4 - GPU World Draw Execution Path
 
 **Priority:** P0
@@ -234,6 +261,15 @@ Add one narrow world draw path that:
 * draw execution uses instance or indirect-driven GPU-ready data
 * backend parity remains part of milestone validation
 
+#### Current Status
+
+Implemented on April 19, 2026 for the current milestone slice:
+
+* the world textured path now sorts extracted world render items, preserves the existing validated batch order as consecutive compatible runs, and executes those runs as indirect textured-quad stages instead of CPU-expanded per-frame quad geometry
+* each world draw run now uploads full GPU world-item data, dispatches `world item cull` to compact visible local item indices, and has that same compute pass author the indexed-indirect draw command consumed by graphics
+* the textured-quad graphics path now supports optional world-item and visible-index raw buffers so indirect world draws can fetch per-instance item data in the vertex shader while non-world and direct paths continue to bind safe default buffers
+* world text intentionally remains on the simpler direct path for now; this ticket only promotes the textured world slice to GPU-ready indirect execution
+
 ### Ticket 25.5 - CPU World Path Pressure Reduction and Cleanup
 
 **Priority:** P1
@@ -252,6 +288,14 @@ Reduce or remove the CPU-side world path that:
 * world-stage CPU geometry-baking pressure is materially reduced
 * extraction versus execution separation is visible in the code architecture
 * comments/docs/tests are updated to the new truth
+
+#### Current Status
+
+Implemented on April 19, 2026 for the current milestone slice:
+
+* the dead CPU world textured-quad submission path has been removed from the live renderer flow; world textured execution no longer materializes `_world_textured_quads` from the extracted item stream before world-stage execution
+* the world stage submission contract now reflects the real architecture: extracted world render items feed the GPU-driven indirect textured path, while world text remains on the simpler direct submission path
+* the earlier extraction regression now checks the post-25.4 truth directly: no direct world textured stage is recorded, and world-stage execution records indirect textured stages instead
 
 ### Ticket 25.6 - Validation and Scope Discipline
 

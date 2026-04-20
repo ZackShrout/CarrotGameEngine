@@ -266,6 +266,7 @@ namespace carrot::rhi::dx12 {
             const renderer::world_forward_plus_uniform_t world_uniform{
                 renderer::pack_world_forward_plus_uniform(stage.view_projection,
                                                           stage.ambient_color,
+                                                          stage.world_draw_mode,
                                                           stage.forward_plus_constants,
                                                           stage.forward_plus_light_input,
                                                           stage.forward_plus_output)
@@ -302,7 +303,13 @@ namespace carrot::rhi::dx12 {
                                                        : _default_compute_storage_buffer.get(),
                 .forward_plus_output_buffer = stage.forward_plus_output_buffer
                                                   ? stage.forward_plus_output_buffer
-                                                  : _default_compute_storage_buffer.get()
+                                                  : _default_compute_storage_buffer.get(),
+                .world_item_buffer = stage.world_item_buffer
+                                         ? stage.world_item_buffer
+                                         : _default_compute_storage_buffer.get(),
+                .visible_item_index_buffer = stage.visible_item_index_buffer
+                                                 ? stage.visible_item_index_buffer
+                                                 : _default_compute_storage_buffer.get()
             };
 
             pipeline->draw(draw_context, descriptor_context);
@@ -311,9 +318,10 @@ namespace carrot::rhi::dx12 {
 
     void dx12_rhi_context_t::record_textured_quad_stage(const textured_quad_stage_record_t& stage)
     {
+        const uint32_t stage_slot{ static_cast<uint32_t>(_recorded_stages.size() + _recorded_indirect_stages.size()) };
         _recorded_stages.push_back({
             .stage = stage,
-            .stage_slot = static_cast<uint32_t>(_recorded_stages.size()),
+            .stage_slot = stage_slot,
             .pipeline_kind = quad_pipeline_kind_t::textured
         });
         if (_recorded_stages.back().stage_slot >= k_max_textured_quad_stage_slots_per_frame)
@@ -330,9 +338,10 @@ namespace carrot::rhi::dx12 {
 
     void dx12_rhi_context_t::record_text_quad_stage(const textured_quad_stage_record_t& stage)
     {
+        const uint32_t stage_slot{ static_cast<uint32_t>(_recorded_stages.size() + _recorded_indirect_stages.size()) };
         _recorded_stages.push_back({
             .stage = stage,
-            .stage_slot = static_cast<uint32_t>(_recorded_stages.size()),
+            .stage_slot = stage_slot,
             .pipeline_kind = quad_pipeline_kind_t::text
         });
         if (_recorded_stages.back().stage_slot >= k_max_textured_quad_stage_slots_per_frame)
@@ -402,19 +411,33 @@ namespace carrot::rhi::dx12 {
             cmd->OMSetRenderTargets(1, &aux_rtv, FALSE, nullptr);
             cmd->ClearRenderTargetView(aux_rtv, clear, 0, nullptr);
 
-            for (const recorded_stage_t& recorded_stage : _recorded_stages)
+            std::size_t direct_stage_index{ 0u };
+            std::size_t indirect_stage_index{ 0u };
+            while (direct_stage_index < _recorded_stages.size() || indirect_stage_index < _recorded_indirect_stages.size())
             {
-                const textured_quad_stage_record_t& stage{ recorded_stage.stage };
-                if (!presentation_mask_includes(stage.presentation_mask, surface.presentation_channel_mask))
-                    continue;
-                record_quad_stage_to_active_target(stage, recorded_stage.stage_slot, recorded_stage.pipeline_kind);
-            }
-            for (const recorded_indirect_stage_t& recorded_stage : _recorded_indirect_stages)
-            {
-                const indirect_textured_quad_stage_record_t& stage{ recorded_stage.stage };
-                if (!presentation_mask_includes(stage.presentation_mask, surface.presentation_channel_mask))
-                    continue;
-                record_indirect_textured_quad_stage_to_active_target(stage, recorded_stage.stage_slot);
+                const bool use_direct_stage{
+                    indirect_stage_index >= _recorded_indirect_stages.size() ||
+                    (direct_stage_index < _recorded_stages.size() &&
+                     _recorded_stages[direct_stage_index].stage_slot <
+                         _recorded_indirect_stages[indirect_stage_index].stage_slot)
+                };
+
+                if (use_direct_stage)
+                {
+                    const recorded_stage_t& recorded_stage{ _recorded_stages[direct_stage_index++] };
+                    const textured_quad_stage_record_t& stage{ recorded_stage.stage };
+                    if (!presentation_mask_includes(stage.presentation_mask, surface.presentation_channel_mask))
+                        continue;
+                    record_quad_stage_to_active_target(stage, recorded_stage.stage_slot, recorded_stage.pipeline_kind);
+                }
+                else
+                {
+                    const recorded_indirect_stage_t& recorded_stage{ _recorded_indirect_stages[indirect_stage_index++] };
+                    const indirect_textured_quad_stage_record_t& stage{ recorded_stage.stage };
+                    if (!presentation_mask_includes(stage.presentation_mask, surface.presentation_channel_mask))
+                        continue;
+                    record_indirect_textured_quad_stage_to_active_target(stage, recorded_stage.stage_slot);
+                }
             }
 
             D3D12_RESOURCE_BARRIER aux_to_present{ };
@@ -1079,6 +1102,7 @@ namespace carrot::rhi::dx12 {
         const renderer::world_forward_plus_uniform_t world_uniform{
             renderer::pack_world_forward_plus_uniform(stage.view_projection,
                                                       stage.ambient_color,
+                                                      stage.world_draw_mode,
                                                       stage.forward_plus_constants,
                                                       stage.forward_plus_light_input,
                                                       stage.forward_plus_output)
@@ -1119,7 +1143,13 @@ namespace carrot::rhi::dx12 {
                                                    : _default_compute_storage_buffer.get(),
             .forward_plus_output_buffer = stage.forward_plus_output_buffer
                                               ? stage.forward_plus_output_buffer
-                                              : _default_compute_storage_buffer.get()
+                                              : _default_compute_storage_buffer.get(),
+            .world_item_buffer = stage.world_item_buffer
+                                     ? stage.world_item_buffer
+                                     : _default_compute_storage_buffer.get(),
+            .visible_item_index_buffer = stage.visible_item_index_buffer
+                                             ? stage.visible_item_index_buffer
+                                             : _default_compute_storage_buffer.get()
         };
 
         const auto* dx_indirect_buffer{ dynamic_cast<const dx12_buffer_t*>(stage.indirect_buffer) };

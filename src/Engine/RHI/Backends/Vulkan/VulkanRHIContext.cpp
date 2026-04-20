@@ -87,7 +87,7 @@ namespace carrot::rhi::vulkan {
                 case storage:
                     return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
                 case indirect:
-                    return VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
+                    return VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
                 case readback:
                     return VK_BUFFER_USAGE_TRANSFER_DST_BIT;
                 default:
@@ -128,11 +128,13 @@ namespace carrot::rhi::vulkan {
 
         // Stage-aware recording means one frame may consume descriptor sets across
         // multiple stage submissions before the command buffer is submitted.
-        constexpr uint32_t k_initial_textured_quad_descriptor_sets_per_frame{ 256 };
+        constexpr uint32_t k_initial_textured_quad_descriptor_sets_per_frame{ 1024 };
 
         constexpr uint32_t k_max_textured_quad_descriptor_sets{
             k_max_frames_in_flight * k_initial_textured_quad_descriptor_sets_per_frame
         };
+
+        constexpr uint32_t k_max_transient_compute_descriptor_sets_per_frame{ 1024u };
 
     } // anonymous namespace
 
@@ -446,6 +448,7 @@ namespace carrot::rhi::vulkan {
         const renderer::world_forward_plus_uniform_t world_uniform{
             renderer::pack_world_forward_plus_uniform(stage.view_projection,
                                                       stage.ambient_color,
+                                                      stage.world_draw_mode,
                                                       stage.forward_plus_constants,
                                                       stage.forward_plus_light_input,
                                                       stage.forward_plus_output)
@@ -463,7 +466,9 @@ namespace carrot::rhi::vulkan {
         write_textured_quad_camera_descriptor_set(_current_frame,
                                                   stage_slot,
                                                   stage.forward_plus_light_input_buffer,
-                                                  stage.forward_plus_output_buffer);
+                                                  stage.forward_plus_output_buffer,
+                                                  stage.world_item_buffer,
+                                                  stage.visible_item_index_buffer);
 
         _recorded_indirect_stages.push_back(recorded_indirect_stage_t{
             .stage = stage,
@@ -554,28 +559,47 @@ namespace carrot::rhi::vulkan {
             rp_begin.pClearValues = &clear_color;
 
             vkCmdBeginRenderPass(frame.command_buffer, &rp_begin, VK_SUBPASS_CONTENTS_INLINE);
-            for (const recorded_stage_t& recorded_stage : _recorded_stages)
+            std::size_t direct_stage_index{ 0u };
+            std::size_t indirect_stage_index{ 0u };
+            while (direct_stage_index < _recorded_stages.size() || indirect_stage_index < _recorded_indirect_stages.size())
             {
-                if (!presentation_mask_includes(recorded_stage.stage.presentation_mask,
-                                                aux_surface.presentation_channel_mask))
-                    continue;
-                encode_quad_stage_to_command_buffer(frame.command_buffer,
-                                                    recorded_stage.stage,
-                                                    recorded_stage.stage_slot,
-                                                    recorded_stage.descriptor_set_offset,
-                                                    recorded_stage.descriptor_set_count,
-                                                    recorded_stage.pipeline_kind);
-            }
-            for (const recorded_indirect_stage_t& recorded_stage : _recorded_indirect_stages)
-            {
-                if (!presentation_mask_includes(recorded_stage.stage.presentation_mask,
-                                                aux_surface.presentation_channel_mask))
-                    continue;
+                const bool use_direct_stage{
+                    indirect_stage_index >= _recorded_indirect_stages.size() ||
+                    (direct_stage_index < _recorded_stages.size() &&
+                     _recorded_stages[direct_stage_index].stage_slot <
+                         _recorded_indirect_stages[indirect_stage_index].stage_slot)
+                };
 
-                encode_indirect_textured_quad_stage_to_command_buffer(frame.command_buffer,
-                                                                      recorded_stage.stage,
-                                                                      recorded_stage.stage_slot,
-                                                                      recorded_stage.texture_descriptor_set);
+                if (use_direct_stage)
+                {
+                    const recorded_stage_t& recorded_stage{ _recorded_stages[direct_stage_index++] };
+                    if (!presentation_mask_includes(recorded_stage.stage.presentation_mask,
+                                                    aux_surface.presentation_channel_mask))
+                    {
+                        continue;
+                    }
+
+                    encode_quad_stage_to_command_buffer(frame.command_buffer,
+                                                        recorded_stage.stage,
+                                                        recorded_stage.stage_slot,
+                                                        recorded_stage.descriptor_set_offset,
+                                                        recorded_stage.descriptor_set_count,
+                                                        recorded_stage.pipeline_kind);
+                }
+                else
+                {
+                    const recorded_indirect_stage_t& recorded_stage{ _recorded_indirect_stages[indirect_stage_index++] };
+                    if (!presentation_mask_includes(recorded_stage.stage.presentation_mask,
+                                                    aux_surface.presentation_channel_mask))
+                    {
+                        continue;
+                    }
+
+                    encode_indirect_textured_quad_stage_to_command_buffer(frame.command_buffer,
+                                                                          recorded_stage.stage,
+                                                                          recorded_stage.stage_slot,
+                                                                          recorded_stage.texture_descriptor_set);
+                }
             }
             vkCmdEndRenderPass(frame.command_buffer);
 
@@ -1497,6 +1521,7 @@ namespace carrot::rhi::vulkan {
         const renderer::world_forward_plus_uniform_t world_uniform{
             renderer::pack_world_forward_plus_uniform(stage.view_projection,
                                                       stage.ambient_color,
+                                                      stage.world_draw_mode,
                                                       stage.forward_plus_constants,
                                                       stage.forward_plus_light_input,
                                                       stage.forward_plus_output)
@@ -1511,7 +1536,9 @@ namespace carrot::rhi::vulkan {
         write_textured_quad_camera_descriptor_set(_current_frame,
                                                   stage_slot,
                                                   stage.forward_plus_light_input_buffer,
-                                                  stage.forward_plus_output_buffer);
+                                                  stage.forward_plus_output_buffer,
+                                                  stage.world_item_buffer,
+                                                  stage.visible_item_index_buffer);
 
         const uint32_t batch_count{ static_cast<uint32_t>(stage.batches.size()) };
         const uint32_t descriptor_set_offset{ _textured_quad_descriptor_set_cursor[_current_frame] };
@@ -2171,10 +2198,20 @@ namespace carrot::rhi::vulkan {
     void vulkan_rhi_context_t::create_descriptor_pool()
     {
         std::array<VkDescriptorPoolSize, 4> pool_sizes{ };
+        constexpr uint32_t camera_descriptor_set_count{
+            k_max_frames_in_flight * k_max_textured_quad_stage_slots_per_frame
+        };
+        constexpr uint32_t storage_descriptors_per_camera_set{ 4u };
+        constexpr uint32_t compute_descriptor_set_count{
+            k_max_frames_in_flight * k_max_transient_compute_descriptor_sets_per_frame
+        };
+        constexpr uint32_t storage_descriptors_per_compute_set{
+            k_max_compute_storage_buffer_bindings
+        };
 
         // Set 0: one camera UBO per frame-in-flight stage slot
         pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        pool_sizes[0].descriptorCount = k_max_frames_in_flight * k_max_textured_quad_stage_slots_per_frame;
+        pool_sizes[0].descriptorCount = camera_descriptor_set_count;
 
         // Set 1, binding 0: sampled image per textured-quad descriptor set
         pool_sizes[1].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
@@ -2185,7 +2222,9 @@ namespace carrot::rhi::vulkan {
         pool_sizes[2].descriptorCount = k_max_textured_quad_descriptor_sets;
 
         pool_sizes[3].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        pool_sizes[3].descriptorCount = 256u;
+        pool_sizes[3].descriptorCount =
+            (camera_descriptor_set_count * storage_descriptors_per_camera_set) +
+            (compute_descriptor_set_count * storage_descriptors_per_compute_set);
 
         VkDescriptorPoolCreateInfo pool_info{ };
         pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -2193,7 +2232,9 @@ namespace carrot::rhi::vulkan {
         pool_info.poolSizeCount = static_cast<uint32_t>(pool_sizes.size());
         pool_info.pPoolSizes = pool_sizes.data();
         pool_info.maxSets =
-            (k_max_frames_in_flight * k_max_textured_quad_stage_slots_per_frame) + k_max_textured_quad_descriptor_sets + 64u;
+            camera_descriptor_set_count +
+            k_max_textured_quad_descriptor_sets +
+            compute_descriptor_set_count;
 
         VK_CHECK_FATAL(vkCreateDescriptorPool(_device->vk_device(), &pool_info, nullptr, &_descriptor_pool));
 
@@ -2379,7 +2420,9 @@ namespace carrot::rhi::vulkan {
     void vulkan_rhi_context_t::write_textured_quad_camera_descriptor_set(const uint32_t frame_index,
                                                                          const uint32_t stage_slot,
                                                                          const rhi_buffer_t* forward_plus_light_input_buffer,
-                                                                         const rhi_buffer_t* forward_plus_output_buffer) const
+                                                                         const rhi_buffer_t* forward_plus_output_buffer,
+                                                                         const rhi_buffer_t* world_item_buffer,
+                                                                         const rhi_buffer_t* visible_item_index_buffer) const
     {
         const auto* camera_buffer = dynamic_cast<const vulkan_buffer_t*>(
             _textured_quad.camera_uniform_buffers[frame_index][stage_slot].get());
@@ -2387,8 +2430,13 @@ namespace carrot::rhi::vulkan {
             forward_plus_light_input_buffer ? forward_plus_light_input_buffer : _default_compute_storage_buffer.get());
         const auto* output_buffer = dynamic_cast<const vulkan_buffer_t*>(
             forward_plus_output_buffer ? forward_plus_output_buffer : _default_compute_storage_buffer.get());
+        const auto* item_buffer = dynamic_cast<const vulkan_buffer_t*>(
+            world_item_buffer ? world_item_buffer : _default_compute_storage_buffer.get());
+        const auto* visible_index_buffer = dynamic_cast<const vulkan_buffer_t*>(
+            visible_item_index_buffer ? visible_item_index_buffer : _default_compute_storage_buffer.get());
 
-        if (camera_buffer == nullptr || light_input_buffer == nullptr || output_buffer == nullptr)
+        if (camera_buffer == nullptr || light_input_buffer == nullptr || output_buffer == nullptr ||
+            item_buffer == nullptr || visible_index_buffer == nullptr)
         {
             LOG_GRAPHICS_FATAL("Textured quad forward+ descriptor resources were not Vulkan buffers");
             return;
@@ -2409,7 +2457,17 @@ namespace carrot::rhi::vulkan {
         output_buffer_info.offset = 0;
         output_buffer_info.range = VK_WHOLE_SIZE;
 
-        std::array<VkWriteDescriptorSet, 3> writes{ };
+        VkDescriptorBufferInfo item_buffer_info{ };
+        item_buffer_info.buffer = item_buffer->vk_buffer();
+        item_buffer_info.offset = 0;
+        item_buffer_info.range = VK_WHOLE_SIZE;
+
+        VkDescriptorBufferInfo visible_index_buffer_info{ };
+        visible_index_buffer_info.buffer = visible_index_buffer->vk_buffer();
+        visible_index_buffer_info.offset = 0;
+        visible_index_buffer_info.range = VK_WHOLE_SIZE;
+
+        std::array<VkWriteDescriptorSet, 5> writes{ };
 
         writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         writes[0].dstSet = _textured_quad.camera_descriptor_sets[frame_index][stage_slot];
@@ -2434,6 +2492,22 @@ namespace carrot::rhi::vulkan {
         writes[2].descriptorCount = 1;
         writes[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         writes[2].pBufferInfo = &output_buffer_info;
+
+        writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[3].dstSet = _textured_quad.camera_descriptor_sets[frame_index][stage_slot];
+        writes[3].dstBinding = 3;
+        writes[3].dstArrayElement = 0;
+        writes[3].descriptorCount = 1;
+        writes[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writes[3].pBufferInfo = &item_buffer_info;
+
+        writes[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[4].dstSet = _textured_quad.camera_descriptor_sets[frame_index][stage_slot];
+        writes[4].dstBinding = 4;
+        writes[4].dstArrayElement = 0;
+        writes[4].descriptorCount = 1;
+        writes[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        writes[4].pBufferInfo = &visible_index_buffer_info;
 
         vkUpdateDescriptorSets(_device->vk_device(),
                                static_cast<uint32_t>(writes.size()),

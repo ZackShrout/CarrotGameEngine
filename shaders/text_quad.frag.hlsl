@@ -1,6 +1,6 @@
 #include "ShaderCommon.h"
 
-CARROT_DECLARE_TEXTURE_2D(g_texture, 0, 1, 2);
+CARROT_DECLARE_TEXTURE_2D(g_texture, 0, 1, 4);
 CARROT_DECLARE_SAMPLER_STATE(g_sampler, 1, 1, 0);
 
 struct PSInput

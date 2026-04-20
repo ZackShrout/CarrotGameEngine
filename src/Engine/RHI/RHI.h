@@ -51,6 +51,9 @@ namespace carrot::rhi {
         renderer::forward_plus_classification_output_t forward_plus_output{ };
         const rhi_buffer_t* forward_plus_light_input_buffer{ nullptr };
         const rhi_buffer_t* forward_plus_output_buffer{ nullptr };
+        const rhi_buffer_t* world_item_buffer{ nullptr };
+        const rhi_buffer_t* visible_item_index_buffer{ nullptr };
+        std::uint32_t world_draw_mode{ 0u };
         render_viewport_t viewport{ };
         uint32_t presentation_mask{ 1u };
     };
@@ -69,6 +72,9 @@ namespace carrot::rhi {
         renderer::forward_plus_classification_output_t forward_plus_output{ };
         const rhi_buffer_t* forward_plus_light_input_buffer{ nullptr };
         const rhi_buffer_t* forward_plus_output_buffer{ nullptr };
+        const rhi_buffer_t* world_item_buffer{ nullptr };
+        const rhi_buffer_t* visible_item_index_buffer{ nullptr };
+        std::uint32_t world_draw_mode{ 0u };
         render_viewport_t viewport{ };
         std::uint32_t indirect_buffer_offset_bytes{ 0u };
         uint32_t presentation_mask{ 1u };
@@ -77,7 +83,12 @@ namespace carrot::rhi {
     // Shared renderer-facing RHI limit:
     // every native backend provisions per-frame textured/text stage resources
     // against this stage-slot budget, so changes here are parity-sensitive.
-    constexpr uint32_t k_max_textured_quad_stage_slots_per_frame{ 16u };
+    //
+    // The original 16-slot budget was fine for the earlier "a few broad stage
+    // records per frame" renderer slices. Milestone 25's indirect world path
+    // records one textured stage per validated world material/texture run, so
+    // practical scenes need a meaningfully larger budget.
+    constexpr uint32_t k_max_textured_quad_stage_slots_per_frame{ 512u };
 
     enum presentation_channel_bits_t : uint32_t
     {

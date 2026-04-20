@@ -10,6 +10,7 @@
 #include "Core/Module.h"
 #include "Draw/TexturedQuadBatch.h"
 #include "Draw/TexturedQuadCameraUniform.h"
+#include "Draw/WorldRenderItemShared.h"
 #include "Draw/TexturedQuadTypes.h"
 #include "EngineConfig.h"
 #include "Primitives/QuadVertex.h"
@@ -137,11 +138,54 @@ namespace carrot::renderer {
         std::array<frame_buffers_t, k_textured_quad_frame_buffer_count> frame_buffers;
     };
 
+    struct world_render_item_t
+    {
+        const rhi::rhi_texture_t* texture{ nullptr };
+        chlm::float2 position_px{ 0.f, 0.f };
+        chlm::float2 size_px{ 1.f, 1.f };
+        uv_rect_t uv_rect{ };
+        render_layer_t layer{ render_layer_t::world_back };
+        render_order_mode_t order_mode{ render_order_mode_t::explicit_order };
+        int32_t order_in_layer{ 0 };
+        float sort_reference_y{ 0.f };
+        std::uint32_t color{ 0xFFFFFFFFu };
+        float effect_mode{ 0.f };
+        float effect_param0{ 0.f };
+        quad_sampler_preset_t sampler_preset{ quad_sampler_preset_t::smooth_clamp };
+        world_material_key_t world_material{ };
+        chlm::float2 bounds_min_px{ 0.f, 0.f };
+        chlm::float2 bounds_max_px{ 1.f, 1.f };
+        std::uint64_t submission_index{ 0u };
+    };
+
+    struct world_render_item_stream_t
+    {
+        std::vector<world_render_item_t> items;
+    };
+
     struct forward_plus_gpu_buffers_t
     {
         std::unique_ptr<rhi::rhi_buffer_t> constants_buffer;
         std::unique_ptr<rhi::rhi_buffer_t> light_input_buffer;
         std::unique_ptr<rhi::rhi_buffer_t> classification_output_buffer;
+    };
+
+    struct world_item_cull_gpu_buffers_t
+    {
+        std::unique_ptr<rhi::rhi_buffer_t> item_input_buffer;
+        std::unique_ptr<rhi::rhi_buffer_t> visible_item_index_buffer;
+        std::unique_ptr<rhi::rhi_buffer_t> cull_state_buffer;
+        std::unique_ptr<rhi::rhi_buffer_t> indirect_command_buffer;
+        std::size_t item_capacity{ 0u };
+    };
+
+    struct world_indirect_batch_t
+    {
+        const rhi::rhi_texture_t* texture{ nullptr };
+        quad_sampler_preset_t sampler_preset{ quad_sampler_preset_t::smooth_clamp };
+        world_material_key_t world_material{ };
+        std::size_t first_item{ 0u };
+        std::size_t item_count{ 0u };
     };
 
     class renderer_t final : public core::module_t
@@ -195,6 +239,7 @@ namespace carrot::renderer {
         [[nodiscard]] const renderer_stats_t& get_last_completed_stats() const noexcept { return _last_completed_stats; }
         [[nodiscard]] uint64_t get_frame_index() const noexcept { return _frame_index; }
         [[nodiscard]] rhi::rhi_context_t* get_rhi() const noexcept { return _rhi.get(); }
+        [[nodiscard]] std::size_t pending_world_render_item_count() const noexcept { return _world_render_items.items.size(); }
         [[nodiscard]] rhi::graphics_api get_graphics_api() const noexcept
         {
             return _rhi ? _rhi->get_graphics_api() : _config.api;
@@ -245,6 +290,7 @@ namespace carrot::renderer {
         void validate_shared_renderer_limits() const noexcept;
         void validate_frame_stage_plan() const noexcept;
         void queue_composite_overlay_if_needed();
+        void extract_world_render_item(const textured_quad_draw_info_t& quad, world_material_key_t world_material);
         void submit_world_textured_quad(const textured_quad_draw_info_t& quad);
         void submit_world_text_quad(const textured_quad_draw_info_t& quad);
         void submit_stage_textured_quad(const frame_stage_plan_t& stage_plan, const textured_quad_draw_info_t& quad);
@@ -267,6 +313,10 @@ namespace carrot::renderer {
         void ensure_forward_plus_gpu_buffers();
         void upload_forward_plus_gpu_data() const;
         void update_forward_plus_diagnostics() noexcept;
+        void ensure_world_item_cull_gpu_buffers(std::size_t batch_index, std::size_t item_capacity);
+        void upload_world_item_cull_input(std::size_t batch_index, std::span<const world_render_item_t> items) const;
+        void ensure_world_indirect_quad_buffers();
+        void build_world_indirect_batches(std::vector<world_indirect_batch_t>& out_batches) const;
         void prepare_world_stage_context(const world::world_t& world, world_stage_draw_context_t& context);
         void submit_world_object(const world::world_object_t& object, world_stage_draw_context_t& context);
         void finalize_world_stage_context(world_stage_draw_context_t& context) const;
@@ -286,6 +336,8 @@ namespace carrot::renderer {
         [[nodiscard]] const textured_quad_state_t::frame_buffers_t& current_frame_buffers(const textured_quad_state_t& state) const noexcept;
         [[nodiscard]] forward_plus_gpu_buffers_t& current_forward_plus_gpu_buffers() noexcept;
         [[nodiscard]] const forward_plus_gpu_buffers_t& current_forward_plus_gpu_buffers() const noexcept;
+        [[nodiscard]] std::vector<world_item_cull_gpu_buffers_t>& current_world_item_cull_gpu_buffers() noexcept;
+        [[nodiscard]] const std::vector<world_item_cull_gpu_buffers_t>& current_world_item_cull_gpu_buffers() const noexcept;
 
         // ── External context / configuration ──────────────────────────────────────
         io::virtual_file_system_t&  _vfs;
@@ -295,6 +347,7 @@ namespace carrot::renderer {
         // ── Backend integration ───────────────────────────────────────────────────
         std::unique_ptr<rhi::rhi_context_t>                 _rhi;
         std::unique_ptr<rhi::rhi_compute_pipeline_t>        _forward_plus_classify_pipeline;
+        std::unique_ptr<rhi::rhi_compute_pipeline_t>        _world_item_cull_pipeline;
         std::unique_ptr<assets::vfs_shader_file_provider_t> _shader_provider;
 
         // ── Frame progression / stats ─────────────────────────────────────────────
@@ -305,11 +358,13 @@ namespace carrot::renderer {
         std::chrono::steady_clock::time_point _animated_tiles_clock_origin{ std::chrono::steady_clock::now() };
 
         // ── Renderer path state: textured quads ───────────────────────────────────
-        textured_quad_state_t _world_textured_quads;
         textured_quad_state_t _world_text_quads;
+        world_render_item_stream_t _world_render_items;
+        std::vector<world_indirect_batch_t> _world_indirect_batches;
         std::array<textured_quad_state_t, static_cast<size_t>(frame_stage_kind_t::count)> _stage_textured_quads;
         std::array<textured_quad_state_t, static_cast<size_t>(frame_stage_kind_t::count)> _stage_text_quads;
         std::array<forward_plus_gpu_buffers_t, k_textured_quad_frame_buffer_count> _forward_plus_gpu_buffers;
+        std::array<std::vector<world_item_cull_gpu_buffers_t>, k_textured_quad_frame_buffer_count> _world_item_cull_gpu_buffers;
         std::array<frame_stage_plan_t, static_cast<size_t>(frame_stage_kind_t::count)> _frame_stage_plan{
             frame_stage_plan_t{
                 .kind = frame_stage_kind_t::world,
@@ -353,6 +408,8 @@ namespace carrot::renderer {
         forward_plus_light_input_t _world_forward_plus_light_input{ };
         forward_plus_frame_constants_t _world_forward_plus_constants{ };
         forward_plus_classification_output_t _world_forward_plus_output{ };
+        std::unique_ptr<rhi::rhi_buffer_t> _world_indirect_quad_vertex_buffer;
+        std::unique_ptr<rhi::rhi_buffer_t> _world_indirect_quad_index_buffer;
         std::unique_ptr<rhi::rhi_texture_t> _solid_white_texture;
         bool _composite_overlay_enabled{ false };
         uint32_t _composite_overlay_color{ 0x00000000u };

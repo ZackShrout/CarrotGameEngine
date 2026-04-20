@@ -109,6 +109,8 @@ namespace carrot::rhi::metal {
         void encode_textured_quad_argument_buffers(const metal_texture_t& texture,
                                                    const rhi_buffer_t* forward_plus_light_input_buffer,
                                                    const rhi_buffer_t* forward_plus_output_buffer,
+                                                   const rhi_buffer_t* world_item_buffer,
+                                                   const rhi_buffer_t* visible_item_index_buffer,
                                                    uint32_t stage_slot,
                                                    size_t batch_index,
                                                    const renderer::textured_quad_batch_t& batch,

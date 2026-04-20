@@ -165,7 +165,9 @@ namespace carrot::rhi::vulkan {
         void write_textured_quad_camera_descriptor_set(uint32_t frame_index,
                                                        uint32_t stage_slot,
                                                        const rhi_buffer_t* forward_plus_light_input_buffer,
-                                                       const rhi_buffer_t* forward_plus_output_buffer) const;
+                                                       const rhi_buffer_t* forward_plus_output_buffer,
+                                                       const rhi_buffer_t* world_item_buffer,
+                                                       const rhi_buffer_t* visible_item_index_buffer) const;
 
         // ── Core Vulkan handles ──
         VkInstance          _vk_instance{ VK_NULL_HANDLE };

@@ -60,6 +60,7 @@ namespace carrot::renderer {
     {
         chlm::float4x4 view_projection{ chlm::float4x4::identity() };
         chlm::float4 ambient_color{ 1.f, 1.f, 1.f, 1.f };
+        std::array<std::uint32_t, 4> renderer_flags{ 0u, 0u, 0u, 0u };
         forward_plus_frame_constants_t forward_plus_constants{ };
         std::array<world_point_light_uniform_t, k_max_world_point_lights> point_lights{ };
         std::array<forward_plus_tile_header_t, k_max_forward_plus_tiles> forward_plus_tiles{ };
@@ -69,6 +70,7 @@ namespace carrot::renderer {
     [[nodiscard]] inline world_forward_plus_uniform_t pack_world_forward_plus_uniform(
         const chlm::float4x4& view_projection,
         const chlm::float4& ambient_color,
+        const std::uint32_t world_draw_mode,
         const forward_plus_frame_constants_t& forward_plus_constants,
         const forward_plus_light_input_t& light_input,
         const forward_plus_classification_output_t& classification_output) noexcept
@@ -76,10 +78,26 @@ namespace carrot::renderer {
         world_forward_plus_uniform_t packed{ };
         packed.view_projection = view_projection;
         packed.ambient_color = ambient_color;
+        packed.renderer_flags = { world_draw_mode, 0u, 0u, 0u };
         packed.forward_plus_constants = forward_plus_constants;
         packed.point_lights = light_input.point_lights;
         packed.forward_plus_tiles = classification_output.tile_headers;
         packed.forward_plus_light_indices = classification_output.packed_light_indices;
         return packed;
+    }
+
+    [[nodiscard]] inline world_forward_plus_uniform_t pack_world_forward_plus_uniform(
+        const chlm::float4x4& view_projection,
+        const chlm::float4& ambient_color,
+        const forward_plus_frame_constants_t& forward_plus_constants,
+        const forward_plus_light_input_t& light_input,
+        const forward_plus_classification_output_t& classification_output) noexcept
+    {
+        return pack_world_forward_plus_uniform(view_projection,
+                                              ambient_color,
+                                              0u,
+                                              forward_plus_constants,
+                                              light_input,
+                                              classification_output);
     }
 } // namespace carrot::renderer

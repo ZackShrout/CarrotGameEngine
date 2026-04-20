@@ -178,12 +178,28 @@ namespace carrot::rhi::vulkan {
         output_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         output_binding.pImmutableSamplers = nullptr;
 
+        VkDescriptorSetLayoutBinding world_item_binding{ };
+        world_item_binding.binding = 3;
+        world_item_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        world_item_binding.descriptorCount = 1;
+        world_item_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        world_item_binding.pImmutableSamplers = nullptr;
+
+        VkDescriptorSetLayoutBinding visible_item_index_binding{ };
+        visible_item_index_binding.binding = 4;
+        visible_item_index_binding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        visible_item_index_binding.descriptorCount = 1;
+        visible_item_index_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        visible_item_index_binding.pImmutableSamplers = nullptr;
+
         VkDescriptorSetLayoutCreateInfo camera_layout_info{ };
         camera_layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        const std::array<VkDescriptorSetLayoutBinding, 3> camera_bindings{
+        const std::array<VkDescriptorSetLayoutBinding, 5> camera_bindings{
             camera_binding,
             light_input_binding,
-            output_binding
+            output_binding,
+            world_item_binding,
+            visible_item_index_binding
         };
         camera_layout_info.bindingCount = static_cast<uint32_t>(camera_bindings.size());
         camera_layout_info.pBindings = camera_bindings.data();

@@ -17,7 +17,7 @@
 
 namespace carrot::rhi::dx12 {
     namespace {
-        constexpr uint32_t k_srv_descriptors_per_batch{ 3u };
+        constexpr uint32_t k_srv_descriptors_per_batch{ 5u };
 
         void write_raw_buffer_srv(ID3D12Device* device,
                                   const dx12_buffer_t& buffer,
@@ -423,7 +423,13 @@ namespace carrot::rhi::dx12 {
         const dx12_buffer_t* output_buffer{
             dynamic_cast<const dx12_buffer_t*>(descriptor_context.forward_plus_output_buffer)
         };
-        if (!light_input_buffer || !output_buffer)
+        const dx12_buffer_t* world_item_buffer{
+            dynamic_cast<const dx12_buffer_t*>(descriptor_context.world_item_buffer)
+        };
+        const dx12_buffer_t* visible_item_index_buffer{
+            dynamic_cast<const dx12_buffer_t*>(descriptor_context.visible_item_index_buffer)
+        };
+        if (!light_input_buffer || !output_buffer || !world_item_buffer || !visible_item_index_buffer)
         {
             LOG_GRAPHICS_FATAL("DX12 textured quad pipeline received non-DX12 forward+ buffers");
             return;
@@ -455,6 +461,10 @@ namespace carrot::rhi::dx12 {
         srv_handle.ptr += descriptor_context.tables.srv_descriptor_size;
         write_raw_buffer_srv(_device, *output_buffer, srv_handle);
         srv_handle.ptr += descriptor_context.tables.srv_descriptor_size;
+        write_raw_buffer_srv(_device, *world_item_buffer, srv_handle);
+        srv_handle.ptr += descriptor_context.tables.srv_descriptor_size;
+        write_raw_buffer_srv(_device, *visible_item_index_buffer, srv_handle);
+        srv_handle.ptr += descriptor_context.tables.srv_descriptor_size;
         _device->CreateShaderResourceView(dx_texture->resource(), &srv_desc, srv_handle);
 
         const sampler_desc_t sampler_desc{ sampler_desc_from_preset(batch.sampler_preset) };
@@ -484,7 +494,13 @@ namespace carrot::rhi::dx12 {
         const dx12_buffer_t* output_buffer{
             dynamic_cast<const dx12_buffer_t*>(descriptor_context.forward_plus_output_buffer)
         };
-        if (!light_input_buffer || !output_buffer)
+        const dx12_buffer_t* world_item_buffer{
+            dynamic_cast<const dx12_buffer_t*>(descriptor_context.world_item_buffer)
+        };
+        const dx12_buffer_t* visible_item_index_buffer{
+            dynamic_cast<const dx12_buffer_t*>(descriptor_context.visible_item_index_buffer)
+        };
+        if (!light_input_buffer || !output_buffer || !world_item_buffer || !visible_item_index_buffer)
         {
             LOG_GRAPHICS_FATAL("DX12 indirect textured quad received non-DX12 forward+ buffers");
             return;
@@ -517,6 +533,10 @@ namespace carrot::rhi::dx12 {
         write_raw_buffer_srv(_device, *light_input_buffer, srv_handle);
         srv_handle.ptr += descriptor_context.tables.srv_descriptor_size;
         write_raw_buffer_srv(_device, *output_buffer, srv_handle);
+        srv_handle.ptr += descriptor_context.tables.srv_descriptor_size;
+        write_raw_buffer_srv(_device, *world_item_buffer, srv_handle);
+        srv_handle.ptr += descriptor_context.tables.srv_descriptor_size;
+        write_raw_buffer_srv(_device, *visible_item_index_buffer, srv_handle);
         srv_handle.ptr += descriptor_context.tables.srv_descriptor_size;
         _device->CreateShaderResourceView(dx_texture->resource(), &srv_desc, srv_handle);
 

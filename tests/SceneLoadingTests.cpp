@@ -2948,6 +2948,138 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(stats.forward_plus_dropped_light_references == 0u);
         }
 
+        void test_renderer_extracts_world_render_items_before_world_execution()
+        {
+            io::virtual_file_system_t vfs;
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t gfx{ vfs, graphics_config, window::invalid_window_id };
+            auto* null_rhi{ dynamic_cast<rhi::null::null_rhi_context_t*>(gfx.get_rhi()) };
+            CARROT_TEST_REQUIRE(null_rhi != nullptr);
+
+            gfx.begin_frame();
+            CARROT_TEST_REQUIRE(gfx.pending_world_render_item_count() == 0u);
+
+            gfx.draw_solid_quad({
+                .x = 16.f,
+                .y = 24.f,
+                .width = 32.f,
+                .height = 48.f,
+                .layer = renderer::render_layer_t::world_front,
+                .order_mode = renderer::render_order_mode_t::explicit_order,
+                .order_in_layer = 7,
+                .color = 0xFF80FFFFu
+            });
+
+            CARROT_TEST_REQUIRE(gfx.pending_world_render_item_count() == 1u);
+            CARROT_TEST_REQUIRE(null_rhi->recorded_textured_stages().empty());
+            CARROT_TEST_REQUIRE(null_rhi->recorded_indirect_textured_stages().empty());
+
+            gfx.end_frame();
+
+            CARROT_TEST_REQUIRE(null_rhi->recorded_textured_stages().empty());
+            CARROT_TEST_REQUIRE(!null_rhi->recorded_indirect_textured_stages().empty());
+
+            gfx.begin_frame();
+            CARROT_TEST_REQUIRE(gfx.pending_world_render_item_count() == 0u);
+        }
+
+        void test_loaded_tilemap_asset_builds_sparse_render_chunks_for_tile_layers()
+        {
+            assets::tilemap_asset_t tilemap;
+            tilemap.set_size(32u, 32u);
+
+            assets::tilemap_layer_t layer;
+            layer.kind = assets::tilemap_layer_kind_t::tile;
+            layer.width = 32u;
+            layer.height = 32u;
+            layer.gids.resize(layer.width * layer.height, 0u);
+            layer.gids[0u] = 1u;
+            layer.gids[17u] = 2u;
+            layer.gids[(20u * layer.width) + 20u] = 3u;
+            tilemap.add_layer(std::move(layer));
+
+            assets::loaded_tilemap_asset_t loaded{ std::move(tilemap), nullptr };
+            const auto chunks{ loaded.tile_render_chunks_for_layer(0u) };
+
+            CARROT_TEST_REQUIRE(chunks.size() == 3u);
+            CARROT_TEST_REQUIRE(chunks[0].chunk_x == 0u);
+            CARROT_TEST_REQUIRE(chunks[0].chunk_y == 0u);
+            CARROT_TEST_REQUIRE(chunks[0].occupied_cell_indices.size() == 1u);
+            CARROT_TEST_REQUIRE(chunks[1].chunk_x == 1u);
+            CARROT_TEST_REQUIRE(chunks[1].chunk_y == 0u);
+            CARROT_TEST_REQUIRE(chunks[1].occupied_cell_indices.size() == 1u);
+            CARROT_TEST_REQUIRE(chunks[2].chunk_x == 1u);
+            CARROT_TEST_REQUIRE(chunks[2].chunk_y == 1u);
+            CARROT_TEST_REQUIRE(chunks[2].occupied_cell_indices.size() == 1u);
+        }
+
+        void test_renderer_dispatches_world_item_cull_compute_for_world_items()
+        {
+            io::virtual_file_system_t vfs;
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t gfx{ vfs, graphics_config, window::invalid_window_id };
+            auto* null_rhi{ dynamic_cast<rhi::null::null_rhi_context_t*>(gfx.get_rhi()) };
+            CARROT_TEST_REQUIRE(null_rhi != nullptr);
+
+            gfx.begin_frame();
+            gfx.draw_solid_quad({
+                .x = 12.f,
+                .y = 20.f,
+                .width = 24.f,
+                .height = 24.f,
+                .layer = renderer::render_layer_t::world_front
+            });
+            gfx.end_frame();
+
+            const auto& dispatches{ null_rhi->recorded_compute_dispatches() };
+            const auto cull_it{
+                std::find_if(dispatches.begin(),
+                             dispatches.end(),
+                             [](const rhi::null::null_rhi_context_t::recorded_compute_dispatch_t& dispatch)
+                             {
+                                 return dispatch.debug_name == "world item cull";
+                             })
+            };
+
+            CARROT_TEST_REQUIRE(cull_it != dispatches.end());
+            CARROT_TEST_REQUIRE(cull_it->storage_buffer_count == 4u);
+            CARROT_TEST_REQUIRE(cull_it->constant_size_bytes == sizeof(renderer::gpu_world_item_cull_constants_t));
+            CARROT_TEST_REQUIRE(cull_it->group_count_x == 1u);
+        }
+
+        void test_renderer_records_indirect_world_stage_for_world_items()
+        {
+            io::virtual_file_system_t vfs;
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t gfx{ vfs, graphics_config, window::invalid_window_id };
+            auto* null_rhi{ dynamic_cast<rhi::null::null_rhi_context_t*>(gfx.get_rhi()) };
+            CARROT_TEST_REQUIRE(null_rhi != nullptr);
+
+            gfx.begin_frame();
+            gfx.draw_solid_quad({
+                .x = 32.f,
+                .y = 48.f,
+                .width = 64.f,
+                .height = 64.f,
+                .layer = renderer::render_layer_t::world_front,
+                .sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp
+            });
+            gfx.end_frame();
+
+            CARROT_TEST_REQUIRE(null_rhi->recorded_textured_stages().empty());
+            CARROT_TEST_REQUIRE(null_rhi->recorded_indirect_textured_stages().size() == 1u);
+            CARROT_TEST_REQUIRE(null_rhi->recorded_indirect_textured_stages()[0].point_light_count == 0u);
+        }
+
         void test_interaction_outcome_dispatch_routes_scene_transition_and_container()
         {
             bool transition_called{ false };
@@ -4306,8 +4438,16 @@ namespace carrot::tests {
                            test_renderer_presentation_window_registration_delegates_to_rhi);
         tests.emplace_back("renderer world light overflow is visible in stats",
                            test_renderer_world_light_overflow_is_visible_in_stats);
-            tests.emplace_back("interaction outcome dispatch routes scene transition and container",
-                               test_interaction_outcome_dispatch_routes_scene_transition_and_container);
+        tests.emplace_back("renderer extracts world render items before world execution",
+                           test_renderer_extracts_world_render_items_before_world_execution);
+        tests.emplace_back("loaded tilemap asset builds sparse render chunks for tile layers",
+                           test_loaded_tilemap_asset_builds_sparse_render_chunks_for_tile_layers);
+        tests.emplace_back("renderer dispatches world item cull compute for world items",
+                           test_renderer_dispatches_world_item_cull_compute_for_world_items);
+        tests.emplace_back("renderer records indirect world stage for world items",
+                           test_renderer_records_indirect_world_stage_for_world_items);
+        tests.emplace_back("interaction outcome dispatch routes scene transition and container",
+                           test_interaction_outcome_dispatch_routes_scene_transition_and_container);
             tests.emplace_back("scene runtime rejects overlapping load requests",
                                test_scene_runtime_rejects_overlapping_load_requests);
             tests.emplace_back("scene runtime listener sees no current context on first load",

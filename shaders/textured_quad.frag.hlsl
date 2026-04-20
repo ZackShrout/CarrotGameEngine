@@ -5,6 +5,7 @@ cbuffer WorldForwardPlus
 {
     float4x4 g_view_projection;
     float4 g_ambient_color;
+    uint4 g_renderer_flags;
     ForwardPlusFrameConstants g_forward_plus;
 };
 
@@ -21,7 +22,7 @@ PointLightData load_point_light(uint light_index)
     return light;
 }
 
-CARROT_DECLARE_TEXTURE_2D(g_texture, 0, 1, 2);
+CARROT_DECLARE_TEXTURE_2D(g_texture, 0, 1, 4);
 CARROT_DECLARE_SAMPLER_STATE(g_sampler, 1, 1, 0);
 
 ForwardPlusTileHeader load_tile_header(uint tile_index)

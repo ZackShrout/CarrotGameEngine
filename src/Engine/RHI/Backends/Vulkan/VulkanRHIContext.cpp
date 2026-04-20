@@ -84,6 +84,8 @@ namespace carrot::rhi::vulkan {
                     return VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
                 case staging:
                     return VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+                case shader_read:
+                    return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
                 case storage:
                     return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
                 case indirect:
@@ -1205,8 +1207,8 @@ namespace carrot::rhi::vulkan {
             return;
         }
 
-        std::array<VkDescriptorBufferInfo, k_max_compute_storage_buffer_bindings> buffer_infos{ };
-        std::array<VkWriteDescriptorSet, k_max_compute_storage_buffer_bindings> writes{ };
+        std::array<VkDescriptorBufferInfo, k_max_compute_buffer_bindings> buffer_infos{ };
+        std::array<VkWriteDescriptorSet, k_max_compute_buffer_bindings> writes{ };
 
         const auto* default_buffer{ dynamic_cast<const vulkan_buffer_t*>(_default_compute_storage_buffer.get()) };
         if (!default_buffer)
@@ -1215,9 +1217,17 @@ namespace carrot::rhi::vulkan {
             return;
         }
 
-        for (std::uint32_t slot{ 0u }; slot < k_max_compute_storage_buffer_bindings; ++slot)
+        for (std::uint32_t slot{ 0u }; slot < k_max_compute_buffer_bindings; ++slot)
         {
             const rhi_buffer_t* bound_buffer{ _default_compute_storage_buffer.get() };
+            for (const compute_buffer_binding_t& binding : record.read_only_buffers)
+            {
+                if (binding.slot == slot && binding.buffer)
+                {
+                    bound_buffer = binding.buffer;
+                    break;
+                }
+            }
             for (const compute_buffer_binding_t& binding : record.storage_buffers)
             {
                 if (binding.slot == slot && binding.buffer)
@@ -1249,7 +1259,7 @@ namespace carrot::rhi::vulkan {
         VK_CHECK_FATAL(vkAllocateDescriptorSets(_device->vk_device(), &alloc_info, &descriptor_set));
         _transient_compute_descriptor_sets[_current_frame].push_back(descriptor_set);
 
-        for (std::uint32_t slot{ 0u }; slot < k_max_compute_storage_buffer_bindings; ++slot)
+        for (std::uint32_t slot{ 0u }; slot < k_max_compute_buffer_bindings; ++slot)
         {
             writes[slot].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
             writes[slot].dstSet = descriptor_set;
@@ -2206,7 +2216,7 @@ namespace carrot::rhi::vulkan {
             k_max_frames_in_flight * k_max_transient_compute_descriptor_sets_per_frame
         };
         constexpr uint32_t storage_descriptors_per_compute_set{
-            k_max_compute_storage_buffer_bindings
+            k_max_compute_buffer_bindings
         };
 
         // Set 0: one camera UBO per frame-in-flight stage slot

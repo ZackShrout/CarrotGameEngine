@@ -7,8 +7,8 @@ struct ComputeForwardPlusConstants
     uint4 point_light_counts;
 };
 
-CARROT_DECLARE_RWBYTE_ADDRESS_BUFFER(g_forward_plus_constants_buffer, 0, 0, 0);
-CARROT_DECLARE_RWBYTE_ADDRESS_BUFFER(g_forward_plus_light_input_buffer, 1, 0, 1);
+CARROT_DECLARE_BYTE_ADDRESS_BUFFER(g_forward_plus_constants_buffer, 0, 0, 0);
+CARROT_DECLARE_BYTE_ADDRESS_BUFFER(g_forward_plus_light_input_buffer, 1, 0, 1);
 CARROT_DECLARE_RWBYTE_ADDRESS_BUFFER(g_forward_plus_output_buffer, 2, 0, 2);
 CARROT_DECLARE_RWBYTE_ADDRESS_BUFFER(g_unused_storage3, 3, 0, 3);
 

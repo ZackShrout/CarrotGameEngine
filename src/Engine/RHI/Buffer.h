@@ -16,6 +16,7 @@ namespace carrot::rhi {
         index,
         uniform,
         staging,
+        shader_read,
         storage,
         indirect,
         readback
@@ -29,6 +30,7 @@ namespace carrot::rhi {
             case buffer_usage_t::index: return "index";
             case buffer_usage_t::uniform: return "uniform";
             case buffer_usage_t::staging: return "staging";
+            case buffer_usage_t::shader_read: return "shader_read";
             case buffer_usage_t::storage: return "storage";
             case buffer_usage_t::indirect: return "indirect";
             case buffer_usage_t::readback: return "readback";

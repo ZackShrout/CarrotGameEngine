@@ -22,8 +22,8 @@ namespace carrot::rhi::vulkan {
             return;
         }
 
-        std::array<VkDescriptorSetLayoutBinding, k_max_compute_storage_buffer_bindings> bindings{ };
-        for (std::uint32_t i{ 0u }; i < k_max_compute_storage_buffer_bindings; ++i)
+        std::array<VkDescriptorSetLayoutBinding, k_max_compute_buffer_bindings> bindings{ };
+        for (std::uint32_t i{ 0u }; i < k_max_compute_buffer_bindings; ++i)
         {
             bindings[i].binding = i;
             bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;

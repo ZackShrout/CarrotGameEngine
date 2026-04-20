@@ -88,7 +88,7 @@ namespace carrot::rhi::dx12 {
         result.MinLOD = desc.min_lod;
         result.MaxLOD = desc.max_lod;
         result.MaxAnisotropy = 1;
-        result.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+        result.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
         result.BorderColor[0] = 0.f;
         result.BorderColor[1] = 0.f;
         result.BorderColor[2] = 0.f;

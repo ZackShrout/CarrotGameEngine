@@ -187,6 +187,7 @@ namespace carrot::rhi::dx12 {
         dx12_frame_t& frame{ _frames[_frame_index] };
         frame.fence->wait(frame.fence_value);
         frame.transient_compute_constant_buffers.clear();
+        frame.compute_descriptor_count_used = 0u;
         _recorded_stages.clear();
         _recorded_indirect_stages.clear();
         sync_auxiliary_surface_sizes();
@@ -795,7 +796,7 @@ namespace carrot::rhi::dx12 {
 
     std::unique_ptr<rhi_sampler_t> dx12_rhi_context_t::create_sampler(const sampler_desc_t& desc) const
     {
-        return std::make_unique<dx12_sampler_t>(desc);
+        return std::make_unique<dx12_sampler_t>(_device->id3d12_device(), desc);
     }
 
     rhi_sampler_t* dx12_rhi_context_t::get_or_create_sampler(const sampler_desc_t& desc)
@@ -803,7 +804,7 @@ namespace carrot::rhi::dx12 {
         if (const auto it = _sampler_cache.find(desc); it != _sampler_cache.end())
             return it->second.get();
 
-        auto sampler = std::make_unique<dx12_sampler_t>(desc);
+        auto sampler = std::make_unique<dx12_sampler_t>(_device->id3d12_device(), desc);
         rhi_sampler_t* ptr = sampler.get();
         _sampler_cache.emplace(desc, std::move(sampler));
 
@@ -847,11 +848,9 @@ namespace carrot::rhi::dx12 {
             return;
         }
 
-        ensure_compute_descriptor_capacity();
-
         dx12_frame_t& frame{ _frames[_frame_index] };
         ID3D12GraphicsCommandList* cmd{ frame.command_list->id3d12_graphics_command_list() };
-        if (!cmd || !frame.compute_uav_heap)
+        if (!cmd)
             return;
 
         const auto* default_buffer{ dynamic_cast<const dx12_buffer_t*>(_default_compute_storage_buffer.get()) };
@@ -861,10 +860,42 @@ namespace carrot::rhi::dx12 {
             return;
         }
 
-        const D3D12_CPU_DESCRIPTOR_HANDLE heap_start{ frame.compute_uav_heap->GetCPUDescriptorHandleForHeapStart() };
-        for (std::uint32_t slot{ 0u }; slot < k_max_compute_storage_buffer_bindings; ++slot)
+        cmd->SetComputeRootSignature(pipeline->root_signature());
+        cmd->SetPipelineState(pipeline->pipeline_state());
+
+        for (std::uint32_t slot{ 0u }; slot < k_max_compute_buffer_bindings; ++slot)
         {
             const rhi_buffer_t* bound_buffer{ _default_compute_storage_buffer.get() };
+            for (const compute_buffer_binding_t& binding : record.read_only_buffers)
+            {
+                if (binding.slot == slot && binding.buffer)
+                {
+                    bound_buffer = binding.buffer;
+                    break;
+                }
+            }
+
+            const dx12_buffer_t* dx_buffer{ dynamic_cast<const dx12_buffer_t*>(bound_buffer) };
+            if (!dx_buffer)
+            {
+                LOG_GRAPHICS_ERROR("DX12 compute dispatch received invalid read-only buffer");
+                return;
+            }
+
+            if (!dx_buffer->flush_pending_upload(cmd))
+            {
+                LOG_GRAPHICS_ERROR("DX12 compute dispatch failed to flush pending read-only-buffer upload");
+                return;
+            }
+
+            if (!dx_buffer->transition_to(cmd, D3D12_RESOURCE_STATE_GENERIC_READ))
+            {
+                LOG_GRAPHICS_ERROR("DX12 compute dispatch failed to transition read-only buffer to generic-read state");
+                return;
+            }
+            cmd->SetComputeRootShaderResourceView(slot, dx_buffer->resource()->GetGPUVirtualAddress());
+
+            bound_buffer = _default_compute_storage_buffer.get();
             for (const compute_buffer_binding_t& binding : record.storage_buffers)
             {
                 if (binding.slot == slot && binding.buffer)
@@ -874,7 +905,7 @@ namespace carrot::rhi::dx12 {
                 }
             }
 
-            const auto* dx_buffer{ dynamic_cast<const dx12_buffer_t*>(bound_buffer) };
+            dx_buffer = dynamic_cast<const dx12_buffer_t*>(bound_buffer);
             if (!dx_buffer)
             {
                 LOG_GRAPHICS_ERROR("DX12 compute dispatch received invalid storage buffer");
@@ -886,51 +917,14 @@ namespace carrot::rhi::dx12 {
                 LOG_GRAPHICS_ERROR("DX12 compute dispatch failed to flush pending storage-buffer upload");
                 return;
             }
-
-            D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc{ };
-            uav_desc.Format = DXGI_FORMAT_R32_TYPELESS;
-            uav_desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-            uav_desc.Buffer.FirstElement = 0u;
-            uav_desc.Buffer.NumElements = static_cast<UINT>(std::max<std::size_t>(1u, dx_buffer->size_bytes() / 4u));
-            uav_desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
-
-            D3D12_CPU_DESCRIPTOR_HANDLE handle{ heap_start };
-            handle.ptr += static_cast<SIZE_T>(slot) * _srv_descriptor_stride;
-            _device->id3d12_device()->CreateUnorderedAccessView(dx_buffer->resource(), nullptr, &uav_desc, handle);
-        }
-
-        if (record.graphics_handoff == compute_graphics_handoff_t::storage_write_to_graphics_read)
-        {
-            std::vector<D3D12_RESOURCE_BARRIER> to_uav_barriers;
-            to_uav_barriers.reserve(record.storage_buffers.size());
-
-            for (const compute_buffer_binding_t& binding : record.storage_buffers)
+            if (!dx_buffer->transition_to(cmd, D3D12_RESOURCE_STATE_UNORDERED_ACCESS))
             {
-                if (!binding.buffer)
-                    continue;
-
-                const auto* dx_buffer{ dynamic_cast<const dx12_buffer_t*>(binding.buffer) };
-                if (!dx_buffer)
-                    continue;
-
-                D3D12_RESOURCE_BARRIER barrier{ };
-                barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-                barrier.Transition.pResource = dx_buffer->resource();
-                barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-                barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
-                barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-                to_uav_barriers.push_back(barrier);
+                LOG_GRAPHICS_ERROR("DX12 compute dispatch failed to transition storage buffer to UAV state");
+                return;
             }
-
-            if (!to_uav_barriers.empty())
-                cmd->ResourceBarrier(static_cast<UINT>(to_uav_barriers.size()), to_uav_barriers.data());
+            cmd->SetComputeRootUnorderedAccessView(k_max_compute_buffer_bindings + slot,
+                                                   dx_buffer->resource()->GetGPUVirtualAddress());
         }
-
-        ID3D12DescriptorHeap* heaps[]{ frame.compute_uav_heap };
-        cmd->SetComputeRootSignature(pipeline->root_signature());
-        cmd->SetPipelineState(pipeline->pipeline_state());
-        cmd->SetDescriptorHeaps(1, heaps);
-        cmd->SetComputeRootDescriptorTable(0, frame.compute_uav_heap->GetGPUDescriptorHandleForHeapStart());
 
         if (pipeline->info().max_constant_size_bytes > 0u)
         {
@@ -956,7 +950,8 @@ namespace carrot::rhi::dx12 {
                 return;
             }
 
-            cmd->SetComputeRootConstantBufferView(1, constant_buffer->resource()->GetGPUVirtualAddress());
+            cmd->SetComputeRootConstantBufferView(k_max_compute_buffer_bindings * 2u,
+                                                 constant_buffer->resource()->GetGPUVirtualAddress());
             frame.transient_compute_constant_buffers.push_back(std::move(constant_buffer));
         }
 
@@ -967,8 +962,10 @@ namespace carrot::rhi::dx12 {
             D3D12_RESOURCE_BARRIER uav_barrier{ };
             uav_barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
 
-            std::vector<D3D12_RESOURCE_BARRIER> to_common_barriers;
-            to_common_barriers.reserve(record.storage_buffers.size() + 1u);
+            std::vector<const dx12_buffer_t*> buffers_to_transition;
+            buffers_to_transition.reserve(record.storage_buffers.size());
+            std::vector<D3D12_RESOURCE_BARRIER> uav_barriers;
+            uav_barriers.reserve(record.storage_buffers.size());
 
             for (const compute_buffer_binding_t& binding : record.storage_buffers)
             {
@@ -981,20 +978,23 @@ namespace carrot::rhi::dx12 {
 
                 D3D12_RESOURCE_BARRIER compute_uav_barrier{ uav_barrier };
                 compute_uav_barrier.UAV.pResource = dx_buffer->resource();
-                to_common_barriers.push_back(compute_uav_barrier);
-
-                D3D12_RESOURCE_BARRIER transition{ };
-                transition.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-                transition.Transition.pResource = dx_buffer->resource();
-                transition.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-                transition.Transition.StateBefore = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
-                transition.Transition.StateAfter = D3D12_RESOURCE_STATE_COMMON;
-                to_common_barriers.push_back(transition);
+                uav_barriers.push_back(compute_uav_barrier);
+                buffers_to_transition.push_back(dx_buffer);
             }
 
-            if (!to_common_barriers.empty())
-                cmd->ResourceBarrier(static_cast<UINT>(to_common_barriers.size()), to_common_barriers.data());
+            if (!uav_barriers.empty())
+                cmd->ResourceBarrier(static_cast<UINT>(uav_barriers.size()), uav_barriers.data());
+
+            for (const dx12_buffer_t* dx_buffer : buffers_to_transition)
+            {
+                if (!dx_buffer->transition_to(cmd, D3D12_RESOURCE_STATE_GENERIC_READ))
+                {
+                    LOG_GRAPHICS_ERROR("DX12 compute dispatch failed to transition storage buffer to generic-read state");
+                    return;
+                }
+            }
         }
+
     }
 
     void dx12_rhi_context_t::wait_idle()
@@ -1159,37 +1159,7 @@ namespace carrot::rhi::dx12 {
             return;
         }
 
-        D3D12_HEAP_PROPERTIES heap_properties{ };
-        D3D12_HEAP_FLAGS heap_flags{ D3D12_HEAP_FLAG_NONE };
-        const bool can_transition_indirect_buffer{
-            dx_indirect_buffer->resource() &&
-            SUCCEEDED(dx_indirect_buffer->resource()->GetHeapProperties(&heap_properties, &heap_flags)) &&
-            heap_properties.Type == D3D12_HEAP_TYPE_DEFAULT
-        };
-
-        if (can_transition_indirect_buffer)
-        {
-            D3D12_RESOURCE_BARRIER to_indirect{ };
-            to_indirect.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-            to_indirect.Transition.pResource = dx_indirect_buffer->resource();
-            to_indirect.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-            to_indirect.Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
-            to_indirect.Transition.StateAfter = D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT;
-            cmd->ResourceBarrier(1, &to_indirect);
-        }
-
         _textured_quad_pipeline->draw_indirect(draw_context, descriptor_context);
-
-        if (can_transition_indirect_buffer)
-        {
-            D3D12_RESOURCE_BARRIER to_common{ };
-            to_common.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-            to_common.Transition.pResource = dx_indirect_buffer->resource();
-            to_common.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-            to_common.Transition.StateBefore = D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT;
-            to_common.Transition.StateAfter = D3D12_RESOURCE_STATE_COMMON;
-            cmd->ResourceBarrier(1, &to_common);
-        }
     }
 
     void dx12_rhi_context_t::ensure_textured_quad_descriptor_capacity(const uint32_t required_capacity)
@@ -1198,7 +1168,9 @@ namespace carrot::rhi::dx12 {
             return;
 
         const uint32_t target_capacity{ std::max(required_capacity, 16u) };
-        const uint32_t srv_heap_descriptor_count{ (target_capacity * 3u) + 1u };
+        // Direct textured/text quad stages bind 1 CBV plus 5 SRVs per batch:
+        // forward+ light input, forward+ output, world items, visible item indices, texture.
+        const uint32_t srv_heap_descriptor_count{ (target_capacity * 5u) + 1u };
 
         for (uint32_t frame_index{ 0 }; frame_index < k_max_frames_in_flight; ++frame_index)
         {
@@ -1273,6 +1245,18 @@ namespace carrot::rhi::dx12 {
         for (uint32_t frame_index{ 0 }; frame_index < k_max_frames_in_flight; ++frame_index)
         {
             dx12_frame_t& frame{ _frames[frame_index] };
+            bool has_all_indirect_srv_heaps{ true };
+            bool has_all_indirect_sampler_heaps{ true };
+
+            for (const ID3D12DescriptorHeap* heap: frame.indirect_textured_quad_srv_heaps)
+                has_all_indirect_srv_heaps = has_all_indirect_srv_heaps && (heap != nullptr);
+
+            for (const ID3D12DescriptorHeap* heap: frame.indirect_textured_quad_sampler_heaps)
+                has_all_indirect_sampler_heaps = has_all_indirect_sampler_heaps && (heap != nullptr);
+
+            if (has_all_indirect_srv_heaps && has_all_indirect_sampler_heaps)
+                continue;
+
             frame.fence->wait(frame.fence_value);
 
             for (uint32_t stage_slot{ 0 }; stage_slot < k_max_textured_quad_stage_slots_per_frame; ++stage_slot)
@@ -1281,7 +1265,11 @@ namespace carrot::rhi::dx12 {
                 {
                     D3D12_DESCRIPTOR_HEAP_DESC srv_heap_desc{ };
                     srv_heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-                    srv_heap_desc.NumDescriptors = 4u;
+                    // Indirect textured-quad stages bind:
+                    // 1 CBV (camera/world uniform) + 5 SRVs
+                    // (forward+ light input, forward+ output, world items,
+                    // visible item indices, texture)
+                    srv_heap_desc.NumDescriptors = 6u;
                     srv_heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
                     srv_heap_desc.NodeMask = 0;
 
@@ -1316,18 +1304,32 @@ namespace carrot::rhi::dx12 {
         }
     }
 
-    void dx12_rhi_context_t::ensure_compute_descriptor_capacity()
+    void dx12_rhi_context_t::ensure_compute_descriptor_capacity(const uint32_t required_capacity)
     {
         dx12_frame_t& frame{ _frames[_frame_index] };
-        if (frame.compute_uav_heap)
+        if (required_capacity == 0u)
             return;
 
+        if (frame.compute_uav_heap && frame.compute_descriptor_capacity >= required_capacity)
+            return;
+
+        const uint32_t target_capacity{
+            std::max(required_capacity, k_max_textured_quad_stage_slots_per_frame * (k_max_compute_buffer_bindings * 2u))
+        };
         D3D12_DESCRIPTOR_HEAP_DESC heap_desc{ };
         heap_desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-        heap_desc.NumDescriptors = k_max_compute_storage_buffer_bindings;
+        heap_desc.NumDescriptors = target_capacity;
         heap_desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+
+        if (frame.compute_uav_heap)
+        {
+            LOG_GRAPHICS_FATAL("DX12 compute UAV heap capacity was exhausted mid-frame");
+            return;
+        }
 
         DX12_CHECK(_device->id3d12_device()->CreateDescriptorHeap(&heap_desc, IID_PPV_ARGS(&frame.compute_uav_heap)));
         DX12_NAME(frame.compute_uav_heap, L"DX12 Compute UAV Heap");
+        frame.compute_descriptor_capacity = target_capacity;
     }
+
 } // namespace carrot::rhi::dx12

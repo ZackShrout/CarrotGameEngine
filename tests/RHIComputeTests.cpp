@@ -68,6 +68,7 @@ namespace carrot::tests {
             const auto& dispatches{ context.recorded_compute_dispatches() };
             CARROT_TEST_REQUIRE(dispatches.size() == 1u);
             CARROT_TEST_REQUIRE(dispatches[0].debug_name == "null compute smoke");
+            CARROT_TEST_REQUIRE(dispatches[0].read_only_buffer_count == 0u);
             CARROT_TEST_REQUIRE(dispatches[0].storage_buffer_count == 1u);
             CARROT_TEST_REQUIRE(dispatches[0].constant_size_bytes == sizeof(constants));
             CARROT_TEST_REQUIRE(dispatches[0].order == compute_dispatch_order_t::before_graphics);

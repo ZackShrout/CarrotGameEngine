@@ -17,8 +17,10 @@ namespace carrot::rhi::dx12 {
 
         [[nodiscard]] bool write(const void* data, size_t size_bytes, size_t offset_bytes = 0) override;
         [[nodiscard]] bool flush_pending_upload(ID3D12GraphicsCommandList* command_list) const;
+        bool transition_to(ID3D12GraphicsCommandList* command_list, D3D12_RESOURCE_STATES new_state) const;
 
         [[nodiscard]] ID3D12Resource* resource() const noexcept { return _resource; }
+        [[nodiscard]] const void* mapped_ptr() const noexcept { return _mapped_ptr; }
 
     private:
         ID3D12Resource* _resource{ nullptr };
@@ -27,5 +29,6 @@ namespace carrot::rhi::dx12 {
         void* _mapped_ptr{ nullptr };
         bool _cpu_writable{ false };
         mutable bool _pending_upload{ false };
+        mutable D3D12_RESOURCE_STATES _resource_state{ D3D12_RESOURCE_STATE_COMMON };
     };
 } // namespace carrot::rhi::dx12

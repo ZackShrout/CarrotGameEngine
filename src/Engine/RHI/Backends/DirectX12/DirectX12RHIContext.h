@@ -45,6 +45,8 @@ namespace carrot::rhi::dx12 {
         std::array<ID3D12DescriptorHeap*, k_max_textured_quad_stage_slots_per_frame> indirect_textured_quad_sampler_heaps{ };
         uint32_t textured_quad_descriptor_capacity{ 0 };
         ID3D12DescriptorHeap* compute_uav_heap{ nullptr };
+        uint32_t compute_descriptor_capacity{ 0 };
+        uint32_t compute_descriptor_count_used{ 0 };
     };
 
     class dx12_rhi_context_t final : public rhi_context_t, public dx12_textured_quad_sampler_provider_t
@@ -123,7 +125,7 @@ namespace carrot::rhi::dx12 {
 
         void ensure_textured_quad_descriptor_capacity(uint32_t required_capacity);
         void ensure_indirect_textured_quad_descriptor_capacity(uint32_t required_capacity);
-        void ensure_compute_descriptor_capacity();
+        void ensure_compute_descriptor_capacity(uint32_t required_capacity);
 
         // ── Backend-owned services and persistent objects ──
         assets::shader_file_provider_t*                _shader_files{ nullptr };

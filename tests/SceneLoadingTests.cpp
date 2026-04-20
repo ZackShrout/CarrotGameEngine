@@ -3048,8 +3048,9 @@ namespace carrot::tests {
             };
 
             CARROT_TEST_REQUIRE(cull_it != dispatches.end());
-            CARROT_TEST_REQUIRE(cull_it->storage_buffer_count == 4u);
-            CARROT_TEST_REQUIRE(cull_it->constant_size_bytes == sizeof(renderer::gpu_world_item_cull_constants_t));
+            CARROT_TEST_REQUIRE(cull_it->read_only_buffer_count == 2u);
+            CARROT_TEST_REQUIRE(cull_it->storage_buffer_count == 2u);
+            CARROT_TEST_REQUIRE(cull_it->constant_size_bytes == 0u);
             CARROT_TEST_REQUIRE(cull_it->group_count_x == 1u);
         }
 

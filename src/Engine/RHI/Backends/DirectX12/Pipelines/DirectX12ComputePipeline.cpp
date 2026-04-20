@@ -21,27 +21,36 @@ namespace carrot::rhi::dx12 {
             return;
         }
 
-        D3D12_DESCRIPTOR_RANGE uav_range{ };
-        uav_range.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-        uav_range.NumDescriptors = k_max_compute_storage_buffer_bindings;
-        uav_range.BaseShaderRegister = 0;
-        uav_range.RegisterSpace = 0;
-        uav_range.OffsetInDescriptorsFromTableStart = 0;
+        constexpr std::uint32_t compute_buffer_root_parameter_count{
+            k_max_compute_buffer_bindings * 2u
+        };
+        std::array<D3D12_ROOT_PARAMETER, compute_buffer_root_parameter_count + 1u> root_parameters{ };
 
-        std::array<D3D12_ROOT_PARAMETER, 2> root_parameters{ };
-        root_parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-        root_parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-        root_parameters[0].DescriptorTable.NumDescriptorRanges = 1;
-        root_parameters[0].DescriptorTable.pDescriptorRanges = &uav_range;
+        for (std::uint32_t slot{ 0u }; slot < k_max_compute_buffer_bindings; ++slot)
+        {
+            root_parameters[slot].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+            root_parameters[slot].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+            root_parameters[slot].Descriptor.ShaderRegister = slot;
+            root_parameters[slot].Descriptor.RegisterSpace = 0;
+        }
 
-        std::uint32_t root_parameter_count{ 1u };
+        for (std::uint32_t slot{ 0u }; slot < k_max_compute_buffer_bindings; ++slot)
+        {
+            const std::uint32_t root_index{ k_max_compute_buffer_bindings + slot };
+            root_parameters[root_index].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
+            root_parameters[root_index].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+            root_parameters[root_index].Descriptor.ShaderRegister = slot;
+            root_parameters[root_index].Descriptor.RegisterSpace = 0;
+        }
+
+        std::uint32_t root_parameter_count{ compute_buffer_root_parameter_count };
         if (info.max_constant_size_bytes > 0u)
         {
-            root_parameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-            root_parameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-            root_parameters[1].Descriptor.ShaderRegister = k_compute_constant_register;
-            root_parameters[1].Descriptor.RegisterSpace = 0;
-            root_parameter_count = 2u;
+            root_parameters[compute_buffer_root_parameter_count].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+            root_parameters[compute_buffer_root_parameter_count].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+            root_parameters[compute_buffer_root_parameter_count].Descriptor.ShaderRegister = k_compute_constant_register;
+            root_parameters[compute_buffer_root_parameter_count].Descriptor.RegisterSpace = 0;
+            root_parameter_count = compute_buffer_root_parameter_count + 1u;
         }
 
         D3D12_ROOT_SIGNATURE_DESC root_signature_desc{ };

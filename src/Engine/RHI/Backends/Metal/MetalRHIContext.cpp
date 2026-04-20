@@ -46,6 +46,7 @@ namespace carrot::rhi::metal {
 
         struct compute_root_argument_buffer_t
         {
+            std::uint64_t srv_table_gpu_address{ 0u };
             std::uint64_t uav_table_gpu_address{ 0u };
             std::uint64_t cbv_root_gpu_address{ 0u };
         };
@@ -544,7 +545,9 @@ namespace carrot::rhi::metal {
         MTL::ResourceOptions options{ MTL::ResourceStorageModeShared };
         if (!info.cpu_writable && !info.initial_data && !buffer_usage_prefers_upload_memory(info.usage) &&
             !buffer_usage_prefers_readback_memory(info.usage) &&
-            (info.usage == buffer_usage_t::storage || info.usage == buffer_usage_t::indirect))
+            (info.usage == buffer_usage_t::shader_read ||
+             info.usage == buffer_usage_t::storage ||
+             info.usage == buffer_usage_t::indirect))
         {
             options = MTL::ResourceStorageModePrivate;
         }
@@ -671,26 +674,60 @@ namespace carrot::rhi::metal {
 
         encoder->setComputePipelineState(pipeline->state());
 
-        auto uav_descriptor_table = std::make_unique<metal_buffer_t>(
-            _device->mtl_device()->newBuffer(sizeof(descriptor_table_entry_t) * k_max_compute_storage_buffer_bindings,
+        auto srv_descriptor_table = std::make_unique<metal_buffer_t>(
+            _device->mtl_device()->newBuffer(sizeof(descriptor_table_entry_t) * k_max_compute_buffer_bindings,
                                              MTL::ResourceStorageModeShared),
-            sizeof(descriptor_table_entry_t) * k_max_compute_storage_buffer_bindings,
+            sizeof(descriptor_table_entry_t) * k_max_compute_buffer_bindings,
             buffer_usage_t::uniform
         );
-        if (!uav_descriptor_table || !uav_descriptor_table->mtl_buffer())
+        auto uav_descriptor_table = std::make_unique<metal_buffer_t>(
+            _device->mtl_device()->newBuffer(sizeof(descriptor_table_entry_t) * k_max_compute_buffer_bindings,
+                                             MTL::ResourceStorageModeShared),
+            sizeof(descriptor_table_entry_t) * k_max_compute_buffer_bindings,
+            buffer_usage_t::uniform
+        );
+        if (!srv_descriptor_table || !srv_descriptor_table->mtl_buffer() ||
+            !uav_descriptor_table || !uav_descriptor_table->mtl_buffer())
         {
-            LOG_GRAPHICS_ERROR("Failed to allocate Metal compute UAV descriptor table");
+            LOG_GRAPHICS_ERROR("Failed to allocate Metal compute descriptor tables");
             encoder->endEncoding();
             return;
         }
+        std::memset(srv_descriptor_table->mtl_buffer()->contents(),
+                    0,
+                    sizeof(descriptor_table_entry_t) * k_max_compute_buffer_bindings);
         std::memset(uav_descriptor_table->mtl_buffer()->contents(),
                     0,
-                    sizeof(descriptor_table_entry_t) * k_max_compute_storage_buffer_bindings);
+                    sizeof(descriptor_table_entry_t) * k_max_compute_buffer_bindings);
+        auto* srv_entries = reinterpret_cast<descriptor_table_entry_t*>(srv_descriptor_table->mtl_buffer()->contents());
         auto* uav_entries = reinterpret_cast<descriptor_table_entry_t*>(uav_descriptor_table->mtl_buffer()->contents());
 
-        for (std::uint32_t slot{ 0u }; slot < k_max_compute_storage_buffer_bindings; ++slot)
+        for (std::uint32_t slot{ 0u }; slot < k_max_compute_buffer_bindings; ++slot)
         {
             const rhi_buffer_t* bound_buffer{ _default_compute_storage_buffer.get() };
+            for (const compute_buffer_binding_t& binding : record.read_only_buffers)
+            {
+                if (binding.slot == slot && binding.buffer)
+                {
+                    bound_buffer = binding.buffer;
+                    break;
+                }
+            }
+
+            const auto* read_only_buffer{ dynamic_cast<const metal_buffer_t*>(bound_buffer) };
+            if (!read_only_buffer || !read_only_buffer->mtl_buffer())
+            {
+                LOG_GRAPHICS_ERROR("Metal compute dispatch received invalid read-only buffer");
+                encoder->endEncoding();
+                return;
+            }
+
+            srv_entries[slot] = encode_metal_raw_buffer_srv_descriptor(read_only_buffer->mtl_buffer(),
+                                                                       0,
+                                                                       read_only_buffer->size_bytes());
+            encoder->useResource(read_only_buffer->mtl_buffer(), MTL::ResourceUsageRead);
+
+            bound_buffer = _default_compute_storage_buffer.get();
             for (const compute_buffer_binding_t& binding : record.storage_buffers)
             {
                 if (binding.slot == slot && binding.buffer)
@@ -700,27 +737,29 @@ namespace carrot::rhi::metal {
                 }
             }
 
-            const auto* metal_buffer{ dynamic_cast<const metal_buffer_t*>(bound_buffer) };
-            if (!metal_buffer || !metal_buffer->mtl_buffer())
+            const auto* storage_buffer{ dynamic_cast<const metal_buffer_t*>(bound_buffer) };
+            if (!storage_buffer || !storage_buffer->mtl_buffer())
             {
                 LOG_GRAPHICS_ERROR("Metal compute dispatch received invalid storage buffer");
                 encoder->endEncoding();
                 return;
             }
 
-            uav_entries[slot] = encode_metal_raw_buffer_srv_descriptor(metal_buffer->mtl_buffer(),
+            uav_entries[slot] = encode_metal_raw_buffer_srv_descriptor(storage_buffer->mtl_buffer(),
                                                                        0,
-                                                                       metal_buffer->size_bytes());
+                                                                       storage_buffer->size_bytes());
             const MTL::ResourceUsage usage{
                 record.graphics_handoff == compute_graphics_handoff_t::storage_write_to_graphics_read
                     ? static_cast<MTL::ResourceUsage>(MTL::ResourceUsageWrite | MTL::ResourceUsageRead)
                     : MTL::ResourceUsageWrite
             };
-            encoder->useResource(metal_buffer->mtl_buffer(), usage);
+            encoder->useResource(storage_buffer->mtl_buffer(), usage);
         }
 
         compute_root_argument_buffer_t root_argument_buffer{ };
+        root_argument_buffer.srv_table_gpu_address = metal_buffer_gpu_address(srv_descriptor_table->mtl_buffer());
         root_argument_buffer.uav_table_gpu_address = metal_buffer_gpu_address(uav_descriptor_table->mtl_buffer());
+        encoder->useResource(srv_descriptor_table->mtl_buffer(), MTL::ResourceUsageRead);
         encoder->useResource(uav_descriptor_table->mtl_buffer(), MTL::ResourceUsageRead);
 
         if (!record.constants.empty())
@@ -747,6 +786,7 @@ namespace carrot::rhi::metal {
         encoder->setBytes(&root_argument_buffer,
                           static_cast<NS::UInteger>(sizeof(root_argument_buffer)),
                           k_compute_root_argument_buffer_index);
+        _transient_compute_buffers.push_back(std::move(srv_descriptor_table));
         _transient_compute_buffers.push_back(std::move(uav_descriptor_table));
 
         const MTL::Size threads_per_threadgroup{

@@ -1,12 +1,13 @@
 #include "ShaderCommon.h"
 #include "Renderer/Draw/WorldRenderItemShared.h"
 
-CARROT_DECLARE_RWBYTE_ADDRESS_BUFFER(g_world_item_input_buffer, 0, 0, 0);
-CARROT_DECLARE_RWBYTE_ADDRESS_BUFFER(g_visible_item_index_buffer, 1, 0, 1);
-CARROT_DECLARE_RWBYTE_ADDRESS_BUFFER(g_cull_state_buffer, 2, 0, 2);
-CARROT_DECLARE_RWBYTE_ADDRESS_BUFFER(g_indirect_command_buffer, 3, 0, 3);
+CARROT_DECLARE_BYTE_ADDRESS_BUFFER(g_world_item_cull_constants_buffer, 0, 0, 0);
+CARROT_DECLARE_BYTE_ADDRESS_BUFFER(g_world_item_input_buffer, 1, 0, 1);
+CARROT_DECLARE_RWBYTE_ADDRESS_BUFFER(g_visible_item_index_buffer, 2, 0, 2);
+CARROT_DECLARE_RWBYTE_ADDRESS_BUFFER(g_world_item_output_buffer, 3, 0, 3);
 
-CARROT_DECLARE_PUSH_CONSTANT(GpuWorldItemCullConstants, g_constants, CARROT_COMPUTE_CONSTANT_REGISTER);
+static const uint k_cull_state_offset = 0u;
+static const uint k_indirect_command_offset = 16u;
 
 GpuWorldRenderItem load_world_item(uint item_index)
 {
@@ -29,6 +30,14 @@ bool aabb_overlaps(float4 bounds_min_max_px, float4 visible_bounds_px)
            bounds_min_max_px.y < visible_bounds_px.w;
 }
 
+GpuWorldItemCullConstants load_cull_constants()
+{
+    GpuWorldItemCullConstants constants;
+    constants.visible_bounds_px = asfloat(g_world_item_cull_constants_buffer.Load4(0u));
+    constants.counts = g_world_item_cull_constants_buffer.Load4(16u);
+    return constants;
+}
+
 CARROT_ROOT_SIGNATURE(CARROT_RS_COMPUTE)
 [numthreads(1, 1, 1)]
 void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
@@ -36,21 +45,22 @@ void main(uint3 dispatch_thread_id : SV_DispatchThreadID)
     if (dispatch_thread_id.x != 0u)
         return;
 
-    const uint item_count = g_constants.counts.x;
+    const GpuWorldItemCullConstants constants = load_cull_constants();
+    const uint item_count = constants.counts.x;
     uint visible_count = 0u;
 
     [loop]
     for (uint item_index = 0u; item_index < item_count; ++item_index)
     {
         const GpuWorldRenderItem item = load_world_item(item_index);
-        if (!aabb_overlaps(item.bounds_min_max_px, g_constants.visible_bounds_px))
+        if (!aabb_overlaps(item.bounds_min_max_px, constants.visible_bounds_px))
             continue;
 
         g_visible_item_index_buffer.Store(visible_count * 4u, item_index);
         ++visible_count;
     }
 
-    g_cull_state_buffer.Store4(0u, uint4(visible_count, item_count, 0u, 0u));
-    g_indirect_command_buffer.Store4(0u, uint4(6u, visible_count, 0u, 0u));
-    g_indirect_command_buffer.Store(16u, 0u);
+    g_world_item_output_buffer.Store4(k_cull_state_offset, uint4(visible_count, item_count, 0u, 0u));
+    g_world_item_output_buffer.Store4(k_indirect_command_offset, uint4(6u, visible_count, 0u, 0u));
+    g_world_item_output_buffer.Store(k_indirect_command_offset + 16u, 0u);
 }

@@ -101,6 +101,11 @@ namespace carrot::renderer {
         uint32_t draw_calls{ 0 };
         uint32_t textured_quad_count{ 0 };
         uint32_t textured_quad_batch_count{ 0 };
+        uint32_t world_render_item_count{ 0 };
+        uint32_t world_indirect_batch_count{ 0 };
+        uint32_t active_visibility_tag_count{ 0 };
+        uint32_t visible_layer_count{ 0 };
+        uint32_t hidden_layer_count{ 0 };
         uint32_t vertex_count{ 0 };
         uint32_t index_count{ 0 };
         uint32_t world_point_light_count{ 0 };
@@ -172,10 +177,10 @@ namespace carrot::renderer {
 
     struct world_item_cull_gpu_buffers_t
     {
+        std::unique_ptr<rhi::rhi_buffer_t> constants_buffer;
         std::unique_ptr<rhi::rhi_buffer_t> item_input_buffer;
         std::unique_ptr<rhi::rhi_buffer_t> visible_item_index_buffer;
-        std::unique_ptr<rhi::rhi_buffer_t> cull_state_buffer;
-        std::unique_ptr<rhi::rhi_buffer_t> indirect_command_buffer;
+        std::unique_ptr<rhi::rhi_buffer_t> output_buffer;
         std::size_t item_capacity{ 0u };
     };
 
@@ -314,7 +319,9 @@ namespace carrot::renderer {
         void upload_forward_plus_gpu_data() const;
         void update_forward_plus_diagnostics() noexcept;
         void ensure_world_item_cull_gpu_buffers(std::size_t batch_index, std::size_t item_capacity);
-        void upload_world_item_cull_input(std::size_t batch_index, std::span<const world_render_item_t> items) const;
+        void upload_world_item_cull_input(std::size_t batch_index,
+                                          std::span<const world_render_item_t> items,
+                                          const gpu_world_item_cull_constants_t& cull_constants) const;
         void ensure_world_indirect_quad_buffers();
         void build_world_indirect_batches(std::vector<world_indirect_batch_t>& out_batches) const;
         void prepare_world_stage_context(const world::world_t& world, world_stage_draw_context_t& context);

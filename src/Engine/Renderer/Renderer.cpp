@@ -192,7 +192,9 @@ namespace carrot::renderer {
                        ? "engine://shaders/metal/forward_plus_classify.comp.metallib"
                        : (_rhi->get_graphics_api() == rhi::graphics_api::direct_x12
                               ? "engine://shaders/dx12/forward_plus_classify.comp.dxil"
-                              : ""))
+                              : (_rhi->get_graphics_api() == rhi::graphics_api::null_backend
+                                     ? "null://forward_plus_classify.comp"
+                                     : "")))
         };
         if (!forward_plus_shader_path.empty())
         {
@@ -211,7 +213,9 @@ namespace carrot::renderer {
                        ? "engine://shaders/metal/world_item_cull.comp.metallib"
                        : (_rhi->get_graphics_api() == rhi::graphics_api::direct_x12
                               ? "engine://shaders/dx12/world_item_cull.comp.dxil"
-                              : ""))
+                              : (_rhi->get_graphics_api() == rhi::graphics_api::null_backend
+                                     ? "null://world_item_cull.comp"
+                                     : "")))
         };
         if (!world_item_cull_shader_path.empty())
         {
@@ -219,7 +223,7 @@ namespace carrot::renderer {
                 .shader_path = world_item_cull_shader_path,
                 .debug_name = "world item cull",
                 .threadgroup_size_x = 1u,
-                .max_constant_size_bytes = sizeof(gpu_world_item_cull_constants_t)
+                .max_constant_size_bytes = 0u
             });
         }
 
@@ -945,6 +949,10 @@ namespace carrot::renderer {
         for (const world::world_object_t& object : world.objects())
             submit_world_object(object, context);
 
+        _stats.active_visibility_tag_count = static_cast<std::uint32_t>(context.layering_debug_snapshot.active_visibility_tags.size());
+        _stats.visible_layer_count = context.layering_debug_snapshot.visible_layer_count;
+        _stats.hidden_layer_count = context.layering_debug_snapshot.hidden_layer_count;
+
         finalize_world_stage_context(context);
     }
 
@@ -1523,14 +1531,17 @@ namespace carrot::renderer {
             const forward_plus_gpu_buffers_t& gpu_buffers{ current_forward_plus_gpu_buffers() };
             const std::uint32_t tile_count{ tile_count_x * tile_count_y };
             const std::uint32_t group_count_x{ std::max(1u, (tile_count + 63u) / 64u) };
-            const std::array<rhi::compute_buffer_binding_t, 3> storage_bindings{
+            const std::array<rhi::compute_buffer_binding_t, 2> read_only_bindings{
                 rhi::compute_buffer_binding_t{ .slot = 0u, .buffer = gpu_buffers.constants_buffer.get() },
-                rhi::compute_buffer_binding_t{ .slot = 1u, .buffer = gpu_buffers.light_input_buffer.get() },
+                rhi::compute_buffer_binding_t{ .slot = 1u, .buffer = gpu_buffers.light_input_buffer.get() }
+            };
+            const std::array<rhi::compute_buffer_binding_t, 1> storage_bindings{
                 rhi::compute_buffer_binding_t{ .slot = 2u, .buffer = gpu_buffers.classification_output_buffer.get() }
             };
 
             _rhi->dispatch_compute({
                 .pipeline = _forward_plus_classify_pipeline.get(),
+                .read_only_buffers = read_only_bindings,
                 .storage_buffers = storage_bindings,
                 .graphics_handoff = rhi::compute_graphics_handoff_t::storage_write_to_graphics_read,
                 .group_count_x = group_count_x,
@@ -1566,7 +1577,9 @@ namespace carrot::renderer {
                              return lhs.submission_index < rhs.submission_index;
                          });
 
+        _stats.world_render_item_count = static_cast<std::uint32_t>(_world_render_items.items.size());
         build_world_indirect_batches(_world_indirect_batches);
+        _stats.world_indirect_batch_count = static_cast<std::uint32_t>(_world_indirect_batches.size());
         ensure_world_indirect_quad_buffers();
 
         if (_world_item_cull_pipeline &&
@@ -1580,12 +1593,6 @@ namespace carrot::renderer {
                     continue;
 
                 ensure_world_item_cull_gpu_buffers(batch_index, batch.item_count);
-                upload_world_item_cull_input(batch_index,
-                                             std::span<const world_render_item_t>{
-                                                 _world_render_items.items.data() + batch.first_item,
-                                                 batch.item_count
-                                             });
-
                 const world_item_cull_gpu_buffers_t& cull_buffers{ current_world_item_cull_gpu_buffers()[batch_index] };
                 const gpu_world_item_cull_constants_t cull_constants{
                     .visible_bounds_px = {
@@ -1601,17 +1608,33 @@ namespace carrot::renderer {
                         0u
                     }
                 };
-                const std::array<rhi::compute_buffer_binding_t, 4> cull_storage_bindings{
-                    rhi::compute_buffer_binding_t{ .slot = 0u, .buffer = cull_buffers.item_input_buffer.get() },
-                    rhi::compute_buffer_binding_t{ .slot = 1u, .buffer = cull_buffers.visible_item_index_buffer.get() },
-                    rhi::compute_buffer_binding_t{ .slot = 2u, .buffer = cull_buffers.cull_state_buffer.get() },
-                    rhi::compute_buffer_binding_t{ .slot = 3u, .buffer = cull_buffers.indirect_command_buffer.get() }
+                upload_world_item_cull_input(batch_index,
+                                             std::span<const world_render_item_t>{
+                                                 _world_render_items.items.data() + batch.first_item,
+                                                 batch.item_count
+                                             },
+                                             cull_constants);
+            }
+            for (std::size_t batch_index{ 0u }; batch_index < _world_indirect_batches.size(); ++batch_index)
+            {
+                const world_indirect_batch_t& batch{ _world_indirect_batches[batch_index] };
+                if (!batch.texture || batch.item_count == 0u)
+                    continue;
+
+                const world_item_cull_gpu_buffers_t& cull_buffers{ current_world_item_cull_gpu_buffers()[batch_index] };
+                const std::array<rhi::compute_buffer_binding_t, 2> cull_read_only_bindings{
+                    rhi::compute_buffer_binding_t{ .slot = 0u, .buffer = cull_buffers.constants_buffer.get() },
+                    rhi::compute_buffer_binding_t{ .slot = 1u, .buffer = cull_buffers.item_input_buffer.get() }
+                };
+                const std::array<rhi::compute_buffer_binding_t, 2> cull_storage_bindings{
+                    rhi::compute_buffer_binding_t{ .slot = 2u, .buffer = cull_buffers.visible_item_index_buffer.get() },
+                    rhi::compute_buffer_binding_t{ .slot = 3u, .buffer = cull_buffers.output_buffer.get() }
                 };
 
                 _rhi->dispatch_compute({
                     .pipeline = _world_item_cull_pipeline.get(),
+                    .read_only_buffers = cull_read_only_bindings,
                     .storage_buffers = cull_storage_bindings,
-                    .constants = std::as_bytes(std::span{ &cull_constants, 1u }),
                     .graphics_handoff = rhi::compute_graphics_handoff_t::storage_write_to_graphics_read,
                     .group_count_x = 1u,
                     .group_count_y = 1u,
@@ -1638,7 +1661,7 @@ namespace carrot::renderer {
                 _rhi->record_indirect_textured_quad_stage({
                     .vertex_buffer = _world_indirect_quad_vertex_buffer.get(),
                     .index_buffer = _world_indirect_quad_index_buffer.get(),
-                    .indirect_buffer = cull_buffers.indirect_command_buffer.get(),
+                    .indirect_buffer = cull_buffers.output_buffer.get(),
                     .texture = batch.texture,
                     .sampler = sampler,
                     .view_projection = stage_context.view_projection,
@@ -1652,6 +1675,7 @@ namespace carrot::renderer {
                     .visible_item_index_buffer = cull_buffers.visible_item_index_buffer.get(),
                     .world_draw_mode = 1u,
                     .viewport = stage_context.viewport,
+                    .indirect_buffer_offset_bytes = sizeof(gpu_world_item_cull_state_t),
                     .presentation_mask = world_stage_plan.presentation_mask
                 });
 
@@ -1753,10 +1777,10 @@ namespace carrot::renderer {
         {
             for (world_item_cull_gpu_buffers_t& frame_buffers : frame_buffer_set)
             {
+                frame_buffers.constants_buffer.reset();
                 frame_buffers.item_input_buffer.reset();
                 frame_buffers.visible_item_index_buffer.reset();
-                frame_buffers.cull_state_buffer.reset();
-                frame_buffers.indirect_command_buffer.reset();
+                frame_buffers.output_buffer.reset();
                 frame_buffers.item_capacity = 0u;
             }
 
@@ -1874,7 +1898,7 @@ namespace carrot::renderer {
             {
                 frame_buffers.constants_buffer = _rhi->create_buffer({
                     .size_bytes = constants_size_bytes,
-                    .usage = rhi::buffer_usage_t::storage,
+                    .usage = rhi::buffer_usage_t::shader_read,
                     .cpu_writable = true
                 });
             }
@@ -1883,7 +1907,7 @@ namespace carrot::renderer {
             {
                 frame_buffers.light_input_buffer = _rhi->create_buffer({
                     .size_bytes = light_input_size_bytes,
-                    .usage = rhi::buffer_usage_t::storage,
+                    .usage = rhi::buffer_usage_t::shader_read,
                     .cpu_writable = true
                 });
             }
@@ -1892,8 +1916,7 @@ namespace carrot::renderer {
             {
                 frame_buffers.classification_output_buffer = _rhi->create_buffer({
                     .size_bytes = classification_output_size_bytes,
-                    .usage = rhi::buffer_usage_t::storage,
-                    .cpu_writable = true
+                    .usage = rhi::buffer_usage_t::storage
                 });
             }
 
@@ -1930,9 +1953,6 @@ namespace carrot::renderer {
             LOG_GRAPHICS_FATAL("Failed to upload forward+ light input");
             return;
         }
-
-        if (!frame_buffers.classification_output_buffer->write(&_world_forward_plus_output, sizeof(_world_forward_plus_output), 0u))
-            LOG_GRAPHICS_FATAL("Failed to upload forward+ classification output");
     }
 
     void renderer_t::ensure_world_item_cull_gpu_buffers(const std::size_t batch_index, const std::size_t item_capacity)
@@ -1945,44 +1965,46 @@ namespace carrot::renderer {
         const std::size_t resolved_capacity{ std::max<std::size_t>(1u, item_capacity) };
 
         if (frame_buffers.item_capacity >= resolved_capacity &&
+            frame_buffers.constants_buffer &&
             frame_buffers.item_input_buffer &&
             frame_buffers.visible_item_index_buffer &&
-            frame_buffers.cull_state_buffer &&
-            frame_buffers.indirect_command_buffer)
+            frame_buffers.output_buffer)
         {
             return;
         }
 
         frame_buffers.item_capacity = resolved_capacity;
+        frame_buffers.constants_buffer = _rhi->create_buffer({
+            .size_bytes = sizeof(gpu_world_item_cull_constants_t),
+            .usage = rhi::buffer_usage_t::shader_read,
+            .cpu_writable = true
+        });
         frame_buffers.item_input_buffer = _rhi->create_buffer({
             .size_bytes = resolved_capacity * sizeof(gpu_world_render_item_t),
-            .usage = rhi::buffer_usage_t::storage,
+            .usage = rhi::buffer_usage_t::shader_read,
             .cpu_writable = true
         });
         frame_buffers.visible_item_index_buffer = _rhi->create_buffer({
             .size_bytes = resolved_capacity * sizeof(std::uint32_t),
             .usage = rhi::buffer_usage_t::storage
         });
-        frame_buffers.cull_state_buffer = _rhi->create_buffer({
-            .size_bytes = sizeof(gpu_world_item_cull_state_t),
-            .usage = rhi::buffer_usage_t::storage
-        });
-        frame_buffers.indirect_command_buffer = _rhi->create_buffer({
-            .size_bytes = sizeof(rhi::indexed_indirect_draw_command_t),
+        frame_buffers.output_buffer = _rhi->create_buffer({
+            .size_bytes = sizeof(gpu_world_item_cull_state_t) + sizeof(rhi::indexed_indirect_draw_command_t),
             .usage = rhi::buffer_usage_t::indirect
         });
 
-        if (!frame_buffers.item_input_buffer ||
+        if (!frame_buffers.constants_buffer ||
+            !frame_buffers.item_input_buffer ||
             !frame_buffers.visible_item_index_buffer ||
-            !frame_buffers.cull_state_buffer ||
-            !frame_buffers.indirect_command_buffer)
+            !frame_buffers.output_buffer)
         {
             LOG_GRAPHICS_FATAL("Failed to create renderer world item cull GPU buffers");
         }
     }
 
     void renderer_t::upload_world_item_cull_input(const std::size_t batch_index,
-                                                  const std::span<const world_render_item_t> items) const
+                                                  const std::span<const world_render_item_t> items,
+                                                  const gpu_world_item_cull_constants_t& cull_constants) const
     {
         const std::vector<world_item_cull_gpu_buffers_t>& frame_buffer_set{ current_world_item_cull_gpu_buffers() };
         if (batch_index >= frame_buffer_set.size())
@@ -1992,8 +2014,10 @@ namespace carrot::renderer {
         }
 
         const world_item_cull_gpu_buffers_t& frame_buffers{ frame_buffer_set[batch_index] };
-        if (!frame_buffers.item_input_buffer || !frame_buffers.visible_item_index_buffer ||
-            !frame_buffers.cull_state_buffer || !frame_buffers.indirect_command_buffer)
+        if (!frame_buffers.constants_buffer ||
+            !frame_buffers.item_input_buffer ||
+            !frame_buffers.visible_item_index_buffer ||
+            !frame_buffers.output_buffer)
         {
             LOG_GRAPHICS_FATAL("World item cull GPU buffers are not available for upload");
             return;
@@ -2041,6 +2065,11 @@ namespace carrot::renderer {
             !frame_buffers.item_input_buffer->write(gpu_items.data(), gpu_items.size() * sizeof(gpu_world_render_item_t), 0u))
         {
             LOG_GRAPHICS_FATAL("Failed to upload world item cull input buffer");
+        }
+
+        if (!frame_buffers.constants_buffer->write(&cull_constants, sizeof(cull_constants), 0u))
+        {
+            LOG_GRAPHICS_FATAL("Failed to upload world item cull constants buffer");
         }
     }
 

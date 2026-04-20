@@ -174,6 +174,7 @@ namespace carrot::rhi::null {
 
         _recorded_compute_dispatches.push_back({
             .debug_name = std::string{ record.pipeline->info().debug_name },
+            .read_only_buffer_count = static_cast<std::uint32_t>(record.read_only_buffers.size()),
             .storage_buffer_count = static_cast<std::uint32_t>(record.storage_buffers.size()),
             .constant_size_bytes = record.constants.size(),
             .order = record.order,

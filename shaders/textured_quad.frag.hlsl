@@ -51,6 +51,10 @@ struct PSInput
 CARROT_ROOT_SIGNATURE(CARROT_RS_TEXTURED_QUAD)
 float4 main(PSInput input) : SV_Target
 {
+    const float4 base_color = g_texture.Sample(g_sampler, input.uv) * input.color;
+    if (base_color.a <= 0.0f)
+        return float4(0.0f, 0.0f, 0.0f, 0.0f);
+
     float3 lighting = g_ambient_color.rgb;
     const float tile_size = max(g_forward_plus.grid_params.z, 1.0f);
     const float2 local_world_position_px = input.world_position_px - g_forward_plus.grid_params.xy;
@@ -82,5 +86,5 @@ float4 main(PSInput input) : SV_Target
         }
     }
 
-    return g_texture.Sample(g_sampler, input.uv) * input.color * float4(lighting, g_ambient_color.a);
+    return base_color * float4(lighting, g_ambient_color.a);
 }

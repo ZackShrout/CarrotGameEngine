@@ -10,6 +10,7 @@
 #include "Assets/Shaders/ShaderFileProvider.h"
 #include "RHI/Backends/DirectX12/DirectX12Buffer.h"
 #include "RHI/Backends/DirectX12/DirectX12Core.h"
+#include "RHI/Backends/DirectX12/DirectX12Sampler.h"
 #include "RHI/Backends/DirectX12/DirectX12Texture.h"
 #include "RHI/SamplerPresets.h"
 #include "Renderer/Primitives/QuadVertex.h"
@@ -18,6 +19,28 @@
 namespace carrot::rhi::dx12 {
     namespace {
         constexpr uint32_t k_srv_descriptors_per_batch{ 5u };
+
+        bool prepare_graphics_srv_buffer(ID3D12GraphicsCommandList* const command_list,
+                                         const dx12_buffer_t& buffer,
+                                         const char* const label)
+        {
+            if (!command_list)
+                return false;
+
+            if (!buffer.flush_pending_upload(command_list))
+            {
+                LOG_GRAPHICS_ERROR("DX12 textured quad pipeline failed to flush pending upload for {}", label);
+                return false;
+            }
+
+            if (!buffer.transition_to(command_list, D3D12_RESOURCE_STATE_GENERIC_READ))
+            {
+                LOG_GRAPHICS_ERROR("DX12 textured quad pipeline failed to transition {} to generic-read state", label);
+                return false;
+            }
+
+            return true;
+        }
 
         void write_raw_buffer_srv(ID3D12Device* device,
                                   const dx12_buffer_t& buffer,
@@ -76,7 +99,7 @@ namespace carrot::rhi::dx12 {
         root_params[0].DescriptorTable.pDescriptorRanges = &cbv_range;
 
         root_params[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-        root_params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+        root_params[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
         root_params[1].DescriptorTable.NumDescriptorRanges = 1;
         root_params[1].DescriptorTable.pDescriptorRanges = &srv_range;
 
@@ -250,6 +273,31 @@ namespace carrot::rhi::dx12 {
 
         const dx12_buffer_t& dx_vertex_buffer{ dynamic_cast<const dx12_buffer_t&>(*draw_context.vertex_buffer) };
         const dx12_buffer_t& dx_index_buffer{ dynamic_cast<const dx12_buffer_t&>(*draw_context.index_buffer) };
+        const dx12_buffer_t* light_input_buffer{
+            dynamic_cast<const dx12_buffer_t*>(descriptor_context.forward_plus_light_input_buffer)
+        };
+        const dx12_buffer_t* output_buffer{
+            dynamic_cast<const dx12_buffer_t*>(descriptor_context.forward_plus_output_buffer)
+        };
+        const dx12_buffer_t* world_item_buffer{
+            dynamic_cast<const dx12_buffer_t*>(descriptor_context.world_item_buffer)
+        };
+        const dx12_buffer_t* visible_item_index_buffer{
+            dynamic_cast<const dx12_buffer_t*>(descriptor_context.visible_item_index_buffer)
+        };
+        if (!light_input_buffer || !output_buffer || !world_item_buffer || !visible_item_index_buffer)
+        {
+            LOG_GRAPHICS_FATAL("DX12 textured quad pipeline received non-DX12 forward+ buffers");
+            return;
+        }
+
+        if (!prepare_graphics_srv_buffer(cmd, *light_input_buffer, "forward+ light input buffer") ||
+            !prepare_graphics_srv_buffer(cmd, *output_buffer, "forward+ output buffer") ||
+            !prepare_graphics_srv_buffer(cmd, *world_item_buffer, "world item buffer") ||
+            !prepare_graphics_srv_buffer(cmd, *visible_item_index_buffer, "visible item index buffer"))
+        {
+            return;
+        }
 
         D3D12_VIEWPORT viewport{ };
         viewport.TopLeftX = static_cast<float>(draw_context.viewport.rect_px.position.x);
@@ -342,6 +390,31 @@ namespace carrot::rhi::dx12 {
         const dx12_buffer_t& dx_vertex_buffer{ dynamic_cast<const dx12_buffer_t&>(*draw_context.vertex_buffer) };
         const dx12_buffer_t& dx_index_buffer{ dynamic_cast<const dx12_buffer_t&>(*draw_context.index_buffer) };
         const dx12_buffer_t& dx_indirect_buffer{ dynamic_cast<const dx12_buffer_t&>(*draw_context.indirect_buffer) };
+        const dx12_buffer_t* light_input_buffer{
+            dynamic_cast<const dx12_buffer_t*>(descriptor_context.forward_plus_light_input_buffer)
+        };
+        const dx12_buffer_t* output_buffer{
+            dynamic_cast<const dx12_buffer_t*>(descriptor_context.forward_plus_output_buffer)
+        };
+        const dx12_buffer_t* world_item_buffer{
+            dynamic_cast<const dx12_buffer_t*>(descriptor_context.world_item_buffer)
+        };
+        const dx12_buffer_t* visible_item_index_buffer{
+            dynamic_cast<const dx12_buffer_t*>(descriptor_context.visible_item_index_buffer)
+        };
+        if (!light_input_buffer || !output_buffer || !world_item_buffer || !visible_item_index_buffer)
+        {
+            LOG_GRAPHICS_FATAL("DX12 indirect textured quad received non-DX12 forward+ buffers");
+            return;
+        }
+
+        if (!prepare_graphics_srv_buffer(cmd, *light_input_buffer, "forward+ light input buffer") ||
+            !prepare_graphics_srv_buffer(cmd, *output_buffer, "forward+ output buffer") ||
+            !prepare_graphics_srv_buffer(cmd, *world_item_buffer, "world item buffer") ||
+            !prepare_graphics_srv_buffer(cmd, *visible_item_index_buffer, "visible item index buffer"))
+        {
+            return;
+        }
 
         D3D12_VIEWPORT viewport{ };
         viewport.TopLeftX = static_cast<float>(draw_context.viewport.rect_px.position.x);
@@ -473,15 +546,19 @@ namespace carrot::rhi::dx12 {
             LOG_GRAPHICS_FATAL("DX12 textured quad pipeline failed to retrieve sampler");
             return;
         }
+        const auto* dx_sampler = dynamic_cast<const dx12_sampler_t*>(descriptor_context.sampler_provider->get_or_create_sampler(sampler_desc));
+        if (!dx_sampler)
+        {
+            LOG_GRAPHICS_FATAL("DX12 textured quad pipeline received non-DX12 sampler");
+            return;
+        }
 
         D3D12_CPU_DESCRIPTOR_HANDLE sampler_handle{
             descriptor_context.tables.sampler_heap->GetCPUDescriptorHandleForHeapStart()
         };
         sampler_handle.ptr += static_cast<SIZE_T>(descriptor_context.tables.first_batch_sampler_index + batch_index) *
                               descriptor_context.tables.sampler_descriptor_size;
-
-        const D3D12_SAMPLER_DESC d3d_sampler_desc{ dx12_sampler_desc(sampler_desc) };
-        _device->CreateSampler(&d3d_sampler_desc, sampler_handle);
+        _device->CopyDescriptorsSimple(1u, sampler_handle, dx_sampler->cpu_handle(), D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
     }
 
     void dx12_textured_quad_pipeline_t::write_indirect_descriptors(const rhi_texture_t& texture,
@@ -545,14 +622,18 @@ namespace carrot::rhi::dx12 {
             LOG_GRAPHICS_FATAL("DX12 indirect textured quad failed to retrieve sampler");
             return;
         }
+        const auto* dx_sampler = dynamic_cast<const dx12_sampler_t*>(&sampler);
+        if (!dx_sampler)
+        {
+            LOG_GRAPHICS_FATAL("DX12 indirect textured quad received non-DX12 sampler");
+            return;
+        }
 
         D3D12_CPU_DESCRIPTOR_HANDLE sampler_handle{
             descriptor_context.tables.sampler_heap->GetCPUDescriptorHandleForHeapStart()
         };
         sampler_handle.ptr += static_cast<SIZE_T>(descriptor_context.tables.first_batch_sampler_index) *
                               descriptor_context.tables.sampler_descriptor_size;
-
-        const D3D12_SAMPLER_DESC d3d_sampler_desc{ dx12_sampler_desc(sampler.desc()) };
-        _device->CreateSampler(&d3d_sampler_desc, sampler_handle);
+        _device->CopyDescriptorsSimple(1u, sampler_handle, dx_sampler->cpu_handle(), D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
     }
 } // namespace carrot::rhi::dx12

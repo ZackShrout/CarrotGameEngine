@@ -42,6 +42,7 @@ namespace carrot::rhi::null {
         struct recorded_compute_dispatch_t
         {
             std::string debug_name;
+            std::uint32_t read_only_buffer_count{ 0u };
             std::uint32_t storage_buffer_count{ 0u };
             std::size_t constant_size_bytes{ 0u };
             compute_dispatch_order_t order{ compute_dispatch_order_t::before_graphics };

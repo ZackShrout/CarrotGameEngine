@@ -47,6 +47,7 @@
 "DescriptorTable(Sampler(s0, numDescriptors=1))"
 
 #define CARROT_RS_COMPUTE \
+"DescriptorTable(SRV(t0, numDescriptors=4))," \
 "DescriptorTable(UAV(u0, numDescriptors=4))," \
 "CBV(b7)"
 

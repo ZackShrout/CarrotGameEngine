@@ -30,6 +30,12 @@ namespace carrot::renderer {
     {
         std::array<std::uint32_t, 4> counts{ 0u, 0u, 0u, 0u };
     };
+
+    struct gpu_world_item_cull_buffer_t
+    {
+        gpu_world_item_cull_constants_t constants{ };
+        gpu_world_item_cull_state_t state{ };
+    };
 } // namespace carrot::renderer
 #else
 struct GpuWorldRenderItem
@@ -50,5 +56,11 @@ struct GpuWorldItemCullConstants
 struct GpuWorldItemCullState
 {
     uint4 counts;
+};
+
+struct GpuWorldItemCullBuffer
+{
+    GpuWorldItemCullConstants constants;
+    GpuWorldItemCullState state;
 };
 #endif

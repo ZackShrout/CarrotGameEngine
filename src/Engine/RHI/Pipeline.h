@@ -13,7 +13,7 @@
 namespace carrot::rhi {
     class rhi_buffer_t;
 
-    constexpr std::uint32_t k_max_compute_storage_buffer_bindings{ 4u };
+    constexpr std::uint32_t k_max_compute_buffer_bindings{ 4u };
     constexpr std::uint32_t k_compute_constant_register{ 7u };
 
     struct indexed_indirect_draw_command_t
@@ -68,6 +68,7 @@ namespace carrot::rhi {
     struct compute_dispatch_record_t
     {
         const rhi_compute_pipeline_t* pipeline{ nullptr };
+        std::span<const compute_buffer_binding_t> read_only_buffers{ };
         std::span<const compute_buffer_binding_t> storage_buffers{ };
         std::span<const std::byte> constants{ };
         compute_dispatch_order_t order{ compute_dispatch_order_t::before_graphics };

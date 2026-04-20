@@ -23,7 +23,7 @@ void* metal_create_layer(void* ns_view, void* mtl_device, uint32_t width, uint32
     CAMetalLayer* layer = [CAMetalLayer layer];
     layer.device = device;
     layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-    layer.framebufferOnly = YES;
+    layer.framebufferOnly = NO;
 
     CGFloat scale{ view.window.backingScaleFactor };
     layer.contentsScale = scale;

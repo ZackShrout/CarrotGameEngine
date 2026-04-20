@@ -75,6 +75,7 @@ namespace carrot::rhi::metal {
             uint32_t presentation_channel_mask{ presentation_channel_gameplay };
             std::unique_ptr<metal_swapchain_t> swapchain;
             const CA::MetalDrawable* drawable{ nullptr };
+            std::unique_ptr<rhi_texture_t> capture_texture;
         };
 
         struct recorded_stage_t
@@ -100,6 +101,11 @@ namespace carrot::rhi::metal {
                                chlm::uint2 target_size_px,
                                uint32_t stage_slot,
                                quad_pipeline_kind_t pipeline_kind);
+        void encode_capture_textured_quad_stage(const textured_quad_stage_record_t& stage,
+                                                chlm::uint2 target_size_px,
+                                                uint32_t stage_slot,
+                                                quad_pipeline_kind_t pipeline_kind,
+                                                const CA::MetalDrawable* drawable);
         void encode_indirect_textured_quad_stage(MTL::RenderCommandEncoder* encoder,
                                                  const indirect_textured_quad_stage_record_t& stage,
                                                  chlm::uint2 target_size_px,

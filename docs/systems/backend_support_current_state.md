@@ -2,7 +2,7 @@
 
 **BunnySoft**
 **Current backend support note**
-**Last Updated: April 18, 2026**
+**Last Updated: April 19, 2026**
 
 ---
 
@@ -89,9 +89,9 @@ Manual validation still matters for native output:
 
 At the time of this note:
 
-* On **April 18-19, 2026**, Vulkan was manually exercised against the milestone 23 compute-capable slice and exited clean after the compute-buffer lifetime fix
-* On **April 18-19, 2026**, Metal was manually exercised against the same slice and ran clean after the auxiliary-window scissor validation fix
-* On **April 19, 2026**, DirectX 12 successfully compiled the milestone 23 codepath, but native runtime validation remained pending because the Windows environment still needed cleanup after dependency/runtime-linker issues
+* On **April 19, 2026**, Vulkan was manually exercised against the current milestone 25 world-stage GPU-driven slice and rendered correctly
+* On **April 19, 2026**, Metal was manually exercised against the same slice and rendered correctly
+* On **April 19, 2026**, DirectX 12 was manually exercised on Windows against the same slice and rendered correctly
 
 ---
 
@@ -109,6 +109,8 @@ Current limitations and cautions include:
 * the current milestone 24 slice now uses GPU compute for live world forward+ tile/light classification on Vulkan, Metal, and DirectX 12; the DirectX 12 runtime validation pass also clarified that `cpu_writable` storage uploads are a logical contract and may flow through backend-local staging before reaching the final GPU-visible storage resource
 * renderer debug stats still report world-light overflow and forward+ tile/light-reference counts after the move to GPU classification; the current dropped-reference stat is expected to stay at zero under today's shared caps because the total world-light limit matches the per-tile light-index budget
 * for Metal shader-converter pipelines, offline reflection JSON should be treated as a layout hint rather than a final authority for encoder bind indices; actual bind points still need confirmation against working backend patterns, validation output, and runtime behavior
+* the current milestone 25 slice now uses renderer-owned world render-item extraction, GPU visibility compaction, and indirect textured world draws on Vulkan, Metal, and DirectX 12, while world text, UI, overlay debug, composite, and log console rendering intentionally remain on simpler direct paths
+* shader compilation now needs to stay honest about shared include/header dependencies; cross-machine rebuilds should not rely on top-level `.hlsl` timestamps alone when shared shader-side contracts change
 
 ---
 

@@ -175,7 +175,16 @@ namespace sandbox {
 
     bool gameplay_state_t::transition_scene(const carrot::scene::scene_transition_request_t& request)
     {
-        return _scene_runtime.request_transition(game(), request);
+        carrot::scene::scene_load_options_t options{ };
+        const std::string_view current_scene_id{ _scene_runtime.current_scene_id() };
+        const bool use_battle_swirl{
+            request.scene_id == "scene.sandbox.item_shop" ||
+            (current_scene_id == "scene.sandbox.item_shop" && request.scene_id == "scene.sandbox.town")
+        };
+        if (use_battle_swirl)
+            options.transition_overlay.effect = carrot::scene::scene_transition_effect_t::battle_swirl;
+
+        return _scene_runtime.request_transition(game(), request, options);
     }
 
     void gameplay_state_t::tick(const float delta_time)

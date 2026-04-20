@@ -10,6 +10,7 @@
 #include "Core/Module.h"
 #include "Draw/TexturedQuadBatch.h"
 #include "Draw/TexturedQuadCameraUniform.h"
+#include "Draw/TexturedQuadEffectShared.h"
 #include "Draw/WorldRenderItemShared.h"
 #include "Draw/TexturedQuadTypes.h"
 #include "EngineConfig.h"
@@ -101,6 +102,8 @@ namespace carrot::renderer {
         uint32_t draw_calls{ 0 };
         uint32_t textured_quad_count{ 0 };
         uint32_t textured_quad_batch_count{ 0 };
+        uint32_t composite_fullscreen_pass_count{ 0 };
+        uint32_t bloom_pass_count{ 0 };
         uint32_t world_render_item_count{ 0 };
         uint32_t world_indirect_batch_count{ 0 };
         uint32_t active_visibility_tag_count{ 0 };
@@ -113,6 +116,17 @@ namespace carrot::renderer {
         uint32_t forward_plus_tile_count{ 0 };
         uint32_t forward_plus_light_index_count{ 0 };
         uint32_t forward_plus_dropped_light_references{ 0 };
+    };
+
+    struct bloom_settings_t
+    {
+        bool enabled{ false };
+        float baseline_strength{ 0.0f };
+        float peak_light_response{ 0.12f };
+        float accumulated_light_response{ 0.08f };
+        float ambient_response{ 0.06f };
+        float max_strength{ 0.28f };
+        uint32_t tint_abgr{ 0xFFFFFFFFu };
     };
 
     struct textured_quad_state_t
@@ -193,6 +207,44 @@ namespace carrot::renderer {
         std::size_t item_count{ 0u };
     };
 
+    enum class composite_target_kind_t : std::uint8_t
+    {
+        gameplay_present = 0
+    };
+
+    struct composite_target_t
+    {
+        composite_target_kind_t kind{ composite_target_kind_t::gameplay_present };
+        chlm::uint2 pixel_size{ 1u, 1u };
+        chlm::uint_rect rect_px{
+            .position = { 0u, 0u },
+            .size = { 1u, 1u }
+        };
+        const char* debug_name{ "gameplay_present" };
+    };
+
+    enum class composite_fullscreen_pass_kind_t : std::uint8_t
+    {
+        textured = 0,
+        solid
+    };
+
+    struct composite_fullscreen_pass_t
+    {
+        composite_fullscreen_pass_kind_t kind{ composite_fullscreen_pass_kind_t::solid };
+        composite_target_kind_t target{ composite_target_kind_t::gameplay_present };
+        textured_quad_draw_info_t textured_quad{ };
+        solid_quad_draw_info_t solid_quad{ };
+        const char* debug_name{ "fullscreen_pass" };
+    };
+
+    struct battle_swirl_state_t
+    {
+        bool enabled{ false };
+        float progress{ 0.f };
+        bool incoming{ false };
+    };
+
     class renderer_t final : public core::module_t
     {
     public:
@@ -230,6 +282,12 @@ namespace carrot::renderer {
         void draw_ui_solid_quad(const solid_quad_draw_info_t& quad);
         void draw_composite_solid_quad(const solid_quad_draw_info_t& quad);
         void draw_log_console_solid_quad(const solid_quad_draw_info_t& quad);
+        void set_bloom_settings(const bloom_settings_t& settings) noexcept;
+        [[nodiscard]] const bloom_settings_t& bloom_settings() const noexcept { return _bloom_settings; }
+        void set_transition_fade_color(uint32_t color_abgr) noexcept;
+        void clear_transition_fade() noexcept;
+        void set_transition_battle_swirl(float progress, bool incoming) noexcept;
+        void clear_transition_battle_swirl() noexcept;
         void set_composite_overlay_color(uint32_t color_abgr) noexcept;
         void clear_composite_overlay() noexcept;
         void draw_sprite(const sprite_draw_info_t& info);
@@ -245,6 +303,10 @@ namespace carrot::renderer {
         [[nodiscard]] uint64_t get_frame_index() const noexcept { return _frame_index; }
         [[nodiscard]] rhi::rhi_context_t* get_rhi() const noexcept { return _rhi.get(); }
         [[nodiscard]] std::size_t pending_world_render_item_count() const noexcept { return _world_render_items.items.size(); }
+        [[nodiscard]] std::size_t pending_composite_fullscreen_pass_count() const noexcept
+        {
+            return _composite_fullscreen_passes.size();
+        }
         [[nodiscard]] rhi::graphics_api get_graphics_api() const noexcept
         {
             return _rhi ? _rhi->get_graphics_api() : _config.api;
@@ -292,9 +354,23 @@ namespace carrot::renderer {
         [[nodiscard]] const frame_stage_plan_t& non_world_stage_plan(non_world_stage_target_t target) const noexcept;
         [[nodiscard]] stage_submission_group_t stage_submission_group(frame_stage_kind_t stage) noexcept;
         [[nodiscard]] stage_execution_context_t resolve_stage_execution_context(const frame_stage_plan_t& stage_plan) const noexcept;
+        [[nodiscard]] composite_target_t composite_target(composite_target_kind_t kind) const noexcept;
         void validate_shared_renderer_limits() const noexcept;
         void validate_frame_stage_plan() const noexcept;
+        void refresh_composite_targets() noexcept;
+        [[nodiscard]] float resolve_bloom_strength() const noexcept;
+        void queue_bloom_if_needed();
+        void queue_transition_fade_if_needed();
+        void record_transition_battle_swirl_if_needed(const stage_execution_context_t& stage_context,
+                                                      uint32_t presentation_mask);
         void queue_composite_overlay_if_needed();
+        void queue_composite_fullscreen_textured_pass(composite_target_kind_t target,
+                                                      textured_quad_draw_info_t quad,
+                                                      const char* debug_name);
+        void queue_composite_fullscreen_solid_pass(composite_target_kind_t target,
+                                                   solid_quad_draw_info_t quad,
+                                                   const char* debug_name);
+        void materialize_composite_fullscreen_passes();
         void extract_world_render_item(const textured_quad_draw_info_t& quad, world_material_key_t world_material);
         void submit_world_textured_quad(const textured_quad_draw_info_t& quad);
         void submit_world_text_quad(const textured_quad_draw_info_t& quad);
@@ -323,6 +399,8 @@ namespace carrot::renderer {
                                           std::span<const world_render_item_t> items,
                                           const gpu_world_item_cull_constants_t& cull_constants) const;
         void ensure_world_indirect_quad_buffers();
+        void ensure_transition_battle_swirl_quad_buffers();
+        void ensure_transition_battle_swirl_capture_texture();
         void build_world_indirect_batches(std::vector<world_indirect_batch_t>& out_batches) const;
         void prepare_world_stage_context(const world::world_t& world, world_stage_draw_context_t& context);
         void submit_world_object(const world::world_object_t& object, world_stage_draw_context_t& context);
@@ -417,8 +495,28 @@ namespace carrot::renderer {
         forward_plus_classification_output_t _world_forward_plus_output{ };
         std::unique_ptr<rhi::rhi_buffer_t> _world_indirect_quad_vertex_buffer;
         std::unique_ptr<rhi::rhi_buffer_t> _world_indirect_quad_index_buffer;
+        std::unique_ptr<rhi::rhi_buffer_t> _transition_battle_swirl_vertex_buffer;
+        std::unique_ptr<rhi::rhi_buffer_t> _transition_battle_swirl_index_buffer;
         std::unique_ptr<rhi::rhi_texture_t> _solid_white_texture;
+        std::unique_ptr<rhi::rhi_texture_t> _transition_battle_swirl_capture_texture;
+        bloom_settings_t _bloom_settings{ };
+        bool _transition_fade_enabled{ false };
+        uint32_t _transition_fade_color{ 0x00000000u };
+        battle_swirl_state_t _transition_battle_swirl{ };
         bool _composite_overlay_enabled{ false };
         uint32_t _composite_overlay_color{ 0x00000000u };
+        std::array<composite_target_t, 1u> _composite_targets{
+            composite_target_t{
+                .kind = composite_target_kind_t::gameplay_present,
+                .pixel_size = { 1u, 1u },
+                .rect_px = {
+                    .position = { 0u, 0u },
+                    .size = { 1u, 1u }
+                },
+                .debug_name = "gameplay_present"
+            }
+        };
+        std::vector<composite_fullscreen_pass_t> _composite_fullscreen_passes;
+        std::array<textured_quad_batch_t, 1u> _transition_battle_swirl_batches{ };
     };
 } // namespace carrot::renderer

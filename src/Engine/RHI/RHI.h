@@ -56,6 +56,7 @@ namespace carrot::rhi {
         std::uint32_t world_draw_mode{ 0u };
         render_viewport_t viewport{ };
         uint32_t presentation_mask{ 1u };
+        bool capture_presentation_before_draw{ false };
     };
 
     struct indirect_textured_quad_stage_record_t
@@ -88,7 +89,7 @@ namespace carrot::rhi {
     // records per frame" renderer slices. Milestone 25's indirect world path
     // records one textured stage per validated world material/texture run, so
     // practical scenes need a meaningfully larger budget.
-    constexpr uint32_t k_max_textured_quad_stage_slots_per_frame{ 512u };
+    constexpr uint32_t k_max_textured_quad_stage_slots_per_frame{ 1024u };
 
     enum presentation_channel_bits_t : uint32_t
     {

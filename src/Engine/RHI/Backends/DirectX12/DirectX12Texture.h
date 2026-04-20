@@ -29,10 +29,12 @@ namespace carrot::rhi::dx12 {
         [[nodiscard]] uint32_t width() const noexcept override { return _width; }
         [[nodiscard]] uint32_t height() const noexcept override { return _height; }
         [[nodiscard]] texture_format_t format() const noexcept override { return _format; }
+        [[nodiscard]] bool has_initial_data() const noexcept override { return _has_initial_data; }
 
         [[nodiscard]] ID3D12Resource* resource() const noexcept { return _resource; }
         [[nodiscard]] DXGI_FORMAT resource_format() const noexcept { return _resource_format; }
         [[nodiscard]] DXGI_FORMAT srv_format() const noexcept { return _srv_format; }
+        void set_has_initial_data(const bool has_initial_data) noexcept { _has_initial_data = has_initial_data; }
 
     private:
         uint32_t _width{ 0 };
@@ -41,5 +43,6 @@ namespace carrot::rhi::dx12 {
         ID3D12Resource* _resource{ nullptr };
         DXGI_FORMAT _resource_format{ DXGI_FORMAT_UNKNOWN };
         DXGI_FORMAT _srv_format{ DXGI_FORMAT_UNKNOWN };
+        bool _has_initial_data{ false };
     };
 } // namespace carrot::rhi::dx12

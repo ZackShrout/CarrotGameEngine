@@ -34,5 +34,6 @@ namespace carrot::rhi {
         [[nodiscard]] virtual uint32_t width() const noexcept = 0;
         [[nodiscard]] virtual uint32_t height() const noexcept = 0;
         [[nodiscard]] virtual texture_format_t format() const noexcept = 0;
+        [[nodiscard]] virtual bool has_initial_data() const noexcept { return false; }
     };
 } // carrot::rhi

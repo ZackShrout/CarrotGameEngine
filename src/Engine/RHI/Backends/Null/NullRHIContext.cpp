@@ -85,7 +85,8 @@ namespace carrot::rhi::null {
             .viewport = stage.viewport,
             .presentation_mask = stage.presentation_mask,
             .point_light_count = stage.forward_plus_constants.point_light_counts[0],
-            .ambient_color = stage.ambient_color
+            .ambient_color = stage.ambient_color,
+            .capture_presentation_before_draw = stage.capture_presentation_before_draw
         });
     }
 
@@ -96,7 +97,8 @@ namespace carrot::rhi::null {
             .viewport = stage.viewport,
             .presentation_mask = stage.presentation_mask,
             .point_light_count = stage.forward_plus_constants.point_light_counts[0],
-            .ambient_color = stage.ambient_color
+            .ambient_color = stage.ambient_color,
+            .capture_presentation_before_draw = stage.capture_presentation_before_draw
         });
     }
 

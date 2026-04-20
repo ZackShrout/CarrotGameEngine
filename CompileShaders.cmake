@@ -31,6 +31,17 @@ configure_file(
         @ONLY
 )
 
+# Shader compilation currently leans on a handful of shared include files that live
+# outside the top-level .hlsl entry points. If we only depend on the entry file,
+# cross-machine pulls can leave Vulkan/Metal running stale shader binaries even
+# though the shared contract changed. Rebuild all shader outputs whenever one of
+# these shared shader-side inputs changes.
+file(GLOB CARROT_SHADER_SHARED_DEPENDS CONFIGURE_DEPENDS
+        "${CMAKE_SOURCE_DIR}/shaders/*.h"
+        "${CMAKE_SOURCE_DIR}/shaders/*.hlsli"
+        "${CMAKE_SOURCE_DIR}/src/Engine/Renderer/Draw/*.h"
+)
+
 # ----------------------------------------------------------------------------
 # Compile HLSL to SPIR-V using DXC
 # ----------------------------------------------------------------------------
@@ -69,7 +80,7 @@ function(compile_hlsl_to_spirv TARGET_NAME HLSL_FILE OUTPUT_DIR)
             -DCARROT_CLIP_SPACE_Y_SIGN=-1.0
             -I "${CMAKE_SOURCE_DIR}/src/Engine"
             "${ABS_HLSL}" -Fo "${SPV_OUTPUT}" -DVULKAN
-            DEPENDS "${ABS_HLSL}"
+            DEPENDS "${ABS_HLSL}" ${CARROT_SHADER_SHARED_DEPENDS}
             COMMENT "DXC → SPIR-V: ${OUTPUT_BASE} (${PROFILE})"
             VERBATIM
     )
@@ -132,7 +143,7 @@ function(compile_hlsl_to_metallib TARGET_NAME HLSL_FILE OUTPUT_DIR)
             -Zi -Qembed_debug
             -I "${CMAKE_SOURCE_DIR}/src/Engine"
             "${ABS_HLSL}" -Fo "${DXIL_OUTPUT}"
-            DEPENDS "${ABS_HLSL}"
+            DEPENDS "${ABS_HLSL}" ${CARROT_SHADER_SHARED_DEPENDS}
             COMMENT "DXC → DXIL: ${OUTPUT_BASE} (${PROFILE})"
             VERBATIM
     )
@@ -205,7 +216,7 @@ function(compile_hlsl_to_dxil TARGET_NAME HLSL_FILE OUTPUT_DIR)
             # Add any other flags you need, e.g. -Zi for debug, -Od, etc.
             # -HV 2021   # HLSL version if needed
             "${ABS_HLSL}" -Fo "${DXIL_OUTPUT}"
-            DEPENDS "${ABS_HLSL}"
+            DEPENDS "${ABS_HLSL}" ${CARROT_SHADER_SHARED_DEPENDS}
             COMMENT "DXC → DXIL: ${OUTPUT_BASE} (${PROFILE})"
             VERBATIM
     )

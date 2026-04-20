@@ -94,6 +94,7 @@ namespace carrot::rhi::vulkan {
             VkSurfaceKHR surface{ VK_NULL_HANDLE };
             std::unique_ptr<vulkan_swapchain_t> swapchain;
             framebuffer_array_t framebuffers;
+            std::unique_ptr<rhi_texture_t> capture_texture;
             uint32_t current_image_index{ 0 };
             std::array<VkSemaphore, k_max_frames_in_flight> image_acquire{ };
             std::vector<VkSemaphore> render_finished;
@@ -138,6 +139,15 @@ namespace carrot::rhi::vulkan {
                                                  uint32_t descriptor_set_offset,
                                                  uint32_t batch_count,
                                                  quad_pipeline_kind_t pipeline_kind);
+        void encode_capture_textured_quad_stage_to_command_buffer(VkCommandBuffer command_buffer,
+                                                                  const textured_quad_stage_record_t& stage,
+                                                                  uint32_t stage_slot,
+                                                                  uint32_t descriptor_set_offset,
+                                                                  uint32_t batch_count,
+                                                                  quad_pipeline_kind_t pipeline_kind,
+                                                                  VkFramebuffer framebuffer,
+                                                                  VkExtent2D extent,
+                                                                  VkImage target_image);
         [[nodiscard]] VkDescriptorSet allocate_indirect_textured_quad_descriptor_set(const rhi_texture_t& texture,
                                                                                      const rhi_sampler_t& sampler);
         void encode_indirect_textured_quad_stage_to_command_buffer(VkCommandBuffer command_buffer,
@@ -181,6 +191,7 @@ namespace carrot::rhi::vulkan {
         std::unique_ptr<vulkan_swapchain_t>                 _swapchain;
         std::unique_ptr<vulkan_command_queue_t>             _graphics_queue;
         std::unique_ptr<vulkan_render_pass_t>               _render_pass;
+        std::unique_ptr<vulkan_render_pass_t>               _load_render_pass;
         std::unique_ptr<vulkan_textured_quad_pipeline_t>    _textured_quad_pipeline;
         std::unique_ptr<vulkan_textured_quad_pipeline_t>    _text_quad_pipeline;
         std::unique_ptr<rhi_buffer_t>                       _default_compute_storage_buffer;

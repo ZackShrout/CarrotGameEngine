@@ -8,16 +8,19 @@
 #include "VulkanRenderPass.h"
 
 namespace carrot::rhi::vulkan {
-    vulkan_render_pass_t::vulkan_render_pass_t(const vulkan_device_t* device, VkFormat color_format) : _device{ device }
+    vulkan_render_pass_t::vulkan_render_pass_t(const vulkan_device_t* device,
+                                               const VkFormat color_format,
+                                               const VkAttachmentLoadOp load_op,
+                                               const VkImageLayout initial_layout) : _device{ device }
     {
         VkAttachmentDescription color_attachment{ };
         color_attachment.format = color_format;
         color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-        color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        color_attachment.loadOp = load_op;
         color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
         color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        color_attachment.initialLayout = initial_layout;
         color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
         VkAttachmentReference color_attachment_ref{ };

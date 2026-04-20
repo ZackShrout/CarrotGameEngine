@@ -12,7 +12,10 @@ namespace carrot::rhi::vulkan {
     class vulkan_render_pass_t final
     {
     public:
-        vulkan_render_pass_t(const vulkan_device_t* device, VkFormat color_format);
+        vulkan_render_pass_t(const vulkan_device_t* device,
+                             VkFormat color_format,
+                             VkAttachmentLoadOp load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                             VkImageLayout initial_layout = VK_IMAGE_LAYOUT_UNDEFINED);
         ~vulkan_render_pass_t();
 
         DISABLE_COPY(vulkan_render_pass_t)

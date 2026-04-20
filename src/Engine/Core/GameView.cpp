@@ -67,6 +67,26 @@ namespace carrot::core {
         _renderer.set_composite_overlay_color(color_abgr);
     }
 
+    void game_view_t::set_transition_fade_color(const uint32_t color_abgr) noexcept
+    {
+        _renderer.set_transition_fade_color(color_abgr);
+    }
+
+    void game_view_t::clear_transition_fade() noexcept
+    {
+        _renderer.clear_transition_fade();
+    }
+
+    void game_view_t::set_transition_battle_swirl(const float progress, const bool incoming) noexcept
+    {
+        _renderer.set_transition_battle_swirl(progress, incoming);
+    }
+
+    void game_view_t::clear_transition_battle_swirl() noexcept
+    {
+        _renderer.clear_transition_battle_swirl();
+    }
+
     void game_view_t::clear_composite_overlay() noexcept
     {
         _renderer.clear_composite_overlay();

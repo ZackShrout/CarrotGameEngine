@@ -28,6 +28,7 @@ namespace carrot::rhi::null {
             uint32_t presentation_mask{ presentation_channel_gameplay };
             std::uint32_t point_light_count{ 0u };
             chlm::float4 ambient_color{ 1.f, 1.f, 1.f, 1.f };
+            bool capture_presentation_before_draw{ false };
         };
 
         struct recorded_indirect_stage_t

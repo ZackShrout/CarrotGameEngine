@@ -105,6 +105,13 @@ Current milestone 24 validation snapshot:
 * Metal manual validation is current as of **April 19, 2026**
 * DirectX 12 runtime validation is current as of **April 19, 2026**
 
+Current milestone 25 validation snapshot:
+
+* Vulkan manual validation is current as of **April 19, 2026**
+* Metal manual validation is current as of **April 19, 2026**
+* DirectX 12 runtime validation is current as of **April 19, 2026**
+* the validated world-stage slice is renderer-owned world-item extraction, GPU cull/compaction, and indirect textured world draws; world text, UI, overlay debug, composite, and log console remain intentionally simpler direct paths
+
 ---
 
 ## 5. Failure Conditions

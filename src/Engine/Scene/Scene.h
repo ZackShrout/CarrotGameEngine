@@ -95,6 +95,18 @@ namespace carrot::scene {
 
     [[nodiscard]] std::string_view to_string(scene_transition_overlay_style_t style) noexcept;
 
+    enum class scene_transition_effect_t : uint8_t
+    {
+        inherit = 0,
+        none,
+        fade,
+        loading_screen,
+        wipe,
+        battle_swirl
+    };
+
+    [[nodiscard]] std::string_view to_string(scene_transition_effect_t effect) noexcept;
+
     enum class scene_transition_wipe_direction_t : uint8_t
     {
         left_to_right = 0,
@@ -147,6 +159,7 @@ namespace carrot::scene {
     struct scene_transition_overlay_options_t
     {
         bool enabled{ true };
+        scene_transition_effect_t effect{ scene_transition_effect_t::fade };
         scene_transition_overlay_style_t style{ scene_transition_overlay_style_t::fade };
         scene_transition_wipe_direction_t wipe_direction{ scene_transition_wipe_direction_t::left_to_right };
         uint32_t overlay_color_abgr{ 0xFF000000u };
@@ -163,6 +176,7 @@ namespace carrot::scene {
 
     struct scene_transition_overlay_override_t
     {
+        scene_transition_effect_t effect{ scene_transition_effect_t::inherit };
         scene_transition_overlay_style_t style{ scene_transition_overlay_style_t::inherit };
         std::optional<scene_transition_wipe_direction_t> wipe_direction;
         std::optional<uint32_t> overlay_color_abgr;
@@ -323,6 +337,7 @@ namespace carrot::scene {
             scene_change_request_kind_t request_kind{ scene_change_request_kind_t::none };
             scene_change_outcome_t outcome{ scene_change_outcome_t::none };
             bool preserved_active_scene{ false };
+            scene_transition_effect_t transition_effect{ scene_transition_effect_t::fade };
             scene_transition_overlay_style_t overlay_style{ scene_transition_overlay_style_t::fade };
             scene_transition_wipe_direction_t wipe_direction{ scene_transition_wipe_direction_t::left_to_right };
             std::string active_scene_id;
@@ -686,6 +701,7 @@ namespace carrot::scene {
             scene_change_outcome_t outcome{ scene_change_outcome_t::none };
             scene_runtime_state_t runtime_state{ scene_runtime_state_t::idle };
             scene_transition_phase_t transition_phase{ scene_transition_phase_t::none };
+            scene_transition_effect_t transition_effect{ scene_transition_effect_t::fade };
             scene_transition_overlay_style_t overlay_style{ scene_transition_overlay_style_t::fade };
             scene_transition_wipe_direction_t wipe_direction{ scene_transition_wipe_direction_t::left_to_right };
             bool preserved_active_scene{ false };

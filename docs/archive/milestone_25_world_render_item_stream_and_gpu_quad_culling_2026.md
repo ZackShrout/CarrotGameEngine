@@ -2,7 +2,7 @@
 
 **Last Updated:** April 19, 2026
 **Title:** World Render Item Stream and GPU Quad Culling
-**Status:** Planned
+**Status:** Completed and archived
 **Focus:** Replace CPU-baked world quad geometry with a renderer-owned world render-item stream and introduce GPU-driven world visibility, compaction, and draw preparation while keeping non-world stages intentionally simpler.
 
 ---
@@ -308,6 +308,14 @@ Implemented on April 19, 2026 for the current milestone slice:
 * native backends are validated for the world-stage milestone slice
 * docs describe this as a world-stage GPU-driven milestone, not a total-engine GPU rewrite
 
+#### Current Status
+
+Implemented on April 19, 2026 for the current milestone slice:
+
+* the milestone remains intentionally narrow: world textured content is now GPU-driven through extracted render items, compute visibility compaction, and indirect textured-quad execution, while world text, UI, overlay debug, composite, and log console rendering stay on their simpler honest paths
+* Vulkan, Metal, and DirectX 12 have all been runtime-validated against the current Sandbox world-stage slice for milestone 25
+* milestone 25 should be described as a validated world-stage GPU-driven execution milestone, not as a total-engine GPU rewrite or a final-form sprite/tile renderer
+
 ---
 
 ## Required Minimum Slice
@@ -337,3 +345,21 @@ Milestone 25 is complete when:
 * world draw execution no longer depends primarily on CPU-expanded per-frame geometry
 * tilemap rendering has a chunk/coarse-visibility direction compatible with the new path
 * non-world stages remain structurally simpler and honest
+
+## Closeout Note
+
+As of **April 19, 2026**, milestone 25 is implemented and runtime-validated on **Vulkan**, **Metal**, and **DirectX 12** for the current narrow world-stage slice.
+
+Archive note:
+This milestone was archived on **April 19, 2026** after Vulkan, Metal, and DirectX 12 all validated the current slice cleanly.
+
+That validated slice is:
+
+* renderer-owned world render-item extraction
+* chunked/coarse-visibility tilemap preparation for tile layers
+* GPU world-item visibility filtering and compaction
+* GPU-driven indirect textured world draws
+* non-world stages intentionally left on simpler direct paths
+
+This milestone does **not** claim that Carrot's final sprite/tile renderer shape is finished.
+It proves the world-stage GPU-driven execution model and keeps the rest of the renderer honest while later atlas/instancing/material improvements remain future work.

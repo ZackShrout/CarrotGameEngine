@@ -35,6 +35,10 @@ namespace carrot::core {
         void center_camera_on_world_position(const world::world_t& world, const chlm::float2& world_position) noexcept;
         [[nodiscard]] game_view_camera_t camera_state(const world::world_t& world) const noexcept;
         void set_camera_state(const world::world_t& world, const game_view_camera_t& state) noexcept;
+        void set_transition_fade_color(uint32_t color_abgr) noexcept;
+        void clear_transition_fade() noexcept;
+        void set_transition_battle_swirl(float progress, bool incoming) noexcept;
+        void clear_transition_battle_swirl() noexcept;
         void set_composite_overlay_color(uint32_t color_abgr) noexcept;
         void clear_composite_overlay() noexcept;
         void draw_composite_solid_quad(float x, float y, float width, float height, uint32_t color_abgr) noexcept;

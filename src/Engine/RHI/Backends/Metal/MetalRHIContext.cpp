@@ -25,6 +25,10 @@
 
 namespace carrot::rhi::metal {
     namespace {
+        constexpr std::uint32_t k_auxiliary_stage_slot_offset{ 512u };
+    }
+
+    namespace {
         constexpr NS::UInteger k_textured_quad_root_argument_buffer_index{ 2 };
         constexpr size_t k_textured_quad_srv_descriptors_per_batch{ 5u };
 
@@ -310,11 +314,22 @@ namespace carrot::rhi::metal {
 
         if (presentation_mask_includes(stage.presentation_mask, presentation_channel_gameplay))
         {
-            encode_quad_stage(encoder,
-                              stage,
-                              { _swapchain->get_width(), _swapchain->get_height() },
-                              _recorded_stages.back().stage_slot,
-                              quad_pipeline_kind_t::textured);
+            if (stage.capture_presentation_before_draw)
+            {
+                encode_capture_textured_quad_stage(stage,
+                                                  { _swapchain->get_width(), _swapchain->get_height() },
+                                                  _recorded_stages.back().stage_slot,
+                                                  quad_pipeline_kind_t::textured,
+                                                  _active_drawable);
+            }
+            else
+            {
+                encode_quad_stage(encoder,
+                                  stage,
+                                  { _swapchain->get_width(), _swapchain->get_height() },
+                                  _recorded_stages.back().stage_slot,
+                                  quad_pipeline_kind_t::textured);
+            }
         }
     }
 
@@ -418,25 +433,90 @@ namespace carrot::rhi::metal {
                     {
                         const recorded_stage_t& recorded_stage{ _recorded_stages[direct_stage_index++] };
                         const textured_quad_stage_record_t& stage{ recorded_stage.stage };
+                        const std::uint32_t auxiliary_stage_slot{ recorded_stage.stage_slot + k_auxiliary_stage_slot_offset };
                         if (!presentation_mask_includes(stage.presentation_mask, surface.presentation_channel_mask))
                             continue;
-                        encode_quad_stage(encoder,
-                                          stage,
-                                          { surface.swapchain->get_width(), surface.swapchain->get_height() },
-                                          recorded_stage.stage_slot,
-                                          recorded_stage.pipeline_kind);
+                        if (stage.capture_presentation_before_draw)
+                        {
+                            auxiliary_encoder.end();
+                            const texture_create_info_t capture_info{
+                                .width = surface.swapchain->get_width(),
+                                .height = surface.swapchain->get_height(),
+                                .format = texture_format_t::rgba8_srgb
+                            };
+                            if (!surface.capture_texture ||
+                                surface.capture_texture->width() != capture_info.width ||
+                                surface.capture_texture->height() != capture_info.height)
+                            {
+                                surface.capture_texture = create_texture_2d(capture_info);
+                            }
+
+                            auto* capture_texture{
+                                dynamic_cast<const metal_texture_t*>(surface.capture_texture.get())
+                            };
+                            if (!capture_texture)
+                            {
+                                LOG_GRAPHICS_FATAL("Metal battle swirl stage requires a capture texture");
+                                continue;
+                            }
+
+                            if (MTL::BlitCommandEncoder* blit{ _active_command_buffer->blitCommandEncoder() })
+                            {
+                                blit->copyFromTexture(surface.drawable->texture(),
+                                                      0,
+                                                      0,
+                                                      MTL::Origin(0, 0, 0),
+                                                      MTL::Size(surface.swapchain->get_width(), surface.swapchain->get_height(), 1),
+                                                      capture_texture->mtl_texture(),
+                                                      0,
+                                                      0,
+                                                      MTL::Origin(0, 0, 0));
+                                blit->endEncoding();
+                            }
+
+                            auxiliary_encoder.begin_with_load_action(_active_command_buffer,
+                                                                     surface.drawable,
+                                                                     MTL::LoadActionLoad,
+                                                                     MTL::ClearColor(0.02, 0.02, 0.04, 1.0));
+                            encoder = auxiliary_encoder.encoder();
+
+                            std::vector<renderer::textured_quad_batch_t> batches(stage.batches.begin(), stage.batches.end());
+                            if (batches.empty())
+                            {
+                                LOG_GRAPHICS_FATAL("Metal battle swirl stage requires at least one batch");
+                                continue;
+                            }
+
+                            batches[0].texture = surface.capture_texture.get();
+                            textured_quad_stage_record_t capture_stage{ stage };
+                            capture_stage.batches = batches;
+                            encode_quad_stage(encoder,
+                                              capture_stage,
+                                              { surface.swapchain->get_width(), surface.swapchain->get_height() },
+                                              auxiliary_stage_slot,
+                                              recorded_stage.pipeline_kind);
+                        }
+                        else
+                        {
+                            encode_quad_stage(encoder,
+                                              stage,
+                                              { surface.swapchain->get_width(), surface.swapchain->get_height() },
+                                              auxiliary_stage_slot,
+                                              recorded_stage.pipeline_kind);
+                        }
                     }
                     else
                     {
                         const recorded_indirect_stage_t& recorded_stage{ _recorded_indirect_stages[indirect_stage_index++] };
                         const indirect_textured_quad_stage_record_t& stage{ recorded_stage.stage };
+                        const std::uint32_t auxiliary_stage_slot{ recorded_stage.stage_slot + k_auxiliary_stage_slot_offset };
                         if (!presentation_mask_includes(stage.presentation_mask, surface.presentation_channel_mask))
                             continue;
 
                         encode_indirect_textured_quad_stage(encoder,
                                                             stage,
                                                             { surface.swapchain->get_width(), surface.swapchain->get_height() },
-                                                            recorded_stage.stage_slot);
+                                                            auxiliary_stage_slot);
                     }
                 }
             }
@@ -451,6 +531,46 @@ namespace carrot::rhi::metal {
 
         _active_drawable = nullptr;
         release_auxiliary_drawables();
+    }
+
+    void metal_rhi_context_t::encode_capture_textured_quad_stage(const textured_quad_stage_record_t& stage,
+                                                                 const chlm::uint2 target_size_px,
+                                                                 const uint32_t stage_slot,
+                                                                 const quad_pipeline_kind_t pipeline_kind,
+                                                                 const CA::MetalDrawable* const drawable)
+    {
+        auto* capture_texture{ dynamic_cast<const metal_texture_t*>(stage.batches.empty() ? nullptr : stage.batches[0].texture) };
+        if (!_active_command_buffer || !drawable || !capture_texture)
+        {
+            LOG_GRAPHICS_FATAL("Metal battle swirl stage requires a drawable and capture texture");
+            return;
+        }
+
+        _render_encoder.end();
+
+        if (MTL::BlitCommandEncoder* blit{ _active_command_buffer->blitCommandEncoder() })
+        {
+            blit->copyFromTexture(drawable->texture(),
+                                  0,
+                                  0,
+                                  MTL::Origin(0, 0, 0),
+                                  MTL::Size(target_size_px.x, target_size_px.y, 1),
+                                  capture_texture->mtl_texture(),
+                                  0,
+                                  0,
+                                  MTL::Origin(0, 0, 0));
+            blit->endEncoding();
+        }
+
+        _render_encoder.begin_with_load_action(_active_command_buffer,
+                                               drawable,
+                                               MTL::LoadActionLoad,
+                                               MTL::ClearColor(0.02, 0.02, 0.04, 1.0));
+
+        if (MTL::RenderCommandEncoder* encoder{ _render_encoder.encoder() })
+        {
+            encode_quad_stage(encoder, stage, target_size_px, stage_slot, pipeline_kind);
+        }
     }
 
     void metal_rhi_context_t::resize(const uint32_t width, const uint32_t height)
@@ -521,8 +641,9 @@ namespace carrot::rhi::metal {
 
             texture->replaceRegion(MTL::Region(0, 0, 0, info.width, info.height, 1), 0, info.initial_data, bytes_per_row);
         }
-
-        return std::make_unique<metal_texture_t>(texture, info.width, info.height, info.format);
+        auto result{ std::make_unique<metal_texture_t>(texture, info.width, info.height, info.format) };
+        result->set_has_initial_data(info.initial_data != nullptr && info.initial_data_size > 0u);
+        return result;
     }
 
     std::unique_ptr<rhi_buffer_t> metal_rhi_context_t::create_buffer(const buffer_create_info_t& info)

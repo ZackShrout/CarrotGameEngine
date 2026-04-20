@@ -178,6 +178,7 @@ namespace carrot::rhi::vulkan {
         _textured_quad_pipeline.reset();
         _text_quad_pipeline.reset();
         _render_pass.reset();
+        _load_render_pass.reset();
         destroy_all_auxiliary_surfaces();
 
         if (_swapchain)
@@ -378,12 +379,27 @@ namespace carrot::rhi::vulkan {
         if (presentation_mask_includes(stage.presentation_mask, presentation_channel_gameplay))
         {
             begin_main_render_pass_if_needed();
-            encode_quad_stage_to_command_buffer(_frames[_current_frame].command_buffer,
-                                                stage,
-                                                stage_slot,
-                                                descriptor_set_offset,
-                                                batch_count,
-                                                quad_pipeline_kind_t::textured);
+            if (stage.capture_presentation_before_draw)
+            {
+                encode_capture_textured_quad_stage_to_command_buffer(_frames[_current_frame].command_buffer,
+                                                                     stage,
+                                                                     stage_slot,
+                                                                     descriptor_set_offset,
+                                                                     batch_count,
+                                                                     quad_pipeline_kind_t::textured,
+                                                                     _framebuffers[_current_image_index],
+                                                                     _swapchain->extent(),
+                                                                     _swapchain->image(_current_image_index));
+            }
+            else
+            {
+                encode_quad_stage_to_command_buffer(_frames[_current_frame].command_buffer,
+                                                    stage,
+                                                    stage_slot,
+                                                    descriptor_set_offset,
+                                                    batch_count,
+                                                    quad_pipeline_kind_t::textured);
+            }
         }
     }
 
@@ -581,12 +597,57 @@ namespace carrot::rhi::vulkan {
                         continue;
                     }
 
-                    encode_quad_stage_to_command_buffer(frame.command_buffer,
-                                                        recorded_stage.stage,
-                                                        recorded_stage.stage_slot,
-                                                        recorded_stage.descriptor_set_offset,
-                                                        recorded_stage.descriptor_set_count,
-                                                        recorded_stage.pipeline_kind);
+                    if (recorded_stage.stage.capture_presentation_before_draw)
+                    {
+                        const VkExtent2D extent{ aux_surface.swapchain->extent() };
+                        if (!aux_surface.capture_texture ||
+                            aux_surface.capture_texture->width() != extent.width ||
+                            aux_surface.capture_texture->height() != extent.height)
+                        {
+                            aux_surface.capture_texture = create_texture_2d({
+                                .width = extent.width,
+                                .height = extent.height,
+                                .format = texture_format_t::rgba8_srgb
+                            });
+                        }
+
+                        if (!aux_surface.capture_texture)
+                        {
+                            LOG_GRAPHICS_FATAL("Vulkan auxiliary battle swirl stage requires a capture texture");
+                            continue;
+                        }
+
+                        std::vector<renderer::textured_quad_batch_t> batches(recorded_stage.stage.batches.begin(),
+                                                                             recorded_stage.stage.batches.end());
+                        if (batches.empty())
+                        {
+                            LOG_GRAPHICS_FATAL("Vulkan battle swirl stage requires at least one batch");
+                            continue;
+                        }
+
+                        batches[0].texture = aux_surface.capture_texture.get();
+                        textured_quad_stage_record_t capture_stage{ recorded_stage.stage };
+                        capture_stage.batches = batches;
+
+                        encode_capture_textured_quad_stage_to_command_buffer(frame.command_buffer,
+                                                                             capture_stage,
+                                                                             recorded_stage.stage_slot,
+                                                                             recorded_stage.descriptor_set_offset,
+                                                                             recorded_stage.descriptor_set_count,
+                                                                             recorded_stage.pipeline_kind,
+                                                                             aux_surface.framebuffers[aux_surface.current_image_index],
+                                                                             extent,
+                                                                             aux_surface.swapchain->image(aux_surface.current_image_index));
+                    }
+                    else
+                    {
+                        encode_quad_stage_to_command_buffer(frame.command_buffer,
+                                                            recorded_stage.stage,
+                                                            recorded_stage.stage_slot,
+                                                            recorded_stage.descriptor_set_offset,
+                                                            recorded_stage.descriptor_set_count,
+                                                            recorded_stage.pipeline_kind);
+                    }
                 }
                 else
                 {
@@ -782,18 +843,12 @@ namespace carrot::rhi::vulkan {
             return nullptr;
         }
 
-        if (info.initial_data == nullptr || info.initial_data_size == 0)
-        {
-            LOG_GRAPHICS_ERROR("create_texture_2d failed: initial_data was null or empty");
-            return nullptr;
-        }
-
         VkDevice device{ _device->vk_device() };
 
         const VkFormat vk_format{
             info.format == texture_format_t::rgba8_srgb ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM
         };
-
+        const bool has_initial_data{ info.initial_data != nullptr && info.initial_data_size > 0u };
         const VkDeviceSize upload_size{ static_cast<VkDeviceSize>(info.initial_data_size) };
 
         // -------------------------------------------------------------------------
@@ -802,6 +857,7 @@ namespace carrot::rhi::vulkan {
         VkBuffer staging_buffer{ VK_NULL_HANDLE };
         VkDeviceMemory staging_memory{ VK_NULL_HANDLE };
 
+        if (has_initial_data)
         {
             VkBufferCreateInfo buffer_info{ };
             buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -903,6 +959,7 @@ namespace carrot::rhi::vulkan {
         // -------------------------------------------------------------------------
         // 3. Upload staging buffer -> image with layout transitions
         // -------------------------------------------------------------------------
+        if (has_initial_data)
         {
             VkCommandBuffer cmd{ begin_single_time_commands() };
 
@@ -988,8 +1045,11 @@ namespace carrot::rhi::vulkan {
         }
 
         // staging resources are no longer needed after upload
-        vkFreeMemory(device, staging_memory, nullptr);
-        vkDestroyBuffer(device, staging_buffer, nullptr);
+        if (has_initial_data)
+        {
+            vkFreeMemory(device, staging_memory, nullptr);
+            vkDestroyBuffer(device, staging_buffer, nullptr);
+        }
 
         std::unique_ptr<vulkan_texture_t> texture{ std::make_unique<vulkan_texture_t>(_device.get()) };
         texture->set_width(info.width);
@@ -998,6 +1058,8 @@ namespace carrot::rhi::vulkan {
         texture->set_image(image);
         texture->set_memory(image_memory);
         texture->set_view(image_view);
+        texture->set_has_initial_data(has_initial_data);
+        texture->set_layout(has_initial_data ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_UNDEFINED);
 
         LOG_GRAPHICS_INFO("Created Vulkan texture: {}x{}", info.width, info.height);
 
@@ -1690,6 +1752,142 @@ namespace carrot::rhi::vulkan {
         }
     }
 
+    void vulkan_rhi_context_t::encode_capture_textured_quad_stage_to_command_buffer(
+        const VkCommandBuffer command_buffer,
+        const textured_quad_stage_record_t& stage,
+        const uint32_t stage_slot,
+        const uint32_t descriptor_set_offset,
+        const uint32_t batch_count,
+        const quad_pipeline_kind_t pipeline_kind,
+        const VkFramebuffer framebuffer,
+        const VkExtent2D extent,
+        const VkImage target_image)
+    {
+        const auto* capture_texture_const{
+            dynamic_cast<const vulkan_texture_t*>(stage.batches.empty() ? nullptr : stage.batches[0].texture)
+        };
+        auto* capture_texture{ const_cast<vulkan_texture_t*>(capture_texture_const) };
+        if (!capture_texture)
+        {
+            LOG_GRAPHICS_FATAL("Vulkan battle swirl stage requires a capture texture");
+            return;
+        }
+
+        if (_render_pass_active)
+        {
+            vkCmdEndRenderPass(command_buffer);
+            _render_pass_active = false;
+        }
+
+        VkImageMemoryBarrier target_to_transfer_src{ };
+        target_to_transfer_src.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        target_to_transfer_src.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        target_to_transfer_src.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        target_to_transfer_src.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        target_to_transfer_src.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        target_to_transfer_src.image = target_image;
+        target_to_transfer_src.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        target_to_transfer_src.subresourceRange.baseMipLevel = 0;
+        target_to_transfer_src.subresourceRange.levelCount = 1;
+        target_to_transfer_src.subresourceRange.baseArrayLayer = 0;
+        target_to_transfer_src.subresourceRange.layerCount = 1;
+        target_to_transfer_src.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        target_to_transfer_src.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+
+        VkImageMemoryBarrier capture_to_transfer_dst{ };
+        capture_to_transfer_dst.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        capture_to_transfer_dst.oldLayout = capture_texture->layout();
+        capture_to_transfer_dst.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        capture_to_transfer_dst.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        capture_to_transfer_dst.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        capture_to_transfer_dst.image = capture_texture->image();
+        capture_to_transfer_dst.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        capture_to_transfer_dst.subresourceRange.baseMipLevel = 0;
+        capture_to_transfer_dst.subresourceRange.levelCount = 1;
+        capture_to_transfer_dst.subresourceRange.baseArrayLayer = 0;
+        capture_to_transfer_dst.subresourceRange.layerCount = 1;
+        capture_to_transfer_dst.srcAccessMask = 0;
+        capture_to_transfer_dst.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+        const std::array<VkImageMemoryBarrier, 2u> pre_copy_barriers{
+            target_to_transfer_src,
+            capture_to_transfer_dst
+        };
+        vkCmdPipelineBarrier(command_buffer,
+                             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             0,
+                             0,
+                             nullptr,
+                             0,
+                             nullptr,
+                             static_cast<uint32_t>(pre_copy_barriers.size()),
+                             pre_copy_barriers.data());
+
+        VkImageCopy region{ };
+        region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.srcSubresource.mipLevel = 0;
+        region.srcSubresource.baseArrayLayer = 0;
+        region.srcSubresource.layerCount = 1;
+        region.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.dstSubresource.mipLevel = 0;
+        region.dstSubresource.baseArrayLayer = 0;
+        region.dstSubresource.layerCount = 1;
+        region.extent = { extent.width, extent.height, 1u };
+
+        vkCmdCopyImage(command_buffer,
+                       target_image,
+                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                       capture_texture->image(),
+                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                       1,
+                       &region);
+
+        VkImageMemoryBarrier capture_to_shader_read{ capture_to_transfer_dst };
+        capture_to_shader_read.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        capture_to_shader_read.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        capture_to_shader_read.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        capture_to_shader_read.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        VkImageMemoryBarrier target_to_color_attachment{ target_to_transfer_src };
+        target_to_color_attachment.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        target_to_color_attachment.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        target_to_color_attachment.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+        target_to_color_attachment.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+        const std::array<VkImageMemoryBarrier, 2u> post_copy_barriers{
+            capture_to_shader_read,
+            target_to_color_attachment
+        };
+        vkCmdPipelineBarrier(command_buffer,
+                             VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                             0,
+                             0,
+                             nullptr,
+                             0,
+                             nullptr,
+                             static_cast<uint32_t>(post_copy_barriers.size()),
+                             post_copy_barriers.data());
+        capture_texture->set_layout(VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+        VkRenderPassBeginInfo rp_begin{ };
+        rp_begin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        rp_begin.renderPass = _load_render_pass->vk_render_pass();
+        rp_begin.framebuffer = framebuffer;
+        rp_begin.renderArea.offset = { 0, 0 };
+        rp_begin.renderArea.extent = extent;
+        vkCmdBeginRenderPass(command_buffer, &rp_begin, VK_SUBPASS_CONTENTS_INLINE);
+        _render_pass_active = true;
+
+        encode_quad_stage_to_command_buffer(command_buffer,
+                                            stage,
+                                            stage_slot,
+                                            descriptor_set_offset,
+                                            batch_count,
+                                            pipeline_kind);
+    }
+
     VkDescriptorSet vulkan_rhi_context_t::allocate_indirect_textured_quad_descriptor_set(const rhi_texture_t& texture,
                                                                                           const rhi_sampler_t& sampler)
     {
@@ -1998,6 +2196,10 @@ namespace carrot::rhi::vulkan {
 
         // ── 7. Create Render Pass ─────────────────────────────────────────────────
         _render_pass = std::make_unique<vulkan_render_pass_t>(_device.get(), _swapchain->format());
+        _load_render_pass = std::make_unique<vulkan_render_pass_t>(_device.get(),
+                                                                   _swapchain->format(),
+                                                                   VK_ATTACHMENT_LOAD_OP_LOAD,
+                                                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
         // ── 8. Create Graphics Pipelines ──────────────────────────────────────────
         _textured_quad_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(

@@ -2138,6 +2138,12 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_overlay_style_t::fade) == "fade");
             CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_overlay_style_t::loading_screen) == "loading_screen");
             CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_overlay_style_t::wipe) == "wipe");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_effect_t::inherit) == "inherit");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_effect_t::none) == "none");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_effect_t::fade) == "fade");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_effect_t::loading_screen) == "loading_screen");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_effect_t::wipe) == "wipe");
+            CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_effect_t::battle_swirl) == "battle_swirl");
             CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_wipe_direction_t::left_to_right) == "left_to_right");
             CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_wipe_direction_t::right_to_left) == "right_to_left");
             CARROT_TEST_REQUIRE(carrot::scene::to_string(carrot::scene::scene_transition_wipe_direction_t::top_to_bottom) == "top_to_bottom");
@@ -2667,6 +2673,7 @@ namespace carrot::tests {
             };
 
             CARROT_TEST_REQUIRE(!resolved.enabled);
+            CARROT_TEST_REQUIRE(resolved.effect == carrot::scene::scene_transition_effect_t::none);
             CARROT_TEST_REQUIRE(resolved.overlay_color_abgr == 0xFF000000u);
         }
 
@@ -2694,6 +2701,7 @@ namespace carrot::tests {
             };
 
             CARROT_TEST_REQUIRE(resolved.enabled);
+            CARROT_TEST_REQUIRE(resolved.effect == carrot::scene::scene_transition_effect_t::fade);
             CARROT_TEST_REQUIRE(resolved.overlay_color_abgr == 0xFF112233u);
             CARROT_TEST_REQUIRE(resolved.fade_out_to_black_seconds == 0.25f);
             CARROT_TEST_REQUIRE(resolved.minimum_opaque_hold_seconds == 0.1f);
@@ -2718,6 +2726,7 @@ namespace carrot::tests {
             };
 
             CARROT_TEST_REQUIRE(resolved.enabled);
+            CARROT_TEST_REQUIRE(resolved.effect == carrot::scene::scene_transition_effect_t::loading_screen);
             CARROT_TEST_REQUIRE(resolved.style == carrot::scene::scene_transition_overlay_style_t::loading_screen);
             CARROT_TEST_REQUIRE(resolved.show_loading_text);
             CARROT_TEST_REQUIRE(resolved.show_progress_text);
@@ -2741,10 +2750,29 @@ namespace carrot::tests {
             };
 
             CARROT_TEST_REQUIRE(resolved.enabled);
+            CARROT_TEST_REQUIRE(resolved.effect == carrot::scene::scene_transition_effect_t::wipe);
             CARROT_TEST_REQUIRE(resolved.style == carrot::scene::scene_transition_overlay_style_t::wipe);
             CARROT_TEST_REQUIRE(resolved.wipe_direction == carrot::scene::scene_transition_wipe_direction_t::right_to_left);
             CARROT_TEST_REQUIRE(resolved.overlay_color_abgr == 0xFF224466u);
             CARROT_TEST_REQUIRE(!resolved.show_loading_text);
+        }
+
+        void test_transition_effect_override_preserves_named_effect_identity()
+        {
+            const carrot::scene::scene_transition_overlay_options_t resolved{
+                carrot::scene::resolve_transition_overlay_options(
+                    carrot::scene::scene_transition_overlay_options_t{},
+                    carrot::scene::scene_transition_overlay_override_t{
+                        .effect = carrot::scene::scene_transition_effect_t::battle_swirl,
+                        .overlay_color_abgr = 0xFF446688u
+                    }
+                )
+            };
+
+            CARROT_TEST_REQUIRE(resolved.enabled);
+            CARROT_TEST_REQUIRE(resolved.effect == carrot::scene::scene_transition_effect_t::battle_swirl);
+            CARROT_TEST_REQUIRE(resolved.style == carrot::scene::scene_transition_overlay_style_t::fade);
+            CARROT_TEST_REQUIRE(resolved.overlay_color_abgr == 0xFF446688u);
         }
 
         void test_renderer_composite_overlay_routes_to_composite_stage()
@@ -2760,12 +2788,14 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(null_rhi != nullptr);
 
             gfx.begin_frame();
+            CARROT_TEST_REQUIRE(gfx.pending_composite_fullscreen_pass_count() == 0u);
             gfx.set_composite_overlay_color(0xCC112233u);
             gfx.end_frame();
 
             const auto& textured_stages{ null_rhi->recorded_textured_stages() };
             const auto& text_stages{ null_rhi->recorded_text_stages() };
             const chlm::uint2 render_target_size{ gfx.current_render_target_pixel_size() };
+            const renderer::renderer_stats_t& stats{ gfx.get_last_completed_stats() };
 
             CARROT_TEST_REQUIRE(textured_stages.size() == 1u);
             CARROT_TEST_REQUIRE(text_stages.empty());
@@ -2780,6 +2810,133 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(textured_stages[0].ambient_color.y == 1.f);
             CARROT_TEST_REQUIRE(textured_stages[0].ambient_color.z == 1.f);
             CARROT_TEST_REQUIRE(textured_stages[0].ambient_color.w == 1.f);
+            CARROT_TEST_REQUIRE(stats.composite_fullscreen_pass_count == 1u);
+
+            gfx.begin_frame();
+            CARROT_TEST_REQUIRE(gfx.pending_composite_fullscreen_pass_count() == 0u);
+        }
+
+        void test_renderer_transition_fade_routes_to_composite_stage()
+        {
+            io::virtual_file_system_t vfs;
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t gfx{ vfs, graphics_config, window::invalid_window_id };
+
+            auto* null_rhi{ dynamic_cast<rhi::null::null_rhi_context_t*>(gfx.get_rhi()) };
+            CARROT_TEST_REQUIRE(null_rhi != nullptr);
+
+            gfx.begin_frame();
+            CARROT_TEST_REQUIRE(gfx.pending_composite_fullscreen_pass_count() == 0u);
+            gfx.set_transition_fade_color(0xCC223344u);
+            gfx.end_frame();
+
+            const auto& textured_stages{ null_rhi->recorded_textured_stages() };
+            const auto& text_stages{ null_rhi->recorded_text_stages() };
+            const chlm::uint2 render_target_size{ gfx.current_render_target_pixel_size() };
+            const renderer::renderer_stats_t& stats{ gfx.get_last_completed_stats() };
+
+            CARROT_TEST_REQUIRE(textured_stages.size() == 1u);
+            CARROT_TEST_REQUIRE(text_stages.empty());
+            CARROT_TEST_REQUIRE(textured_stages[0].batch_count == 1u);
+            CARROT_TEST_REQUIRE(textured_stages[0].presentation_mask == rhi::presentation_channel_gameplay);
+            CARROT_TEST_REQUIRE(textured_stages[0].viewport.rect_px.position.x == 0u);
+            CARROT_TEST_REQUIRE(textured_stages[0].viewport.rect_px.position.y == 0u);
+            CARROT_TEST_REQUIRE(textured_stages[0].viewport.rect_px.size.x == render_target_size.x);
+            CARROT_TEST_REQUIRE(textured_stages[0].viewport.rect_px.size.y == render_target_size.y);
+            CARROT_TEST_REQUIRE(stats.composite_fullscreen_pass_count == 1u);
+
+            gfx.begin_frame();
+            CARROT_TEST_REQUIRE(gfx.pending_composite_fullscreen_pass_count() == 0u);
+        }
+
+        void test_renderer_transition_battle_swirl_routes_to_capture_textured_stage()
+        {
+            io::virtual_file_system_t vfs;
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t gfx{ vfs, graphics_config, window::invalid_window_id };
+
+            auto* null_rhi{ dynamic_cast<rhi::null::null_rhi_context_t*>(gfx.get_rhi()) };
+            CARROT_TEST_REQUIRE(null_rhi != nullptr);
+
+            gfx.begin_frame();
+            gfx.set_transition_battle_swirl(0.65f, false);
+            gfx.end_frame();
+
+            const auto& textured_stages{ null_rhi->recorded_textured_stages() };
+            CARROT_TEST_REQUIRE(textured_stages.size() == 1u);
+            CARROT_TEST_REQUIRE(textured_stages[0].capture_presentation_before_draw);
+            CARROT_TEST_REQUIRE(textured_stages[0].batch_count == 1u);
+        }
+
+        void test_renderer_bloom_routes_to_composite_stage_when_enabled()
+        {
+            io::virtual_file_system_t vfs;
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t gfx{ vfs, graphics_config, window::invalid_window_id };
+
+            auto* null_rhi{ dynamic_cast<rhi::null::null_rhi_context_t*>(gfx.get_rhi()) };
+            CARROT_TEST_REQUIRE(null_rhi != nullptr);
+
+            gfx.set_bloom_settings(renderer::bloom_settings_t{
+                .enabled = true,
+                .baseline_strength = 0.2f,
+                .peak_light_response = 0.0f,
+                .accumulated_light_response = 0.0f,
+                .ambient_response = 0.0f,
+                .max_strength = 0.3f,
+                .tint_abgr = 0xFFFFFFFFu
+            });
+
+            gfx.begin_frame();
+            CARROT_TEST_REQUIRE(gfx.pending_composite_fullscreen_pass_count() == 0u);
+            gfx.end_frame();
+
+            const auto& textured_stages{ null_rhi->recorded_textured_stages() };
+            const renderer::renderer_stats_t& stats{ gfx.get_last_completed_stats() };
+            CARROT_TEST_REQUIRE(textured_stages.size() == 1u);
+            CARROT_TEST_REQUIRE(stats.composite_fullscreen_pass_count == 1u);
+            CARROT_TEST_REQUIRE(stats.bloom_pass_count == 1u);
+        }
+
+        void test_renderer_bloom_can_be_disabled()
+        {
+            io::virtual_file_system_t vfs;
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t gfx{ vfs, graphics_config, window::invalid_window_id };
+
+            auto* null_rhi{ dynamic_cast<rhi::null::null_rhi_context_t*>(gfx.get_rhi()) };
+            CARROT_TEST_REQUIRE(null_rhi != nullptr);
+
+            gfx.set_bloom_settings(renderer::bloom_settings_t{
+                .enabled = false,
+                .baseline_strength = 0.2f,
+                .peak_light_response = 0.0f,
+                .accumulated_light_response = 0.0f,
+                .ambient_response = 0.0f,
+                .max_strength = 0.3f,
+                .tint_abgr = 0xFFFFFFFFu
+            });
+
+            gfx.begin_frame();
+            gfx.end_frame();
+
+            const auto& textured_stages{ null_rhi->recorded_textured_stages() };
+            const renderer::renderer_stats_t& stats{ gfx.get_last_completed_stats() };
+            CARROT_TEST_REQUIRE(textured_stages.empty());
+            CARROT_TEST_REQUIRE(stats.composite_fullscreen_pass_count == 0u);
+            CARROT_TEST_REQUIRE(stats.bloom_pass_count == 0u);
         }
 
         void test_renderer_composite_and_overlay_debug_use_distinct_stage_spaces()
@@ -4429,8 +4586,18 @@ namespace carrot::tests {
                            test_transition_overlay_override_loading_screen_applies_text_configuration);
         tests.emplace_back("transition overlay override wipe selects wipe style",
                            test_transition_overlay_override_wipe_selects_wipe_style);
+        tests.emplace_back("transition effect override preserves named effect identity",
+                           test_transition_effect_override_preserves_named_effect_identity);
         tests.emplace_back("renderer composite overlay routes to composite stage",
                            test_renderer_composite_overlay_routes_to_composite_stage);
+        tests.emplace_back("renderer transition fade routes to composite stage",
+                           test_renderer_transition_fade_routes_to_composite_stage);
+        tests.emplace_back("renderer transition battle swirl routes to capture textured stage",
+                           test_renderer_transition_battle_swirl_routes_to_capture_textured_stage);
+        tests.emplace_back("renderer bloom routes to composite stage when enabled",
+                           test_renderer_bloom_routes_to_composite_stage_when_enabled);
+        tests.emplace_back("renderer bloom can be disabled",
+                           test_renderer_bloom_can_be_disabled);
         tests.emplace_back("renderer composite and overlay debug use distinct stage spaces",
                            test_renderer_composite_and_overlay_debug_use_distinct_stage_spaces);
         tests.emplace_back("renderer ui and log console text use distinct presentation channels",

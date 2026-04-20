@@ -36,6 +36,7 @@ namespace carrot::rhi::vulkan {
         [[nodiscard]] VkSwapchainKHR vk_swapchain() const noexcept { return _swapchain.swapchain; }
         [[nodiscard]] VkFormat format() const noexcept { return _format; }
         [[nodiscard]] VkExtent2D extent() const { return _extent; }
+        [[nodiscard]] VkImage image(const uint32_t index) const noexcept { return _images[index]; }
 
     private:
         void create_or_recreate(VkSwapchainKHR old_swapchain, uint32_t width, uint32_t height);

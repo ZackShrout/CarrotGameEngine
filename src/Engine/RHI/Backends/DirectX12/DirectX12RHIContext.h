@@ -117,6 +117,11 @@ namespace carrot::rhi::dx12 {
         void record_quad_stage_to_active_target(const textured_quad_stage_record_t& stage,
                                                 uint32_t stage_slot,
                                                 quad_pipeline_kind_t pipeline_kind);
+        void record_capture_textured_quad_stage_to_active_target(const textured_quad_stage_record_t& stage,
+                                                                 uint32_t stage_slot,
+                                                                 quad_pipeline_kind_t pipeline_kind,
+                                                                 ID3D12Resource* render_target,
+                                                                 const D3D12_CPU_DESCRIPTOR_HANDLE& rtv);
         void record_indirect_textured_quad_stage_to_active_target(const indirect_textured_quad_stage_record_t& stage,
                                                                   uint32_t stage_slot);
         void sync_auxiliary_surface_sizes();

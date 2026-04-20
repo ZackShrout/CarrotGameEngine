@@ -317,6 +317,55 @@ namespace carrot::rhi::dx12 {
         }
     }
 
+    void dx12_rhi_context_t::record_capture_textured_quad_stage_to_active_target(
+        const textured_quad_stage_record_t& stage,
+        const uint32_t stage_slot,
+        const quad_pipeline_kind_t pipeline_kind,
+        ID3D12Resource* const render_target,
+        const D3D12_CPU_DESCRIPTOR_HANDLE& rtv)
+    {
+        auto* capture_texture{ dynamic_cast<const dx12_texture_t*>(stage.batches.empty() ? nullptr : stage.batches[0].texture) };
+        if (!capture_texture || !render_target)
+        {
+            LOG_GRAPHICS_FATAL("DX12 battle swirl stage requires a valid capture texture and render target");
+            return;
+        }
+
+        ID3D12GraphicsCommandList* cmd{ _frames[_frame_index].command_list->id3d12_graphics_command_list() };
+
+        D3D12_RESOURCE_BARRIER barriers[4]{ };
+        barriers[0].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barriers[0].Transition.pResource = render_target;
+        barriers[0].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        barriers[0].Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+        barriers[0].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_SOURCE;
+
+        barriers[1].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barriers[1].Transition.pResource = capture_texture->resource();
+        barriers[1].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        barriers[1].Transition.StateBefore = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+        barriers[1].Transition.StateAfter = D3D12_RESOURCE_STATE_COPY_DEST;
+
+        cmd->ResourceBarrier(2, barriers);
+        cmd->CopyResource(capture_texture->resource(), render_target);
+
+        barriers[2].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barriers[2].Transition.pResource = capture_texture->resource();
+        barriers[2].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        barriers[2].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_DEST;
+        barriers[2].Transition.StateAfter = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+
+        barriers[3].Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+        barriers[3].Transition.pResource = render_target;
+        barriers[3].Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+        barriers[3].Transition.StateBefore = D3D12_RESOURCE_STATE_COPY_SOURCE;
+        barriers[3].Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+
+        cmd->ResourceBarrier(2, &barriers[2]);
+        cmd->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+        record_quad_stage_to_active_target(stage, stage_slot, pipeline_kind);
+    }
+
     void dx12_rhi_context_t::record_textured_quad_stage(const textured_quad_stage_record_t& stage)
     {
         const uint32_t stage_slot{ static_cast<uint32_t>(_recorded_stages.size() + _recorded_indirect_stages.size()) };
@@ -334,7 +383,21 @@ namespace carrot::rhi::dx12 {
             return;
         }
         if (presentation_mask_includes(stage.presentation_mask, presentation_channel_gameplay))
-            record_quad_stage_to_active_target(stage, _recorded_stages.back().stage_slot, quad_pipeline_kind_t::textured);
+        {
+            if (stage.capture_presentation_before_draw)
+            {
+                const dx12_swapchain_t* sc{ _swapchain.get() };
+                record_capture_textured_quad_stage_to_active_target(stage,
+                                                                    _recorded_stages.back().stage_slot,
+                                                                    quad_pipeline_kind_t::textured,
+                                                                    sc->get_backbuffer(sc->get_current_image_index()),
+                                                                    sc->get_current_rtv(_rtv_descriptor_stride));
+            }
+            else
+            {
+                record_quad_stage_to_active_target(stage, _recorded_stages.back().stage_slot, quad_pipeline_kind_t::textured);
+            }
+        }
     }
 
     void dx12_rhi_context_t::record_text_quad_stage(const textured_quad_stage_record_t& stage)
@@ -429,7 +492,18 @@ namespace carrot::rhi::dx12 {
                     const textured_quad_stage_record_t& stage{ recorded_stage.stage };
                     if (!presentation_mask_includes(stage.presentation_mask, surface.presentation_channel_mask))
                         continue;
-                    record_quad_stage_to_active_target(stage, recorded_stage.stage_slot, recorded_stage.pipeline_kind);
+                    if (stage.capture_presentation_before_draw)
+                    {
+                        record_capture_textured_quad_stage_to_active_target(stage,
+                                                                            recorded_stage.stage_slot,
+                                                                            recorded_stage.pipeline_kind,
+                                                                            aux_backbuffer,
+                                                                            aux_rtv);
+                    }
+                    else
+                    {
+                        record_quad_stage_to_active_target(stage, recorded_stage.stage_slot, recorded_stage.pipeline_kind);
+                    }
                 }
                 else
                 {
@@ -547,11 +621,9 @@ namespace carrot::rhi::dx12 {
             return nullptr;
         }
 
-        if (!info.initial_data || info.initial_data_size == 0 || info.initial_data_stride_bytes == 0)
-        {
-            LOG_GRAPHICS_ERROR("DX12 create_texture_2d currently requires initial data");
-            return nullptr;
-        }
+        const bool has_initial_data{
+            info.initial_data != nullptr && info.initial_data_size > 0u && info.initial_data_stride_bytes > 0u
+        };
 
         ID3D12Device* device{ _device->id3d12_device() };
 
@@ -583,11 +655,23 @@ namespace carrot::rhi::dx12 {
             &default_heap,
             D3D12_HEAP_FLAG_NONE,
             &texture_desc,
-            D3D12_RESOURCE_STATE_COPY_DEST,
+            has_initial_data ? D3D12_RESOURCE_STATE_COPY_DEST : D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
             nullptr,
             IID_PPV_ARGS(&texture)
         ));
         DX12_NAME(texture, L"DX12 Texture2D");
+
+        if (!has_initial_data)
+        {
+            auto result = std::make_unique<dx12_texture_t>(info.width,
+                                                           info.height,
+                                                           info.format,
+                                                           texture,
+                                                           resource_format,
+                                                           srv_format);
+            result->set_has_initial_data(false);
+            return result;
+        }
 
         UINT64 upload_buffer_size{ 0 };
         device->GetCopyableFootprints(&texture_desc, 0, 1, 0, nullptr, nullptr, nullptr, &upload_buffer_size);
@@ -692,12 +776,14 @@ namespace carrot::rhi::dx12 {
         allocator->Release();
         upload_buffer->Release();
 
-        return std::make_unique<dx12_texture_t>(info.width,
-                                                info.height,
-                                                info.format,
-                                                texture,
-                                                resource_format,
-                                                srv_format);
+        auto result = std::make_unique<dx12_texture_t>(info.width,
+                                                       info.height,
+                                                       info.format,
+                                                       texture,
+                                                       resource_format,
+                                                       srv_format);
+        result->set_has_initial_data(true);
+        return result;
     }
 
     std::unique_ptr<rhi_buffer_t> dx12_rhi_context_t::create_buffer(const buffer_create_info_t& info)

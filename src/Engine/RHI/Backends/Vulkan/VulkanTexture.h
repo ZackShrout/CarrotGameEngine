@@ -24,6 +24,8 @@ namespace carrot::rhi::vulkan {
         [[nodiscard]] VkImageView view() const noexcept { return _view; }
         [[nodiscard]] VkSampler sampler() const noexcept { return _sampler; }
         [[nodiscard]] texture_format_t format() const noexcept override { return _format; }
+        [[nodiscard]] bool has_initial_data() const noexcept override { return _has_initial_data; }
+        [[nodiscard]] VkImageLayout layout() const noexcept { return _layout; }
 
         void set_image(VkImage image) noexcept { _image = image; }
         void set_memory(VkDeviceMemory memory) noexcept { _memory = memory; }
@@ -32,6 +34,8 @@ namespace carrot::rhi::vulkan {
         void set_width(const uint32_t width) noexcept { _width = width; }
         void set_height(const uint32_t height) noexcept { _height = height; }
         void set_format(const texture_format_t format) noexcept { _format = format; }
+        void set_has_initial_data(const bool has_initial_data) noexcept { _has_initial_data = has_initial_data; }
+        void set_layout(const VkImageLayout layout) noexcept { _layout = layout; }
 
     private:
         vulkan_device_t* _device{ nullptr };
@@ -42,5 +46,7 @@ namespace carrot::rhi::vulkan {
         uint32_t _width{ 0 };
         uint32_t _height{ 0 };
         texture_format_t _format{ texture_format_t::rgba8_srgb };
+        bool _has_initial_data{ false };
+        VkImageLayout _layout{ VK_IMAGE_LAYOUT_UNDEFINED };
     };
 } // namespace carrot::rhi::vulkan

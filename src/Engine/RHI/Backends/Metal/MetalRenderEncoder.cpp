@@ -21,13 +21,21 @@ namespace carrot::rhi::metal {
     void metal_render_encoder_t::begin(MTL::CommandBuffer* cmd_buffer, const CA::MetalDrawable* drawable,
         const MTL::ClearColor& clear_color) noexcept
     {
+        begin_with_load_action(cmd_buffer, drawable, MTL::LoadActionClear, clear_color);
+    }
+
+    void metal_render_encoder_t::begin_with_load_action(MTL::CommandBuffer* cmd_buffer,
+        const CA::MetalDrawable* drawable,
+        const MTL::LoadAction load_action,
+        const MTL::ClearColor& clear_color) noexcept
+    {
         CE_ASSERT(!_encoder && "Render encoder already active");
 
         MTL::RenderPassDescriptor* rpd{ MTL::RenderPassDescriptor::alloc()->init() };
 
         MTL::RenderPassColorAttachmentDescriptor* color{ rpd->colorAttachments()->object(0) };
         color->setTexture(drawable->texture());
-        color->setLoadAction(MTL::LoadActionClear);
+        color->setLoadAction(load_action);
         color->setStoreAction(MTL::StoreActionStore);
         color->setClearColor(clear_color);
 

@@ -7,6 +7,7 @@
 #define CARROT_SHADER_COMMON_H
 
 #include "Renderer/Draw/ForwardPlusSharedConfig.h"
+#include "Renderer/Draw/TexturedQuadEffectShared.h"
 
 #if defined(CARROT_USE_ROOT_SIGNATURES)
     #define CARROT_ROOT_SIGNATURE(x) [RootSignature(x)]

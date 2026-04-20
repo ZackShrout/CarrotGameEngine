@@ -326,6 +326,21 @@ namespace carrot::scene {
         return "unknown";
     }
 
+    std::string_view to_string(const scene_transition_effect_t effect) noexcept
+    {
+        switch (effect)
+        {
+            case scene_transition_effect_t::inherit: return "inherit";
+            case scene_transition_effect_t::none: return "none";
+            case scene_transition_effect_t::fade: return "fade";
+            case scene_transition_effect_t::loading_screen: return "loading_screen";
+            case scene_transition_effect_t::wipe: return "wipe";
+            case scene_transition_effect_t::battle_swirl: return "battle_swirl";
+        }
+
+        return "unknown";
+    }
+
     std::string_view to_string(const scene_transition_wipe_direction_t direction) noexcept
     {
         switch (direction)
@@ -408,6 +423,36 @@ namespace carrot::scene {
         return scene_transition_overlay_options_t{};
     }
 
+    [[nodiscard]] scene_transition_overlay_style_t effect_to_overlay_style(const scene_transition_effect_t effect) noexcept
+    {
+        switch (effect)
+        {
+            case scene_transition_effect_t::inherit: return scene_transition_overlay_style_t::inherit;
+            case scene_transition_effect_t::none: return scene_transition_overlay_style_t::none;
+            case scene_transition_effect_t::fade: return scene_transition_overlay_style_t::fade;
+            case scene_transition_effect_t::loading_screen: return scene_transition_overlay_style_t::loading_screen;
+            case scene_transition_effect_t::wipe: return scene_transition_overlay_style_t::wipe;
+            case scene_transition_effect_t::battle_swirl:
+                return scene_transition_overlay_style_t::fade;
+        }
+
+        return scene_transition_overlay_style_t::fade;
+    }
+
+    [[nodiscard]] scene_transition_effect_t overlay_style_to_effect(const scene_transition_overlay_style_t style) noexcept
+    {
+        switch (style)
+        {
+            case scene_transition_overlay_style_t::inherit: return scene_transition_effect_t::inherit;
+            case scene_transition_overlay_style_t::none: return scene_transition_effect_t::none;
+            case scene_transition_overlay_style_t::fade: return scene_transition_effect_t::fade;
+            case scene_transition_overlay_style_t::loading_screen: return scene_transition_effect_t::loading_screen;
+            case scene_transition_overlay_style_t::wipe: return scene_transition_effect_t::wipe;
+        }
+
+        return scene_transition_effect_t::fade;
+    }
+
     scene_camera_options_t make_default_scene_camera_options() noexcept
     {
         return scene_camera_options_t{};
@@ -449,23 +494,35 @@ namespace carrot::scene {
     {
         scene_transition_overlay_options_t resolved{ defaults };
 
+        if (override.effect != scene_transition_effect_t::inherit)
+        {
+            resolved.effect = override.effect;
+            resolved.style = effect_to_overlay_style(override.effect);
+            resolved.enabled = override.effect != scene_transition_effect_t::none;
+        }
+
         switch (override.style)
         {
             case scene_transition_overlay_style_t::inherit:
                 break;
             case scene_transition_overlay_style_t::none:
                 resolved.enabled = false;
+                resolved.effect = scene_transition_effect_t::none;
+                resolved.style = scene_transition_overlay_style_t::none;
                 break;
             case scene_transition_overlay_style_t::fade:
                 resolved.enabled = true;
+                resolved.effect = scene_transition_effect_t::fade;
                 resolved.style = scene_transition_overlay_style_t::fade;
                 break;
             case scene_transition_overlay_style_t::loading_screen:
                 resolved.enabled = true;
+                resolved.effect = scene_transition_effect_t::loading_screen;
                 resolved.style = scene_transition_overlay_style_t::loading_screen;
                 break;
             case scene_transition_overlay_style_t::wipe:
                 resolved.enabled = true;
+                resolved.effect = scene_transition_effect_t::wipe;
                 resolved.style = scene_transition_overlay_style_t::wipe;
                 break;
         }
@@ -499,6 +556,9 @@ namespace carrot::scene {
 
         if (resolved.style == scene_transition_overlay_style_t::loading_screen)
             resolved.show_loading_text = true;
+
+        if (resolved.effect == scene_transition_effect_t::inherit)
+            resolved.effect = overlay_style_to_effect(resolved.style);
 
         return resolved;
     }
@@ -918,6 +978,9 @@ namespace carrot::scene {
                 .preserved_active_scene = diagnostics_visible && has_pending_scene()
                                               ? has_scene_loaded()
                                               : _recent_transition_diagnostics.preserved_active_scene,
+                .transition_effect = diagnostics_visible && has_pending_scene()
+                                         ? _active_transition_overlay_options.effect
+                                         : _recent_transition_diagnostics.transition_effect,
                 .overlay_style = diagnostics_visible && has_pending_scene()
                                      ? _active_transition_overlay_options.style
                                      : _recent_transition_diagnostics.overlay_style,
@@ -1138,6 +1201,7 @@ namespace carrot::scene {
         _transition_overlay_options = resolve_transition_overlay_options(
             _engine_transition_overlay_options,
             scene_transition_overlay_override_t{
+                .effect = options.enabled ? options.effect : scene_transition_effect_t::none,
                 .style = options.enabled ? options.style : scene_transition_overlay_style_t::none,
                 .wipe_direction = options.wipe_direction,
                 .overlay_color_abgr = options.overlay_color_abgr,
@@ -1274,6 +1338,8 @@ namespace carrot::scene {
     {
         if (!_active_transition_overlay_options.enabled || _transition_overlay_opacity <= 0.001f)
         {
+            game.view.clear_transition_fade();
+            game.view.clear_transition_battle_swirl();
             game.view.clear_composite_overlay();
             render_transition_diagnostics(game);
             return;
@@ -1289,8 +1355,10 @@ namespace carrot::scene {
             (_active_transition_overlay_options.overlay_color_abgr & 0x00FFFFFFu) | (overlay_alpha << 24u)
         };
 
-        if (_active_transition_overlay_options.style == scene_transition_overlay_style_t::wipe)
+        if (_active_transition_overlay_options.effect == scene_transition_effect_t::wipe)
         {
+            game.view.clear_transition_fade();
+            game.view.clear_transition_battle_swirl();
             game.view.clear_composite_overlay();
             const chlm::uint2 render_target_size{ game.view.render_target_pixel_size() };
             const float viewport_width{ static_cast<float>(std::max(1u, render_target_size.x)) };
@@ -1336,13 +1404,22 @@ namespace carrot::scene {
                 }
             }
         }
+        else if (_active_transition_overlay_options.effect == scene_transition_effect_t::battle_swirl)
+        {
+            game.view.clear_transition_fade();
+            game.view.clear_composite_overlay();
+            game.view.set_transition_battle_swirl(std::clamp(_transition_overlay_opacity, 0.f, 1.f),
+                                                  !is_transitioning());
+        }
         else
         {
-            game.view.set_composite_overlay_color(overlay_color);
+            game.view.clear_transition_battle_swirl();
+            game.view.set_transition_fade_color(overlay_color);
+            game.view.clear_composite_overlay();
         }
 
         if (!_active_transition_overlay_options.show_loading_text ||
-            _active_transition_overlay_options.style != scene_transition_overlay_style_t::loading_screen)
+            _active_transition_overlay_options.effect != scene_transition_effect_t::loading_screen)
         {
             render_transition_diagnostics(game);
             return;
@@ -1400,6 +1477,7 @@ namespace carrot::scene {
         _recent_transition_diagnostics.outcome = outcome;
         _recent_transition_diagnostics.runtime_state = state_snapshot.runtime_state;
         _recent_transition_diagnostics.transition_phase = state_snapshot.transition_phase;
+        _recent_transition_diagnostics.transition_effect = _active_transition_overlay_options.effect;
         _recent_transition_diagnostics.overlay_style = _active_transition_overlay_options.style;
         _recent_transition_diagnostics.wipe_direction = _active_transition_overlay_options.wipe_direction;
         _recent_transition_diagnostics.preserved_active_scene =
@@ -1481,7 +1559,8 @@ namespace carrot::scene {
                                       panel_y + 8.f + (line_step * 4.f),
                                       k_transition_diagnostics_font_size,
                                       0xFFD7CDBEu,
-                                      "overlay: %s %s  preserved: %s",
+                                      "effect: %s (%s %s)  preserved: %s",
+                                      to_string(_recent_transition_diagnostics.transition_effect).data(),
                                       to_string(_recent_transition_diagnostics.overlay_style).data(),
                                       to_string(_recent_transition_diagnostics.wipe_direction).data(),
                                       _recent_transition_diagnostics.preserved_active_scene ? "yes" : "no");
@@ -1492,7 +1571,8 @@ namespace carrot::scene {
                                       panel_y + 8.f + (line_step * 4.f),
                                       k_transition_diagnostics_font_size,
                                       0xFFD7CDBEu,
-                                      "overlay: %s%s  preserved: %s",
+                                      "effect: %s (%s)%s  preserved: %s",
+                                      to_string(_recent_transition_diagnostics.transition_effect).data(),
                                       to_string(_recent_transition_diagnostics.overlay_style).data(),
                                       _recent_transition_diagnostics.startup_waiting_for_first_present ? " (boot wait)" : "",
                                       _recent_transition_diagnostics.preserved_active_scene ? "yes" : "no");
@@ -1582,7 +1662,7 @@ namespace carrot::scene {
                       _current_scene_id.empty() ? "<none>" : _current_scene_id,
                       scene_id,
                       spawn_marker,
-                      to_string(_active_transition_overlay_options.style));
+                      to_string(_active_transition_overlay_options.effect));
         _pending_load_task = std::make_unique<world::scene_load_task_t>(scene_id, spawn_marker);
         _last_scene_change_succeeded = false;
         begin_scene_change(scene_record, scene_id, spawn_marker);

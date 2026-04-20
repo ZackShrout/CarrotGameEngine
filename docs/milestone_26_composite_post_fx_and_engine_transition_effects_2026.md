@@ -2,7 +2,7 @@
 
 **Last Updated:** April 18, 2026
 **Title:** Composite/Post-FX and Engine Transition Effects
-**Status:** Planned
+**Status:** In progress
 **Focus:** Build the renderer foundation for bloom, future shafts, and engine-owned fullscreen transition effects, with bloom and battle swirl implemented on the milestone closeout path.
 
 ---
@@ -200,6 +200,15 @@ Add:
 * resource transitions and lifetime handling are explicit for the milestone slice
 * composite-stage ownership remains clear
 
+#### Current Status
+
+Implemented on April 19, 2026 for the current first milestone slice:
+
+* the renderer now owns an explicit composite target/pass seam instead of treating composite fullscreen work as only ad hoc overlay submission
+* composite fullscreen work now flows through a renderer-owned `composite_fullscreen_pass_t` stream targeted at a named composite target, and the current engine composite overlay has been migrated onto that seam
+* composite target sizing/lifetime is now refreshed explicitly at frame boundaries through renderer-owned bookkeeping, which gives later bloom/transition work a durable place to hang pass orchestration
+* this first slice is intentionally honest about current limits: the fullscreen-pass substrate is live, but the RHI still does not expose general render-to-texture/offscreen color-target execution yet, so later tickets still need to deepen the underlying target contract before true sampled intermediate post chains ship
+
 ### Ticket 26.2 - Engine Transition Effect Contract
 
 **Priority:** P0
@@ -224,6 +233,15 @@ Extend the current transition presentation model so that gameplay/runtime can re
 * the scene-runtime lifecycle remains responsible for safe transition sequencing
 * the contract supports fade, wipe, loading-screen, and battle swirl as engine effects
 
+#### Current Status
+
+Implemented on April 19, 2026 for the current contract slice:
+
+* scene runtime now carries a named `scene_transition_effect_t` contract alongside the legacy overlay-style compatibility layer, so gameplay/runtime can request engine transition effects directly instead of only speaking in overlay-style terms
+* default and per-request transition override resolution now preserve effect identity while still mapping current shipped presentation onto the existing fade/loading-screen/wipe overlay implementation
+* transition diagnostics and runtime summary surfaces now report named effect identity, which keeps milestone 26's "engine-owned effect system" claim honest instead of leaving the new contract hidden inside override resolution
+* `battle_swirl` is now a first-class named transition effect in the shared runtime contract even though its real renderer/composite implementation is still deferred to later milestone tickets
+
 ### Ticket 26.3 - Default Fade Migration
 
 **Priority:** P0
@@ -239,6 +257,15 @@ Migrate the current default fade onto the new engine transition contract without
 * existing transition requests remain safe and understandable
 * the new effect system proves it can host current and future effects together
 
+#### Current Status
+
+Implemented on April 19, 2026 for the current baseline fade slice:
+
+* the validated default fade path no longer rides only on the generic composite-overlay hook; it now uses a dedicated renderer/game-view transition-fade presentation seam that queues a named fullscreen composite pass
+* scene runtime now selects that seam through `scene_transition_effect_t::fade` instead of only through the older overlay-style vocabulary, which makes the baseline transition behavior genuinely effect-owned
+* the transition lifecycle, safe activation sequencing, and existing diagnostics remain scene-runtime-owned and unchanged in shape, so the migration does not blur gameplay/runtime responsibility with renderer/composite responsibility
+* this slice is intentionally narrow: default fade is now migrated, while wipe and loading-screen presentation still use the older compatibility presentation logic until later milestone tickets deepen the broader transition-effect execution system
+
 ### Ticket 26.4 - Bloom Implementation
 
 **Priority:** P0
@@ -253,6 +280,15 @@ Implement a practical bloom path appropriate to Carrot's current renderer scale.
 * bloom is implemented and functional in the milestone slice
 * bloom runs on the composite/post infrastructure rather than a one-off hack path
 * the renderer can intentionally enable or disable bloom behavior
+
+#### Current Status
+
+Implemented on April 19, 2026 for the current first bloom slice:
+
+* the renderer now owns explicit bloom settings and a bloom queue step, and bloom submission runs through the same composite fullscreen-pass stream introduced earlier in the milestone instead of through a separate special-case draw path
+* bloom can now be intentionally enabled, disabled, and tuned through renderer-owned settings, which gives the engine a real post/presentation feature toggle instead of hardcoded always-on behavior
+* this first slice is intentionally modest and honest: because the current RHI still does not expose sampled offscreen color targets, bloom is implemented as a light-driven fullscreen bloom veil on the composite path rather than as a full threshold/downsample/blur chain
+* that still satisfies the milestone's architectural goal for this ticket: bloom is now a real engine-owned composite/post feature on the reusable seam, and later tickets can deepen the effect once the render-target contract grows
 
 ### Ticket 26.5 - Battle Swirl Transition Effect
 
@@ -272,6 +308,15 @@ Implement battle swirl as:
 * game code can request battle swirl as a transition override
 * scene runtime still owns the transition lifecycle and safe activation timing
 * battle swirl is implemented as the first advanced effect on the reusable transition seam
+
+#### Current Status
+
+Implemented on April 20, 2026 for the current first advanced transition slice:
+
+* `battle_swirl` now executes through a renderer-owned capture-before-draw composite path instead of falling back to the older fade compatibility presentation, which makes it the first real advanced engine transition effect on the milestone 26 seam
+* scene runtime still owns the transition lifecycle and simply feeds the renderer phase/progress truth; the swirl effect uses the same shared distortion function for both phases, with the outgoing pass rotating clockwise and the incoming pass rotating counterclockwise while re-sampling the newly active scene
+* the first live gameplay hook is now wired in the sandbox: transitions into `scene.sandbox.item_shop` and back out to `scene.sandbox.town` explicitly override to `battle_swirl` for end-to-end validation
+* this slice is intentionally focused and honest: the swirl already captures and distorts the real gameplay presentation, but it is still a single captured fullscreen source rather than the final broader selective-post pipeline Carrot will want for richer authored glow/bloom/emissive interactions later
 
 ### Ticket 26.6 - Light Shaft Readiness Contract
 

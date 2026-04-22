@@ -37,6 +37,10 @@ namespace carrot::core {
         void set_camera_state(const world::world_t& world, const game_view_camera_t& state) noexcept;
         void set_transition_fade_color(uint32_t color_abgr) noexcept;
         void clear_transition_fade() noexcept;
+        void set_transition_wipe(float coverage,
+                                 renderer::transition_wipe_direction_t direction,
+                                 uint32_t color_abgr) noexcept;
+        void clear_transition_wipe() noexcept;
         void set_transition_battle_swirl(float progress, bool incoming) noexcept;
         void clear_transition_battle_swirl() noexcept;
         void set_composite_overlay_color(uint32_t color_abgr) noexcept;

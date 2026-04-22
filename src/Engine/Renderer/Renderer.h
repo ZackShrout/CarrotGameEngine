@@ -8,10 +8,11 @@
 #include "Assets/Shaders/VFSShaderFileProvider.h"
 #include "Camera/Camera2D.h"
 #include "Core/Module.h"
+#include "Draw/QuadTypes.h"
+#include "Draw/QuadInstanceData.h"
 #include "Draw/TexturedQuadBatch.h"
 #include "Draw/TexturedQuadCameraUniform.h"
 #include "Draw/TexturedQuadEffectShared.h"
-#include "Draw/WorldRenderItemShared.h"
 #include "Draw/TexturedQuadTypes.h"
 #include "EngineConfig.h"
 #include "Primitives/QuadVertex.h"
@@ -49,23 +50,6 @@ namespace carrot::renderer {
 
     struct sprite_draw_info_t;
 
-    enum class frame_stage_kind_t : std::uint8_t
-    {
-        world = 0,       // Camera-space authored world rendering, including lighting-aware content.
-        ui,              // Screen-space gameplay UI in full render-target pixel coordinates.
-        composite,       // Full-screen presentation/composite work after world and UI submission.
-        overlay_debug,   // Camera-viewport-relative debug overlays that track the visible gameplay view.
-        log_console,     // Screen-space console/output presentation on the dedicated log-console channel.
-        count
-    };
-
-    enum class frame_stage_space_t : std::uint8_t
-    {
-        world_camera = 0,
-        viewport_pixels,
-        render_target_pixels
-    };
-
     struct tilemap_draw_info_t
     {
         const assets::loaded_tilemap_asset_t* tilemap{ nullptr };
@@ -102,10 +86,11 @@ namespace carrot::renderer {
         uint32_t draw_calls{ 0 };
         uint32_t textured_quad_count{ 0 };
         uint32_t textured_quad_batch_count{ 0 };
-        uint32_t composite_fullscreen_pass_count{ 0 };
+        uint32_t bloom_source_pass_count{ 0 };
+        uint32_t post_effect_pass_count{ 0 };
         uint32_t bloom_pass_count{ 0 };
         uint32_t world_render_item_count{ 0 };
-        uint32_t world_indirect_batch_count{ 0 };
+        uint32_t world_textured_batch_count{ 0 };
         uint32_t active_visibility_tag_count{ 0 };
         uint32_t visible_layer_count{ 0 };
         uint32_t hidden_layer_count{ 0 };
@@ -133,53 +118,18 @@ namespace carrot::renderer {
     {
         struct frame_buffers_t
         {
-            std::unique_ptr<rhi::rhi_buffer_t> vertex_buffer;
-            std::unique_ptr<rhi::rhi_buffer_t> index_buffer;
-            size_t vertex_capacity{ 0 };
-            size_t index_capacity{ 0 };
+            std::unique_ptr<rhi::rhi_buffer_t> instance_buffer;
+            size_t instance_capacity{ 0 };
         };
 
-        struct submission_t
-        {
-            textured_quad_draw_info_t quad;
-            world_material_key_t world_material{ };
-            uint64_t submission_index{ 0 };
-        };
-
-        std::vector<submission_t> submissions;
+        std::vector<quad_instance_t> instances;
 
         // CPU-side submission/batching for the current frame
-        std::vector<quad_vertex_t> vertices_cpu;
-        std::vector<uint32_t> indices_cpu;
+        std::vector<gpu_quad_instance_t> instance_data_cpu;
         std::vector<textured_quad_batch_t> batches;
 
         // Per-frame reusable geometry buffers
         std::array<frame_buffers_t, k_textured_quad_frame_buffer_count> frame_buffers;
-    };
-
-    struct world_render_item_t
-    {
-        const rhi::rhi_texture_t* texture{ nullptr };
-        chlm::float2 position_px{ 0.f, 0.f };
-        chlm::float2 size_px{ 1.f, 1.f };
-        uv_rect_t uv_rect{ };
-        render_layer_t layer{ render_layer_t::world_back };
-        render_order_mode_t order_mode{ render_order_mode_t::explicit_order };
-        int32_t order_in_layer{ 0 };
-        float sort_reference_y{ 0.f };
-        std::uint32_t color{ 0xFFFFFFFFu };
-        float effect_mode{ 0.f };
-        float effect_param0{ 0.f };
-        quad_sampler_preset_t sampler_preset{ quad_sampler_preset_t::smooth_clamp };
-        world_material_key_t world_material{ };
-        chlm::float2 bounds_min_px{ 0.f, 0.f };
-        chlm::float2 bounds_max_px{ 1.f, 1.f };
-        std::uint64_t submission_index{ 0u };
-    };
-
-    struct world_render_item_stream_t
-    {
-        std::vector<world_render_item_t> items;
     };
 
     struct forward_plus_gpu_buffers_t
@@ -187,24 +137,6 @@ namespace carrot::renderer {
         std::unique_ptr<rhi::rhi_buffer_t> constants_buffer;
         std::unique_ptr<rhi::rhi_buffer_t> light_input_buffer;
         std::unique_ptr<rhi::rhi_buffer_t> classification_output_buffer;
-    };
-
-    struct world_item_cull_gpu_buffers_t
-    {
-        std::unique_ptr<rhi::rhi_buffer_t> constants_buffer;
-        std::unique_ptr<rhi::rhi_buffer_t> item_input_buffer;
-        std::unique_ptr<rhi::rhi_buffer_t> visible_item_index_buffer;
-        std::unique_ptr<rhi::rhi_buffer_t> output_buffer;
-        std::size_t item_capacity{ 0u };
-    };
-
-    struct world_indirect_batch_t
-    {
-        const rhi::rhi_texture_t* texture{ nullptr };
-        quad_sampler_preset_t sampler_preset{ quad_sampler_preset_t::smooth_clamp };
-        world_material_key_t world_material{ };
-        std::size_t first_item{ 0u };
-        std::size_t item_count{ 0u };
     };
 
     enum class composite_target_kind_t : std::uint8_t
@@ -223,19 +155,66 @@ namespace carrot::renderer {
         const char* debug_name{ "gameplay_present" };
     };
 
-    enum class composite_fullscreen_pass_kind_t : std::uint8_t
+    enum class post_effect_pass_kind_t : std::uint8_t
     {
         textured = 0,
         solid
     };
 
-    struct composite_fullscreen_pass_t
+    enum class post_effect_domain_t : std::uint8_t
     {
-        composite_fullscreen_pass_kind_t kind{ composite_fullscreen_pass_kind_t::solid };
+        overlay = 0,
+        bloom
+    };
+
+    // Milestone 27 bloom scope:
+    // these are authored in composite/render-target pixel space and feed the
+    // offscreen bloom proof pipeline. They are not yet a generalized world-space
+    // emissive/bloom contract.
+    struct bloom_source_pass_t
+    {
+        post_effect_pass_kind_t kind{ post_effect_pass_kind_t::solid };
         composite_target_kind_t target{ composite_target_kind_t::gameplay_present };
+        bool expand_to_target{ false };
         textured_quad_draw_info_t textured_quad{ };
         solid_quad_draw_info_t solid_quad{ };
-        const char* debug_name{ "fullscreen_pass" };
+        const char* debug_name{ "bloom_source_pass" };
+    };
+
+    struct post_effect_pass_t
+    {
+        post_effect_pass_kind_t kind{ post_effect_pass_kind_t::solid };
+        post_effect_domain_t domain{ post_effect_domain_t::overlay };
+        composite_target_kind_t target{ composite_target_kind_t::gameplay_present };
+        bool expand_to_target{ false };
+        textured_quad_draw_info_t textured_quad{ };
+        solid_quad_draw_info_t solid_quad{ };
+        const char* debug_name{ "post_effect_pass" };
+    };
+
+    enum class transition_pass_kind_t : std::uint8_t
+    {
+        fade = 0,
+        wipe,
+        battle_swirl
+    };
+
+    enum class transition_pass_phase_t : std::uint8_t
+    {
+        pre_composite_record = 0,
+        post_composite_record
+    };
+
+    struct transition_pass_t
+    {
+        transition_pass_kind_t kind{ transition_pass_kind_t::fade };
+        composite_target_kind_t target{ composite_target_kind_t::gameplay_present };
+        uint32_t color_abgr{ 0x00000000u };
+        float progress{ 0.f };
+        float coverage{ 0.f };
+        std::uint8_t wipe_direction{ 0u };
+        bool incoming{ false };
+        const char* debug_name{ "transition_pass" };
     };
 
     struct battle_swirl_state_t
@@ -243,6 +222,22 @@ namespace carrot::renderer {
         bool enabled{ false };
         float progress{ 0.f };
         bool incoming{ false };
+    };
+
+    enum class transition_wipe_direction_t : std::uint8_t
+    {
+        left_to_right = 0,
+        right_to_left,
+        top_to_bottom,
+        bottom_to_top
+    };
+
+    struct transition_wipe_state_t
+    {
+        bool enabled{ false };
+        float coverage{ 0.f };
+        transition_wipe_direction_t direction{ transition_wipe_direction_t::left_to_right };
+        uint32_t color_abgr{ 0x00000000u };
     };
 
     struct light_shaft_readiness_t
@@ -284,6 +279,7 @@ namespace carrot::renderer {
         void draw_ui_textured_quad(const textured_quad_draw_info_t& quad);
         void draw_composite_textured_quad(const textured_quad_draw_info_t& quad);
         void draw_log_console_textured_quad(const textured_quad_draw_info_t& quad);
+        void draw_bloom_textured_quad(const textured_quad_draw_info_t& quad);
         void draw_text_quad(const textured_quad_draw_info_t& quad);
         void draw_overlay_text_quad(const textured_quad_draw_info_t& quad);
         void draw_ui_text_quad(const textured_quad_draw_info_t& quad);
@@ -293,10 +289,13 @@ namespace carrot::renderer {
         void draw_ui_solid_quad(const solid_quad_draw_info_t& quad);
         void draw_composite_solid_quad(const solid_quad_draw_info_t& quad);
         void draw_log_console_solid_quad(const solid_quad_draw_info_t& quad);
+        void draw_bloom_solid_quad(const solid_quad_draw_info_t& quad);
         void set_bloom_settings(const bloom_settings_t& settings) noexcept;
         [[nodiscard]] const bloom_settings_t& bloom_settings() const noexcept { return _bloom_settings; }
         void set_transition_fade_color(uint32_t color_abgr) noexcept;
         void clear_transition_fade() noexcept;
+        void set_transition_wipe(float coverage, transition_wipe_direction_t direction, uint32_t color_abgr) noexcept;
+        void clear_transition_wipe() noexcept;
         void set_transition_battle_swirl(float progress, bool incoming) noexcept;
         void clear_transition_battle_swirl() noexcept;
         void set_composite_overlay_color(uint32_t color_abgr) noexcept;
@@ -314,16 +313,32 @@ namespace carrot::renderer {
         [[nodiscard]] uint64_t get_frame_index() const noexcept { return _frame_index; }
         [[nodiscard]] rhi::rhi_context_t* get_rhi() const noexcept { return _rhi.get(); }
         [[nodiscard]] light_shaft_readiness_t light_shaft_readiness() const noexcept;
-        [[nodiscard]] std::size_t pending_world_render_item_count() const noexcept { return _world_render_items.items.size(); }
-        [[nodiscard]] std::size_t pending_composite_fullscreen_pass_count() const noexcept
+        [[nodiscard]] std::size_t pending_world_render_item_count() const noexcept { return _world_quad_instances.instances.size(); }
+        [[nodiscard]] std::size_t pending_post_effect_pass_count() const noexcept
         {
-            return _composite_fullscreen_passes.size();
+            return _post_effect_passes.size();
+        }
+        [[nodiscard]] std::size_t pending_bloom_source_pass_count() const noexcept
+        {
+            return _bloom_source_passes.size();
+        }
+        [[nodiscard]] std::size_t pending_transition_pass_count() const noexcept
+        {
+            return _transition_passes.size();
         }
         [[nodiscard]] rhi::graphics_api get_graphics_api() const noexcept
         {
             return _rhi ? _rhi->get_graphics_api() : _config.api;
         }
         [[nodiscard]] const camera_2d_t& get_camera_2d() const noexcept { return _active_camera; }
+        [[nodiscard]] rhi::rhi_texture_t* debug_bloom_source_texture() const noexcept
+        {
+            return _bloom_source_render_target ? _bloom_source_render_target->color_texture() : nullptr;
+        }
+        [[nodiscard]] rhi::rhi_texture_t* debug_bloom_blur_texture() const noexcept
+        {
+            return _bloom_blur_render_target ? _bloom_blur_render_target->color_texture() : nullptr;
+        }
         [[nodiscard]] chlm::uint2 current_render_target_pixel_size() const noexcept { return current_render_target_size(); }
         [[nodiscard]] resolved_camera_2d_t resolve_camera_2d() const noexcept
         {
@@ -372,26 +387,74 @@ namespace carrot::renderer {
         void refresh_composite_targets() noexcept;
         [[nodiscard]] float resolve_bloom_strength() const noexcept;
         void queue_bloom_if_needed();
+        void queue_bloom_source_textured_pass(composite_target_kind_t target,
+                                              textured_quad_draw_info_t quad,
+                                              const char* debug_name,
+                                              bool expand_to_target = false);
+        void queue_bloom_source_solid_pass(composite_target_kind_t target,
+                                           solid_quad_draw_info_t quad,
+                                           const char* debug_name,
+                                           bool expand_to_target = false);
+        void materialize_bloom_source_passes();
+        void compose_bloom_sources();
+        void build_bloom_blur_passes();
         void queue_transition_fade_if_needed();
-        void record_transition_battle_swirl_if_needed(const stage_execution_context_t& stage_context,
-                                                      uint32_t presentation_mask);
+        void queue_transition_wipe_if_needed();
+        void queue_transition_battle_swirl_if_needed();
         void queue_composite_overlay_if_needed();
-        void queue_composite_fullscreen_textured_pass(composite_target_kind_t target,
-                                                      textured_quad_draw_info_t quad,
-                                                      const char* debug_name);
-        void queue_composite_fullscreen_solid_pass(composite_target_kind_t target,
-                                                   solid_quad_draw_info_t quad,
-                                                   const char* debug_name);
-        void materialize_composite_fullscreen_passes();
+        void queue_post_effect_textured_pass(post_effect_domain_t domain,
+                                             composite_target_kind_t target,
+                                             textured_quad_draw_info_t quad,
+                                             const char* debug_name,
+                                             bool expand_to_target = false);
+        void queue_post_effect_solid_pass(post_effect_domain_t domain,
+                                          composite_target_kind_t target,
+                                          solid_quad_draw_info_t quad,
+                                          const char* debug_name,
+                                          bool expand_to_target = false);
+        void materialize_post_effect_passes();
+        void materialize_transition_passes(const stage_execution_context_t& stage_context,
+                                          uint32_t presentation_mask,
+                                          transition_pass_phase_t phase);
+        void record_transition_fade_pass(const transition_pass_t& pass);
+        void record_transition_wipe_pass(const transition_pass_t& pass);
+        void record_transition_battle_swirl_pass(const transition_pass_t& pass,
+                                                 const stage_execution_context_t& stage_context,
+                                                 uint32_t presentation_mask);
+        [[nodiscard]] quad_instance_t build_quad_instance(const frame_stage_plan_t& stage_plan,
+                                                          quad_content_kind_t content_kind,
+                                                          const textured_quad_draw_info_t& quad,
+                                                          world_material_key_t world_material,
+                                                          quad_target_id_t target_id = {}) const;
+        [[nodiscard]] rhi::quad_stage_common_t build_quad_stage_common_record(
+            const stage_execution_context_t& stage_context,
+            std::uint32_t presentation_mask,
+            const forward_plus_gpu_buffers_t* gpu_buffers = nullptr) const;
+        [[nodiscard]] rhi::quad_draw_source_t build_quad_draw_source_record(const rhi::rhi_buffer_t* vertex_buffer,
+                                                                            const rhi::rhi_buffer_t* index_buffer,
+                                                                            const rhi::rhi_buffer_t* instance_buffer = nullptr,
+                                                                            const rhi::rhi_buffer_t* indirect_buffer = nullptr,
+                                                                            std::uint32_t instance_count = 0u,
+                                                                            std::uint32_t indirect_buffer_offset_bytes = 0u) const;
         void extract_world_render_item(const textured_quad_draw_info_t& quad, world_material_key_t world_material);
         void submit_world_textured_quad(const textured_quad_draw_info_t& quad);
         void submit_world_text_quad(const textured_quad_draw_info_t& quad);
-        void submit_stage_textured_quad(const frame_stage_plan_t& stage_plan, const textured_quad_draw_info_t& quad);
-        void submit_stage_text_quad(const frame_stage_plan_t& stage_plan, const textured_quad_draw_info_t& quad);
-        void submit_non_world_textured_quad(non_world_stage_target_t target, const textured_quad_draw_info_t& quad);
-        void submit_non_world_text_quad(non_world_stage_target_t target, const textured_quad_draw_info_t& quad);
-        void submit_non_world_solid_quad(non_world_stage_target_t target, const solid_quad_draw_info_t& quad);
-        void submit_solid_quad(frame_stage_kind_t stage, const solid_quad_draw_info_t& quad);
+        void submit_stage_textured_quad(const frame_stage_plan_t& stage_plan,
+                                        const textured_quad_draw_info_t& quad,
+                                        quad_target_id_t target_id = {});
+        void submit_stage_text_quad(const frame_stage_plan_t& stage_plan,
+                                    const textured_quad_draw_info_t& quad,
+                                    quad_target_id_t target_id = {});
+        void submit_non_world_textured_quad(non_world_stage_target_t target,
+                                            const textured_quad_draw_info_t& quad,
+                                            quad_target_id_t target_id = {});
+        void submit_non_world_text_quad(non_world_stage_target_t target,
+                                        const textured_quad_draw_info_t& quad,
+                                        quad_target_id_t target_id = {});
+        void submit_non_world_solid_quad(non_world_stage_target_t target,
+                                         const solid_quad_draw_info_t& quad,
+                                         quad_target_id_t target_id = {});
+        void submit_solid_quad(frame_stage_kind_t stage, const solid_quad_draw_info_t& quad, quad_target_id_t target_id = {});
         void build_textured_quad_batches(textured_quad_state_t& state) const;
         void reset_stage_submission_group(const stage_submission_group_t& group) noexcept;
         void record_stage_state(textured_quad_state_t& stage_state,
@@ -406,14 +469,10 @@ namespace carrot::renderer {
         void ensure_forward_plus_gpu_buffers();
         void upload_forward_plus_gpu_data() const;
         void update_forward_plus_diagnostics() noexcept;
-        void ensure_world_item_cull_gpu_buffers(std::size_t batch_index, std::size_t item_capacity);
-        void upload_world_item_cull_input(std::size_t batch_index,
-                                          std::span<const world_render_item_t> items,
-                                          const gpu_world_item_cull_constants_t& cull_constants) const;
-        void ensure_world_indirect_quad_buffers();
-        void ensure_transition_battle_swirl_quad_buffers();
+        void ensure_shared_quad_geometry_buffers();
+        void ensure_bloom_source_render_target();
+        void ensure_bloom_blur_render_target();
         void ensure_transition_battle_swirl_capture_texture();
-        void build_world_indirect_batches(std::vector<world_indirect_batch_t>& out_batches) const;
         void prepare_world_stage_context(const world::world_t& world, world_stage_draw_context_t& context);
         void submit_world_object(const world::world_object_t& object, world_stage_draw_context_t& context);
         void finalize_world_stage_context(world_stage_draw_context_t& context) const;
@@ -433,9 +492,6 @@ namespace carrot::renderer {
         [[nodiscard]] const textured_quad_state_t::frame_buffers_t& current_frame_buffers(const textured_quad_state_t& state) const noexcept;
         [[nodiscard]] forward_plus_gpu_buffers_t& current_forward_plus_gpu_buffers() noexcept;
         [[nodiscard]] const forward_plus_gpu_buffers_t& current_forward_plus_gpu_buffers() const noexcept;
-        [[nodiscard]] std::vector<world_item_cull_gpu_buffers_t>& current_world_item_cull_gpu_buffers() noexcept;
-        [[nodiscard]] const std::vector<world_item_cull_gpu_buffers_t>& current_world_item_cull_gpu_buffers() const noexcept;
-
         // ── External context / configuration ──────────────────────────────────────
         io::virtual_file_system_t&  _vfs;
         engine_graphics_config_t    _config;
@@ -444,7 +500,6 @@ namespace carrot::renderer {
         // ── Backend integration ───────────────────────────────────────────────────
         std::unique_ptr<rhi::rhi_context_t>                 _rhi;
         std::unique_ptr<rhi::rhi_compute_pipeline_t>        _forward_plus_classify_pipeline;
-        std::unique_ptr<rhi::rhi_compute_pipeline_t>        _world_item_cull_pipeline;
         std::unique_ptr<assets::vfs_shader_file_provider_t> _shader_provider;
 
         // ── Frame progression / stats ─────────────────────────────────────────────
@@ -455,13 +510,16 @@ namespace carrot::renderer {
         std::chrono::steady_clock::time_point _animated_tiles_clock_origin{ std::chrono::steady_clock::now() };
 
         // ── Renderer path state: textured quads ───────────────────────────────────
+        textured_quad_state_t _world_textured_quads;
         textured_quad_state_t _world_text_quads;
-        world_render_item_stream_t _world_render_items;
-        std::vector<world_indirect_batch_t> _world_indirect_batches;
+        textured_quad_state_t _bloom_source_quads;
+        textured_quad_state_t _bloom_blur_horizontal_quads;
+        textured_quad_state_t _bloom_blur_vertical_quads;
+        textured_quad_state_t _bloom_composite_quads;
+        quad_stream_t _world_quad_instances;
         std::array<textured_quad_state_t, static_cast<size_t>(frame_stage_kind_t::count)> _stage_textured_quads;
         std::array<textured_quad_state_t, static_cast<size_t>(frame_stage_kind_t::count)> _stage_text_quads;
         std::array<forward_plus_gpu_buffers_t, k_textured_quad_frame_buffer_count> _forward_plus_gpu_buffers;
-        std::array<std::vector<world_item_cull_gpu_buffers_t>, k_textured_quad_frame_buffer_count> _world_item_cull_gpu_buffers;
         std::array<frame_stage_plan_t, static_cast<size_t>(frame_stage_kind_t::count)> _frame_stage_plan{
             frame_stage_plan_t{
                 .kind = frame_stage_kind_t::world,
@@ -505,15 +563,17 @@ namespace carrot::renderer {
         forward_plus_light_input_t _world_forward_plus_light_input{ };
         forward_plus_frame_constants_t _world_forward_plus_constants{ };
         forward_plus_classification_output_t _world_forward_plus_output{ };
-        std::unique_ptr<rhi::rhi_buffer_t> _world_indirect_quad_vertex_buffer;
-        std::unique_ptr<rhi::rhi_buffer_t> _world_indirect_quad_index_buffer;
-        std::unique_ptr<rhi::rhi_buffer_t> _transition_battle_swirl_vertex_buffer;
-        std::unique_ptr<rhi::rhi_buffer_t> _transition_battle_swirl_index_buffer;
+        std::unique_ptr<rhi::rhi_buffer_t> _shared_quad_vertex_buffer;
+        std::unique_ptr<rhi::rhi_buffer_t> _shared_quad_index_buffer;
+        std::unique_ptr<rhi::rhi_buffer_t> _transition_battle_swirl_instance_buffer;
         std::unique_ptr<rhi::rhi_texture_t> _solid_white_texture;
+        std::unique_ptr<rhi::rhi_render_target_t> _bloom_source_render_target;
+        std::unique_ptr<rhi::rhi_render_target_t> _bloom_blur_render_target;
         std::unique_ptr<rhi::rhi_texture_t> _transition_battle_swirl_capture_texture;
         bloom_settings_t _bloom_settings{ };
         bool _transition_fade_enabled{ false };
         uint32_t _transition_fade_color{ 0x00000000u };
+        transition_wipe_state_t _transition_wipe{ };
         battle_swirl_state_t _transition_battle_swirl{ };
         bool _composite_overlay_enabled{ false };
         uint32_t _composite_overlay_color{ 0x00000000u };
@@ -528,7 +588,8 @@ namespace carrot::renderer {
                 .debug_name = "gameplay_present"
             }
         };
-        std::vector<composite_fullscreen_pass_t> _composite_fullscreen_passes;
-        std::array<textured_quad_batch_t, 1u> _transition_battle_swirl_batches{ };
+        std::vector<bloom_source_pass_t> _bloom_source_passes;
+        std::vector<post_effect_pass_t> _post_effect_passes;
+        std::vector<transition_pass_t> _transition_passes;
     };
 } // namespace carrot::renderer

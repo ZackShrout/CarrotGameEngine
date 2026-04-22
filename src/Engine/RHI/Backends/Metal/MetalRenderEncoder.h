@@ -40,7 +40,12 @@ namespace carrot::rhi::metal {
 
         void begin(MTL::CommandBuffer* cmd_buffer, const CA::MetalDrawable* drawable,
                    const MTL::ClearColor& clear_color) noexcept;
+        void begin(MTL::CommandBuffer* cmd_buffer, MTL::Texture* texture,
+                   const MTL::ClearColor& clear_color) noexcept;
         void begin_with_load_action(MTL::CommandBuffer* cmd_buffer, const CA::MetalDrawable* drawable,
+                                    MTL::LoadAction load_action,
+                                    const MTL::ClearColor& clear_color) noexcept;
+        void begin_with_load_action(MTL::CommandBuffer* cmd_buffer, MTL::Texture* texture,
                                     MTL::LoadAction load_action,
                                     const MTL::ClearColor& clear_color) noexcept;
         void end() noexcept;

@@ -17,6 +17,7 @@ namespace sandbox {
 
         void start() override;
         void tick(float delta_time) override;
+        void render_overlay() override;
         void on_key(const carrot::events::key_event_t& e) override;
         void on_mouse_moved(const carrot::events::mouse_moved_event_t& e) override;
         void on_mouse_button(const carrot::events::mouse_button_event_t& e) override;
@@ -30,6 +31,7 @@ namespace sandbox {
         void configure_default_input_actions();
         void configure_input_routing() noexcept;
         void bootstrap_runtime_ui() noexcept;
+        void render_bloom_debug_harness() noexcept;
         void begin_interact_rebind();
         void finish_pending_input_rebind();
         void restore_default_input_bindings();

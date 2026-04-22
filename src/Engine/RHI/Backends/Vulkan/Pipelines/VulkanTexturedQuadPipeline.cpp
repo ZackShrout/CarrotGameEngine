@@ -9,6 +9,7 @@
 
 #include "Assets/Shaders/ShaderFileProvider.h"
 #include "RHI/Backends/Vulkan/VulkanUtils.h"
+#include "Renderer/Draw/QuadInstanceData.h"
 #include "Renderer/Primitives/QuadVertex.h"
 
 namespace carrot::rhi::vulkan {
@@ -19,6 +20,15 @@ namespace carrot::rhi::vulkan {
             binding.binding = 0;
             binding.stride = sizeof(renderer::quad_vertex_t);
             binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+            return binding;
+        }
+
+        [[nodiscard]] VkVertexInputBindingDescription make_instance_binding_description() noexcept
+        {
+            VkVertexInputBindingDescription binding{ };
+            binding.binding = 1;
+            binding.stride = sizeof(renderer::gpu_quad_instance_t);
+            binding.inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
             return binding;
         }
 
@@ -56,6 +66,43 @@ namespace carrot::rhi::vulkan {
 
             return attributes;
         }
+
+        [[nodiscard]] std::array<VkVertexInputAttributeDescription, 6> make_instanced_vertex_attribute_descriptions() noexcept
+        {
+            std::array<VkVertexInputAttributeDescription, 6> attributes{ };
+
+            attributes[0].location = 0;
+            attributes[0].binding = 0;
+            attributes[0].format = VK_FORMAT_R32G32_SFLOAT;
+            attributes[0].offset = offsetof(renderer::quad_vertex_t, x);
+
+            attributes[1].location = 1;
+            attributes[1].binding = 0;
+            attributes[1].format = VK_FORMAT_R32G32_SFLOAT;
+            attributes[1].offset = offsetof(renderer::quad_vertex_t, u);
+
+            attributes[2].location = 2;
+            attributes[2].binding = 1;
+            attributes[2].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+            attributes[2].offset = offsetof(renderer::gpu_quad_instance_t, quad_rect_px);
+
+            attributes[3].location = 3;
+            attributes[3].binding = 1;
+            attributes[3].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+            attributes[3].offset = offsetof(renderer::gpu_quad_instance_t, uv_rect);
+
+            attributes[4].location = 4;
+            attributes[4].binding = 1;
+            attributes[4].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+            attributes[4].offset = offsetof(renderer::gpu_quad_instance_t, color);
+
+            attributes[5].location = 5;
+            attributes[5].binding = 1;
+            attributes[5].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+            attributes[5].offset = offsetof(renderer::gpu_quad_instance_t, draw_params);
+
+            return attributes;
+        }
     } // namespace
 
     vulkan_textured_quad_pipeline_t::vulkan_textured_quad_pipeline_t(const vulkan_device_t* device,
@@ -63,7 +110,9 @@ namespace carrot::rhi::vulkan {
                                                                      assets::shader_file_provider_t* shader_files,
                                                                      const std::string_view vertex_shader_path,
                                                                      const std::string_view fragment_shader_path,
-                                                                     const std::string_view debug_name) : _device{ device }
+                                                                     const std::string_view debug_name,
+                                                                     const bool instanced,
+                                                                     const blend_mode_t blend_mode) : _device{ device }
     {
         const auto vert_path{ shader_files->resolve(vertex_shader_path) };
         const auto frag_path{ shader_files->resolve(fragment_shader_path) };
@@ -92,14 +141,30 @@ namespace carrot::rhi::vulkan {
         stages[1].pName = "main";
 
         const VkVertexInputBindingDescription binding_desc{ make_vertex_binding_description() };
-        const auto attribute_descs{ make_vertex_attribute_descriptions() };
+        const VkVertexInputBindingDescription instance_binding_desc{ make_instance_binding_description() };
+        const auto direct_attribute_descs{ make_vertex_attribute_descriptions() };
+        const auto instanced_attribute_descs{ make_instanced_vertex_attribute_descriptions() };
+        const std::array<VkVertexInputBindingDescription, 2> binding_descs{
+            binding_desc,
+            instance_binding_desc
+        };
 
         VkPipelineVertexInputStateCreateInfo vertex_input{ };
         vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        vertex_input.vertexBindingDescriptionCount = 1;
-        vertex_input.pVertexBindingDescriptions = &binding_desc;
-        vertex_input.vertexAttributeDescriptionCount = static_cast<uint32_t>(attribute_descs.size());
-        vertex_input.pVertexAttributeDescriptions = attribute_descs.data();
+        if (instanced)
+        {
+            vertex_input.vertexBindingDescriptionCount = static_cast<uint32_t>(binding_descs.size());
+            vertex_input.pVertexBindingDescriptions = binding_descs.data();
+            vertex_input.vertexAttributeDescriptionCount = static_cast<uint32_t>(instanced_attribute_descs.size());
+            vertex_input.pVertexAttributeDescriptions = instanced_attribute_descs.data();
+        }
+        else
+        {
+            vertex_input.vertexBindingDescriptionCount = 1;
+            vertex_input.pVertexBindingDescriptions = &binding_desc;
+            vertex_input.vertexAttributeDescriptionCount = static_cast<uint32_t>(direct_attribute_descs.size());
+            vertex_input.pVertexAttributeDescriptions = direct_attribute_descs.data();
+        }
 
         VkPipelineInputAssemblyStateCreateInfo input_assembly{ };
         input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -133,11 +198,14 @@ namespace carrot::rhi::vulkan {
                 VK_COLOR_COMPONENT_A_BIT;
 
         color_blend_attachment.blendEnable = VK_TRUE;
-        color_blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-        color_blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        color_blend_attachment.srcColorBlendFactor =
+            blend_mode == blend_mode_t::additive ? VK_BLEND_FACTOR_ONE : VK_BLEND_FACTOR_SRC_ALPHA;
+        color_blend_attachment.dstColorBlendFactor =
+            blend_mode == blend_mode_t::additive ? VK_BLEND_FACTOR_ONE : VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
         color_blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
         color_blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-        color_blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+        color_blend_attachment.dstAlphaBlendFactor =
+            blend_mode == blend_mode_t::additive ? VK_BLEND_FACTOR_ONE : VK_BLEND_FACTOR_ZERO;
         color_blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
 
         VkPipelineColorBlendStateCreateInfo color_blending{ };

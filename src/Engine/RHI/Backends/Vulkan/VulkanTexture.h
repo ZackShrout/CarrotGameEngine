@@ -26,6 +26,7 @@ namespace carrot::rhi::vulkan {
         [[nodiscard]] texture_format_t format() const noexcept override { return _format; }
         [[nodiscard]] bool has_initial_data() const noexcept override { return _has_initial_data; }
         [[nodiscard]] VkImageLayout layout() const noexcept { return _layout; }
+        [[nodiscard]] std::uint32_t usage_mask() const noexcept { return _usage_mask; }
 
         void set_image(VkImage image) noexcept { _image = image; }
         void set_memory(VkDeviceMemory memory) noexcept { _memory = memory; }
@@ -36,6 +37,7 @@ namespace carrot::rhi::vulkan {
         void set_format(const texture_format_t format) noexcept { _format = format; }
         void set_has_initial_data(const bool has_initial_data) noexcept { _has_initial_data = has_initial_data; }
         void set_layout(const VkImageLayout layout) noexcept { _layout = layout; }
+        void set_usage_mask(const std::uint32_t usage_mask) noexcept { _usage_mask = usage_mask; }
 
     private:
         vulkan_device_t* _device{ nullptr };
@@ -48,5 +50,36 @@ namespace carrot::rhi::vulkan {
         texture_format_t _format{ texture_format_t::rgba8_srgb };
         bool _has_initial_data{ false };
         VkImageLayout _layout{ VK_IMAGE_LAYOUT_UNDEFINED };
+        std::uint32_t _usage_mask{ texture_usage_sampled | texture_usage_transfer_dst };
+    };
+
+    class vulkan_render_target_t final : public rhi_render_target_t
+    {
+    public:
+        explicit vulkan_render_target_t(vulkan_device_t* device) noexcept
+            : _device{ device } {}
+        ~vulkan_render_target_t() override;
+
+        [[nodiscard]] uint32_t width() const noexcept override;
+        [[nodiscard]] uint32_t height() const noexcept override;
+        [[nodiscard]] texture_format_t format() const noexcept override;
+        [[nodiscard]] rhi_texture_t* color_texture() const noexcept override { return _color_texture.get(); }
+
+        [[nodiscard]] const vulkan_texture_t* vk_color_texture() const noexcept { return _color_texture.get(); }
+        [[nodiscard]] VkFramebuffer clear_framebuffer() const noexcept { return _clear_framebuffer; }
+        [[nodiscard]] VkFramebuffer load_framebuffer() const noexcept { return _load_framebuffer; }
+
+        void set_color_texture(std::unique_ptr<vulkan_texture_t> color_texture) noexcept
+        {
+            _color_texture = std::move(color_texture);
+        }
+        void set_clear_framebuffer(const VkFramebuffer framebuffer) noexcept { _clear_framebuffer = framebuffer; }
+        void set_load_framebuffer(const VkFramebuffer framebuffer) noexcept { _load_framebuffer = framebuffer; }
+
+    private:
+        vulkan_device_t* _device{ nullptr };
+        std::unique_ptr<vulkan_texture_t> _color_texture;
+        VkFramebuffer _clear_framebuffer{ VK_NULL_HANDLE };
+        VkFramebuffer _load_framebuffer{ VK_NULL_HANDLE };
     };
 } // namespace carrot::rhi::vulkan

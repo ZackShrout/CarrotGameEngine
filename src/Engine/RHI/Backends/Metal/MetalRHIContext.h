@@ -47,6 +47,8 @@ namespace carrot::rhi::metal {
         [[nodiscard]] graphics_api get_graphics_api() const noexcept override { return graphics_api::metal; }
 
         [[nodiscard]] std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) override;
+        [[nodiscard]] std::unique_ptr<rhi_render_target_t> create_render_target_2d(
+            const render_target_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_compute_pipeline_t> create_compute_pipeline(
             const compute_pipeline_create_info_t& info) override;
@@ -66,7 +68,16 @@ namespace carrot::rhi::metal {
         enum class quad_pipeline_kind_t : uint8_t
         {
             textured = 0,
-            text
+            text,
+            battle_swirl,
+            bloom_blur,
+            bloom_composite
+        };
+
+        enum class recorded_quad_stage_kind_t : uint8_t
+        {
+            direct = 0,
+            indirect
         };
 
         struct auxiliary_surface_t
@@ -78,17 +89,14 @@ namespace carrot::rhi::metal {
             std::unique_ptr<rhi_texture_t> capture_texture;
         };
 
-        struct recorded_stage_t
+        struct recorded_quad_stage_t
         {
-            textured_quad_stage_record_t stage;
+            recorded_quad_stage_kind_t kind{ recorded_quad_stage_kind_t::direct };
             uint32_t stage_slot{ 0 };
+            textured_quad_stage_record_t direct_stage;
+            indirect_textured_quad_stage_record_t indirect_stage;
+            std::vector<renderer::textured_quad_batch_t> owned_direct_batches;
             quad_pipeline_kind_t pipeline_kind{ quad_pipeline_kind_t::textured };
-        };
-
-        struct recorded_indirect_stage_t
-        {
-            indirect_textured_quad_stage_record_t stage;
-            uint32_t stage_slot{ 0 };
         };
 
         [[nodiscard]] bool is_frame_active() const noexcept;
@@ -106,6 +114,9 @@ namespace carrot::rhi::metal {
                                                 uint32_t stage_slot,
                                                 quad_pipeline_kind_t pipeline_kind,
                                                 const CA::MetalDrawable* drawable);
+        void encode_offscreen_textured_quad_stage(const textured_quad_stage_record_t& stage,
+                                                  uint32_t stage_slot,
+                                                  quad_pipeline_kind_t pipeline_kind);
         void encode_indirect_textured_quad_stage(MTL::RenderCommandEncoder* encoder,
                                                  const indirect_textured_quad_stage_record_t& stage,
                                                  chlm::uint2 target_size_px,
@@ -136,6 +147,11 @@ namespace carrot::rhi::metal {
         std::unique_ptr<metal_command_queue_t>          _command_queue;
         std::unique_ptr<metal_textured_quad_pipeline_t> _textured_quad_pipeline;
         std::unique_ptr<metal_textured_quad_pipeline_t> _text_quad_pipeline;
+        std::unique_ptr<metal_textured_quad_pipeline_t> _instanced_textured_quad_pipeline;
+        std::unique_ptr<metal_textured_quad_pipeline_t> _instanced_text_quad_pipeline;
+        std::unique_ptr<metal_textured_quad_pipeline_t> _instanced_battle_swirl_pipeline;
+        std::unique_ptr<metal_textured_quad_pipeline_t> _instanced_bloom_blur_pipeline;
+        std::unique_ptr<metal_textured_quad_pipeline_t> _instanced_bloom_composite_pipeline;
         std::unique_ptr<rhi_buffer_t>                   _default_compute_storage_buffer;
 
         // ── Per-frame / active submission state ──
@@ -143,8 +159,7 @@ namespace carrot::rhi::metal {
         MTL::CommandBuffer*                             _active_command_buffer{ nullptr };
         const CA::MetalDrawable*                        _active_drawable{ nullptr };
         std::vector<auxiliary_surface_t>                _auxiliary_surfaces;
-        std::vector<recorded_stage_t>                   _recorded_stages;
-        std::vector<recorded_indirect_stage_t>          _recorded_indirect_stages;
+        std::vector<recorded_quad_stage_t>              _recorded_quad_stages;
 
         std::array<std::unique_ptr<metal_buffer_t>, k_max_textured_quad_stage_slots_per_frame>
                                                       _textured_quad_camera_uniform_buffers;

@@ -39,11 +39,14 @@ namespace carrot::rhi {
         };
     };
 
-    struct textured_quad_stage_record_t
+    struct quad_stage_common_t
     {
-        const rhi_buffer_t* vertex_buffer{ nullptr };
-        const rhi_buffer_t* index_buffer{ nullptr };
-        std::span<const renderer::textured_quad_batch_t> batches{ };
+        enum class target_load_action_t : std::uint8_t
+        {
+            clear = 0,
+            load
+        };
+
         chlm::float4x4 view_projection{ chlm::float4x4::identity() };
         chlm::float4 ambient_color{ 1.f, 1.f, 1.f, 1.f };
         renderer::forward_plus_frame_constants_t forward_plus_constants{ };
@@ -56,29 +59,47 @@ namespace carrot::rhi {
         std::uint32_t world_draw_mode{ 0u };
         render_viewport_t viewport{ };
         uint32_t presentation_mask{ 1u };
+        const rhi_render_target_t* render_target{ nullptr };
+        target_load_action_t target_load_action{ target_load_action_t::clear };
+        chlm::float4 target_clear_color{ 0.f, 0.f, 0.f, 0.f };
+    };
+
+    enum class quad_draw_source_kind_t : std::uint8_t
+    {
+        direct = 0,
+        indexed_indirect
+    };
+
+    enum class quad_shader_variant_t : std::uint8_t
+    {
+        standard = 0,
+        battle_swirl,
+        bloom_blur,
+        bloom_composite
+    };
+
+    struct quad_draw_source_t
+    {
+        const rhi_buffer_t* vertex_buffer{ nullptr };
+        const rhi_buffer_t* index_buffer{ nullptr };
+        const rhi_buffer_t* instance_buffer{ nullptr };
+        const rhi_buffer_t* indirect_buffer{ nullptr };
+        std::uint32_t instance_count{ 0u };
+        std::uint32_t indirect_buffer_offset_bytes{ 0u };
+        quad_draw_source_kind_t kind{ quad_draw_source_kind_t::direct };
+    };
+
+    struct textured_quad_stage_record_t : quad_stage_common_t, quad_draw_source_t
+    {
+        std::span<const renderer::textured_quad_batch_t> batches{ };
+        quad_shader_variant_t shader_variant{ quad_shader_variant_t::standard };
         bool capture_presentation_before_draw{ false };
     };
 
-    struct indirect_textured_quad_stage_record_t
+    struct indirect_textured_quad_stage_record_t : quad_stage_common_t, quad_draw_source_t
     {
-        const rhi_buffer_t* vertex_buffer{ nullptr };
-        const rhi_buffer_t* index_buffer{ nullptr };
-        const rhi_buffer_t* indirect_buffer{ nullptr };
         const rhi_texture_t* texture{ nullptr };
         const rhi_sampler_t* sampler{ nullptr };
-        chlm::float4x4 view_projection{ chlm::float4x4::identity() };
-        chlm::float4 ambient_color{ 1.f, 1.f, 1.f, 1.f };
-        renderer::forward_plus_frame_constants_t forward_plus_constants{ };
-        renderer::forward_plus_light_input_t forward_plus_light_input{ };
-        renderer::forward_plus_classification_output_t forward_plus_output{ };
-        const rhi_buffer_t* forward_plus_light_input_buffer{ nullptr };
-        const rhi_buffer_t* forward_plus_output_buffer{ nullptr };
-        const rhi_buffer_t* world_item_buffer{ nullptr };
-        const rhi_buffer_t* visible_item_index_buffer{ nullptr };
-        std::uint32_t world_draw_mode{ 0u };
-        render_viewport_t viewport{ };
-        std::uint32_t indirect_buffer_offset_bytes{ 0u };
-        uint32_t presentation_mask{ 1u };
     };
 
     // Shared renderer-facing RHI limit:
@@ -173,6 +194,8 @@ namespace carrot::rhi {
         [[nodiscard]] virtual graphics_api get_graphics_api() const noexcept = 0;
 
         [[nodiscard]] virtual std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) = 0;
+        [[nodiscard]] virtual std::unique_ptr<rhi_render_target_t> create_render_target_2d(
+            const render_target_create_info_t& info) = 0;
         [[nodiscard]] virtual std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) = 0;
         [[nodiscard]] virtual std::unique_ptr<rhi_compute_pipeline_t> create_compute_pipeline(
             const compute_pipeline_create_info_t& info) = 0;

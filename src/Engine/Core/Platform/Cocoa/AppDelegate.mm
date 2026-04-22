@@ -109,7 +109,9 @@
     CAMetalLayer* metal_layer{ [CAMetalLayer layer] };
     metal_layer.device = MTLCreateSystemDefaultDevice();
     metal_layer.pixelFormat = MTLPixelFormatBGRA8Unorm;
-    metal_layer.framebufferOnly = YES;
+    // Metal presentation surfaces participate in transition capture/post-effect
+    // paths during M27, so the drawable must permit blits and shader reads.
+    metal_layer.framebufferOnly = NO;
     metal_layer.drawableSize = CGSizeMake(content_view.bounds.size.width, content_view.bounds.size.height);
 
     [content_view setLayer:metal_layer];

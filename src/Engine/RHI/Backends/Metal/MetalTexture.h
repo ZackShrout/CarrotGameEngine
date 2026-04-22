@@ -9,6 +9,8 @@
 #include "RHI/Texture.h"
 
 namespace carrot::rhi::metal {
+    class metal_device_t;
+
     class metal_texture_t final : public rhi_texture_t
     {
     public:
@@ -29,5 +31,26 @@ namespace carrot::rhi::metal {
         uint32_t         _height{ 0 };
         texture_format_t _format{ texture_format_t::rgba8_srgb };
         bool             _has_initial_data{ false };
+    };
+
+    class metal_render_target_t final : public rhi_render_target_t
+    {
+    public:
+        metal_render_target_t() noexcept = default;
+        ~metal_render_target_t() override = default;
+
+        [[nodiscard]] uint32_t width() const noexcept override;
+        [[nodiscard]] uint32_t height() const noexcept override;
+        [[nodiscard]] texture_format_t format() const noexcept override;
+        [[nodiscard]] rhi_texture_t* color_texture() const noexcept override { return _color_texture.get(); }
+
+        [[nodiscard]] metal_texture_t* metal_color_texture() const noexcept { return _color_texture.get(); }
+        void set_color_texture(std::unique_ptr<metal_texture_t> color_texture) noexcept
+        {
+            _color_texture = std::move(color_texture);
+        }
+
+    private:
+        std::unique_ptr<metal_texture_t> _color_texture;
     };
 } // namespace carrot::rhi::metal

@@ -30,6 +30,8 @@ namespace carrot::renderer {
         const rhi::rhi_texture_t* texture{ nullptr };
         uint32_t first_index{ 0 };
         uint32_t index_count{ 0 };
+        uint32_t first_instance{ 0 };
+        uint32_t instance_count{ 0 };
         quad_sampler_preset_t sampler_preset{ quad_sampler_preset_t::smooth_clamp };
         world_material_key_t world_material{ };
     };

@@ -71,6 +71,8 @@ namespace carrot::rhi::dx12 {
         [[nodiscard]] graphics_api get_graphics_api() const noexcept override { return graphics_api::direct_x12; }
 
         [[nodiscard]] std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) override;
+        [[nodiscard]] std::unique_ptr<rhi_render_target_t> create_render_target_2d(
+            const render_target_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_compute_pipeline_t> create_compute_pipeline(
             const compute_pipeline_create_info_t& info) override;
@@ -92,6 +94,12 @@ namespace carrot::rhi::dx12 {
             text
         };
 
+        enum class recorded_quad_stage_kind_t : uint8_t
+        {
+            direct = 0,
+            indirect
+        };
+
         struct auxiliary_surface_t
         {
             window::window_id_t id{ window::invalid_window_id };
@@ -101,17 +109,13 @@ namespace carrot::rhi::dx12 {
             uint32_t last_height{ 0 };
         };
 
-        struct recorded_stage_t
+        struct recorded_quad_stage_t
         {
-            textured_quad_stage_record_t stage;
+            recorded_quad_stage_kind_t kind{ recorded_quad_stage_kind_t::direct };
             uint32_t stage_slot{ 0 };
+            textured_quad_stage_record_t direct_stage;
+            indirect_textured_quad_stage_record_t indirect_stage;
             quad_pipeline_kind_t pipeline_kind{ quad_pipeline_kind_t::textured };
-        };
-
-        struct recorded_indirect_stage_t
-        {
-            indirect_textured_quad_stage_record_t stage;
-            uint32_t stage_slot{ 0 };
         };
 
         void record_quad_stage_to_active_target(const textured_quad_stage_record_t& stage,
@@ -146,8 +150,7 @@ namespace carrot::rhi::dx12 {
         uint32_t                                          _frame_index{ 0 };
         window::window_id_t                               _presentation_window_id{ window::invalid_window_id };
         std::vector<auxiliary_surface_t>                  _auxiliary_surfaces;
-        std::vector<recorded_stage_t>                     _recorded_stages;
-        std::vector<recorded_indirect_stage_t>            _recorded_indirect_stages;
+        std::vector<recorded_quad_stage_t>                _recorded_quad_stages;
 
         // ── Swapchain / render-target descriptor bookkeeping ──
         uint32_t                                          _rtv_descriptor_stride{ 0 };

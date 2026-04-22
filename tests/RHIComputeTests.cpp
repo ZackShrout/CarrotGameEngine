@@ -134,12 +134,8 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(sampler != nullptr);
 
             context.begin_frame();
-            context.record_indirect_textured_quad_stage({
-                .vertex_buffer = vertex_buffer.get(),
-                .index_buffer = index_buffer.get(),
-                .indirect_buffer = indirect_buffer.get(),
-                .texture = texture.get(),
-                .sampler = sampler.get(),
+            indirect_textured_quad_stage_record_t stage{ };
+            static_cast<quad_stage_common_t&>(stage) = quad_stage_common_t{
                 .ambient_color = { 0.25f, 0.5f, 0.75f, 1.f },
                 .forward_plus_constants = {
                     .point_light_counts = { 3u, 0u, 0u, 0u }
@@ -150,9 +146,15 @@ namespace carrot::tests {
                         .size = { 320u, 180u }
                     }
                 },
-                .indirect_buffer_offset_bytes = 16u,
                 .presentation_mask = presentation_channel_log_console
-            });
+            };
+            stage.vertex_buffer = vertex_buffer.get();
+            stage.index_buffer = index_buffer.get();
+            stage.indirect_buffer = indirect_buffer.get();
+            stage.texture = texture.get();
+            stage.sampler = sampler.get();
+            stage.indirect_buffer_offset_bytes = 16u;
+            context.record_indirect_textured_quad_stage(stage);
             context.end_frame();
 
             const auto& stages{ context.recorded_indirect_textured_stages() };

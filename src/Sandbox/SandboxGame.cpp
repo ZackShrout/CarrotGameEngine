@@ -9,6 +9,7 @@
 
 #include "GameplayState.h"
 #include "SandboxInputConfig.h"
+#include "Renderer/RendererService.h"
 
 namespace sandbox {
     namespace {
@@ -214,6 +215,169 @@ namespace sandbox {
 
         if (_input.was_just_pressed(k_input_actions.quit))
             quit_application();
+    }
+
+    void sandbox_game_t::render_overlay()
+    {
+        carrot::core::game_runtime_t::render_overlay();
+        render_bloom_debug_harness();
+    }
+
+    void sandbox_game_t::render_bloom_debug_harness() noexcept
+    {
+        carrot::renderer::renderer_t* renderer{ carrot::renderer::renderer_service_t::try_get() };
+        if (!renderer)
+            return;
+
+        const chlm::uint2 render_target_size{ game().view.render_target_pixel_size() };
+        if (render_target_size.x == 0u || render_target_size.y == 0u)
+            return;
+
+        constexpr float panel_y{ 24.f };
+        constexpr float panel_width{ 360.f };
+        constexpr float panel_height{ 296.f };
+        constexpr float swatch_size{ 12.f };
+        constexpr float swatch_gap{ 36.f };
+        const float panel_x{ static_cast<float>(render_target_size.x) - panel_width - 24.f };
+
+        renderer->draw_ui_solid_quad({
+            .x = panel_x,
+            .y = panel_y,
+            .width = panel_width,
+            .height = panel_height,
+            .layer = carrot::renderer::render_layer_t::ui,
+            .order_in_layer = 0,
+            .color = 0x4407090Eu
+        });
+
+        renderer->draw_ui_solid_quad({
+            .x = panel_x + 10.f,
+            .y = panel_y + 10.f,
+            .width = panel_width - 20.f,
+            .height = panel_height - 20.f,
+            .layer = carrot::renderer::render_layer_t::ui,
+            .order_in_layer = 0,
+            .color = 0x6611161Eu
+        });
+
+        const auto draw_debug_bloom_sample = [renderer, swatch_size](const float x,
+                                                                     const float y,
+                                                                     const std::uint32_t core_color,
+                                                                     const std::uint32_t bloom_color) noexcept
+        {
+            const float core_center_x{ x + swatch_size * 0.5f };
+            const float core_center_y{ y + swatch_size * 0.5f };
+            const auto draw_centered_bloom_quad =
+                [renderer, core_center_x, core_center_y, bloom_color](const float size, const std::uint32_t color) noexcept
+            {
+                renderer->draw_bloom_solid_quad({
+                    .x = core_center_x - size * 0.5f,
+                    .y = core_center_y - size * 0.5f,
+                    .width = size,
+                    .height = size,
+                    .layer = carrot::renderer::render_layer_t::ui,
+                    .order_in_layer = 0,
+                    .color = color
+                });
+            };
+
+            // Keep the bloom source compact and hot so the blur defines the halo instead of source rectangles.
+            draw_centered_bloom_quad(4.f, (bloom_color & 0x00FFFFFFu) | 0xFF000000u);
+            draw_centered_bloom_quad(7.f, (bloom_color & 0x00FFFFFFu) | 0xF0000000u);
+            draw_centered_bloom_quad(11.f, (bloom_color & 0x00FFFFFFu) | 0xCC000000u);
+            draw_centered_bloom_quad(16.f, (bloom_color & 0x00FFFFFFu) | 0x88000000u);
+
+            renderer->draw_ui_solid_quad({
+                .x = x,
+                .y = y,
+                .width = swatch_size,
+                .height = swatch_size,
+                .layer = carrot::renderer::render_layer_t::ui,
+                .order_in_layer = 1,
+                .color = core_color
+            });
+        };
+
+        const float swatch_y{ panel_y + 68.f };
+        const float swatch_x0{ panel_x + 44.f };
+        draw_debug_bloom_sample(swatch_x0, swatch_y, 0xFFFFFFFFu, 0xB0FFD070u);
+        draw_debug_bloom_sample(swatch_x0 + swatch_size + swatch_gap, swatch_y, 0xFFFFFFFFu, 0xB0FF70C8u);
+        draw_debug_bloom_sample(swatch_x0 + (swatch_size + swatch_gap) * 2.f, swatch_y, 0xFFFFFFFFu, 0xB070C8FFu);
+
+        constexpr float preview_width{ 144.f };
+        constexpr float preview_height{ 60.f };
+        constexpr float preview_gap{ 16.f };
+        const float preview_y{ panel_y + 158.f };
+        const float preview_x0{ panel_x + 24.f };
+
+        const float preview_crop_x{ panel_x + 24.f };
+        const float preview_crop_y{ panel_y + 52.f };
+        const float preview_crop_width{ 240.f };
+        const float preview_crop_height{ 84.f };
+        const float preview_u0{ preview_crop_x / static_cast<float>(render_target_size.x) };
+        const float preview_v0{ preview_crop_y / static_cast<float>(render_target_size.y) };
+        const float preview_u1{ (preview_crop_x + preview_crop_width) / static_cast<float>(render_target_size.x) };
+        const float preview_v1{ (preview_crop_y + preview_crop_height) / static_cast<float>(render_target_size.y) };
+
+        const auto draw_preview = [renderer, preview_width, preview_height, preview_u0, preview_v0, preview_u1, preview_v1](
+                                      const float x,
+                                      const float y,
+                                      const carrot::rhi::rhi_texture_t* texture,
+                                      const char* label) noexcept
+        {
+            renderer->draw_ui_solid_quad({
+                .x = x - 4.f,
+                .y = y - 4.f,
+                .width = preview_width + 8.f,
+                .height = preview_height + 8.f,
+                .layer = carrot::renderer::render_layer_t::ui,
+                .order_in_layer = 0,
+                .color = 0x88202836u
+            });
+
+            if (texture)
+            {
+                renderer->draw_ui_textured_quad({
+                    .texture = texture,
+                    .x = x,
+                    .y = y,
+                    .width = preview_width,
+                    .height = preview_height,
+                    .u0 = preview_u0,
+                    .v0 = preview_v0,
+                    .u1 = preview_u1,
+                    .v1 = preview_v1,
+                    .layer = carrot::renderer::render_layer_t::ui,
+                    .order_in_layer = 0,
+                    .color = 0xFFFFFFFFu,
+                    .sampler_preset = carrot::renderer::quad_sampler_preset_t::smooth_clamp
+                });
+            }
+
+            carrot::debug::text_colored(x, y + preview_height + 6.f, 0xFF8EA1B2u, "%s", label);
+        };
+
+        draw_preview(preview_x0,
+                     preview_y,
+                     renderer->debug_bloom_source_texture(),
+                     "Bloom source");
+        draw_preview(preview_x0 + preview_width + preview_gap,
+                     preview_y,
+                     renderer->debug_bloom_blur_texture(),
+                     "Blurred target");
+
+        carrot::debug::text_colored(panel_x + 20.f,
+                                    panel_y + 18.f,
+                                    0xFFD8F2FFu,
+                                    "Sandbox bloom debug harness");
+        carrot::debug::text_colored(panel_x + 20.f,
+                                    panel_y + 38.f,
+                                    0xFFB8C6D0u,
+                                    "Temporary M27 validation source");
+        carrot::debug::text_colored(panel_x + 20.f,
+                                    panel_y + 272.f,
+                                    0xFF8EA1B2u,
+                                    "Top: emitters | Bottom: source and blurred textures");
     }
 
     void sandbox_game_t::on_key(const carrot::events::key_event_t& e)

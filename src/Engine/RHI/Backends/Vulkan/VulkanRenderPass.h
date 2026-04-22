@@ -15,7 +15,8 @@ namespace carrot::rhi::vulkan {
         vulkan_render_pass_t(const vulkan_device_t* device,
                              VkFormat color_format,
                              VkAttachmentLoadOp load_op = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                             VkImageLayout initial_layout = VK_IMAGE_LAYOUT_UNDEFINED);
+                             VkImageLayout initial_layout = VK_IMAGE_LAYOUT_UNDEFINED,
+                             VkImageLayout final_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
         ~vulkan_render_pass_t();
 
         DISABLE_COPY(vulkan_render_pass_t)

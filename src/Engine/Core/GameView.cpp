@@ -77,6 +77,18 @@ namespace carrot::core {
         _renderer.clear_transition_fade();
     }
 
+    void game_view_t::set_transition_wipe(const float coverage,
+                                          const renderer::transition_wipe_direction_t direction,
+                                          const uint32_t color_abgr) noexcept
+    {
+        _renderer.set_transition_wipe(coverage, direction, color_abgr);
+    }
+
+    void game_view_t::clear_transition_wipe() noexcept
+    {
+        _renderer.clear_transition_wipe();
+    }
+
     void game_view_t::set_transition_battle_swirl(const float progress, const bool incoming) noexcept
     {
         _renderer.set_transition_battle_swirl(progress, incoming);

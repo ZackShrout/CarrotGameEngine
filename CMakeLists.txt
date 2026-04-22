@@ -105,6 +105,7 @@ set(CARROT_ENGINE_SOURCES
         # ========================================
         src/Engine/Renderer/Camera/Camera2D.h
         src/Engine/Renderer/Draw/QuadSamplerPreset.h
+        src/Engine/Renderer/Draw/QuadInstanceData.h
         src/Engine/Renderer/Draw/RenderLayer.h
         src/Engine/Renderer/Draw/SpriteDrawInfo.h
         src/Engine/Renderer/Draw/TexturedQuadBatch.h

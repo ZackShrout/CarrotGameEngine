@@ -16,11 +16,19 @@ namespace carrot::rhi::vulkan {
     class vulkan_textured_quad_pipeline_t final
     {
     public:
+        enum class blend_mode_t : std::uint8_t
+        {
+            alpha = 0,
+            additive
+        };
+
         vulkan_textured_quad_pipeline_t(const vulkan_device_t* device, VkRenderPass render_pass,
                                         assets::shader_file_provider_t* shader_files,
                                         std::string_view vertex_shader_path,
                                         std::string_view fragment_shader_path,
-                                        std::string_view debug_name);
+                                        std::string_view debug_name,
+                                        bool instanced = false,
+                                        blend_mode_t blend_mode = blend_mode_t::alpha);
         ~vulkan_textured_quad_pipeline_t();
 
         [[nodiscard]] VkPipeline vk_pipeline() const noexcept { return _pipeline; }

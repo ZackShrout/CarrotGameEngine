@@ -18,6 +18,7 @@
 #include "Pipelines/MetalComputePipeline.h"
 #include "Pipelines/MetalTexturedQuadPipeline.h"
 #include "RHI/SamplerPresets.h"
+#include "Renderer/Draw/QuadInstanceData.h"
 #include "Renderer/Draw/TexturedQuadCameraUniform.h"
 #include "Window/Window.h"
 
@@ -79,6 +80,19 @@ namespace carrot::rhi::metal {
                 case texture_format_t::rgba8_unorm: return MTL::PixelFormatRGBA8Unorm;
                 case texture_format_t::rgba8_srgb: return MTL::PixelFormatRGBA8Unorm_sRGB;
                 default: return MTL::PixelFormatRGBA8Unorm_sRGB;
+            }
+        }
+
+        [[nodiscard]] MTL::PixelFormat to_metal_color_attachment_pixel_format(const texture_format_t format) noexcept
+        {
+            // Our Metal presentation path is standardized on BGRA8. Keep offscreen
+            // color attachments in the same family so the shared quad pipelines can
+            // target swapchain and offscreen surfaces without pipeline-format splits.
+            switch (format)
+            {
+                case texture_format_t::rgba8_unorm: return MTL::PixelFormatBGRA8Unorm;
+                case texture_format_t::rgba8_srgb: return MTL::PixelFormatBGRA8Unorm_sRGB;
+                default: return MTL::PixelFormatBGRA8Unorm_sRGB;
             }
         }
 
@@ -169,6 +183,47 @@ namespace carrot::rhi::metal {
             "engine://shaders/metal/text_quad.vert.metallib",
             "engine://shaders/metal/text_quad.frag.metallib",
             "text quad");
+        _instanced_textured_quad_pipeline = std::make_unique<metal_textured_quad_pipeline_t>(
+            *_device,
+            *desc.shader_files,
+            MTL::PixelFormatBGRA8Unorm_sRGB,
+            "engine://shaders/metal/textured_quad_instanced.vert.metallib",
+            "engine://shaders/metal/textured_quad.frag.metallib",
+            "instanced textured quad",
+            true);
+        _instanced_text_quad_pipeline = std::make_unique<metal_textured_quad_pipeline_t>(
+            *_device,
+            *desc.shader_files,
+            MTL::PixelFormatBGRA8Unorm_sRGB,
+            "engine://shaders/metal/text_quad_instanced.vert.metallib",
+            "engine://shaders/metal/text_quad.frag.metallib",
+            "instanced text quad",
+            true);
+        _instanced_battle_swirl_pipeline = std::make_unique<metal_textured_quad_pipeline_t>(
+            *_device,
+            *desc.shader_files,
+            MTL::PixelFormatBGRA8Unorm_sRGB,
+            "engine://shaders/metal/textured_quad_instanced.vert.metallib",
+            "engine://shaders/metal/battle_swirl_transition.frag.metallib",
+            "instanced battle swirl quad",
+            true);
+        _instanced_bloom_blur_pipeline = std::make_unique<metal_textured_quad_pipeline_t>(
+            *_device,
+            *desc.shader_files,
+            MTL::PixelFormatBGRA8Unorm_sRGB,
+            "engine://shaders/metal/textured_quad_instanced.vert.metallib",
+            "engine://shaders/metal/bloom_blur.frag.metallib",
+            "instanced bloom blur quad",
+            true);
+        _instanced_bloom_composite_pipeline = std::make_unique<metal_textured_quad_pipeline_t>(
+            *_device,
+            *desc.shader_files,
+            MTL::PixelFormatBGRA8Unorm_sRGB,
+            "engine://shaders/metal/textured_quad_instanced.vert.metallib",
+            "engine://shaders/metal/bloom_composite.frag.metallib",
+            "instanced bloom composite quad",
+            true,
+            metal_textured_quad_pipeline_t::blend_mode_t::additive);
 
         if (!_textured_quad_pipeline || !_textured_quad_pipeline->is_valid())
         {
@@ -178,6 +233,15 @@ namespace carrot::rhi::metal {
         if (!_text_quad_pipeline || !_text_quad_pipeline->is_valid())
         {
             LOG_GRAPHICS_FATAL("Failed to create Metal text quad pipeline");
+            return;
+        }
+        if (!_instanced_textured_quad_pipeline || !_instanced_textured_quad_pipeline->is_valid() ||
+            !_instanced_text_quad_pipeline || !_instanced_text_quad_pipeline->is_valid() ||
+            !_instanced_battle_swirl_pipeline || !_instanced_battle_swirl_pipeline->is_valid() ||
+            !_instanced_bloom_blur_pipeline || !_instanced_bloom_blur_pipeline->is_valid() ||
+            !_instanced_bloom_composite_pipeline || !_instanced_bloom_composite_pipeline->is_valid())
+        {
+            LOG_GRAPHICS_FATAL("Failed to create Metal M27 instanced quad pipelines");
             return;
         }
 
@@ -247,8 +311,7 @@ namespace carrot::rhi::metal {
             return;
 
         dispatch_semaphore_wait(_frame_semaphore, DISPATCH_TIME_FOREVER);
-        _recorded_stages.clear();
-        _recorded_indirect_stages.clear();
+        _recorded_quad_stages.clear();
         _transient_compute_buffers.clear();
 
         _swapchain->acquire_next_image(nullptr);
@@ -292,18 +355,48 @@ namespace carrot::rhi::metal {
         if (!is_frame_active())
             return;
 
-        const uint32_t stage_slot{ static_cast<uint32_t>(_recorded_stages.size() + _recorded_indirect_stages.size()) };
-        _recorded_stages.push_back({
-            .stage = stage,
+        const uint32_t stage_slot{ static_cast<uint32_t>(_recorded_quad_stages.size()) };
+        quad_pipeline_kind_t pipeline_kind{ quad_pipeline_kind_t::textured };
+        switch (stage.shader_variant)
+        {
+            case quad_shader_variant_t::battle_swirl:
+                pipeline_kind = quad_pipeline_kind_t::battle_swirl;
+                break;
+            case quad_shader_variant_t::bloom_blur:
+                pipeline_kind = quad_pipeline_kind_t::bloom_blur;
+                break;
+            case quad_shader_variant_t::bloom_composite:
+                pipeline_kind = quad_pipeline_kind_t::bloom_composite;
+                break;
+            case quad_shader_variant_t::standard:
+            default:
+                pipeline_kind = quad_pipeline_kind_t::textured;
+                break;
+        }
+        _recorded_quad_stages.push_back({
+            .kind = recorded_quad_stage_kind_t::direct,
             .stage_slot = stage_slot,
-            .pipeline_kind = quad_pipeline_kind_t::textured
+            .direct_stage = stage,
+            .indirect_stage = { },
+            .owned_direct_batches = std::vector<renderer::textured_quad_batch_t>(stage.batches.begin(), stage.batches.end()),
+            .pipeline_kind = pipeline_kind
         });
-        if (_recorded_stages.back().stage_slot >= k_max_textured_quad_stage_slots_per_frame)
+        recorded_quad_stage_t& recorded_stage{ _recorded_quad_stages.back() };
+        recorded_stage.direct_stage.batches = recorded_stage.owned_direct_batches;
+        if (recorded_stage.stage_slot >= k_max_textured_quad_stage_slots_per_frame)
         {
             LOG_GRAPHICS_FATAL("Metal textured quad stage slot {} exceeds max supported stage slots {}",
-                               _recorded_stages.back().stage_slot,
+                               recorded_stage.stage_slot,
                                k_max_textured_quad_stage_slots_per_frame);
-            _recorded_stages.pop_back();
+            _recorded_quad_stages.pop_back();
+            return;
+        }
+
+        if (stage.render_target != nullptr)
+        {
+            encode_offscreen_textured_quad_stage(stage,
+                                                 recorded_stage.stage_slot,
+                                                 pipeline_kind);
             return;
         }
 
@@ -318,8 +411,8 @@ namespace carrot::rhi::metal {
             {
                 encode_capture_textured_quad_stage(stage,
                                                   { _swapchain->get_width(), _swapchain->get_height() },
-                                                  _recorded_stages.back().stage_slot,
-                                                  quad_pipeline_kind_t::textured,
+                                                  recorded_stage.stage_slot,
+                                                  pipeline_kind,
                                                   _active_drawable);
             }
             else
@@ -327,8 +420,8 @@ namespace carrot::rhi::metal {
                 encode_quad_stage(encoder,
                                   stage,
                                   { _swapchain->get_width(), _swapchain->get_height() },
-                                  _recorded_stages.back().stage_slot,
-                                  quad_pipeline_kind_t::textured);
+                                  recorded_stage.stage_slot,
+                                  pipeline_kind);
             }
         }
     }
@@ -338,18 +431,31 @@ namespace carrot::rhi::metal {
         if (!is_frame_active())
             return;
 
-        const uint32_t stage_slot{ static_cast<uint32_t>(_recorded_stages.size() + _recorded_indirect_stages.size()) };
-        _recorded_stages.push_back({
-            .stage = stage,
+        const uint32_t stage_slot{ static_cast<uint32_t>(_recorded_quad_stages.size()) };
+        _recorded_quad_stages.push_back({
+            .kind = recorded_quad_stage_kind_t::direct,
             .stage_slot = stage_slot,
+            .direct_stage = stage,
+            .indirect_stage = { },
+            .owned_direct_batches = std::vector<renderer::textured_quad_batch_t>(stage.batches.begin(), stage.batches.end()),
             .pipeline_kind = quad_pipeline_kind_t::text
         });
-        if (_recorded_stages.back().stage_slot >= k_max_textured_quad_stage_slots_per_frame)
+        recorded_quad_stage_t& recorded_stage{ _recorded_quad_stages.back() };
+        recorded_stage.direct_stage.batches = recorded_stage.owned_direct_batches;
+        if (recorded_stage.stage_slot >= k_max_textured_quad_stage_slots_per_frame)
         {
             LOG_GRAPHICS_FATAL("Metal textured quad stage slot {} exceeds max supported stage slots {}",
-                               _recorded_stages.back().stage_slot,
+                               recorded_stage.stage_slot,
                                k_max_textured_quad_stage_slots_per_frame);
-            _recorded_stages.pop_back();
+            _recorded_quad_stages.pop_back();
+            return;
+        }
+
+        if (stage.render_target != nullptr)
+        {
+            encode_offscreen_textured_quad_stage(stage,
+                                                 recorded_stage.stage_slot,
+                                                 quad_pipeline_kind_t::text);
             return;
         }
 
@@ -363,7 +469,7 @@ namespace carrot::rhi::metal {
             encode_quad_stage(encoder,
                               stage,
                               { _swapchain->get_width(), _swapchain->get_height() },
-                              _recorded_stages.back().stage_slot,
+                              recorded_stage.stage_slot,
                               quad_pipeline_kind_t::text);
         }
     }
@@ -373,7 +479,7 @@ namespace carrot::rhi::metal {
         if (!is_frame_active())
             return;
 
-        const uint32_t stage_slot{ static_cast<uint32_t>(_recorded_stages.size() + _recorded_indirect_stages.size()) };
+        const uint32_t stage_slot{ static_cast<uint32_t>(_recorded_quad_stages.size()) };
         if (stage_slot >= k_max_textured_quad_stage_slots_per_frame)
         {
             LOG_GRAPHICS_FATAL("Metal textured quad stage slot {} exceeds max supported stage slots {}",
@@ -382,9 +488,12 @@ namespace carrot::rhi::metal {
             return;
         }
 
-        _recorded_indirect_stages.push_back({
-            .stage = stage,
-            .stage_slot = stage_slot
+        _recorded_quad_stages.push_back({
+            .kind = recorded_quad_stage_kind_t::indirect,
+            .stage_slot = stage_slot,
+            .direct_stage = { },
+            .indirect_stage = stage,
+            .pipeline_kind = quad_pipeline_kind_t::textured
         });
 
         begin_main_render_encoder_if_needed();
@@ -418,23 +527,15 @@ namespace carrot::rhi::metal {
             auxiliary_encoder.begin(_active_command_buffer, surface.drawable, MTL::ClearColor(0.02, 0.02, 0.04, 1.0));
             if (MTL::RenderCommandEncoder* encoder{ auxiliary_encoder.encoder() })
             {
-                std::size_t direct_stage_index{ 0u };
-                std::size_t indirect_stage_index{ 0u };
-                while (direct_stage_index < _recorded_stages.size() || indirect_stage_index < _recorded_indirect_stages.size())
+                for (const recorded_quad_stage_t& recorded_stage : _recorded_quad_stages)
                 {
-                    const bool use_direct_stage{
-                        indirect_stage_index >= _recorded_indirect_stages.size() ||
-                        (direct_stage_index < _recorded_stages.size() &&
-                         _recorded_stages[direct_stage_index].stage_slot <
-                             _recorded_indirect_stages[indirect_stage_index].stage_slot)
-                    };
-
-                    if (use_direct_stage)
+                    if (recorded_stage.kind == recorded_quad_stage_kind_t::direct)
                     {
-                        const recorded_stage_t& recorded_stage{ _recorded_stages[direct_stage_index++] };
-                        const textured_quad_stage_record_t& stage{ recorded_stage.stage };
+                        const textured_quad_stage_record_t& stage{ recorded_stage.direct_stage };
                         const std::uint32_t auxiliary_stage_slot{ recorded_stage.stage_slot + k_auxiliary_stage_slot_offset };
                         if (!presentation_mask_includes(stage.presentation_mask, surface.presentation_channel_mask))
+                            continue;
+                        if (stage.render_target != nullptr)
                             continue;
                         if (stage.capture_presentation_before_draw)
                         {
@@ -507,8 +608,7 @@ namespace carrot::rhi::metal {
                     }
                     else
                     {
-                        const recorded_indirect_stage_t& recorded_stage{ _recorded_indirect_stages[indirect_stage_index++] };
-                        const indirect_textured_quad_stage_record_t& stage{ recorded_stage.stage };
+                        const indirect_textured_quad_stage_record_t& stage{ recorded_stage.indirect_stage };
                         const std::uint32_t auxiliary_stage_slot{ recorded_stage.stage_slot + k_auxiliary_stage_slot_offset };
                         if (!presentation_mask_includes(stage.presentation_mask, surface.presentation_channel_mask))
                             continue;
@@ -646,6 +746,58 @@ namespace carrot::rhi::metal {
         return result;
     }
 
+    std::unique_ptr<rhi_render_target_t> metal_rhi_context_t::create_render_target_2d(
+        const render_target_create_info_t& info)
+    {
+        if (!_device || !_device->mtl_device())
+            return nullptr;
+
+        if (info.width == 0 || info.height == 0)
+        {
+            LOG_GRAPHICS_ERROR("Metal create_render_target_2d called with invalid size {}x{}",
+                               info.width,
+                               info.height);
+            return nullptr;
+        }
+
+        MTL::TextureDescriptor* desc{ MTL::TextureDescriptor::alloc()->init() };
+        if (!desc)
+        {
+            LOG_GRAPHICS_ERROR("Failed to allocate Metal render target texture descriptor");
+            return nullptr;
+        }
+
+        desc->setTextureType(MTL::TextureType2D);
+        desc->setWidth(info.width);
+        desc->setHeight(info.height);
+        desc->setDepth(1);
+        desc->setArrayLength(1);
+        desc->setMipmapLevelCount(1);
+        desc->setSampleCount(1);
+        desc->setPixelFormat(to_metal_color_attachment_pixel_format(info.format));
+        desc->setStorageMode(MTL::StorageModePrivate);
+        desc->setUsage(static_cast<MTL::TextureUsage>(
+            MTL::TextureUsageRenderTarget |
+            (info.shader_readable ? MTL::TextureUsageShaderRead : 0)
+        ));
+
+        MTL::Texture* texture{ _device->mtl_device()->newTexture(desc) };
+        desc->release();
+
+        if (!texture)
+        {
+            LOG_GRAPHICS_ERROR("Failed to create Metal render target texture {}x{}", info.width, info.height);
+            return nullptr;
+        }
+
+        auto render_target{ std::make_unique<metal_render_target_t>() };
+        render_target->set_color_texture(std::make_unique<metal_texture_t>(texture,
+                                                                           info.width,
+                                                                           info.height,
+                                                                           info.format));
+        return render_target;
+    }
+
     std::unique_ptr<rhi_buffer_t> metal_rhi_context_t::create_buffer(const buffer_create_info_t& info)
     {
         if (!_device || !_device->mtl_device())
@@ -767,7 +919,7 @@ namespace carrot::rhi::metal {
             return;
         }
 
-        if (!_recorded_stages.empty() || _render_encoder.encoder())
+        if (!_recorded_quad_stages.empty() || _render_encoder.encoder())
         {
             LOG_GRAPHICS_ERROR("Metal compute dispatch currently must happen before graphics stage recording");
             return;
@@ -1018,16 +1170,44 @@ namespace carrot::rhi::metal {
                                                 const uint32_t stage_slot,
                                                 const quad_pipeline_kind_t pipeline_kind)
     {
-        metal_textured_quad_pipeline_t* pipeline{
-            pipeline_kind == quad_pipeline_kind_t::text ? _text_quad_pipeline.get() : _textured_quad_pipeline.get()
+        const bool uses_instancing{
+            stage.instance_buffer != nullptr && stage.instance_count > 0u
         };
+        metal_textured_quad_pipeline_t* pipeline{ nullptr };
+        if (uses_instancing)
+        {
+            switch (pipeline_kind)
+            {
+                case quad_pipeline_kind_t::text:
+                    pipeline = _instanced_text_quad_pipeline.get();
+                    break;
+                case quad_pipeline_kind_t::battle_swirl:
+                    pipeline = _instanced_battle_swirl_pipeline.get();
+                    break;
+                case quad_pipeline_kind_t::bloom_blur:
+                    pipeline = _instanced_bloom_blur_pipeline.get();
+                    break;
+                case quad_pipeline_kind_t::bloom_composite:
+                    pipeline = _instanced_bloom_composite_pipeline.get();
+                    break;
+                case quad_pipeline_kind_t::textured:
+                default:
+                    pipeline = _instanced_textured_quad_pipeline.get();
+                    break;
+            }
+        }
+        else
+        {
+            pipeline = pipeline_kind == quad_pipeline_kind_t::text ? _text_quad_pipeline.get() : _textured_quad_pipeline.get();
+        }
 
         if (!encoder || !pipeline || !pipeline->is_valid())
             return;
 
         const metal_buffer_t* vertex_buffer{ dynamic_cast<const metal_buffer_t*>(stage.vertex_buffer) };
         const metal_buffer_t* index_buffer{ dynamic_cast<const metal_buffer_t*>(stage.index_buffer) };
-        if (!vertex_buffer || !index_buffer || stage.batches.empty())
+        const metal_buffer_t* instance_buffer{ dynamic_cast<const metal_buffer_t*>(stage.instance_buffer) };
+        if (!vertex_buffer || !index_buffer || stage.batches.empty() || (uses_instancing && !instance_buffer))
             return;
 
         if (stage_slot >= k_max_textured_quad_stage_slots_per_frame)
@@ -1063,6 +1243,8 @@ namespace carrot::rhi::metal {
 
         encoder->setRenderPipelineState(pipeline->state());
         encoder->setVertexBuffer(vertex_buffer->mtl_buffer(), 0, 0);
+        if (uses_instancing)
+            encoder->setVertexBuffer(instance_buffer->mtl_buffer(), 0, 1);
 
         const renderer::world_forward_plus_uniform_t world_uniform{
             renderer::pack_world_forward_plus_uniform(stage.view_projection,
@@ -1143,9 +1325,72 @@ namespace carrot::rhi::metal {
 
             encoder->useResource(texture->mtl_texture(), MTL::ResourceUsageRead, MTL::RenderStageFragment);
 
-            encoder->drawIndexedPrimitives(MTL::PrimitiveTypeTriangle, batch.index_count, MTL::IndexTypeUInt32,
-                                           index_buffer->mtl_buffer(),
-                                           batch.first_index * sizeof(uint32_t));
+            if (uses_instancing)
+            {
+                encoder->setVertexBuffer(instance_buffer->mtl_buffer(),
+                                         static_cast<NS::UInteger>(batch.first_instance * sizeof(renderer::gpu_quad_instance_t)),
+                                         1);
+                encoder->drawIndexedPrimitives(MTL::PrimitiveTypeTriangle,
+                                               batch.index_count,
+                                               MTL::IndexTypeUInt32,
+                                               index_buffer->mtl_buffer(),
+                                               static_cast<NS::UInteger>(batch.first_index * sizeof(uint32_t)),
+                                               batch.instance_count);
+            }
+            else
+            {
+                encoder->drawIndexedPrimitives(MTL::PrimitiveTypeTriangle, batch.index_count, MTL::IndexTypeUInt32,
+                                               index_buffer->mtl_buffer(),
+                                               batch.first_index * sizeof(uint32_t));
+            }
+        }
+    }
+
+    void metal_rhi_context_t::encode_offscreen_textured_quad_stage(const textured_quad_stage_record_t& stage,
+                                                                   const uint32_t stage_slot,
+                                                                   const quad_pipeline_kind_t pipeline_kind)
+    {
+        const auto* render_target{ dynamic_cast<const metal_render_target_t*>(stage.render_target) };
+        auto* color_texture{ render_target ? render_target->metal_color_texture() : nullptr };
+        if (!_active_command_buffer || !color_texture || !color_texture->mtl_texture())
+        {
+            LOG_GRAPHICS_FATAL("Metal offscreen quad stage requires a Metal render target");
+            return;
+        }
+
+        const bool resume_main_encoder{ _render_encoder.encoder() != nullptr };
+        if (resume_main_encoder)
+            _render_encoder.end();
+
+        metal_render_encoder_t offscreen_encoder;
+        const MTL::LoadAction load_action{
+            stage.target_load_action == quad_stage_common_t::target_load_action_t::load
+                ? MTL::LoadActionLoad
+                : MTL::LoadActionClear
+        };
+        offscreen_encoder.begin_with_load_action(_active_command_buffer,
+                                                 color_texture->mtl_texture(),
+                                                 load_action,
+                                                 MTL::ClearColor(stage.target_clear_color.x,
+                                                                 stage.target_clear_color.y,
+                                                                 stage.target_clear_color.z,
+                                                                 stage.target_clear_color.w));
+        if (MTL::RenderCommandEncoder* encoder{ offscreen_encoder.encoder() })
+        {
+            encode_quad_stage(encoder,
+                              stage,
+                              { color_texture->width(), color_texture->height() },
+                              stage_slot,
+                              pipeline_kind);
+        }
+        offscreen_encoder.end();
+
+        if (resume_main_encoder)
+        {
+            _render_encoder.begin_with_load_action(_active_command_buffer,
+                                                   _active_drawable,
+                                                   MTL::LoadActionLoad,
+                                                   MTL::ClearColor(0.02, 0.02, 0.04, 1.0));
         }
     }
 

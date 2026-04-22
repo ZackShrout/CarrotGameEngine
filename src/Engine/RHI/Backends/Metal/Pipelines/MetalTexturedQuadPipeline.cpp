@@ -9,6 +9,7 @@
 
 #include "Assets/Shaders/VFSShaderFileProvider.h"
 #include "RHI/Backends/Metal/MetalDevice.h"
+#include "Renderer/Draw/QuadInstanceData.h"
 #include "Renderer/Primitives/QuadVertex.h"
 #include "Utils/File/FileUtils.h"
 
@@ -21,6 +22,18 @@ namespace carrot::rhi::metal {
                 if (p) p->release();
             });
         }
+
+        void configure_attribute(MTL::VertexDescriptor* desc,
+                                 const NS::UInteger attribute_index,
+                                 const MTL::VertexFormat format,
+                                 const NS::UInteger offset,
+                                 const NS::UInteger buffer_index)
+        {
+            MTL::VertexAttributeDescriptor* attribute{ desc->attributes()->object(attribute_index) };
+            attribute->setFormat(format);
+            attribute->setOffset(offset);
+            attribute->setBufferIndex(buffer_index);
+        }
     } // anonymous namespace
 
     // PUBLIC
@@ -30,7 +43,9 @@ namespace carrot::rhi::metal {
                                                                    const MTL::PixelFormat color_format,
                                                                    const std::string_view vertex_shader_path,
                                                                    const std::string_view fragment_shader_path,
-                                                                   const std::string_view debug_name)
+                                                                   const std::string_view debug_name,
+                                                                   const bool instanced,
+                                                                   const blend_mode_t blend_mode)
     {
         MTL::Device* mtl_device{ device.mtl_device() };
         if (!mtl_device)
@@ -39,7 +54,7 @@ namespace carrot::rhi::metal {
             return;
         }
 
-        _vertex_descriptor = make_mtl_shared(create_vertex_descriptor());
+        _vertex_descriptor = make_mtl_shared(create_vertex_descriptor(instanced));
         if (!_vertex_descriptor)
         {
             LOG_GRAPHICS_FATAL("Failed to create vertex descriptor");
@@ -86,12 +101,24 @@ namespace carrot::rhi::metal {
         color->setPixelFormat(color_format);
 
         color->setBlendingEnabled(true);
-        color->setSourceRGBBlendFactor(MTL::BlendFactorSourceAlpha);
-        color->setDestinationRGBBlendFactor(MTL::BlendFactorOneMinusSourceAlpha);
-        color->setRgbBlendOperation(MTL::BlendOperationAdd);
-        color->setSourceAlphaBlendFactor(MTL::BlendFactorOne);
-        color->setDestinationAlphaBlendFactor(MTL::BlendFactorOneMinusSourceAlpha);
-        color->setAlphaBlendOperation(MTL::BlendOperationAdd);
+        if (blend_mode == blend_mode_t::additive)
+        {
+            color->setSourceRGBBlendFactor(MTL::BlendFactorOne);
+            color->setDestinationRGBBlendFactor(MTL::BlendFactorOne);
+            color->setRgbBlendOperation(MTL::BlendOperationAdd);
+            color->setSourceAlphaBlendFactor(MTL::BlendFactorOne);
+            color->setDestinationAlphaBlendFactor(MTL::BlendFactorOne);
+            color->setAlphaBlendOperation(MTL::BlendOperationAdd);
+        }
+        else
+        {
+            color->setSourceRGBBlendFactor(MTL::BlendFactorSourceAlpha);
+            color->setDestinationRGBBlendFactor(MTL::BlendFactorOneMinusSourceAlpha);
+            color->setRgbBlendOperation(MTL::BlendOperationAdd);
+            color->setSourceAlphaBlendFactor(MTL::BlendFactorOne);
+            color->setDestinationAlphaBlendFactor(MTL::BlendFactorOneMinusSourceAlpha);
+            color->setAlphaBlendOperation(MTL::BlendOperationAdd);
+        }
 
         NS::Error* error{ nullptr };
         MTL::RenderPipelineState* state{ mtl_device->newRenderPipelineState(desc, &error) };
@@ -112,43 +139,105 @@ namespace carrot::rhi::metal {
 
     // PRIVATE
 
-    MTL::VertexDescriptor* metal_textured_quad_pipeline_t::create_vertex_descriptor()
+    MTL::VertexDescriptor* metal_textured_quad_pipeline_t::create_vertex_descriptor(const bool instanced)
     {
         MTL::VertexDescriptor* desc{ MTL::VertexDescriptor::alloc()->init() };
         if (!desc)
             return nullptr;
 
-        constexpr NS::UInteger stride{ sizeof(renderer::quad_vertex_t) };
+        MTL::VertexBufferLayoutDescriptor* vertex_layout{ desc->layouts()->object(0) };
+        vertex_layout->setStride(sizeof(renderer::quad_vertex_t));
+        vertex_layout->setStepFunction(MTL::VertexStepFunctionPerVertex);
+        vertex_layout->setStepRate(1);
 
-        MTL::VertexBufferLayoutDescriptor* layout{ desc->layouts()->object(0) };
-        layout->setStride(stride);
-        layout->setStepFunction(MTL::VertexStepFunctionPerVertex);
-        layout->setStepRate(1);
+        if (instanced)
+        {
+            MTL::VertexBufferLayoutDescriptor* instance_layout{ desc->layouts()->object(1) };
+            instance_layout->setStride(sizeof(renderer::gpu_quad_instance_t));
+            instance_layout->setStepFunction(MTL::VertexStepFunctionPerInstance);
+            instance_layout->setStepRate(1);
 
-        MTL::VertexAttributeDescriptor* pos{ desc->attributes()->object(11) };
-        pos->setFormat(MTL::VertexFormatFloat2);
-        pos->setOffset(offsetof(renderer::quad_vertex_t, x));
-        pos->setBufferIndex(0);
-
-        MTL::VertexAttributeDescriptor* uv{ desc->attributes()->object(12) };
-        uv->setFormat(MTL::VertexFormatFloat2);
-        uv->setOffset(offsetof(renderer::quad_vertex_t, u));
-        uv->setBufferIndex(0);
-
-        MTL::VertexAttributeDescriptor* col{ desc->attributes()->object(13) };
-        col->setFormat(MTL::VertexFormatUChar4Normalized);
-        col->setOffset(offsetof(renderer::quad_vertex_t, color));
-        col->setBufferIndex(0);
-
-        MTL::VertexAttributeDescriptor* effect_mode{ desc->attributes()->object(14) };
-        effect_mode->setFormat(MTL::VertexFormatFloat);
-        effect_mode->setOffset(offsetof(renderer::quad_vertex_t, effect_mode));
-        effect_mode->setBufferIndex(0);
-
-        MTL::VertexAttributeDescriptor* effect_param0{ desc->attributes()->object(15) };
-        effect_param0->setFormat(MTL::VertexFormatFloat);
-        effect_param0->setOffset(offsetof(renderer::quad_vertex_t, effect_param0));
-        effect_param0->setBufferIndex(0);
+            // Metal shaderconverter metadata reports raw input indices 0..5, but the
+            // compiled pipeline validation still refers to the semantic-driven slots
+            // used by the older working path (11..16). Advertise both mappings so the
+            // compiled library can bind whichever convention it emitted.
+            for (const NS::UInteger position_slot : { NS::UInteger(0), NS::UInteger(11) })
+            {
+                configure_attribute(desc,
+                                    position_slot,
+                                    MTL::VertexFormatFloat2,
+                                    offsetof(renderer::quad_vertex_t, x),
+                                    0);
+            }
+            for (const NS::UInteger uv_slot : { NS::UInteger(1), NS::UInteger(12) })
+            {
+                configure_attribute(desc,
+                                    uv_slot,
+                                    MTL::VertexFormatFloat2,
+                                    offsetof(renderer::quad_vertex_t, u),
+                                    0);
+            }
+            for (const NS::UInteger quad_rect_slot : { NS::UInteger(2), NS::UInteger(13) })
+            {
+                configure_attribute(desc,
+                                    quad_rect_slot,
+                                    MTL::VertexFormatFloat4,
+                                    offsetof(renderer::gpu_quad_instance_t, quad_rect_px),
+                                    1);
+            }
+            for (const NS::UInteger uv_rect_slot : { NS::UInteger(3), NS::UInteger(14) })
+            {
+                configure_attribute(desc,
+                                    uv_rect_slot,
+                                    MTL::VertexFormatFloat4,
+                                    offsetof(renderer::gpu_quad_instance_t, uv_rect),
+                                    1);
+            }
+            for (const NS::UInteger color_slot : { NS::UInteger(4), NS::UInteger(15) })
+            {
+                configure_attribute(desc,
+                                    color_slot,
+                                    MTL::VertexFormatFloat4,
+                                    offsetof(renderer::gpu_quad_instance_t, color),
+                                    1);
+            }
+            for (const NS::UInteger draw_params_slot : { NS::UInteger(5), NS::UInteger(16) })
+            {
+                configure_attribute(desc,
+                                    draw_params_slot,
+                                    MTL::VertexFormatFloat4,
+                                    offsetof(renderer::gpu_quad_instance_t, draw_params),
+                                    1);
+            }
+        }
+        else
+        {
+            configure_attribute(desc,
+                                11,
+                                MTL::VertexFormatFloat2,
+                                offsetof(renderer::quad_vertex_t, x),
+                                0);
+            configure_attribute(desc,
+                                12,
+                                MTL::VertexFormatFloat2,
+                                offsetof(renderer::quad_vertex_t, u),
+                                0);
+            configure_attribute(desc,
+                                13,
+                                MTL::VertexFormatUChar4Normalized,
+                                offsetof(renderer::quad_vertex_t, color),
+                                0);
+            configure_attribute(desc,
+                                14,
+                                MTL::VertexFormatFloat,
+                                offsetof(renderer::quad_vertex_t, effect_mode),
+                                0);
+            configure_attribute(desc,
+                                15,
+                                MTL::VertexFormatFloat,
+                                offsetof(renderer::quad_vertex_t, effect_param0),
+                                0);
+        }
 
         return desc;
     }

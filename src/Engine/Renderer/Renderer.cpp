@@ -68,6 +68,114 @@ namespace carrot::renderer {
             return false;
         }
 
+        [[nodiscard]] textured_quad_draw_info_t quad_sort_draw_info(const quad_instance_t& quad) noexcept
+        {
+            textured_quad_draw_info_t sort_info{ };
+            sort_info.layer = quad.layer;
+            sort_info.order_mode = quad.order_mode;
+            sort_info.order_in_layer = quad.order_in_layer;
+            sort_info.sort_reference_y = quad.sort_reference_y;
+            return sort_info;
+        }
+
+        [[nodiscard]] bool quad_instance_sorts_before(const quad_instance_t& lhs, const quad_instance_t& rhs) noexcept
+        {
+            const textured_quad_draw_info_t lhs_quad{ quad_sort_draw_info(lhs) };
+            const textured_quad_draw_info_t rhs_quad{ quad_sort_draw_info(rhs) };
+
+            if (quad_sorts_before(lhs_quad, rhs_quad))
+                return true;
+
+            if (quad_sorts_before(rhs_quad, lhs_quad))
+                return false;
+
+            return lhs.submission_index < rhs.submission_index;
+        }
+
+        [[nodiscard]] quad_bucket_key_t quad_bucket_key(const quad_instance_t& quad) noexcept
+        {
+            return quad_bucket_key_t{
+                .stage = quad.stage,
+                .target_id = quad.target_id,
+                .content_kind = quad.content_kind,
+                .texture = quad.texture,
+                .sampler_preset = quad.sampler_preset,
+                .world_material = quad.world_material
+            };
+        }
+
+        [[nodiscard]] quad_target_id_t quad_target_for_composite_target(const composite_target_kind_t target_kind) noexcept
+        {
+            return quad_target_id_t{
+                .target = static_cast<std::uint16_t>(target_kind),
+                .pass = 0u
+            };
+        }
+
+        [[nodiscard]] chlm::float4 unpack_abgr_color_to_float4(const std::uint32_t packed_color) noexcept
+        {
+            return {
+                static_cast<float>((packed_color >> 0u) & 0xFFu) / 255.0f,
+                static_cast<float>((packed_color >> 8u) & 0xFFu) / 255.0f,
+                static_cast<float>((packed_color >> 16u) & 0xFFu) / 255.0f,
+                static_cast<float>((packed_color >> 24u) & 0xFFu) / 255.0f
+            };
+        }
+
+        [[nodiscard]] std::optional<textured_quad_draw_info_t> sprite_draw_info_to_quad(
+            const sprite_draw_info_t& info) noexcept
+        {
+            if (!info.sprite || !info.frame)
+                return std::nullopt;
+
+            const assets::loaded_texture_asset_t* texture_asset{ info.sprite->texture() };
+            if (!texture_asset || !texture_asset->texture)
+                return std::nullopt;
+
+            const float texture_width{ static_cast<float>(texture_asset->texture->width()) };
+            const float texture_height{ static_cast<float>(texture_asset->texture->height()) };
+            if (texture_width <= 0.f || texture_height <= 0.f)
+                return std::nullopt;
+
+            const chlm::uint_rect& rect{ info.frame->pixel_rect };
+            const float u0{ static_cast<float>(rect.position.x) / texture_width };
+            const float v0{ static_cast<float>(rect.position.y) / texture_height };
+            const float u1{ static_cast<float>(rect.position.x + rect.size.x) / texture_width };
+            const float v1{ static_cast<float>(rect.position.y + rect.size.y) / texture_height };
+            const chlm::float2 pivot{ info.use_custom_pivot ? info.pivot : info.frame->pivot };
+
+            textured_quad_draw_info_t quad{ };
+            quad.texture = texture_asset->texture.get();
+            quad.x = info.x - (pivot.x * info.width);
+            quad.y = info.y - (pivot.y * info.height);
+            quad.width = info.width;
+            quad.height = info.height;
+            quad.u0 = info.flip_x ? u1 : u0;
+            quad.v0 = info.flip_y ? v1 : v0;
+            quad.u1 = info.flip_x ? u0 : u1;
+            quad.v1 = info.flip_y ? v0 : v1;
+            quad.layer = info.layer;
+            quad.order_mode = info.order_mode;
+            quad.order_in_layer = info.order_in_layer;
+            quad.sort_reference_y = info.order_mode == render_order_mode_t::anchor_bottom_y
+                                        ? (quad.y + quad.height)
+                                        : info.sort_reference_y;
+            quad.color = info.color;
+            quad.sampler_preset = info.sampler_preset;
+            return quad;
+        }
+
+        [[nodiscard]] bool aabb_overlaps_aabb(const chlm::float2 a_min,
+                                              const chlm::float2 a_max,
+                                              const chlm::float2 b_min,
+                                              const chlm::float2 b_max) noexcept
+        {
+            return a_max.x >= b_min.x &&
+                   a_max.y >= b_min.y &&
+                   a_min.x <= b_max.x &&
+                   a_min.y <= b_max.y;
+        }
+
         [[nodiscard]] const world::world_object_t* resolve_primary_visibility_anchor(const world::world_t& world) noexcept
         {
             for (const world::world_object_t& object : world.objects())
@@ -188,7 +296,7 @@ namespace carrot::renderer {
         }
 
         ensure_forward_plus_gpu_buffers();
-        ensure_world_indirect_quad_buffers();
+        ensure_shared_quad_geometry_buffers();
 
         const std::string_view forward_plus_shader_path{
             _rhi->get_graphics_api() == rhi::graphics_api::vulkan
@@ -207,27 +315,6 @@ namespace carrot::renderer {
                 .shader_path = forward_plus_shader_path,
                 .debug_name = "forward plus classify",
                 .threadgroup_size_x = 64u,
-                .max_constant_size_bytes = 0u
-            });
-        }
-
-        const std::string_view world_item_cull_shader_path{
-            _rhi->get_graphics_api() == rhi::graphics_api::vulkan
-                ? "engine://shaders/vulkan/world_item_cull.comp.spv"
-                : (_rhi->get_graphics_api() == rhi::graphics_api::metal
-                       ? "engine://shaders/metal/world_item_cull.comp.metallib"
-                       : (_rhi->get_graphics_api() == rhi::graphics_api::direct_x12
-                              ? "engine://shaders/dx12/world_item_cull.comp.dxil"
-                              : (_rhi->get_graphics_api() == rhi::graphics_api::null_backend
-                                     ? "null://world_item_cull.comp"
-                                     : "")))
-        };
-        if (!world_item_cull_shader_path.empty())
-        {
-            _world_item_cull_pipeline = _rhi->create_compute_pipeline({
-                .shader_path = world_item_cull_shader_path,
-                .debug_name = "world item cull",
-                .threadgroup_size_x = 1u,
                 .max_constant_size_bytes = 0u
             });
         }
@@ -251,10 +338,9 @@ namespace carrot::renderer {
         release_frame_resources();
 
         _solid_white_texture.reset();
-        _world_indirect_quad_vertex_buffer.reset();
-        _world_indirect_quad_index_buffer.reset();
+        _shared_quad_vertex_buffer.reset();
+        _shared_quad_index_buffer.reset();
         _forward_plus_classify_pipeline.reset();
-        _world_item_cull_pipeline.reset();
         _shader_provider.reset();
         _rhi.reset();
 
@@ -276,13 +362,19 @@ namespace carrot::renderer {
         _stats = { };
         _transition_fade_enabled = false;
         _transition_fade_color = 0x00000000u;
+        _transition_wipe = { };
         _transition_battle_swirl = { };
         _composite_overlay_enabled = false;
         _composite_overlay_color = 0x00000000u;
-        _composite_fullscreen_passes.clear();
+        _bloom_source_passes.clear();
+        _post_effect_passes.clear();
+        _transition_passes.clear();
+        _bloom_source_quads.instances.clear();
+        _bloom_blur_horizontal_quads.instances.clear();
+        _bloom_blur_vertical_quads.instances.clear();
+        _bloom_composite_quads.instances.clear();
         _world_ambient_color = { 1.f, 1.f, 1.f, 1.f };
-        _world_render_items.items.clear();
-        _world_indirect_batches.clear();
+        _world_quad_instances.instances.clear();
         _world_forward_plus_light_input = { };
         _world_forward_plus_constants = { };
         _world_forward_plus_output = { };
@@ -294,7 +386,10 @@ namespace carrot::renderer {
     void renderer_t::end_frame()
     {
         queue_bloom_if_needed();
+        compose_bloom_sources();
         queue_transition_fade_if_needed();
+        queue_transition_wipe_if_needed();
+        queue_transition_battle_swirl_if_needed();
         queue_composite_overlay_if_needed();
         execute_frame_stages();
         _last_completed_stats = _stats;
@@ -344,6 +439,13 @@ namespace carrot::renderer {
         submit_non_world_textured_quad(non_world_stage_target_t::log_console, quad);
     }
 
+    void renderer_t::draw_bloom_textured_quad(const textured_quad_draw_info_t& quad)
+    {
+        queue_bloom_source_textured_pass(composite_target_kind_t::gameplay_present,
+                                         quad,
+                                         "bloom_textured_quad");
+    }
+
     void renderer_t::draw_text_quad(const textured_quad_draw_info_t& quad)
     {
         submit_world_text_quad(quad);
@@ -389,6 +491,13 @@ namespace carrot::renderer {
         submit_non_world_solid_quad(non_world_stage_target_t::log_console, quad);
     }
 
+    void renderer_t::draw_bloom_solid_quad(const solid_quad_draw_info_t& quad)
+    {
+        queue_bloom_source_solid_pass(composite_target_kind_t::gameplay_present,
+                                      quad,
+                                      "bloom_solid_quad");
+    }
+
     void renderer_t::set_bloom_settings(const bloom_settings_t& settings) noexcept
     {
         _bloom_settings = settings;
@@ -404,6 +513,21 @@ namespace carrot::renderer {
     {
         _transition_fade_enabled = false;
         _transition_fade_color = 0x00000000u;
+    }
+
+    void renderer_t::set_transition_wipe(const float coverage,
+                                         const transition_wipe_direction_t direction,
+                                         const uint32_t color_abgr) noexcept
+    {
+        _transition_wipe.enabled = true;
+        _transition_wipe.coverage = std::clamp(coverage, 0.f, 1.f);
+        _transition_wipe.direction = direction;
+        _transition_wipe.color_abgr = color_abgr;
+    }
+
+    void renderer_t::clear_transition_wipe() noexcept
+    {
+        _transition_wipe = { };
     }
 
     void renderer_t::set_transition_battle_swirl(const float progress, const bool incoming) noexcept
@@ -443,6 +567,84 @@ namespace carrot::renderer {
         };
     }
 
+    quad_instance_t renderer_t::build_quad_instance(const frame_stage_plan_t& stage_plan,
+                                                    const quad_content_kind_t content_kind,
+                                                    const textured_quad_draw_info_t& quad,
+                                                    const world_material_key_t world_material,
+                                                    const quad_target_id_t target_id) const
+    {
+        return quad_instance_t{
+            .stage = stage_plan.kind,
+            .stage_space = stage_plan.space,
+            .target_id = target_id,
+            .content_kind = content_kind,
+            .texture = quad.texture,
+            .sampler_preset = quad.sampler_preset,
+            .world_material = world_material,
+            .x = quad.x,
+            .y = quad.y,
+            .width = quad.width,
+            .height = quad.height,
+            .uv_rect = {
+                .u_min = quad.u0,
+                .v_min = quad.v0,
+                .u_max = quad.u1,
+                .v_max = quad.v1
+            },
+            .layer = quad.layer,
+            .order_mode = quad.order_mode,
+            .order_in_layer = quad.order_in_layer,
+            .sort_reference_y = quad.sort_reference_y,
+            .color = quad.color,
+            .effect_mode = quad.effect_mode,
+            .effect_param0 = quad.effect_param0,
+            .bounds_min_px = { quad.x, quad.y },
+            .bounds_max_px = { quad.x + quad.width, quad.y + quad.height },
+            .presentation_mask = stage_plan.presentation_mask,
+            .submission_index = 0u
+        };
+    }
+
+    rhi::quad_stage_common_t renderer_t::build_quad_stage_common_record(const stage_execution_context_t& stage_context,
+                                                                        const std::uint32_t presentation_mask,
+                                                                        const forward_plus_gpu_buffers_t* const gpu_buffers) const
+    {
+        return rhi::quad_stage_common_t{
+            .view_projection = stage_context.view_projection,
+            .ambient_color = { 1.f, 1.f, 1.f, 1.f },
+            .forward_plus_constants = { },
+            .forward_plus_light_input = { },
+            .forward_plus_output = { },
+            .forward_plus_light_input_buffer = gpu_buffers ? gpu_buffers->light_input_buffer.get() : nullptr,
+            .forward_plus_output_buffer = gpu_buffers ? gpu_buffers->classification_output_buffer.get() : nullptr,
+            .world_item_buffer = nullptr,
+            .visible_item_index_buffer = nullptr,
+            .world_draw_mode = 0u,
+            .viewport = stage_context.viewport,
+            .presentation_mask = presentation_mask
+        };
+    }
+
+    rhi::quad_draw_source_t renderer_t::build_quad_draw_source_record(const rhi::rhi_buffer_t* const vertex_buffer,
+                                                                      const rhi::rhi_buffer_t* const index_buffer,
+                                                                      const rhi::rhi_buffer_t* const instance_buffer,
+                                                                      const rhi::rhi_buffer_t* const indirect_buffer,
+                                                                      const std::uint32_t instance_count,
+                                                                      const std::uint32_t indirect_buffer_offset_bytes) const
+    {
+        return rhi::quad_draw_source_t{
+            .vertex_buffer = vertex_buffer,
+            .index_buffer = index_buffer,
+            .instance_buffer = instance_buffer,
+            .indirect_buffer = indirect_buffer,
+            .instance_count = instance_count,
+            .indirect_buffer_offset_bytes = indirect_buffer_offset_bytes,
+            .kind = indirect_buffer != nullptr
+                        ? rhi::quad_draw_source_kind_t::indexed_indirect
+                        : rhi::quad_draw_source_kind_t::direct
+        };
+    }
+
     void renderer_t::submit_world_textured_quad(const textured_quad_draw_info_t& quad)
     {
         if (quad.texture == nullptr)
@@ -462,32 +664,16 @@ namespace carrot::renderer {
     void renderer_t::extract_world_render_item(const textured_quad_draw_info_t& quad,
                                                const world_material_key_t world_material)
     {
-        _world_render_items.items.push_back({
-            .texture = quad.texture,
-            .position_px = { quad.x, quad.y },
-            .size_px = { quad.width, quad.height },
-            .uv_rect = {
-                .u_min = quad.u0,
-                .v_min = quad.v0,
-                .u_max = quad.u1,
-                .v_max = quad.v1
-            },
-            .layer = quad.layer,
-            .order_mode = quad.order_mode,
-            .order_in_layer = quad.order_in_layer,
-            .sort_reference_y = quad.sort_reference_y,
-            .color = quad.color,
-            .effect_mode = quad.effect_mode,
-            .effect_param0 = quad.effect_param0,
-            .sampler_preset = quad.sampler_preset,
-            .world_material = world_material,
-            .bounds_min_px = { quad.x, quad.y },
-            .bounds_max_px = { quad.x + quad.width, quad.y + quad.height },
-            .submission_index = static_cast<std::uint64_t>(_world_render_items.items.size())
-        });
+        quad_instance_t instance{
+            build_quad_instance(stage_plan(frame_stage_kind_t::world), quad_content_kind_t::textured, quad, world_material)
+        };
+        instance.submission_index = static_cast<std::uint64_t>(_world_quad_instances.instances.size());
+        _world_quad_instances.instances.push_back(instance);
     }
 
-    void renderer_t::submit_stage_textured_quad(const frame_stage_plan_t& stage_plan, const textured_quad_draw_info_t& quad)
+    void renderer_t::submit_stage_textured_quad(const frame_stage_plan_t& stage_plan,
+                                                const textured_quad_draw_info_t& quad,
+                                                const quad_target_id_t target_id)
     {
         if (quad.texture == nullptr)
         {
@@ -499,25 +685,32 @@ namespace carrot::renderer {
                   "Renderer non-world textured quad submission must not target the world stage");
 
         textured_quad_state_t& stage_state{ _stage_textured_quads[frame_stage_index(stage_plan.kind)] };
-        stage_state.submissions.push_back({
-            .quad = quad,
-            .world_material = {
+        quad_instance_t instance{
+            build_quad_instance(stage_plan,
+                                quad_content_kind_t::textured,
+                                quad,
+                                {
                 .domain = world_material_domain_t::unlit,
                 .feature_flags = 0u
             },
-            .submission_index = static_cast<uint64_t>(stage_state.submissions.size())
-        });
+                                target_id)
+        };
+        instance.submission_index = static_cast<uint64_t>(stage_state.instances.size());
+        stage_state.instances.push_back(instance);
 
         _stats.textured_quad_count++;
     }
 
     void renderer_t::submit_non_world_textured_quad(const non_world_stage_target_t target,
-                                                    const textured_quad_draw_info_t& quad)
+                                                    const textured_quad_draw_info_t& quad,
+                                                    const quad_target_id_t target_id)
     {
-        submit_stage_textured_quad(non_world_stage_plan(target), quad);
+        submit_stage_textured_quad(non_world_stage_plan(target), quad, target_id);
     }
 
-    void renderer_t::submit_solid_quad(const frame_stage_kind_t stage, const solid_quad_draw_info_t& quad)
+    void renderer_t::submit_solid_quad(const frame_stage_kind_t stage,
+                                       const solid_quad_draw_info_t& quad,
+                                       const quad_target_id_t target_id)
     {
         if (_solid_white_texture == nullptr)
         {
@@ -549,7 +742,7 @@ namespace carrot::renderer {
             return;
         }
 
-        submit_stage_textured_quad(stage_plan(stage), textured_quad);
+        submit_stage_textured_quad(stage_plan(stage), textured_quad, target_id);
     }
 
     void renderer_t::submit_world_text_quad(const textured_quad_draw_info_t& quad)
@@ -560,19 +753,24 @@ namespace carrot::renderer {
             return;
         }
 
-        _world_text_quads.submissions.push_back({
-            .quad = quad,
-            .world_material = {
+        quad_instance_t instance{
+            build_quad_instance(stage_plan(frame_stage_kind_t::world),
+                                quad_content_kind_t::text,
+                                quad,
+                                {
                 .domain = world_material_domain_t::unlit,
                 .feature_flags = 0u
-            },
-            .submission_index = static_cast<uint64_t>(_world_text_quads.submissions.size())
-        });
+            })
+        };
+        instance.submission_index = static_cast<uint64_t>(_world_text_quads.instances.size());
+        _world_text_quads.instances.push_back(instance);
 
         _stats.textured_quad_count++;
     }
 
-    void renderer_t::submit_stage_text_quad(const frame_stage_plan_t& stage_plan, const textured_quad_draw_info_t& quad)
+    void renderer_t::submit_stage_text_quad(const frame_stage_plan_t& stage_plan,
+                                            const textured_quad_draw_info_t& quad,
+                                            const quad_target_id_t target_id)
     {
         if (quad.texture == nullptr)
         {
@@ -584,93 +782,46 @@ namespace carrot::renderer {
                   "Renderer non-world text quad submission must not target the world stage");
 
         textured_quad_state_t& stage_state{ _stage_text_quads[frame_stage_index(stage_plan.kind)] };
-        stage_state.submissions.push_back({
-            .quad = quad,
-            .world_material = {
+        quad_instance_t instance{
+            build_quad_instance(stage_plan,
+                                quad_content_kind_t::text,
+                                quad,
+                                {
                 .domain = world_material_domain_t::unlit,
                 .feature_flags = 0u
             },
-            .submission_index = static_cast<uint64_t>(stage_state.submissions.size())
-        });
+                                target_id)
+        };
+        instance.submission_index = static_cast<uint64_t>(stage_state.instances.size());
+        stage_state.instances.push_back(instance);
 
         _stats.textured_quad_count++;
     }
 
     void renderer_t::submit_non_world_text_quad(const non_world_stage_target_t target,
-                                                const textured_quad_draw_info_t& quad)
+                                                const textured_quad_draw_info_t& quad,
+                                                const quad_target_id_t target_id)
     {
-        submit_stage_text_quad(non_world_stage_plan(target), quad);
+        submit_stage_text_quad(non_world_stage_plan(target), quad, target_id);
     }
 
     void renderer_t::submit_non_world_solid_quad(const non_world_stage_target_t target,
-                                                 const solid_quad_draw_info_t& quad)
+                                                 const solid_quad_draw_info_t& quad,
+                                                 const quad_target_id_t target_id)
     {
-        submit_solid_quad(non_world_stage_plan(target).kind, quad);
+        submit_solid_quad(non_world_stage_plan(target).kind, quad, target_id);
     }
 
     void renderer_t::draw_sprite(const sprite_draw_info_t& info)
     {
-        if (!info.sprite)
+        const auto quad{ sprite_draw_info_to_quad(info) };
+        if (!quad)
         {
-            LOG_GRAPHICS_WARN("renderer_t::draw_sprite called with null sprite.");
+            LOG_GRAPHICS_WARN("renderer_t::draw_sprite could not resolve sprite draw info into a textured quad.");
             return;
         }
 
-        if (!info.frame)
-        {
-            LOG_GRAPHICS_WARN("renderer_t::draw_sprite called with null frame.");
-            return;
-        }
-
-        const assets::loaded_texture_asset_t* texture_asset{ info.sprite->texture() };
-        if (!texture_asset || !texture_asset->texture)
-        {
-            LOG_GRAPHICS_WARN("renderer_t::draw_sprite called with sprite missing loaded texture.");
-            return;
-        }
-
-        const float texture_width{ static_cast<float>(texture_asset->texture->width()) };
-        const float texture_height{ static_cast<float>(texture_asset->texture->height()) };
-
-        if (texture_width <= 0.f || texture_height <= 0.f)
-        {
-            LOG_GRAPHICS_WARN("renderer_t::draw_sprite encountered invalid texture dimensions ({}x{}).",
-                              texture_width, texture_height);
-            return;
-        }
-
-        const chlm::uint_rect& rect{ info.frame->pixel_rect };
-
-        const float u0{ static_cast<float>(rect.position.x) / texture_width };
-        const float v0{ static_cast<float>(rect.position.y) / texture_height };
-        const float u1{ static_cast<float>(rect.position.x + rect.size.x) / texture_width };
-        const float v1{ static_cast<float>(rect.position.y + rect.size.y) / texture_height };
-        const chlm::float2 pivot{ info.use_custom_pivot ? info.pivot : info.frame->pivot };
-        const float final_u0{ info.flip_x ? u1 : u0 };
-        const float final_v0{ info.flip_y ? v1 : v0 };
-        const float final_u1{ info.flip_x ? u0 : u1 };
-        const float final_v1{ info.flip_y ? v0 : v1 };
-
-        textured_quad_draw_info_t quad{ };
-        quad.texture = texture_asset->texture.get();
-        quad.x = info.x - (pivot.x * info.width);
-        quad.y = info.y - (pivot.y * info.height);
-        quad.width = info.width;
-        quad.height = info.height;
-        quad.layer = info.layer;
-        quad.order_mode = info.order_mode;
-        quad.order_in_layer = info.order_in_layer;
-        quad.sort_reference_y = info.order_mode == render_order_mode_t::anchor_bottom_y
-                                    ? (quad.y + quad.height)
-                                    : info.sort_reference_y;
-        quad.color = info.color;
-        quad.sampler_preset = info.sampler_preset;
-        quad.u0 = final_u0;
-        quad.v0 = final_v0;
-        quad.u1 = final_u1;
-        quad.v1 = final_v1;
-
-        draw_textured_quad(quad);
+        draw_textured_quad(*quad);
     }
 
     void renderer_t::draw_tilemap(const tilemap_draw_info_t& info)
@@ -1102,16 +1253,21 @@ namespace carrot::renderer {
                 };
                 const chlm::float2 render_size_px{ context.presentation->world_size_to_pixels(world_size) };
 
+                const chlm::float2 tile_object_size_px{
+                    render_size_px.x * transform.scale.x,
+                    render_size_px.y * transform.scale.y
+                };
                 submit_tile_object(*tile_object.tilemap,
                                    tile_object.gid,
                                    render_position_px,
-                                   { render_size_px.x * transform.scale.x, render_size_px.y * transform.scale.y },
+                                   tile_object_size_px,
                                    tile_object.layer,
                                    tile_object.order_mode,
                                    tile_object.order_in_layer,
                                    tile_object.sort_reference_y,
                                    tile_object.sampler_preset,
                                    tile_object.color);
+
             }
         }
 
@@ -1160,6 +1316,7 @@ namespace carrot::renderer {
                 draw_info.sampler_preset = sprite.sampler_preset;
 
                 draw_sprite(draw_info);
+
             }
         }
 
@@ -1248,7 +1405,7 @@ namespace carrot::renderer {
         if (stage == frame_stage_kind_t::world)
         {
             return {
-                .textured = nullptr,
+                .textured = &_world_textured_quads,
                 .text = &_world_text_quads
             };
         }
@@ -1445,8 +1602,9 @@ namespace carrot::renderer {
         if (!_composite_overlay_enabled || _solid_white_texture == nullptr)
             return;
 
-        queue_composite_fullscreen_textured_pass(composite_target_kind_t::gameplay_present,
-                                                 textured_quad_draw_info_t{
+        queue_post_effect_textured_pass(post_effect_domain_t::overlay,
+                                        composite_target_kind_t::gameplay_present,
+                                        textured_quad_draw_info_t{
             .texture = _solid_white_texture.get(),
             .x = 0.f,
             .y = 0.f,
@@ -1461,45 +1619,65 @@ namespace carrot::renderer {
             .color = _composite_overlay_color,
             .sampler_preset = quad_sampler_preset_t::pixel_clamp
         },
-                                                 "composite_overlay");
+                                        "composite_overlay",
+                                        true);
     }
 
     void renderer_t::queue_transition_fade_if_needed()
     {
-        if (!_transition_fade_enabled || _solid_white_texture == nullptr)
+        if (!_transition_fade_enabled)
             return;
 
-        queue_composite_fullscreen_textured_pass(composite_target_kind_t::gameplay_present,
-                                                 textured_quad_draw_info_t{
-            .texture = _solid_white_texture.get(),
-            .x = 0.f,
-            .y = 0.f,
-            .width = 1.f,
-            .height = 1.f,
-            .u0 = 0.f,
-            .v0 = 0.f,
-            .u1 = 1.f,
-            .v1 = 1.f,
-            .layer = render_layer_t::ui,
-            .order_in_layer = 0,
-            .color = _transition_fade_color,
-            .sampler_preset = quad_sampler_preset_t::pixel_clamp
-        },
-                                                 "transition_fade");
+        _transition_passes.push_back(transition_pass_t{
+            .kind = transition_pass_kind_t::fade,
+            .target = composite_target_kind_t::gameplay_present,
+            .color_abgr = _transition_fade_color,
+            .debug_name = "transition_fade"
+        });
     }
 
-    void renderer_t::record_transition_battle_swirl_if_needed(const stage_execution_context_t& stage_context,
-                                                              const uint32_t presentation_mask)
+    void renderer_t::queue_transition_wipe_if_needed()
+    {
+        if (!_transition_wipe.enabled)
+            return;
+
+        _transition_passes.push_back(transition_pass_t{
+            .kind = transition_pass_kind_t::wipe,
+            .target = composite_target_kind_t::gameplay_present,
+            .color_abgr = _transition_wipe.color_abgr,
+            .coverage = _transition_wipe.coverage,
+            .wipe_direction = static_cast<std::uint8_t>(_transition_wipe.direction),
+            .debug_name = "transition_wipe"
+        });
+    }
+
+    void renderer_t::queue_transition_battle_swirl_if_needed()
     {
         if (!_transition_battle_swirl.enabled)
             return;
 
-        ensure_transition_battle_swirl_quad_buffers();
+        _transition_passes.push_back(transition_pass_t{
+            .kind = transition_pass_kind_t::battle_swirl,
+            .target = composite_target_kind_t::gameplay_present,
+            .progress = _transition_battle_swirl.progress,
+            .incoming = _transition_battle_swirl.incoming,
+            .debug_name = "battle_swirl_transition"
+        });
+    }
+
+    void renderer_t::record_transition_battle_swirl_pass(const transition_pass_t& pass,
+                                                         const stage_execution_context_t& stage_context,
+                                                         const uint32_t presentation_mask)
+    {
+        CE_ASSERT(pass.kind == transition_pass_kind_t::battle_swirl,
+                  "Renderer battle swirl recorder received non-battle-swirl transition pass");
+
+        ensure_shared_quad_geometry_buffers();
         ensure_transition_battle_swirl_capture_texture();
 
         if (!_rhi ||
-            !_transition_battle_swirl_vertex_buffer ||
-            !_transition_battle_swirl_index_buffer ||
+            !_shared_quad_vertex_buffer ||
+            !_shared_quad_index_buffer ||
             !_transition_battle_swirl_capture_texture)
         {
             return;
@@ -1512,55 +1690,169 @@ namespace carrot::renderer {
         }
 
         constexpr std::array<std::uint32_t, 6u> quad_indices{ 0u, 1u, 2u, 0u, 2u, 3u };
-        const float effect_mode{
-            _transition_battle_swirl.incoming
-                ? renderer::k_effect_mode_battle_swirl_in
-                : renderer::k_effect_mode_battle_swirl_out
-        };
+        const float swirl_direction{ pass.incoming ? 1.f : -1.f };
         const float x0{ static_cast<float>(stage_context.viewport.rect_px.position.x) };
         const float y0{ static_cast<float>(stage_context.viewport.rect_px.position.y) };
         const float x1{ x0 + static_cast<float>(stage_context.viewport.rect_px.size.x) };
         const float y1{ y0 + static_cast<float>(stage_context.viewport.rect_px.size.y) };
-        const std::array<quad_vertex_t, 4u> quad_vertices{
-            quad_vertex_t{ .x = x0, .y = y0, .u = 0.f, .v = 0.f, .color = 0xFFFFFFFFu, .effect_mode = effect_mode, .effect_param0 = _transition_battle_swirl.progress },
-            quad_vertex_t{ .x = x1, .y = y0, .u = 1.f, .v = 0.f, .color = 0xFFFFFFFFu, .effect_mode = effect_mode, .effect_param0 = _transition_battle_swirl.progress },
-            quad_vertex_t{ .x = x1, .y = y1, .u = 1.f, .v = 1.f, .color = 0xFFFFFFFFu, .effect_mode = effect_mode, .effect_param0 = _transition_battle_swirl.progress },
-            quad_vertex_t{ .x = x0, .y = y1, .u = 0.f, .v = 1.f, .color = 0xFFFFFFFFu, .effect_mode = effect_mode, .effect_param0 = _transition_battle_swirl.progress }
+        const gpu_quad_instance_t swirl_instance{
+            .quad_rect_px = { x0, y0, x1 - x0, y1 - y0 },
+            .uv_rect = { 0.f, 0.f, 1.f, 1.f },
+            .color = { 1.f, 1.f, 1.f, 1.f },
+            .draw_params = { swirl_direction, pass.progress, 0.f, 0.f }
         };
 
-        if (!_transition_battle_swirl_vertex_buffer->write(quad_vertices.data(), sizeof(quad_vertices), 0u) ||
-            !_transition_battle_swirl_index_buffer->write(quad_indices.data(), sizeof(quad_indices), 0u))
+        if (!_transition_battle_swirl_instance_buffer)
         {
-            LOG_GRAPHICS_FATAL("Failed to upload transition battle swirl fullscreen quad");
+            _transition_battle_swirl_instance_buffer = _rhi->create_buffer({
+                .size_bytes = sizeof(gpu_quad_instance_t),
+                .usage = rhi::buffer_usage_t::vertex,
+                .cpu_writable = true,
+                .initial_data = &swirl_instance
+            });
+        }
+
+        if (!_transition_battle_swirl_instance_buffer ||
+            !_transition_battle_swirl_instance_buffer->write(&swirl_instance, sizeof(gpu_quad_instance_t), 0u))
+        {
+            LOG_GRAPHICS_FATAL("Failed to prepare transition battle swirl instance buffer");
             return;
         }
 
-        _transition_battle_swirl_batches[0] = textured_quad_batch_t{
-            .texture = _transition_battle_swirl_capture_texture.get(),
-            .first_index = 0u,
-            .index_count = 6u,
-            .sampler_preset = quad_sampler_preset_t::smooth_clamp,
-            .world_material = { .domain = world_material_domain_t::unlit, .feature_flags = 0u }
+        const std::array<textured_quad_batch_t, 1u> swirl_batches{
+            textured_quad_batch_t{
+                .texture = _transition_battle_swirl_capture_texture.get(),
+                .first_index = 0u,
+                .index_count = static_cast<std::uint32_t>(quad_indices.size()),
+                .first_instance = 0u,
+                .instance_count = 1u,
+                .sampler_preset = quad_sampler_preset_t::smooth_clamp,
+                .world_material = { .domain = world_material_domain_t::unlit, .feature_flags = 0u }
+            }
         };
 
-        _rhi->record_textured_quad_stage({
-            .vertex_buffer = _transition_battle_swirl_vertex_buffer.get(),
-            .index_buffer = _transition_battle_swirl_index_buffer.get(),
-            .batches = _transition_battle_swirl_batches,
-            .view_projection = stage_context.view_projection,
-            .ambient_color = { 1.f, 1.f, 1.f, 1.f },
-            .forward_plus_constants = { },
-            .forward_plus_light_input = { },
-            .forward_plus_output = { },
-            .viewport = stage_context.viewport,
-            .presentation_mask = presentation_mask,
-            .capture_presentation_before_draw = true
-        });
+        rhi::textured_quad_stage_record_t swirl_record{ };
+        static_cast<rhi::quad_stage_common_t&>(swirl_record) = build_quad_stage_common_record(stage_context,
+                                                                                               presentation_mask);
+        static_cast<rhi::quad_draw_source_t&>(swirl_record) = build_quad_draw_source_record(
+            _shared_quad_vertex_buffer.get(),
+            _shared_quad_index_buffer.get(),
+            _transition_battle_swirl_instance_buffer.get(),
+            nullptr,
+            1u);
+        swirl_record.batches = swirl_batches;
+        swirl_record.shader_variant = rhi::quad_shader_variant_t::battle_swirl;
+        swirl_record.capture_presentation_before_draw = true;
+        _rhi->record_textured_quad_stage(swirl_record);
 
         _stats.draw_calls++;
         _stats.textured_quad_batch_count++;
         _stats.vertex_count += 4u;
         _stats.index_count += 6u;
+    }
+
+    void renderer_t::materialize_transition_passes(const stage_execution_context_t& stage_context,
+                                                   const uint32_t presentation_mask,
+                                                   const transition_pass_phase_t phase)
+    {
+        for (const transition_pass_t& pass : _transition_passes)
+        {
+            switch (pass.kind)
+            {
+                case transition_pass_kind_t::fade:
+                    if (phase == transition_pass_phase_t::pre_composite_record)
+                        record_transition_fade_pass(pass);
+                    break;
+                case transition_pass_kind_t::wipe:
+                    if (phase == transition_pass_phase_t::pre_composite_record)
+                        record_transition_wipe_pass(pass);
+                    break;
+                case transition_pass_kind_t::battle_swirl:
+                    if (phase == transition_pass_phase_t::post_composite_record)
+                        record_transition_battle_swirl_pass(pass, stage_context, presentation_mask);
+                    break;
+            }
+        }
+    }
+
+    void renderer_t::record_transition_fade_pass(const transition_pass_t& pass)
+    {
+        CE_ASSERT(pass.kind == transition_pass_kind_t::fade,
+                  "Renderer transition fade recorder received non-fade transition pass");
+
+        const composite_target_t target{ composite_target(pass.target) };
+        submit_non_world_solid_quad(non_world_stage_target_t::composite,
+                                    solid_quad_draw_info_t{
+                                        .x = static_cast<float>(target.rect_px.position.x),
+                                        .y = static_cast<float>(target.rect_px.position.y),
+                                        .width = static_cast<float>(target.rect_px.size.x),
+                                        .height = static_cast<float>(target.rect_px.size.y),
+                                        .layer = render_layer_t::ui,
+                                        .order_mode = render_order_mode_t::explicit_order,
+                                        .order_in_layer = 0,
+                                        .sort_reference_y = 0.f,
+                                        .sampler_preset = quad_sampler_preset_t::pixel_clamp,
+                                        .color = pass.color_abgr
+                                    },
+                                    quad_target_for_composite_target(pass.target));
+    }
+
+    void renderer_t::record_transition_wipe_pass(const transition_pass_t& pass)
+    {
+        CE_ASSERT(pass.kind == transition_pass_kind_t::wipe,
+                  "Renderer transition wipe recorder received non-wipe transition pass");
+
+        const composite_target_t target{ composite_target(pass.target) };
+        const float coverage{ std::clamp(pass.coverage, 0.f, 1.f) };
+        const float target_x{ static_cast<float>(target.rect_px.position.x) };
+        const float target_y{ static_cast<float>(target.rect_px.position.y) };
+        const float target_width{ static_cast<float>(target.rect_px.size.x) };
+        const float target_height{ static_cast<float>(target.rect_px.size.y) };
+
+        float quad_x{ target_x };
+        float quad_y{ target_y };
+        float quad_width{ 0.f };
+        float quad_height{ 0.f };
+
+        switch (static_cast<transition_wipe_direction_t>(pass.wipe_direction))
+        {
+            case transition_wipe_direction_t::left_to_right:
+                quad_width = coverage * target_width;
+                quad_height = target_height;
+                break;
+            case transition_wipe_direction_t::right_to_left:
+                quad_width = coverage * target_width;
+                quad_height = target_height;
+                quad_x = target_x + (target_width - quad_width);
+                break;
+            case transition_wipe_direction_t::top_to_bottom:
+                quad_width = target_width;
+                quad_height = coverage * target_height;
+                break;
+            case transition_wipe_direction_t::bottom_to_top:
+                quad_width = target_width;
+                quad_height = coverage * target_height;
+                quad_y = target_y + (target_height - quad_height);
+                break;
+        }
+
+        if (quad_width <= 0.001f || quad_height <= 0.001f)
+            return;
+
+        submit_non_world_solid_quad(non_world_stage_target_t::composite,
+                                    solid_quad_draw_info_t{
+                                        .x = quad_x,
+                                        .y = quad_y,
+                                        .width = quad_width,
+                                        .height = quad_height,
+                                        .layer = render_layer_t::ui,
+                                        .order_mode = render_order_mode_t::explicit_order,
+                                        .order_in_layer = 0,
+                                        .sort_reference_y = 0.f,
+                                        .sampler_preset = quad_sampler_preset_t::pixel_clamp,
+                                        .color = pass.color_abgr
+                                    },
+                                    quad_target_for_composite_target(pass.target));
     }
 
     void renderer_t::queue_bloom_if_needed()
@@ -1576,8 +1868,8 @@ namespace carrot::renderer {
             (_bloom_settings.tint_abgr & 0x00FFFFFFu) | (alpha << 24u)
         };
 
-        queue_composite_fullscreen_solid_pass(composite_target_kind_t::gameplay_present,
-                                              solid_quad_draw_info_t{
+        queue_bloom_source_solid_pass(composite_target_kind_t::gameplay_present,
+                                      solid_quad_draw_info_t{
             .x = 0.0f,
             .y = 0.0f,
             .width = 1.0f,
@@ -1586,167 +1878,434 @@ namespace carrot::renderer {
             .order_in_layer = 0,
             .color = bloom_color
         },
-                                              "bloom_overlay");
-        _stats.bloom_pass_count++;
+                                      "bloom_overlay_source",
+                                      true);
     }
 
-    void renderer_t::queue_composite_fullscreen_textured_pass(const composite_target_kind_t target_kind,
-                                                              textured_quad_draw_info_t quad,
-                                                              const char* const debug_name)
+    void renderer_t::queue_bloom_source_textured_pass(const composite_target_kind_t target_kind,
+                                                      textured_quad_draw_info_t quad,
+                                                      const char* const debug_name,
+                                                      const bool expand_to_target)
     {
-        const composite_target_t target{ composite_target(target_kind) };
-        quad.x = static_cast<float>(target.rect_px.position.x);
-        quad.y = static_cast<float>(target.rect_px.position.y);
-        quad.width = static_cast<float>(target.rect_px.size.x);
-        quad.height = static_cast<float>(target.rect_px.size.y);
+        // M27 contract: bloom sources are normalized into composite-space quads.
+        // This keeps the offscreen proof path honest, but it also means world-space
+        // authored bloom is not solved by this queue yet.
         quad.layer = render_layer_t::ui;
         quad.order_mode = render_order_mode_t::explicit_order;
         quad.order_in_layer = 0;
         quad.sort_reference_y = 0.f;
 
-        _composite_fullscreen_passes.push_back(composite_fullscreen_pass_t{
-            .kind = composite_fullscreen_pass_kind_t::textured,
+        _bloom_source_passes.push_back(bloom_source_pass_t{
+            .kind = post_effect_pass_kind_t::textured,
             .target = target_kind,
+            .expand_to_target = expand_to_target,
             .textured_quad = quad,
             .solid_quad = { },
             .debug_name = debug_name
         });
     }
 
-    void renderer_t::queue_composite_fullscreen_solid_pass(const composite_target_kind_t target_kind,
-                                                           solid_quad_draw_info_t quad,
-                                                           const char* const debug_name)
+    void renderer_t::queue_bloom_source_solid_pass(const composite_target_kind_t target_kind,
+                                                   solid_quad_draw_info_t quad,
+                                                   const char* const debug_name,
+                                                   const bool expand_to_target)
     {
-        const composite_target_t target{ composite_target(target_kind) };
-        quad.x = static_cast<float>(target.rect_px.position.x);
-        quad.y = static_cast<float>(target.rect_px.position.y);
-        quad.width = static_cast<float>(target.rect_px.size.x);
-        quad.height = static_cast<float>(target.rect_px.size.y);
+        // M27 contract: bloom sources are normalized into composite-space quads.
         quad.layer = render_layer_t::ui;
         quad.order_mode = render_order_mode_t::explicit_order;
         quad.order_in_layer = 0;
         quad.sort_reference_y = 0.f;
 
-        _composite_fullscreen_passes.push_back(composite_fullscreen_pass_t{
-            .kind = composite_fullscreen_pass_kind_t::solid,
+        _bloom_source_passes.push_back(bloom_source_pass_t{
+            .kind = post_effect_pass_kind_t::solid,
             .target = target_kind,
+            .expand_to_target = expand_to_target,
             .textured_quad = { },
             .solid_quad = quad,
             .debug_name = debug_name
         });
     }
 
-    void renderer_t::materialize_composite_fullscreen_passes()
+    void renderer_t::materialize_bloom_source_passes()
     {
-        for (const composite_fullscreen_pass_t& pass : _composite_fullscreen_passes)
+        _bloom_source_quads.instances.clear();
+
+        // TODO(M27 follow-up): world-authored/selective bloom needs its own
+        // source-space contract. This materializer currently assumes every bloom
+        // source can be interpreted as a composite-stage quad in render-target
+        // pixels, which is correct for the harness and overlay proof path only.
+        for (const bloom_source_pass_t& pass : _bloom_source_passes)
         {
+            const composite_target_t target{ composite_target(pass.target) };
             switch (pass.kind)
             {
-                case composite_fullscreen_pass_kind_t::textured:
-                    submit_non_world_textured_quad(non_world_stage_target_t::composite, pass.textured_quad);
+                case post_effect_pass_kind_t::textured:
+                {
+                    textured_quad_draw_info_t quad{ pass.textured_quad };
+                    if (pass.expand_to_target)
+                    {
+                        quad.x = static_cast<float>(target.rect_px.position.x);
+                        quad.y = static_cast<float>(target.rect_px.position.y);
+                        quad.width = static_cast<float>(target.rect_px.size.x);
+                        quad.height = static_cast<float>(target.rect_px.size.y);
+                    }
+
+                    quad.layer = render_layer_t::ui;
+                    quad.order_mode = render_order_mode_t::explicit_order;
+                    quad.order_in_layer = 0;
+                    quad.sort_reference_y = 0.f;
+
+                    quad_instance_t instance{
+                        build_quad_instance(non_world_stage_plan(non_world_stage_target_t::composite),
+                                            quad_content_kind_t::textured,
+                                            quad,
+                                            { .domain = world_material_domain_t::unlit, .feature_flags = 0u },
+                                            quad_target_for_composite_target(pass.target))
+                    };
+                    instance.submission_index = static_cast<std::uint64_t>(_bloom_source_quads.instances.size());
+                    _bloom_source_quads.instances.push_back(instance);
                     break;
-                case composite_fullscreen_pass_kind_t::solid:
-                    submit_non_world_solid_quad(non_world_stage_target_t::composite, pass.solid_quad);
+                }
+
+                case post_effect_pass_kind_t::solid:
+                {
+                    if (_solid_white_texture == nullptr)
+                        break;
+
+                    solid_quad_draw_info_t solid_quad{ pass.solid_quad };
+                    if (pass.expand_to_target)
+                    {
+                        solid_quad.x = static_cast<float>(target.rect_px.position.x);
+                        solid_quad.y = static_cast<float>(target.rect_px.position.y);
+                        solid_quad.width = static_cast<float>(target.rect_px.size.x);
+                        solid_quad.height = static_cast<float>(target.rect_px.size.y);
+                    }
+
+                    textured_quad_draw_info_t quad{
+                        .texture = _solid_white_texture.get(),
+                        .x = solid_quad.x,
+                        .y = solid_quad.y,
+                        .width = solid_quad.width,
+                        .height = solid_quad.height,
+                        .u0 = 0.f,
+                        .v0 = 0.f,
+                        .u1 = 1.f,
+                        .v1 = 1.f,
+                        .layer = render_layer_t::ui,
+                        .order_mode = render_order_mode_t::explicit_order,
+                        .order_in_layer = 0,
+                        .sort_reference_y = 0.f,
+                        .color = solid_quad.color,
+                        .sampler_preset = solid_quad.sampler_preset
+                    };
+
+                    quad_instance_t instance{
+                        build_quad_instance(non_world_stage_plan(non_world_stage_target_t::composite),
+                                            quad_content_kind_t::textured,
+                                            quad,
+                                            { .domain = world_material_domain_t::unlit, .feature_flags = 0u },
+                                            quad_target_for_composite_target(pass.target))
+                    };
+                    instance.submission_index = static_cast<std::uint64_t>(_bloom_source_quads.instances.size());
+                    _bloom_source_quads.instances.push_back(instance);
                     break;
+                }
+
+                default:
+                    CE_ASSERT(false, "Bloom source pass kind must be known");
+                    break;
+            }
+        }
+    }
+
+    void renderer_t::compose_bloom_sources()
+    {
+        _stats.bloom_source_pass_count += static_cast<std::uint32_t>(_bloom_source_passes.size());
+        if (_bloom_source_passes.empty())
+            return;
+
+        ensure_bloom_source_render_target();
+        ensure_bloom_blur_render_target();
+        if (!_bloom_source_render_target ||
+            !_bloom_source_render_target->color_texture() ||
+            !_bloom_blur_render_target ||
+            !_bloom_blur_render_target->color_texture())
+        return;
+
+        materialize_bloom_source_passes();
+        build_bloom_blur_passes();
+
+        // The current bloom proof always composites back onto the gameplay
+        // composite target. This is intentionally narrower than a final
+        // generalized bloom authoring system.
+        queue_post_effect_textured_pass(post_effect_domain_t::bloom,
+                                        composite_target_kind_t::gameplay_present,
+                                        textured_quad_draw_info_t{
+                                            .texture = _bloom_source_render_target->color_texture(),
+                                            .x = 0.0f,
+                                            .y = 0.0f,
+                                            .width = 1.0f,
+                                            .height = 1.0f,
+                                            .u0 = 0.f,
+                                            .v0 = 0.f,
+                                            .u1 = 1.f,
+                                            .v1 = 1.f,
+                                            .layer = render_layer_t::ui,
+                                            .order_in_layer = 0,
+                                            .effect_param0 = 10.0f,
+                                            .color = 0xFFFFFFFFu,
+                                            .sampler_preset = quad_sampler_preset_t::smooth_clamp
+                                        },
+                                        "bloom_composite",
+                                        true);
+    }
+
+    void renderer_t::build_bloom_blur_passes()
+    {
+        _bloom_blur_horizontal_quads.instances.clear();
+        _bloom_blur_vertical_quads.instances.clear();
+
+        if (!_bloom_source_render_target ||
+            !_bloom_source_render_target->color_texture() ||
+            !_bloom_blur_render_target ||
+            !_bloom_blur_render_target->color_texture())
+        {
+            return;
+        }
+
+        const composite_target_t target{ composite_target(composite_target_kind_t::gameplay_present) };
+        const float target_width{ static_cast<float>(target.rect_px.size.x) };
+        const float target_height{ static_cast<float>(target.rect_px.size.y) };
+        if (target_width <= 0.f || target_height <= 0.f)
+            return;
+
+        textured_quad_draw_info_t horizontal_quad{
+            .texture = _bloom_source_render_target->color_texture(),
+            .x = static_cast<float>(target.rect_px.position.x),
+            .y = static_cast<float>(target.rect_px.position.y),
+            .width = target_width,
+            .height = target_height,
+            .u0 = 0.f,
+            .v0 = 0.f,
+            .u1 = 1.f,
+            .v1 = 1.f,
+            .layer = render_layer_t::ui,
+            .order_mode = render_order_mode_t::explicit_order,
+            .order_in_layer = 0,
+            .sort_reference_y = 0.f,
+            .color = 0xFFFFFFFFu,
+            .effect_mode = 1.f,
+            .effect_param0 = 2.5f / target_width,
+            .sampler_preset = quad_sampler_preset_t::smooth_clamp
+        };
+
+        quad_instance_t horizontal_instance{
+            build_quad_instance(non_world_stage_plan(non_world_stage_target_t::composite),
+                                quad_content_kind_t::textured,
+                                horizontal_quad,
+                                { .domain = world_material_domain_t::unlit, .feature_flags = 0u },
+                                quad_target_for_composite_target(composite_target_kind_t::gameplay_present))
+        };
+        horizontal_instance.submission_index = 0u;
+        _bloom_blur_horizontal_quads.instances.push_back(horizontal_instance);
+
+        textured_quad_draw_info_t vertical_quad{
+            .texture = _bloom_blur_render_target->color_texture(),
+            .x = static_cast<float>(target.rect_px.position.x),
+            .y = static_cast<float>(target.rect_px.position.y),
+            .width = target_width,
+            .height = target_height,
+            .u0 = 0.f,
+            .v0 = 0.f,
+            .u1 = 1.f,
+            .v1 = 1.f,
+            .layer = render_layer_t::ui,
+            .order_mode = render_order_mode_t::explicit_order,
+            .order_in_layer = 0,
+            .sort_reference_y = 0.f,
+            .color = 0xFFFFFFFFu,
+            .effect_mode = -1.f,
+            .effect_param0 = 2.5f / target_height,
+            .sampler_preset = quad_sampler_preset_t::smooth_clamp
+        };
+
+        quad_instance_t vertical_instance{
+            build_quad_instance(non_world_stage_plan(non_world_stage_target_t::composite),
+                                quad_content_kind_t::textured,
+                                vertical_quad,
+                                { .domain = world_material_domain_t::unlit, .feature_flags = 0u },
+                                quad_target_for_composite_target(composite_target_kind_t::gameplay_present))
+        };
+        vertical_instance.submission_index = 0u;
+        _bloom_blur_vertical_quads.instances.push_back(vertical_instance);
+    }
+
+    void renderer_t::queue_post_effect_textured_pass(const post_effect_domain_t domain,
+                                                     const composite_target_kind_t target_kind,
+                                                     textured_quad_draw_info_t quad,
+                                                     const char* const debug_name,
+                                                     const bool expand_to_target)
+    {
+        quad.layer = render_layer_t::ui;
+        quad.order_mode = render_order_mode_t::explicit_order;
+        quad.order_in_layer = 0;
+        quad.sort_reference_y = 0.f;
+
+        _post_effect_passes.push_back(post_effect_pass_t{
+            .kind = post_effect_pass_kind_t::textured,
+            .domain = domain,
+            .target = target_kind,
+            .expand_to_target = expand_to_target,
+            .textured_quad = quad,
+            .solid_quad = { },
+            .debug_name = debug_name
+        });
+    }
+
+    void renderer_t::queue_post_effect_solid_pass(const post_effect_domain_t domain,
+                                                  const composite_target_kind_t target_kind,
+                                                  solid_quad_draw_info_t quad,
+                                                  const char* const debug_name,
+                                                  const bool expand_to_target)
+    {
+        quad.layer = render_layer_t::ui;
+        quad.order_mode = render_order_mode_t::explicit_order;
+        quad.order_in_layer = 0;
+        quad.sort_reference_y = 0.f;
+
+        _post_effect_passes.push_back(post_effect_pass_t{
+            .kind = post_effect_pass_kind_t::solid,
+            .domain = domain,
+            .target = target_kind,
+            .expand_to_target = expand_to_target,
+            .textured_quad = { },
+            .solid_quad = quad,
+            .debug_name = debug_name
+        });
+    }
+
+    void renderer_t::materialize_post_effect_passes()
+    {
+        _bloom_composite_quads.instances.clear();
+
+        for (const post_effect_pass_t& pass : _post_effect_passes)
+        {
+            const composite_target_t target{ composite_target(pass.target) };
+            switch (pass.kind)
+            {
+                case post_effect_pass_kind_t::textured:
+                {
+                    textured_quad_draw_info_t quad{ pass.textured_quad };
+                    if (pass.expand_to_target)
+                    {
+                        quad.x = static_cast<float>(target.rect_px.position.x);
+                        quad.y = static_cast<float>(target.rect_px.position.y);
+                        quad.width = static_cast<float>(target.rect_px.size.x);
+                        quad.height = static_cast<float>(target.rect_px.size.y);
+                    }
+
+                    if (pass.domain == post_effect_domain_t::bloom)
+                    {
+                        quad_instance_t instance{
+                            build_quad_instance(non_world_stage_plan(non_world_stage_target_t::composite),
+                                                quad_content_kind_t::textured,
+                                                quad,
+                                                { .domain = world_material_domain_t::unlit, .feature_flags = 0u },
+                                                quad_target_for_composite_target(pass.target))
+                        };
+                        instance.submission_index = static_cast<std::uint64_t>(_bloom_composite_quads.instances.size());
+                        _bloom_composite_quads.instances.push_back(instance);
+                    }
+                    else
+                    {
+                        submit_non_world_textured_quad(non_world_stage_target_t::composite,
+                                                       quad,
+                                                       quad_target_for_composite_target(pass.target));
+                    }
+                    break;
+                }
+                case post_effect_pass_kind_t::solid:
+                {
+                    solid_quad_draw_info_t quad{ pass.solid_quad };
+                    if (pass.expand_to_target)
+                    {
+                        quad.x = static_cast<float>(target.rect_px.position.x);
+                        quad.y = static_cast<float>(target.rect_px.position.y);
+                        quad.width = static_cast<float>(target.rect_px.size.x);
+                        quad.height = static_cast<float>(target.rect_px.size.y);
+                    }
+
+                    submit_non_world_solid_quad(non_world_stage_target_t::composite,
+                                                quad,
+                                                quad_target_for_composite_target(pass.target));
+                    break;
+                }
                 default:
                     CE_ASSERT(false, "Composite fullscreen pass kind must be known");
                     break;
             }
+
+            if (pass.domain == post_effect_domain_t::bloom)
+                _stats.bloom_pass_count++;
         }
 
-        _stats.composite_fullscreen_pass_count += static_cast<uint32_t>(_composite_fullscreen_passes.size());
+        _stats.post_effect_pass_count += static_cast<uint32_t>(_post_effect_passes.size());
     }
 
     void renderer_t::build_textured_quad_batches(textured_quad_state_t& state) const
     {
-        state.vertices_cpu.clear();
-        state.indices_cpu.clear();
+        state.instance_data_cpu.clear();
         state.batches.clear();
 
-        if (state.submissions.empty())
+        if (state.instances.empty())
             return;
 
-        std::stable_sort(state.submissions.begin(), state.submissions.end(),
-                         [](const textured_quad_state_t::submission_t& lhs,
-                            const textured_quad_state_t::submission_t& rhs) noexcept
-                         {
-                             if (quad_sorts_before(lhs.quad, rhs.quad))
-                                 return true;
+        std::stable_sort(state.instances.begin(), state.instances.end(), quad_instance_sorts_before);
 
-                             if (quad_sorts_before(rhs.quad, lhs.quad))
-                                 return false;
-
-                             return lhs.submission_index < rhs.submission_index;
-                         });
-
-        for (const textured_quad_state_t::submission_t& submission: state.submissions)
+        quad_bucket_key_t current_bucket_key{ };
+        bool has_current_bucket{ false };
+        for (const quad_instance_t& submission: state.instances)
         {
-            const textured_quad_draw_info_t& quad{ submission.quad };
-
-            if (state.batches.empty() ||
-                state.batches.back().texture != quad.texture ||
-                state.batches.back().sampler_preset != quad.sampler_preset ||
-                !(state.batches.back().world_material == submission.world_material))
+            const quad_bucket_key_t bucket_key{ quad_bucket_key(submission) };
+            const bool starts_new_bucket{ !has_current_bucket || !(current_bucket_key == bucket_key) };
+            if (starts_new_bucket)
             {
                 state.batches.push_back(textured_quad_batch_t{
-                    .texture = quad.texture,
-                    .first_index = static_cast<uint32_t>(state.indices_cpu.size()),
-                    .index_count = 0,
-                    .sampler_preset = quad.sampler_preset,
+                    .texture = submission.texture,
+                    .first_index = 0u,
+                    .index_count = 6u,
+                    .first_instance = static_cast<uint32_t>(state.instance_data_cpu.size()),
+                    .instance_count = 0u,
+                    .sampler_preset = submission.sampler_preset,
                     .world_material = submission.world_material
                 });
+                current_bucket_key = bucket_key;
+                has_current_bucket = true;
             }
 
-            const uint32_t base_vertex{ static_cast<uint32_t>(state.vertices_cpu.size()) };
-
-            state.vertices_cpu.push_back(quad_vertex_t{
-                .x = quad.x,
-                .y = quad.y,
-                .u = quad.u0,
-                .v = quad.v0,
-                .color = quad.color,
-                .effect_mode = quad.effect_mode,
-                .effect_param0 = quad.effect_param0
+            state.instance_data_cpu.push_back(gpu_quad_instance_t{
+                .quad_rect_px = {
+                    submission.x,
+                    submission.y,
+                    submission.width,
+                    submission.height
+                },
+                .uv_rect = {
+                    submission.uv_rect.u_min,
+                    submission.uv_rect.v_min,
+                    submission.uv_rect.u_max,
+                    submission.uv_rect.v_max
+                },
+                .color = unpack_abgr_color_to_float4(submission.color),
+                .draw_params = {
+                    submission.effect_mode,
+                    submission.effect_param0,
+                    0.f,
+                    0.f
+                }
             });
 
-            state.vertices_cpu.push_back(quad_vertex_t{
-                .x = quad.x + quad.width,
-                .y = quad.y,
-                .u = quad.u1,
-                .v = quad.v0,
-                .color = quad.color,
-                .effect_mode = quad.effect_mode,
-                .effect_param0 = quad.effect_param0
-            });
-
-            state.vertices_cpu.push_back(quad_vertex_t{
-                .x = quad.x + quad.width,
-                .y = quad.y + quad.height,
-                .u = quad.u1,
-                .v = quad.v1,
-                .color = quad.color,
-                .effect_mode = quad.effect_mode,
-                .effect_param0 = quad.effect_param0
-            });
-
-            state.vertices_cpu.push_back(quad_vertex_t{
-                .x = quad.x,
-                .y = quad.y + quad.height,
-                .u = quad.u0,
-                .v = quad.v1,
-                .color = quad.color,
-                .effect_mode = quad.effect_mode,
-                .effect_param0 = quad.effect_param0
-            });
-
-            state.indices_cpu.push_back(base_vertex + 0);
-            state.indices_cpu.push_back(base_vertex + 1);
-            state.indices_cpu.push_back(base_vertex + 2);
-            state.indices_cpu.push_back(base_vertex + 0);
-            state.indices_cpu.push_back(base_vertex + 2);
-            state.indices_cpu.push_back(base_vertex + 3);
-
-            state.batches.back().index_count += 6;
+            state.batches.back().instance_count += 1u;
         }
     }
 
@@ -1757,9 +2316,8 @@ namespace carrot::renderer {
             if (!state)
                 return;
 
-            state->submissions.clear();
-            state->vertices_cpu.clear();
-            state->indices_cpu.clear();
+            state->instances.clear();
+            state->instance_data_cpu.clear();
             state->batches.clear();
         };
 
@@ -1776,16 +2334,20 @@ namespace carrot::renderer {
         if (stage_state.batches.empty())
             return;
 
+        ensure_shared_quad_geometry_buffers();
         ensure_textured_quad_frame_buffers(stage_state);
         upload_textured_quad_frame_data(stage_state);
 
         const auto& frame_buffers{ current_frame_buffers(stage_state) };
-        if (!frame_buffers.vertex_buffer || !frame_buffers.index_buffer)
+        if (!_shared_quad_vertex_buffer || !_shared_quad_index_buffer || !frame_buffers.instance_buffer)
             return;
 
         rhi::textured_quad_stage_record_t final_record{ record };
-        final_record.vertex_buffer = frame_buffers.vertex_buffer.get();
-        final_record.index_buffer = frame_buffers.index_buffer.get();
+        static_cast<rhi::quad_draw_source_t&>(final_record) = build_quad_draw_source_record(_shared_quad_vertex_buffer.get(),
+                                                                                            _shared_quad_index_buffer.get(),
+                                                                                            frame_buffers.instance_buffer.get(),
+                                                                                            nullptr,
+                                                                                            static_cast<std::uint32_t>(stage_state.instance_data_cpu.size()));
         final_record.batches = stage_state.batches;
 
         if (is_text)
@@ -1793,8 +2355,8 @@ namespace carrot::renderer {
         else
             _rhi->record_textured_quad_stage(final_record);
 
-        _stats.vertex_count += static_cast<uint32_t>(stage_state.vertices_cpu.size());
-        _stats.index_count += static_cast<uint32_t>(stage_state.indices_cpu.size());
+        _stats.vertex_count += static_cast<uint32_t>(stage_state.instance_data_cpu.size() * 4u);
+        _stats.index_count += static_cast<uint32_t>(stage_state.instance_data_cpu.size() * 6u);
         _stats.textured_quad_batch_count += static_cast<uint32_t>(stage_state.batches.size());
         _stats.draw_calls += static_cast<uint32_t>(stage_state.batches.size());
     }
@@ -1868,180 +2430,137 @@ namespace carrot::renderer {
         }
 
         const stage_submission_group_t group{ stage_submission_group(frame_stage_kind_t::world) };
-        CE_ASSERT(group.text != nullptr, "Renderer world stage must have text submission state");
+        CE_ASSERT(group.textured != nullptr && group.text != nullptr,
+                  "Renderer world stage must have textured and text submission state");
         const forward_plus_gpu_buffers_t& gpu_buffers{ current_forward_plus_gpu_buffers() };
-        std::stable_sort(_world_render_items.items.begin(), _world_render_items.items.end(),
-                         [](const world_render_item_t& lhs, const world_render_item_t& rhs) noexcept
-                         {
-                             textured_quad_draw_info_t lhs_quad{ };
-                             lhs_quad.layer = lhs.layer;
-                             lhs_quad.order_mode = lhs.order_mode;
-                             lhs_quad.order_in_layer = lhs.order_in_layer;
-                             lhs_quad.sort_reference_y = lhs.sort_reference_y;
+        std::stable_sort(_world_quad_instances.instances.begin(),
+                         _world_quad_instances.instances.end(),
+                         quad_instance_sorts_before);
 
-                             textured_quad_draw_info_t rhs_quad{ };
-                             rhs_quad.layer = rhs.layer;
-                             rhs_quad.order_mode = rhs.order_mode;
-                             rhs_quad.order_in_layer = rhs.order_in_layer;
-                             rhs_quad.sort_reference_y = rhs.sort_reference_y;
+        _stats.world_render_item_count = static_cast<std::uint32_t>(_world_quad_instances.instances.size());
+        const chlm::float2 visible_min{
+            _active_camera.position.x,
+            _active_camera.position.y
+        };
+        const chlm::float2 visible_max{
+            _active_camera.position.x + resolved_world_camera.visible_world_size.x,
+            _active_camera.position.y + resolved_world_camera.visible_world_size.y
+        };
 
-                             if (quad_sorts_before(lhs_quad, rhs_quad))
-                                 return true;
-
-                             if (quad_sorts_before(rhs_quad, lhs_quad))
-                                 return false;
-
-                             return lhs.submission_index < rhs.submission_index;
-                         });
-
-        _stats.world_render_item_count = static_cast<std::uint32_t>(_world_render_items.items.size());
-        build_world_indirect_batches(_world_indirect_batches);
-        _stats.world_indirect_batch_count = static_cast<std::uint32_t>(_world_indirect_batches.size());
-        ensure_world_indirect_quad_buffers();
-
-        if (_world_item_cull_pipeline &&
-            _world_indirect_quad_vertex_buffer &&
-            _world_indirect_quad_index_buffer)
+        group.textured->instances.clear();
+        group.textured->instances.reserve(_world_quad_instances.instances.size());
+        for (const quad_instance_t& instance : _world_quad_instances.instances)
         {
-            for (std::size_t batch_index{ 0u }; batch_index < _world_indirect_batches.size(); ++batch_index)
-            {
-                const world_indirect_batch_t& batch{ _world_indirect_batches[batch_index] };
-                if (!batch.texture || batch.item_count == 0u)
-                    continue;
+            if (!aabb_overlaps_aabb(instance.bounds_min_px, instance.bounds_max_px, visible_min, visible_max))
+                continue;
 
-                ensure_world_item_cull_gpu_buffers(batch_index, batch.item_count);
-                const gpu_world_item_cull_constants_t cull_constants{
-                    .visible_bounds_px = {
-                        _active_camera.position.x,
-                        _active_camera.position.y,
-                        _active_camera.position.x + resolved_world_camera.visible_world_size.x,
-                        _active_camera.position.y + resolved_world_camera.visible_world_size.y
-                    },
-                    .counts = {
-                        static_cast<std::uint32_t>(batch.item_count),
-                        0u,
-                        0u,
-                        0u
-                    }
-                };
-                upload_world_item_cull_input(batch_index,
-                                             std::span<const world_render_item_t>{
-                                                 _world_render_items.items.data() + batch.first_item,
-                                                 batch.item_count
-                                             },
-                                             cull_constants);
-            }
-            for (std::size_t batch_index{ 0u }; batch_index < _world_indirect_batches.size(); ++batch_index)
-            {
-                const world_indirect_batch_t& batch{ _world_indirect_batches[batch_index] };
-                if (!batch.texture || batch.item_count == 0u)
-                    continue;
-
-                const world_item_cull_gpu_buffers_t& cull_buffers{ current_world_item_cull_gpu_buffers()[batch_index] };
-                const std::array<rhi::compute_buffer_binding_t, 2> cull_read_only_bindings{
-                    rhi::compute_buffer_binding_t{ .slot = 0u, .buffer = cull_buffers.constants_buffer.get() },
-                    rhi::compute_buffer_binding_t{ .slot = 1u, .buffer = cull_buffers.item_input_buffer.get() }
-                };
-                const std::array<rhi::compute_buffer_binding_t, 2> cull_storage_bindings{
-                    rhi::compute_buffer_binding_t{ .slot = 2u, .buffer = cull_buffers.visible_item_index_buffer.get() },
-                    rhi::compute_buffer_binding_t{ .slot = 3u, .buffer = cull_buffers.output_buffer.get() }
-                };
-
-                _rhi->dispatch_compute({
-                    .pipeline = _world_item_cull_pipeline.get(),
-                    .read_only_buffers = cull_read_only_bindings,
-                    .storage_buffers = cull_storage_bindings,
-                    .graphics_handoff = rhi::compute_graphics_handoff_t::storage_write_to_graphics_read,
-                    .group_count_x = 1u,
-                    .group_count_y = 1u,
-                    .group_count_z = 1u
-                });
-            }
-
-            for (std::size_t batch_index{ 0u }; batch_index < _world_indirect_batches.size(); ++batch_index)
-            {
-                const world_indirect_batch_t& batch{ _world_indirect_batches[batch_index] };
-                if (!batch.texture || batch.item_count == 0u)
-                    continue;
-
-                const world_item_cull_gpu_buffers_t& cull_buffers{ current_world_item_cull_gpu_buffers()[batch_index] };
-                rhi::rhi_sampler_t* sampler{
-                    _rhi->get_or_create_sampler(rhi::sampler_desc_from_preset(batch.sampler_preset))
-                };
-                if (!sampler)
-                {
-                    LOG_GRAPHICS_FATAL("Failed to resolve world indirect sampler");
-                    continue;
-                }
-
-                _rhi->record_indirect_textured_quad_stage({
-                    .vertex_buffer = _world_indirect_quad_vertex_buffer.get(),
-                    .index_buffer = _world_indirect_quad_index_buffer.get(),
-                    .indirect_buffer = cull_buffers.output_buffer.get(),
-                    .texture = batch.texture,
-                    .sampler = sampler,
-                    .view_projection = stage_context.view_projection,
-                    .ambient_color = _world_ambient_color,
-                    .forward_plus_constants = _world_forward_plus_constants,
-                    .forward_plus_light_input = _world_forward_plus_light_input,
-                    .forward_plus_output = _world_forward_plus_output,
-                    .forward_plus_light_input_buffer = gpu_buffers.light_input_buffer.get(),
-                    .forward_plus_output_buffer = gpu_buffers.classification_output_buffer.get(),
-                    .world_item_buffer = cull_buffers.item_input_buffer.get(),
-                    .visible_item_index_buffer = cull_buffers.visible_item_index_buffer.get(),
-                    .world_draw_mode = 1u,
-                    .viewport = stage_context.viewport,
-                    .indirect_buffer_offset_bytes = sizeof(gpu_world_item_cull_state_t),
-                    .presentation_mask = world_stage_plan.presentation_mask
-                });
-
-                ++_stats.draw_calls;
-                ++_stats.textured_quad_batch_count;
-            }
+            group.textured->instances.push_back(instance);
         }
 
-        const rhi::textured_quad_stage_record_t world_text_record{
+        rhi::textured_quad_stage_record_t world_textured_record{ };
+        static_cast<rhi::quad_stage_common_t&>(world_textured_record) = rhi::quad_stage_common_t{
             .view_projection = stage_context.view_projection,
-            .ambient_color = { 1.f, 1.f, 1.f, 1.f },
-            .forward_plus_constants = { },
-            .forward_plus_light_input = { },
-            .forward_plus_output = { },
+            .ambient_color = _world_ambient_color,
+            .forward_plus_constants = _world_forward_plus_constants,
+            .forward_plus_light_input = _world_forward_plus_light_input,
+            .forward_plus_output = _world_forward_plus_output,
             .forward_plus_light_input_buffer = gpu_buffers.light_input_buffer.get(),
             .forward_plus_output_buffer = gpu_buffers.classification_output_buffer.get(),
+            .world_item_buffer = nullptr,
+            .visible_item_index_buffer = nullptr,
+            .world_draw_mode = 0u,
             .viewport = stage_context.viewport,
             .presentation_mask = world_stage_plan.presentation_mask
         };
+        record_stage_state(*group.textured, world_textured_record, false);
+        _stats.world_textured_batch_count = static_cast<std::uint32_t>(group.textured->batches.size());
+
+        rhi::textured_quad_stage_record_t world_text_record{ };
+        static_cast<rhi::quad_stage_common_t&>(world_text_record) = build_quad_stage_common_record(stage_context,
+                                                                                                    world_stage_plan.presentation_mask,
+                                                                                                    &gpu_buffers);
 
         record_stage_state(*group.text, world_text_record, true);
     }
 
     void renderer_t::execute_frame_stage(const frame_stage_plan_t& stage_plan)
     {
-        if (stage_plan.kind == frame_stage_kind_t::composite)
-            materialize_composite_fullscreen_passes();
-
         const stage_execution_context_t stage_context{ resolve_stage_execution_context(stage_plan) };
+
+        if (stage_plan.kind == frame_stage_kind_t::composite)
+        {
+            if (!_bloom_source_quads.instances.empty() && _bloom_source_render_target)
+            {
+                rhi::textured_quad_stage_record_t bloom_source_record{ };
+                static_cast<rhi::quad_stage_common_t&>(bloom_source_record) = build_quad_stage_common_record(stage_context, 0u);
+                bloom_source_record.render_target = _bloom_source_render_target.get();
+                bloom_source_record.target_load_action = rhi::quad_stage_common_t::target_load_action_t::clear;
+                bloom_source_record.target_clear_color = { 0.f, 0.f, 0.f, 0.f };
+                record_stage_state(_bloom_source_quads, bloom_source_record, false);
+            }
+
+            if (!_bloom_blur_horizontal_quads.instances.empty() && _bloom_blur_render_target)
+            {
+                rhi::textured_quad_stage_record_t bloom_horizontal_blur_record{ };
+                static_cast<rhi::quad_stage_common_t&>(bloom_horizontal_blur_record) = build_quad_stage_common_record(stage_context, 0u);
+                bloom_horizontal_blur_record.render_target = _bloom_blur_render_target.get();
+                bloom_horizontal_blur_record.target_load_action = rhi::quad_stage_common_t::target_load_action_t::clear;
+                bloom_horizontal_blur_record.target_clear_color = { 0.f, 0.f, 0.f, 0.f };
+                bloom_horizontal_blur_record.shader_variant = rhi::quad_shader_variant_t::bloom_blur;
+                record_stage_state(_bloom_blur_horizontal_quads, bloom_horizontal_blur_record, false);
+            }
+
+            if (!_bloom_blur_vertical_quads.instances.empty() && _bloom_source_render_target)
+            {
+                rhi::textured_quad_stage_record_t bloom_vertical_blur_record{ };
+                static_cast<rhi::quad_stage_common_t&>(bloom_vertical_blur_record) = build_quad_stage_common_record(stage_context, 0u);
+                bloom_vertical_blur_record.render_target = _bloom_source_render_target.get();
+                bloom_vertical_blur_record.target_load_action = rhi::quad_stage_common_t::target_load_action_t::clear;
+                bloom_vertical_blur_record.target_clear_color = { 0.f, 0.f, 0.f, 0.f };
+                bloom_vertical_blur_record.shader_variant = rhi::quad_shader_variant_t::bloom_blur;
+                record_stage_state(_bloom_blur_vertical_quads, bloom_vertical_blur_record, false);
+            }
+
+            materialize_post_effect_passes();
+        }
+
+        if (stage_plan.kind == frame_stage_kind_t::composite)
+        {
+            materialize_transition_passes(stage_context,
+                                          stage_plan.presentation_mask,
+                                          transition_pass_phase_t::pre_composite_record);
+        }
+
         const stage_submission_group_t group{ stage_submission_group(stage_plan.kind) };
         CE_ASSERT(group.textured != nullptr && group.text != nullptr,
                   "Renderer non-world stage must have both textured and text submission state");
 
-        const rhi::textured_quad_stage_record_t record{
-            .view_projection = stage_context.view_projection,
-            .ambient_color = { 1.f, 1.f, 1.f, 1.f },
-            .forward_plus_constants = { },
-            .forward_plus_light_input = { },
-            .forward_plus_output = { },
-            .forward_plus_light_input_buffer = current_forward_plus_gpu_buffers().light_input_buffer.get(),
-            .forward_plus_output_buffer = current_forward_plus_gpu_buffers().classification_output_buffer.get(),
-            .viewport = stage_context.viewport,
-            .presentation_mask = stage_plan.presentation_mask
-        };
+        const forward_plus_gpu_buffers_t& gpu_buffers{ current_forward_plus_gpu_buffers() };
+        rhi::textured_quad_stage_record_t record{ };
+        static_cast<rhi::quad_stage_common_t&>(record) = build_quad_stage_common_record(stage_context,
+                                                                                        stage_plan.presentation_mask,
+                                                                                        &gpu_buffers);
 
         record_stage_state(*group.textured, record, false);
         record_stage_state(*group.text, record, true);
 
+        if (stage_plan.kind == frame_stage_kind_t::composite && !_bloom_composite_quads.instances.empty())
+        {
+            rhi::textured_quad_stage_record_t bloom_composite_record{ };
+            static_cast<rhi::quad_stage_common_t&>(bloom_composite_record) = build_quad_stage_common_record(
+                stage_context,
+                stage_plan.presentation_mask,
+                &gpu_buffers);
+            bloom_composite_record.shader_variant = rhi::quad_shader_variant_t::bloom_composite;
+            record_stage_state(_bloom_composite_quads, bloom_composite_record, false);
+        }
+
         if (stage_plan.kind == frame_stage_kind_t::composite)
-            record_transition_battle_swirl_if_needed(stage_context, stage_plan.presentation_mask);
+        {
+            materialize_transition_passes(stage_context,
+                                          stage_plan.presentation_mask,
+                                          transition_pass_phase_t::post_composite_record);
+        }
     }
 
     void renderer_t::execute_frame_stages()
@@ -2069,16 +2588,13 @@ namespace carrot::renderer {
     {
         auto release_stage_buffers = [](textured_quad_state_t& stage_state)
         {
-            stage_state.submissions.clear();
-            stage_state.vertices_cpu.clear();
-            stage_state.indices_cpu.clear();
+            stage_state.instances.clear();
+            stage_state.instance_data_cpu.clear();
             stage_state.batches.clear();
             for (auto& frame_buffers : stage_state.frame_buffers)
             {
-                frame_buffers.vertex_buffer.reset();
-                frame_buffers.index_buffer.reset();
-                frame_buffers.vertex_capacity = 0;
-                frame_buffers.index_capacity = 0;
+                frame_buffers.instance_buffer.reset();
+                frame_buffers.instance_capacity = 0;
             }
         };
 
@@ -2091,6 +2607,13 @@ namespace carrot::renderer {
                 release_stage_buffers(*group.text);
         }
 
+        release_stage_buffers(_world_textured_quads);
+        release_stage_buffers(_world_text_quads);
+        release_stage_buffers(_bloom_source_quads);
+        release_stage_buffers(_bloom_blur_horizontal_quads);
+        release_stage_buffers(_bloom_blur_vertical_quads);
+        release_stage_buffers(_bloom_composite_quads);
+
         for (forward_plus_gpu_buffers_t& frame_buffers : _forward_plus_gpu_buffers)
         {
             frame_buffers.constants_buffer.reset();
@@ -2098,27 +2621,19 @@ namespace carrot::renderer {
             frame_buffers.classification_output_buffer.reset();
         }
 
-        for (auto& frame_buffer_set : _world_item_cull_gpu_buffers)
-        {
-            for (world_item_cull_gpu_buffers_t& frame_buffers : frame_buffer_set)
-            {
-                frame_buffers.constants_buffer.reset();
-                frame_buffers.item_input_buffer.reset();
-                frame_buffers.visible_item_index_buffer.reset();
-                frame_buffers.output_buffer.reset();
-                frame_buffers.item_capacity = 0u;
-            }
-
-            frame_buffer_set.clear();
-        }
-
-        _world_render_items.items.clear();
-        _world_indirect_batches.clear();
-        _composite_fullscreen_passes.clear();
-        _world_indirect_quad_vertex_buffer.reset();
-        _world_indirect_quad_index_buffer.reset();
-        _transition_battle_swirl_vertex_buffer.reset();
-        _transition_battle_swirl_index_buffer.reset();
+        _world_quad_instances.instances.clear();
+        _bloom_source_quads.instances.clear();
+        _bloom_blur_horizontal_quads.instances.clear();
+        _bloom_blur_vertical_quads.instances.clear();
+        _bloom_composite_quads.instances.clear();
+        _bloom_source_passes.clear();
+        _post_effect_passes.clear();
+        _transition_passes.clear();
+        _shared_quad_vertex_buffer.reset();
+        _shared_quad_index_buffer.reset();
+        _bloom_source_render_target.reset();
+        _bloom_blur_render_target.reset();
+        _transition_battle_swirl_instance_buffer.reset();
         _transition_battle_swirl_capture_texture.reset();
 
         _stats = { };
@@ -2127,89 +2642,61 @@ namespace carrot::renderer {
     void renderer_t::ensure_textured_quad_frame_buffers(textured_quad_state_t& state)
     {
         auto& frame_buffers{ current_frame_buffers(state) };
-        const size_t required_vertex_bytes{ state.vertices_cpu.size() * sizeof(quad_vertex_t) };
-        const size_t required_index_bytes{ state.indices_cpu.size() * sizeof(uint32_t) };
+        const size_t required_instance_bytes{ state.instance_data_cpu.size() * sizeof(gpu_quad_instance_t) };
 
-        if (required_vertex_bytes == 0 || required_index_bytes == 0)
+        if (required_instance_bytes == 0)
             return;
 
-        const bool needs_vertex_realloc{
-            frame_buffers.vertex_buffer != nullptr && frame_buffers.vertex_capacity < required_vertex_bytes
-        };
-        const bool needs_index_realloc{
-            frame_buffers.index_buffer != nullptr && frame_buffers.index_capacity < required_index_bytes
+        const bool needs_instance_realloc{
+            frame_buffers.instance_buffer != nullptr && frame_buffers.instance_capacity < required_instance_bytes
         };
 
-        if ((needs_vertex_realloc || needs_index_realloc) &&
+        if (needs_instance_realloc &&
             _rhi->get_graphics_api() == rhi::graphics_api::vulkan)
         {
-            // The previous frame may still be using the current geometry buffers.
+            // The previous frame may still be using the current instance buffers.
             // Wait before replacing them so Vulkan backends do not destroy in-flight buffers.
             _rhi->wait_idle();
         }
 
-        if (frame_buffers.vertex_buffer == nullptr || frame_buffers.vertex_capacity < required_vertex_bytes)
+        if (frame_buffers.instance_buffer == nullptr || frame_buffers.instance_capacity < required_instance_bytes)
         {
             rhi::buffer_create_info_t info{ };
-            info.size_bytes = required_vertex_bytes;
+            info.size_bytes = required_instance_bytes;
             info.usage = rhi::buffer_usage_t::vertex;
             info.initial_data = nullptr;
             info.cpu_writable = true;
 
-            frame_buffers.vertex_buffer = _rhi->create_buffer(info);
-            if (!frame_buffers.vertex_buffer)
+            frame_buffers.instance_buffer = _rhi->create_buffer(info);
+            if (!frame_buffers.instance_buffer)
             {
-                LOG_GRAPHICS_FATAL("Failed to create textured quad frame vertex buffer");
-                frame_buffers.vertex_capacity = 0;
+                LOG_GRAPHICS_FATAL("Failed to create textured quad frame instance buffer");
+                frame_buffers.instance_capacity = 0;
                 return;
             }
 
-            frame_buffers.vertex_capacity = required_vertex_bytes;
-        }
-
-        if (frame_buffers.index_buffer == nullptr || frame_buffers.index_capacity < required_index_bytes)
-        {
-            rhi::buffer_create_info_t info{ };
-            info.size_bytes = required_index_bytes;
-            info.usage = rhi::buffer_usage_t::index;
-            info.initial_data = nullptr;
-            info.cpu_writable = true;
-
-            frame_buffers.index_buffer = _rhi->create_buffer(info);
-            if (!frame_buffers.index_buffer)
-            {
-                LOG_GRAPHICS_FATAL("Failed to create textured quad frame index buffer");
-                frame_buffers.index_capacity = 0;
-                return;
-            }
-
-            frame_buffers.index_capacity = required_index_bytes;
+            frame_buffers.instance_capacity = required_instance_bytes;
         }
     }
 
     void renderer_t::upload_textured_quad_frame_data(const textured_quad_state_t& state) const
     {
         const auto& frame_buffers{ current_frame_buffers(state) };
-        if (state.vertices_cpu.empty() || state.indices_cpu.empty())
+        if (state.instance_data_cpu.empty())
             return;
 
-        if (!frame_buffers.vertex_buffer || !frame_buffers.index_buffer)
+        if (!frame_buffers.instance_buffer)
         {
-            LOG_GRAPHICS_FATAL("Textured quad frame buffers are not available for upload");
+            LOG_GRAPHICS_FATAL("Textured quad instance buffer is not available for upload");
             return;
         }
 
-        const size_t vertex_bytes{ state.vertices_cpu.size() * sizeof(quad_vertex_t) };
-        const size_t index_bytes{ state.indices_cpu.size() * sizeof(uint32_t) };
+        const size_t instance_bytes{ state.instance_data_cpu.size() * sizeof(gpu_quad_instance_t) };
 
-        if (!frame_buffers.vertex_buffer->write(state.vertices_cpu.data(), vertex_bytes, 0))
+        if (!frame_buffers.instance_buffer->write(state.instance_data_cpu.data(), instance_bytes, 0))
         {
-            LOG_GRAPHICS_FATAL("Failed to upload textured quad vertex data");
-            return;
+            LOG_GRAPHICS_FATAL("Failed to upload textured quad instance data");
         }
-
-        if (!frame_buffers.index_buffer->write(state.indices_cpu.data(), index_bytes, 0))
-            LOG_GRAPHICS_FATAL("Failed to upload textured quad index data");
     }
 
     void renderer_t::ensure_forward_plus_gpu_buffers()
@@ -2284,127 +2771,9 @@ namespace carrot::renderer {
         }
     }
 
-    void renderer_t::ensure_world_item_cull_gpu_buffers(const std::size_t batch_index, const std::size_t item_capacity)
+    void renderer_t::ensure_shared_quad_geometry_buffers()
     {
-        std::vector<world_item_cull_gpu_buffers_t>& frame_buffer_set{ current_world_item_cull_gpu_buffers() };
-        if (frame_buffer_set.size() <= batch_index)
-            frame_buffer_set.resize(batch_index + 1u);
-
-        world_item_cull_gpu_buffers_t& frame_buffers{ frame_buffer_set[batch_index] };
-        const std::size_t resolved_capacity{ std::max<std::size_t>(1u, item_capacity) };
-
-        if (frame_buffers.item_capacity >= resolved_capacity &&
-            frame_buffers.constants_buffer &&
-            frame_buffers.item_input_buffer &&
-            frame_buffers.visible_item_index_buffer &&
-            frame_buffers.output_buffer)
-        {
-            return;
-        }
-
-        frame_buffers.item_capacity = resolved_capacity;
-        frame_buffers.constants_buffer = _rhi->create_buffer({
-            .size_bytes = sizeof(gpu_world_item_cull_constants_t),
-            .usage = rhi::buffer_usage_t::shader_read,
-            .cpu_writable = true
-        });
-        frame_buffers.item_input_buffer = _rhi->create_buffer({
-            .size_bytes = resolved_capacity * sizeof(gpu_world_render_item_t),
-            .usage = rhi::buffer_usage_t::shader_read,
-            .cpu_writable = true
-        });
-        frame_buffers.visible_item_index_buffer = _rhi->create_buffer({
-            .size_bytes = resolved_capacity * sizeof(std::uint32_t),
-            .usage = rhi::buffer_usage_t::storage
-        });
-        frame_buffers.output_buffer = _rhi->create_buffer({
-            .size_bytes = sizeof(gpu_world_item_cull_state_t) + sizeof(rhi::indexed_indirect_draw_command_t),
-            .usage = rhi::buffer_usage_t::indirect
-        });
-
-        if (!frame_buffers.constants_buffer ||
-            !frame_buffers.item_input_buffer ||
-            !frame_buffers.visible_item_index_buffer ||
-            !frame_buffers.output_buffer)
-        {
-            LOG_GRAPHICS_FATAL("Failed to create renderer world item cull GPU buffers");
-        }
-    }
-
-    void renderer_t::upload_world_item_cull_input(const std::size_t batch_index,
-                                                  const std::span<const world_render_item_t> items,
-                                                  const gpu_world_item_cull_constants_t& cull_constants) const
-    {
-        const std::vector<world_item_cull_gpu_buffers_t>& frame_buffer_set{ current_world_item_cull_gpu_buffers() };
-        if (batch_index >= frame_buffer_set.size())
-        {
-            LOG_GRAPHICS_FATAL("World item cull GPU buffers are not available for batch {}", batch_index);
-            return;
-        }
-
-        const world_item_cull_gpu_buffers_t& frame_buffers{ frame_buffer_set[batch_index] };
-        if (!frame_buffers.constants_buffer ||
-            !frame_buffers.item_input_buffer ||
-            !frame_buffers.visible_item_index_buffer ||
-            !frame_buffers.output_buffer)
-        {
-            LOG_GRAPHICS_FATAL("World item cull GPU buffers are not available for upload");
-            return;
-        }
-
-        std::vector<gpu_world_render_item_t> gpu_items;
-        gpu_items.reserve(items.size());
-        for (const world_render_item_t& item : items)
-        {
-            gpu_items.push_back({
-                .quad_rect_px = {
-                    item.position_px.x,
-                    item.position_px.y,
-                    item.size_px.x,
-                    item.size_px.y
-                },
-                .uv_rect = {
-                    item.uv_rect.u_min,
-                    item.uv_rect.v_min,
-                    item.uv_rect.u_max,
-                    item.uv_rect.v_max
-                },
-                .bounds_min_max_px = {
-                    item.bounds_min_px.x,
-                    item.bounds_min_px.y,
-                    item.bounds_max_px.x,
-                    item.bounds_max_px.y
-                },
-                .packed_data = {
-                    item.color,
-                    0u,
-                    0u,
-                    0u
-                },
-                .draw_params = {
-                    item.effect_mode,
-                    item.effect_param0,
-                    0.f,
-                    0.f
-                }
-            });
-        }
-
-        if (!gpu_items.empty() &&
-            !frame_buffers.item_input_buffer->write(gpu_items.data(), gpu_items.size() * sizeof(gpu_world_render_item_t), 0u))
-        {
-            LOG_GRAPHICS_FATAL("Failed to upload world item cull input buffer");
-        }
-
-        if (!frame_buffers.constants_buffer->write(&cull_constants, sizeof(cull_constants), 0u))
-        {
-            LOG_GRAPHICS_FATAL("Failed to upload world item cull constants buffer");
-        }
-    }
-
-    void renderer_t::ensure_world_indirect_quad_buffers()
-    {
-        if (!_rhi || (_world_indirect_quad_vertex_buffer && _world_indirect_quad_index_buffer))
+        if (!_rhi || (_shared_quad_vertex_buffer && _shared_quad_index_buffer))
             return;
 
         constexpr std::array<quad_vertex_t, 4> quad_vertices{
@@ -2415,19 +2784,19 @@ namespace carrot::renderer {
         };
         constexpr std::array<std::uint32_t, 6> quad_indices{ 0u, 1u, 2u, 0u, 2u, 3u };
 
-        _world_indirect_quad_vertex_buffer = _rhi->create_buffer({
+        _shared_quad_vertex_buffer = _rhi->create_buffer({
             .size_bytes = quad_vertices.size() * sizeof(quad_vertex_t),
             .usage = rhi::buffer_usage_t::vertex,
             .initial_data = quad_vertices.data()
         });
-        _world_indirect_quad_index_buffer = _rhi->create_buffer({
+        _shared_quad_index_buffer = _rhi->create_buffer({
             .size_bytes = quad_indices.size() * sizeof(std::uint32_t),
             .usage = rhi::buffer_usage_t::index,
             .initial_data = quad_indices.data()
         });
 
-        if (!_world_indirect_quad_vertex_buffer || !_world_indirect_quad_index_buffer)
-            LOG_GRAPHICS_FATAL("Failed to create renderer world indirect quad buffers");
+        if (!_shared_quad_vertex_buffer || !_shared_quad_index_buffer)
+            LOG_GRAPHICS_FATAL("Failed to create renderer shared quad geometry buffers");
     }
 
     void renderer_t::ensure_transition_battle_swirl_capture_texture()
@@ -2456,72 +2825,58 @@ namespace carrot::renderer {
             LOG_GRAPHICS_FATAL("Failed to create transition battle swirl capture texture");
     }
 
-    void renderer_t::ensure_transition_battle_swirl_quad_buffers()
+    void renderer_t::ensure_bloom_source_render_target()
     {
-        if (!_rhi ||
-            (_transition_battle_swirl_vertex_buffer && _transition_battle_swirl_index_buffer))
+        if (!_rhi)
+            return;
+
+        const chlm::uint2 target_size{ current_render_target_size() };
+        if (target_size.x == 0u || target_size.y == 0u)
+            return;
+
+        if (_bloom_source_render_target &&
+            _bloom_source_render_target->width() == target_size.x &&
+            _bloom_source_render_target->height() == target_size.y)
         {
             return;
         }
 
-        constexpr std::array<quad_vertex_t, 4> quad_vertices{
-            quad_vertex_t{ .x = 0.f, .y = 0.f, .u = 0.f, .v = 0.f, .color = 0xFFFFFFFFu, .effect_mode = 0.f, .effect_param0 = 0.f },
-            quad_vertex_t{ .x = 1.f, .y = 0.f, .u = 1.f, .v = 0.f, .color = 0xFFFFFFFFu, .effect_mode = 0.f, .effect_param0 = 0.f },
-            quad_vertex_t{ .x = 1.f, .y = 1.f, .u = 1.f, .v = 1.f, .color = 0xFFFFFFFFu, .effect_mode = 0.f, .effect_param0 = 0.f },
-            quad_vertex_t{ .x = 0.f, .y = 1.f, .u = 0.f, .v = 1.f, .color = 0xFFFFFFFFu, .effect_mode = 0.f, .effect_param0 = 0.f }
-        };
-        constexpr std::array<std::uint32_t, 6> quad_indices{ 0u, 1u, 2u, 0u, 2u, 3u };
-
-        _transition_battle_swirl_vertex_buffer = _rhi->create_buffer({
-            .size_bytes = quad_vertices.size() * sizeof(quad_vertex_t),
-            .usage = rhi::buffer_usage_t::vertex,
-            .cpu_writable = true,
-            .initial_data = quad_vertices.data()
-        });
-        _transition_battle_swirl_index_buffer = _rhi->create_buffer({
-            .size_bytes = quad_indices.size() * sizeof(std::uint32_t),
-            .usage = rhi::buffer_usage_t::index,
-            .cpu_writable = true,
-            .initial_data = quad_indices.data()
+        _bloom_source_render_target = _rhi->create_render_target_2d({
+            .width = target_size.x,
+            .height = target_size.y,
+            .format = rhi::texture_format_t::rgba8_srgb,
+            .shader_readable = true
         });
 
-        if (!_transition_battle_swirl_vertex_buffer || !_transition_battle_swirl_index_buffer)
-            LOG_GRAPHICS_FATAL("Failed to create renderer transition battle swirl quad buffers");
+        if (!_bloom_source_render_target)
+            LOG_GRAPHICS_FATAL("Failed to create bloom source render target");
     }
 
-    void renderer_t::build_world_indirect_batches(std::vector<world_indirect_batch_t>& out_batches) const
+    void renderer_t::ensure_bloom_blur_render_target()
     {
-        out_batches.clear();
-        if (_world_render_items.items.empty())
+        if (!_rhi)
             return;
 
-        std::size_t batch_first_item{ 0u };
-        const auto batch_matches = [](const world_render_item_t& lhs, const world_render_item_t& rhs) noexcept
-        {
-            return lhs.texture == rhs.texture &&
-                   lhs.sampler_preset == rhs.sampler_preset &&
-                   lhs.world_material == rhs.world_material;
-        };
+        const chlm::uint2 target_size{ current_render_target_size() };
+        if (target_size.x == 0u || target_size.y == 0u)
+            return;
 
-        for (std::size_t item_index{ 1u }; item_index <= _world_render_items.items.size(); ++item_index)
+        if (_bloom_blur_render_target &&
+            _bloom_blur_render_target->width() == target_size.x &&
+            _bloom_blur_render_target->height() == target_size.y)
         {
-            const bool flush_batch{
-                item_index == _world_render_items.items.size() ||
-                !batch_matches(_world_render_items.items[batch_first_item], _world_render_items.items[item_index])
-            };
-            if (!flush_batch)
-                continue;
-
-            const world_render_item_t& batch_head{ _world_render_items.items[batch_first_item] };
-            out_batches.push_back({
-                .texture = batch_head.texture,
-                .sampler_preset = batch_head.sampler_preset,
-                .world_material = batch_head.world_material,
-                .first_item = batch_first_item,
-                .item_count = item_index - batch_first_item
-            });
-            batch_first_item = item_index;
+            return;
         }
+
+        _bloom_blur_render_target = _rhi->create_render_target_2d({
+            .width = target_size.x,
+            .height = target_size.y,
+            .format = rhi::texture_format_t::rgba8_srgb,
+            .shader_readable = true
+        });
+
+        if (!_bloom_blur_render_target)
+            LOG_GRAPHICS_FATAL("Failed to create bloom blur render target");
     }
 
     void renderer_t::update_forward_plus_diagnostics() noexcept
@@ -2612,13 +2967,4 @@ namespace carrot::renderer {
         return _forward_plus_gpu_buffers[current_textured_quad_frame_buffer_slot()];
     }
 
-    std::vector<world_item_cull_gpu_buffers_t>& renderer_t::current_world_item_cull_gpu_buffers() noexcept
-    {
-        return _world_item_cull_gpu_buffers[current_textured_quad_frame_buffer_slot()];
-    }
-
-    const std::vector<world_item_cull_gpu_buffers_t>& renderer_t::current_world_item_cull_gpu_buffers() const noexcept
-    {
-        return _world_item_cull_gpu_buffers[current_textured_quad_frame_buffer_slot()];
-    }
 } // namespace carrot::renderer

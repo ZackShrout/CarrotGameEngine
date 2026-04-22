@@ -2830,7 +2830,7 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(null_rhi != nullptr);
 
             gfx.begin_frame();
-            CARROT_TEST_REQUIRE(gfx.pending_composite_fullscreen_pass_count() == 0u);
+            CARROT_TEST_REQUIRE(gfx.pending_post_effect_pass_count() == 0u);
             gfx.set_composite_overlay_color(0xCC112233u);
             gfx.end_frame();
 
@@ -2852,10 +2852,10 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(textured_stages[0].ambient_color.y == 1.f);
             CARROT_TEST_REQUIRE(textured_stages[0].ambient_color.z == 1.f);
             CARROT_TEST_REQUIRE(textured_stages[0].ambient_color.w == 1.f);
-            CARROT_TEST_REQUIRE(stats.composite_fullscreen_pass_count == 1u);
+            CARROT_TEST_REQUIRE(stats.post_effect_pass_count == 1u);
 
             gfx.begin_frame();
-            CARROT_TEST_REQUIRE(gfx.pending_composite_fullscreen_pass_count() == 0u);
+            CARROT_TEST_REQUIRE(gfx.pending_post_effect_pass_count() == 0u);
         }
 
         void test_renderer_transition_fade_routes_to_composite_stage()
@@ -2871,7 +2871,7 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(null_rhi != nullptr);
 
             gfx.begin_frame();
-            CARROT_TEST_REQUIRE(gfx.pending_composite_fullscreen_pass_count() == 0u);
+            CARROT_TEST_REQUIRE(gfx.pending_post_effect_pass_count() == 0u);
             gfx.set_transition_fade_color(0xCC223344u);
             gfx.end_frame();
 
@@ -2888,10 +2888,10 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(textured_stages[0].viewport.rect_px.position.y == 0u);
             CARROT_TEST_REQUIRE(textured_stages[0].viewport.rect_px.size.x == render_target_size.x);
             CARROT_TEST_REQUIRE(textured_stages[0].viewport.rect_px.size.y == render_target_size.y);
-            CARROT_TEST_REQUIRE(stats.composite_fullscreen_pass_count == 1u);
+            CARROT_TEST_REQUIRE(stats.post_effect_pass_count == 1u);
 
             gfx.begin_frame();
-            CARROT_TEST_REQUIRE(gfx.pending_composite_fullscreen_pass_count() == 0u);
+            CARROT_TEST_REQUIRE(gfx.pending_post_effect_pass_count() == 0u);
         }
 
         void test_renderer_transition_battle_swirl_routes_to_capture_textured_stage()
@@ -2939,14 +2939,68 @@ namespace carrot::tests {
             });
 
             gfx.begin_frame();
-            CARROT_TEST_REQUIRE(gfx.pending_composite_fullscreen_pass_count() == 0u);
+            CARROT_TEST_REQUIRE(gfx.pending_post_effect_pass_count() == 0u);
+            CARROT_TEST_REQUIRE(gfx.pending_bloom_source_pass_count() == 0u);
             gfx.end_frame();
 
             const auto& textured_stages{ null_rhi->recorded_textured_stages() };
             const renderer::renderer_stats_t& stats{ gfx.get_last_completed_stats() };
-            CARROT_TEST_REQUIRE(textured_stages.size() == 1u);
-            CARROT_TEST_REQUIRE(stats.composite_fullscreen_pass_count == 1u);
+            CARROT_TEST_REQUIRE(textured_stages.size() == 4u);
+            CARROT_TEST_REQUIRE(textured_stages[0].has_render_target);
+            CARROT_TEST_REQUIRE(textured_stages[1].has_render_target);
+            CARROT_TEST_REQUIRE(textured_stages[2].has_render_target);
+            CARROT_TEST_REQUIRE(!textured_stages[3].has_render_target);
+            CARROT_TEST_REQUIRE(stats.bloom_source_pass_count == 1u);
+            CARROT_TEST_REQUIRE(stats.post_effect_pass_count == 1u);
             CARROT_TEST_REQUIRE(stats.bloom_pass_count == 1u);
+        }
+
+        void test_renderer_authored_bloom_quad_routes_through_post_effect_system()
+        {
+            io::virtual_file_system_t vfs;
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t gfx{ vfs, graphics_config, window::invalid_window_id };
+
+            auto* null_rhi{ dynamic_cast<rhi::null::null_rhi_context_t*>(gfx.get_rhi()) };
+            CARROT_TEST_REQUIRE(null_rhi != nullptr);
+
+            gfx.begin_frame();
+            CARROT_TEST_REQUIRE(gfx.pending_post_effect_pass_count() == 0u);
+            CARROT_TEST_REQUIRE(gfx.pending_bloom_source_pass_count() == 0u);
+            gfx.draw_bloom_solid_quad(renderer::solid_quad_draw_info_t{
+                .x = 32.0f,
+                .y = 48.0f,
+                .width = 96.0f,
+                .height = 24.0f,
+                .layer = renderer::render_layer_t::ui,
+                .order_in_layer = 12,
+                .color = 0xCC88CCFFu
+            });
+            CARROT_TEST_REQUIRE(gfx.pending_bloom_source_pass_count() == 1u);
+            CARROT_TEST_REQUIRE(gfx.pending_post_effect_pass_count() == 0u);
+            gfx.end_frame();
+
+            const auto& textured_stages{ null_rhi->recorded_textured_stages() };
+            const renderer::renderer_stats_t& stats{ gfx.get_last_completed_stats() };
+            CARROT_TEST_REQUIRE(textured_stages.size() == 4u);
+            CARROT_TEST_REQUIRE(textured_stages[0].has_render_target);
+            CARROT_TEST_REQUIRE(textured_stages[1].has_render_target);
+            CARROT_TEST_REQUIRE(textured_stages[2].has_render_target);
+            CARROT_TEST_REQUIRE(!textured_stages[3].has_render_target);
+            CARROT_TEST_REQUIRE(textured_stages[0].batch_count == 1u);
+            CARROT_TEST_REQUIRE(textured_stages[1].batch_count == 1u);
+            CARROT_TEST_REQUIRE(textured_stages[2].batch_count == 1u);
+            CARROT_TEST_REQUIRE(textured_stages[3].batch_count == 1u);
+            CARROT_TEST_REQUIRE(stats.bloom_source_pass_count == 1u);
+            CARROT_TEST_REQUIRE(stats.post_effect_pass_count == 1u);
+            CARROT_TEST_REQUIRE(stats.bloom_pass_count == 1u);
+
+            gfx.begin_frame();
+            CARROT_TEST_REQUIRE(gfx.pending_post_effect_pass_count() == 0u);
+            CARROT_TEST_REQUIRE(gfx.pending_bloom_source_pass_count() == 0u);
         }
 
         void test_renderer_bloom_can_be_disabled()
@@ -2977,7 +3031,8 @@ namespace carrot::tests {
             const auto& textured_stages{ null_rhi->recorded_textured_stages() };
             const renderer::renderer_stats_t& stats{ gfx.get_last_completed_stats() };
             CARROT_TEST_REQUIRE(textured_stages.empty());
-            CARROT_TEST_REQUIRE(stats.composite_fullscreen_pass_count == 0u);
+            CARROT_TEST_REQUIRE(stats.bloom_source_pass_count == 0u);
+            CARROT_TEST_REQUIRE(stats.post_effect_pass_count == 0u);
             CARROT_TEST_REQUIRE(stats.bloom_pass_count == 0u);
         }
 
@@ -4638,6 +4693,8 @@ namespace carrot::tests {
                            test_renderer_transition_battle_swirl_routes_to_capture_textured_stage);
         tests.emplace_back("renderer bloom routes to composite stage when enabled",
                            test_renderer_bloom_routes_to_composite_stage_when_enabled);
+        tests.emplace_back("renderer authored bloom quad routes through post effect system",
+                           test_renderer_authored_bloom_quad_routes_through_post_effect_system);
         tests.emplace_back("renderer bloom can be disabled",
                            test_renderer_bloom_can_be_disabled);
         tests.emplace_back("renderer composite and overlay debug use distinct stage spaces",

@@ -17,4 +17,19 @@ namespace carrot::rhi::metal {
         if (_texture)
             _texture->release();
     }
+
+    uint32_t metal_render_target_t::width() const noexcept
+    {
+        return _color_texture ? _color_texture->width() : 0u;
+    }
+
+    uint32_t metal_render_target_t::height() const noexcept
+    {
+        return _color_texture ? _color_texture->height() : 0u;
+    }
+
+    texture_format_t metal_render_target_t::format() const noexcept
+    {
+        return _color_texture ? _color_texture->format() : texture_format_t::rgba8_srgb;
+    }
 } // namespace carrot::rhi::metal

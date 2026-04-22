@@ -11,7 +11,8 @@ namespace carrot::rhi::vulkan {
     vulkan_render_pass_t::vulkan_render_pass_t(const vulkan_device_t* device,
                                                const VkFormat color_format,
                                                const VkAttachmentLoadOp load_op,
-                                               const VkImageLayout initial_layout) : _device{ device }
+                                               const VkImageLayout initial_layout,
+                                               const VkImageLayout final_layout) : _device{ device }
     {
         VkAttachmentDescription color_attachment{ };
         color_attachment.format = color_format;
@@ -21,7 +22,7 @@ namespace carrot::rhi::vulkan {
         color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         color_attachment.initialLayout = initial_layout;
-        color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        color_attachment.finalLayout = final_layout;
 
         VkAttachmentReference color_attachment_ref{ };
         color_attachment_ref.attachment = 0;

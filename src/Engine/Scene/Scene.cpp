@@ -1363,6 +1363,7 @@ namespace carrot::scene {
         if (!_active_transition_overlay_options.enabled || _transition_overlay_opacity <= 0.001f)
         {
             game.view.clear_transition_fade();
+            game.view.clear_transition_wipe();
             game.view.clear_transition_battle_swirl();
             game.view.clear_composite_overlay();
             render_transition_diagnostics(game);
@@ -1382,61 +1383,32 @@ namespace carrot::scene {
         if (_active_transition_overlay_options.effect == scene_transition_effect_t::wipe)
         {
             game.view.clear_transition_fade();
+            game.view.clear_transition_wipe();
             game.view.clear_transition_battle_swirl();
             game.view.clear_composite_overlay();
-            const chlm::uint2 render_target_size{ game.view.render_target_pixel_size() };
-            const float viewport_width{ static_cast<float>(std::max(1u, render_target_size.x)) };
-            const float viewport_height{ static_cast<float>(std::max(1u, render_target_size.y)) };
             const float coverage{ std::clamp(_transition_overlay_opacity, 0.f, 1.f) };
-            switch (_active_transition_overlay_options.wipe_direction)
-            {
-                case scene_transition_wipe_direction_t::left_to_right:
-                {
-                    const float covered_width{ coverage * viewport_width };
-                    if (covered_width > 0.001f && viewport_height > 0.001f)
-                        game.view.draw_composite_solid_quad(0.f, 0.f, covered_width, viewport_height, overlay_color);
-                    break;
-                }
-                case scene_transition_wipe_direction_t::right_to_left:
-                {
-                    const float covered_width{ coverage * viewport_width };
-                    if (covered_width > 0.001f && viewport_height > 0.001f)
-                        game.view.draw_composite_solid_quad(viewport_width - covered_width,
-                                                            0.f,
-                                                            covered_width,
-                                                            viewport_height,
-                                                            overlay_color);
-                    break;
-                }
-                case scene_transition_wipe_direction_t::top_to_bottom:
-                {
-                    const float covered_height{ coverage * viewport_height };
-                    if (viewport_width > 0.001f && covered_height > 0.001f)
-                        game.view.draw_composite_solid_quad(0.f, 0.f, viewport_width, covered_height, overlay_color);
-                    break;
-                }
-                case scene_transition_wipe_direction_t::bottom_to_top:
-                {
-                    const float covered_height{ coverage * viewport_height };
-                    if (viewport_width > 0.001f && covered_height > 0.001f)
-                        game.view.draw_composite_solid_quad(0.f,
-                                                            viewport_height - covered_height,
-                                                            viewport_width,
-                                                            covered_height,
-                                                            overlay_color);
-                    break;
-                }
-            }
+            const renderer::transition_wipe_direction_t wipe_direction{
+                _active_transition_overlay_options.wipe_direction == scene_transition_wipe_direction_t::right_to_left
+                    ? renderer::transition_wipe_direction_t::right_to_left
+                    : (_active_transition_overlay_options.wipe_direction == scene_transition_wipe_direction_t::top_to_bottom
+                           ? renderer::transition_wipe_direction_t::top_to_bottom
+                           : (_active_transition_overlay_options.wipe_direction == scene_transition_wipe_direction_t::bottom_to_top
+                                  ? renderer::transition_wipe_direction_t::bottom_to_top
+                                  : renderer::transition_wipe_direction_t::left_to_right))
+            };
+            game.view.set_transition_wipe(coverage, wipe_direction, overlay_color);
         }
         else if (_active_transition_overlay_options.effect == scene_transition_effect_t::battle_swirl)
         {
             game.view.clear_transition_fade();
+            game.view.clear_transition_wipe();
             game.view.clear_composite_overlay();
             game.view.set_transition_battle_swirl(std::clamp(_transition_overlay_opacity, 0.f, 1.f),
                                                   !is_transitioning());
         }
         else
         {
+            game.view.clear_transition_wipe();
             game.view.clear_transition_battle_swirl();
             game.view.set_transition_fade_color(overlay_color);
             game.view.clear_composite_overlay();

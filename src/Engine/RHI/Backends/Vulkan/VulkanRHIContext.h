@@ -65,6 +65,8 @@ namespace carrot::rhi::vulkan {
         [[nodiscard]] graphics_api get_graphics_api() const noexcept override { return graphics_api::vulkan; }
 
         [[nodiscard]] std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) override;
+        [[nodiscard]] std::unique_ptr<rhi_render_target_t> create_render_target_2d(
+            const render_target_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_compute_pipeline_t> create_compute_pipeline(
             const compute_pipeline_create_info_t& info) override;
@@ -84,7 +86,10 @@ namespace carrot::rhi::vulkan {
         enum class quad_pipeline_kind_t : uint8_t
         {
             textured = 0,
-            text
+            text,
+            battle_swirl,
+            bloom_blur,
+            bloom_composite
         };
 
         struct auxiliary_surface_t
@@ -104,20 +109,16 @@ namespace carrot::rhi::vulkan {
             bool swapchain_dirty{ false };
         };
 
-        struct recorded_stage_t
+        struct recorded_quad_stage_t
         {
-            textured_quad_stage_record_t stage;
             uint32_t stage_slot{ 0 };
+            quad_stage_common_t stage_common;
+            quad_draw_source_t draw_source;
+            std::vector<renderer::textured_quad_batch_t> batches;
             uint32_t descriptor_set_offset{ 0 };
             uint32_t descriptor_set_count{ 0 };
             quad_pipeline_kind_t pipeline_kind{ quad_pipeline_kind_t::textured };
-        };
-
-        struct recorded_indirect_stage_t
-        {
-            indirect_textured_quad_stage_record_t stage;
-            uint32_t stage_slot{ 0 };
-            VkDescriptorSet texture_descriptor_set{ VK_NULL_HANDLE };
+            bool capture_presentation_before_draw{ false };
         };
 
         void init(const rhi_desc_t& desc);
@@ -133,27 +134,28 @@ namespace carrot::rhi::vulkan {
         uint32_t prepare_quad_stage_descriptors(const textured_quad_stage_record_t& stage,
                                                 uint32_t stage_slot,
                                                 uint32_t& out_batch_count);
+        [[nodiscard]] vulkan_textured_quad_pipeline_t* resolve_quad_pipeline(const recorded_quad_stage_t& stage) const;
+        [[nodiscard]] vulkan_textured_quad_pipeline_t* resolve_instanced_quad_pipeline(const recorded_quad_stage_t& stage) const;
+        [[nodiscard]] bool validate_quad_stage_slot(const recorded_quad_stage_t& stage) const;
+        [[nodiscard]] bool resolve_quad_stage_geometry(const recorded_quad_stage_t& stage,
+                                                       const vulkan_buffer_t*& out_vertex_buffer,
+                                                       const vulkan_buffer_t*& out_index_buffer) const;
+        [[nodiscard]] bool resolve_quad_stage_instance_buffer(const recorded_quad_stage_t& stage,
+                                                              const vulkan_buffer_t*& out_instance_buffer) const;
+        void bind_quad_stage_viewport_and_scissor(VkCommandBuffer command_buffer, const recorded_quad_stage_t& stage) const;
+        void bind_quad_stage_geometry(VkCommandBuffer command_buffer,
+                                      const vulkan_buffer_t& vertex_buffer,
+                                      const vulkan_buffer_t& index_buffer) const;
+        [[nodiscard]] VkDescriptorSet quad_stage_camera_descriptor_set(const recorded_quad_stage_t& stage) const;
         void encode_quad_stage_to_command_buffer(VkCommandBuffer command_buffer,
-                                                 const textured_quad_stage_record_t& stage,
-                                                 uint32_t stage_slot,
-                                                 uint32_t descriptor_set_offset,
-                                                 uint32_t batch_count,
-                                                 quad_pipeline_kind_t pipeline_kind);
+                                                 const recorded_quad_stage_t& stage);
         void encode_capture_textured_quad_stage_to_command_buffer(VkCommandBuffer command_buffer,
-                                                                  const textured_quad_stage_record_t& stage,
-                                                                  uint32_t stage_slot,
-                                                                  uint32_t descriptor_set_offset,
-                                                                  uint32_t batch_count,
-                                                                  quad_pipeline_kind_t pipeline_kind,
+                                                                  const recorded_quad_stage_t& stage,
                                                                   VkFramebuffer framebuffer,
                                                                   VkExtent2D extent,
                                                                   VkImage target_image);
-        [[nodiscard]] VkDescriptorSet allocate_indirect_textured_quad_descriptor_set(const rhi_texture_t& texture,
-                                                                                     const rhi_sampler_t& sampler);
-        void encode_indirect_textured_quad_stage_to_command_buffer(VkCommandBuffer command_buffer,
-                                                                   const indirect_textured_quad_stage_record_t& stage,
-                                                                   uint32_t stage_slot,
-                                                                   VkDescriptorSet texture_descriptor_set);
+        void encode_offscreen_quad_stage_to_command_buffer(VkCommandBuffer command_buffer,
+                                                           const recorded_quad_stage_t& stage);
         [[nodiscard]] uint32_t find_memory_type(uint32_t type_filter, VkMemoryPropertyFlags properties) const;
         [[nodiscard]] VkCommandBuffer begin_single_time_commands() const;
         void end_single_time_commands(VkCommandBuffer cmd) const;
@@ -192,8 +194,15 @@ namespace carrot::rhi::vulkan {
         std::unique_ptr<vulkan_command_queue_t>             _graphics_queue;
         std::unique_ptr<vulkan_render_pass_t>               _render_pass;
         std::unique_ptr<vulkan_render_pass_t>               _load_render_pass;
+        std::unique_ptr<vulkan_render_pass_t>               _offscreen_render_pass;
+        std::unique_ptr<vulkan_render_pass_t>               _offscreen_load_render_pass;
         std::unique_ptr<vulkan_textured_quad_pipeline_t>    _textured_quad_pipeline;
         std::unique_ptr<vulkan_textured_quad_pipeline_t>    _text_quad_pipeline;
+        std::unique_ptr<vulkan_textured_quad_pipeline_t>    _instanced_textured_quad_pipeline;
+        std::unique_ptr<vulkan_textured_quad_pipeline_t>    _instanced_text_quad_pipeline;
+        std::unique_ptr<vulkan_textured_quad_pipeline_t>    _instanced_battle_swirl_pipeline;
+        std::unique_ptr<vulkan_textured_quad_pipeline_t>    _instanced_bloom_blur_pipeline;
+        std::unique_ptr<vulkan_textured_quad_pipeline_t>    _instanced_bloom_composite_pipeline;
         std::unique_ptr<rhi_buffer_t>                       _default_compute_storage_buffer;
         framebuffer_array_t                                 _framebuffers;
 
@@ -218,13 +227,13 @@ namespace carrot::rhi::vulkan {
         bool _pending_pipeline_reload{ false };
         bool _frame_active{ false };
         bool _render_pass_active{ false };
+        bool _main_render_pass_has_contents{ false };
         bool _skip_frame{ false };
         bool _swapchain_dirty{ false };
 
         // ── Multi-window presentation surfaces (optional) ──
         window::window_id_t _presentation_window_id{ window::invalid_window_id };
         std::vector<auxiliary_surface_t> _auxiliary_surfaces;
-        std::vector<recorded_stage_t> _recorded_stages;
-        std::vector<recorded_indirect_stage_t> _recorded_indirect_stages;
+        std::vector<recorded_quad_stage_t> _recorded_quad_stages;
     };
 } // namespace carrot::rhi::vulkan

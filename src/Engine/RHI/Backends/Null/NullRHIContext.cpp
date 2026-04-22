@@ -86,7 +86,8 @@ namespace carrot::rhi::null {
             .presentation_mask = stage.presentation_mask,
             .point_light_count = stage.forward_plus_constants.point_light_counts[0],
             .ambient_color = stage.ambient_color,
-            .capture_presentation_before_draw = stage.capture_presentation_before_draw
+            .capture_presentation_before_draw = stage.capture_presentation_before_draw,
+            .has_render_target = stage.render_target != nullptr
         });
     }
 
@@ -98,7 +99,8 @@ namespace carrot::rhi::null {
             .presentation_mask = stage.presentation_mask,
             .point_light_count = stage.forward_plus_constants.point_light_counts[0],
             .ambient_color = stage.ambient_color,
-            .capture_presentation_before_draw = stage.capture_presentation_before_draw
+            .capture_presentation_before_draw = stage.capture_presentation_before_draw,
+            .has_render_target = stage.render_target != nullptr
         });
     }
 
@@ -135,6 +137,15 @@ namespace carrot::rhi::null {
     std::unique_ptr<rhi_texture_t> null_rhi_context_t::create_texture_2d(const texture_create_info_t& info)
     {
         return std::make_unique<null_texture_t>(info);
+    }
+
+    std::unique_ptr<rhi_render_target_t> null_rhi_context_t::create_render_target_2d(
+        const render_target_create_info_t& info)
+    {
+        if (info.width == 0u || info.height == 0u)
+            return nullptr;
+
+        return std::make_unique<null_render_target_t>(info);
     }
 
     std::unique_ptr<rhi_buffer_t> null_rhi_context_t::create_buffer(const buffer_create_info_t& info)

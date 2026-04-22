@@ -27,11 +27,19 @@ namespace carrot::rhi::metal {
     class metal_textured_quad_pipeline_t final
     {
     public:
+        enum class blend_mode_t : std::uint8_t
+        {
+            alpha = 0,
+            additive
+        };
+
         metal_textured_quad_pipeline_t(const metal_device_t& device, const assets::shader_file_provider_t& shader_files,
                                        MTL::PixelFormat color_format,
                                        std::string_view vertex_shader_path,
                                        std::string_view fragment_shader_path,
-                                       std::string_view debug_name);
+                                       std::string_view debug_name,
+                                       bool instanced = false,
+                                       blend_mode_t blend_mode = blend_mode_t::alpha);
 
         ~metal_textured_quad_pipeline_t() = default;
 
@@ -43,7 +51,7 @@ namespace carrot::rhi::metal {
         [[nodiscard]] MTL::VertexDescriptor* vertex_descriptor() const noexcept { return _vertex_descriptor.get(); }
 
     private:
-        [[nodiscard]] static MTL::VertexDescriptor* create_vertex_descriptor();
+        [[nodiscard]] static MTL::VertexDescriptor* create_vertex_descriptor(bool instanced);
         [[nodiscard]] static MTL::Library* load_library(MTL::Device* device,
                                                         const assets::shader_file_provider_t& shader_files,
                                                         std::string_view virtual_path);

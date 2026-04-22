@@ -29,6 +29,7 @@ namespace carrot::rhi::null {
             std::uint32_t point_light_count{ 0u };
             chlm::float4 ambient_color{ 1.f, 1.f, 1.f, 1.f };
             bool capture_presentation_before_draw{ false };
+            bool has_render_target{ false };
         };
 
         struct recorded_indirect_stage_t
@@ -69,6 +70,8 @@ namespace carrot::rhi::null {
         [[nodiscard]] graphics_api get_graphics_api() const noexcept override { return graphics_api::null_backend; }
 
         [[nodiscard]] std::unique_ptr<rhi_texture_t> create_texture_2d(const texture_create_info_t& info) override;
+        [[nodiscard]] std::unique_ptr<rhi_render_target_t> create_render_target_2d(
+            const render_target_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_buffer_t> create_buffer(const buffer_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_compute_pipeline_t> create_compute_pipeline(
             const compute_pipeline_create_info_t& info) override;
@@ -185,6 +188,32 @@ namespace carrot::rhi::null {
             uint32_t _width{ 0u };
             uint32_t _height{ 0u };
             std::unique_ptr<null_texture_t> _backbuffer;
+        };
+
+        class null_render_target_t final : public rhi_render_target_t
+        {
+        public:
+            explicit null_render_target_t(const render_target_create_info_t& info) noexcept
+                : _color_texture(std::make_unique<null_texture_t>(texture_create_info_t{
+                      .width = info.width,
+                      .height = info.height,
+                      .format = info.format,
+                      .usage_mask = texture_usage_color_attachment |
+                                    (info.shader_readable ? texture_usage_sampled : 0u)
+                  }))
+            {
+            }
+
+            [[nodiscard]] uint32_t width() const noexcept override { return _color_texture ? _color_texture->width() : 0u; }
+            [[nodiscard]] uint32_t height() const noexcept override { return _color_texture ? _color_texture->height() : 0u; }
+            [[nodiscard]] texture_format_t format() const noexcept override
+            {
+                return _color_texture ? _color_texture->format() : texture_format_t::rgba8_srgb;
+            }
+            [[nodiscard]] rhi_texture_t* color_texture() const noexcept override { return _color_texture.get(); }
+
+        private:
+            std::unique_ptr<null_texture_t> _color_texture;
         };
 
         null_command_queue_t _command_queue;

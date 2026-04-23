@@ -37,6 +37,7 @@ namespace carrot {
             LOG_CORE_WARN("Using default engine configuration");
             config.graphics.api = rhi::graphics_api::default_api;
             config.graphics.enable_debug_layers = true;
+            config.graphics.present_sync_enabled = true;
             config.audio.sample_rate = 48000;
             config.audio.block_size = 512;
             config.audio.channels = 2;
@@ -59,6 +60,7 @@ namespace carrot {
         config.graphics.api = graphics.get_enum("api", graphics_api_map_t{ graphics_api_map },
                                                 rhi::graphics_api::default_api);
         config.graphics.enable_debug_layers = graphics.get_bool_or("debug_layers", true);
+        config.graphics.present_sync_enabled = graphics.get_bool_or("present_sync", true);
 
         // ── 2. Audio Configuration ────────────────────────────────────────────────
 
@@ -71,4 +73,3 @@ namespace carrot {
         return config;
     }
 } // namespace carrot
-

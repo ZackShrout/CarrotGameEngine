@@ -14,6 +14,12 @@ namespace carrot::rhi::vulkan {
 
     vulkan_buffer_t::~vulkan_buffer_t()
     {
+        if (_mapped_ptr != nullptr && _memory != VK_NULL_HANDLE)
+        {
+            vkUnmapMemory(_device, _memory);
+            _mapped_ptr = nullptr;
+        }
+
         if (_buffer != VK_NULL_HANDLE)
             vkDestroyBuffer(_device, _buffer, nullptr);
 
@@ -48,20 +54,23 @@ namespace carrot::rhi::vulkan {
             return false;
         }
 
-        void* mapped_data{ nullptr };
-        const VkResult map_result{
-            vkMapMemory(_device, _memory, static_cast<VkDeviceSize>(offset_bytes),
-                        static_cast<VkDeviceSize>(size_bytes), 0, &mapped_data)
-        };
-
-        if (map_result != VK_SUCCESS || mapped_data == nullptr)
+        void* mapped_data{ _mapped_ptr };
+        if (mapped_data == nullptr)
         {
-            LOG_GRAPHICS_ERROR("vkMapMemory failed in vulkan_buffer_t::write (VkResult={})",
-                               static_cast<int>(map_result));
-            return false;
+            const VkResult map_result{
+                vkMapMemory(_device, _memory, 0,
+                            static_cast<VkDeviceSize>(size_bytes), 0, &mapped_data)
+            };
+
+            if (map_result != VK_SUCCESS || mapped_data == nullptr)
+            {
+                LOG_GRAPHICS_ERROR("vkMapMemory failed in vulkan_buffer_t::write (VkResult={})",
+                                   static_cast<int>(map_result));
+                return false;
+            }
         }
 
-        std::memcpy(mapped_data, data, size_bytes);
+        std::memcpy(static_cast<std::byte*>(mapped_data) + offset_bytes, data, size_bytes);
 
         if ((_memory_properties & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) == 0)
         {
@@ -74,14 +83,16 @@ namespace carrot::rhi::vulkan {
             const VkResult flush_result{ vkFlushMappedMemoryRanges(_device, 1, &range) };
             if (flush_result != VK_SUCCESS)
             {
-                vkUnmapMemory(_device, _memory);
+                if (_mapped_ptr == nullptr)
+                    vkUnmapMemory(_device, _memory);
                 LOG_GRAPHICS_ERROR("vkFlushMappedMemoryRanges failed in vulkan_buffer_t::write (VkResult={})",
                                    static_cast<int>(flush_result));
                 return false;
             }
         }
 
-        vkUnmapMemory(_device, _memory);
+        if (_mapped_ptr == nullptr)
+            vkUnmapMemory(_device, _memory);
         return true;
     }
 } // namespace carrot::rhi::vulkan

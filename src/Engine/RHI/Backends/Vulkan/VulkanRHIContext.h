@@ -12,6 +12,7 @@
 #include "VulkanCore.h"
 #include "VulkanDevice.h"
 #include "VulkanSwapchain.h"
+#include "VulkanUploadRing.h"
 
 #include <array>
 #include <memory>
@@ -71,6 +72,10 @@ namespace carrot::rhi::vulkan {
         [[nodiscard]] std::unique_ptr<rhi_compute_pipeline_t> create_compute_pipeline(
             const compute_pipeline_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_sampler_t> create_sampler(const sampler_desc_t& desc) const override;
+        [[nodiscard]] std::optional<transient_upload_allocation_t> allocate_transient_upload(
+            buffer_usage_t usage,
+            size_t size_bytes,
+            size_t alignment = alignof(std::max_align_t)) override;
 
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
         void bind_textured_quad_resources([[maybe_unused]] const rhi_texture_t& texture,
@@ -79,10 +84,13 @@ namespace carrot::rhi::vulkan {
         bool add_presentation_window(window::window_id_t window_id,
                                      uint32_t presentation_channel_mask = presentation_channel_gameplay) override;
         bool remove_presentation_window(window::window_id_t window_id) override;
+        [[nodiscard]] presentation_diagnostics_t get_presentation_diagnostics() const override;
 
         void wait_idle() override;
 
     private:
+        friend class vulkan_upload_ring_t;
+
         enum class quad_pipeline_kind_t : uint8_t
         {
             textured = 0,
@@ -135,7 +143,6 @@ namespace carrot::rhi::vulkan {
                                                 uint32_t stage_slot,
                                                 uint32_t& out_batch_count);
         [[nodiscard]] vulkan_textured_quad_pipeline_t* resolve_quad_pipeline(const recorded_quad_stage_t& stage) const;
-        [[nodiscard]] vulkan_textured_quad_pipeline_t* resolve_instanced_quad_pipeline(const recorded_quad_stage_t& stage) const;
         [[nodiscard]] bool validate_quad_stage_slot(const recorded_quad_stage_t& stage) const;
         [[nodiscard]] bool resolve_quad_stage_geometry(const recorded_quad_stage_t& stage,
                                                        const vulkan_buffer_t*& out_vertex_buffer,
@@ -159,6 +166,8 @@ namespace carrot::rhi::vulkan {
         [[nodiscard]] uint32_t find_memory_type(uint32_t type_filter, VkMemoryPropertyFlags properties) const;
         [[nodiscard]] VkCommandBuffer begin_single_time_commands() const;
         void end_single_time_commands(VkCommandBuffer cmd) const;
+        [[nodiscard]] std::unique_ptr<vulkan_buffer_t> create_mapped_upload_buffer(buffer_usage_t usage,
+                                                                                   size_t size_bytes) const;
 
         void create_vk_buffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
                               VkBuffer& out_buffer, VkDeviceMemory& out_memory) const;
@@ -194,21 +203,23 @@ namespace carrot::rhi::vulkan {
         std::unique_ptr<vulkan_command_queue_t>             _graphics_queue;
         std::unique_ptr<vulkan_render_pass_t>               _render_pass;
         std::unique_ptr<vulkan_render_pass_t>               _load_render_pass;
+        std::unique_ptr<vulkan_render_pass_t>               _color_load_render_pass;
         std::unique_ptr<vulkan_render_pass_t>               _offscreen_render_pass;
         std::unique_ptr<vulkan_render_pass_t>               _offscreen_load_render_pass;
         std::unique_ptr<vulkan_textured_quad_pipeline_t>    _textured_quad_pipeline;
         std::unique_ptr<vulkan_textured_quad_pipeline_t>    _text_quad_pipeline;
-        std::unique_ptr<vulkan_textured_quad_pipeline_t>    _instanced_textured_quad_pipeline;
-        std::unique_ptr<vulkan_textured_quad_pipeline_t>    _instanced_text_quad_pipeline;
-        std::unique_ptr<vulkan_textured_quad_pipeline_t>    _instanced_battle_swirl_pipeline;
-        std::unique_ptr<vulkan_textured_quad_pipeline_t>    _instanced_bloom_blur_pipeline;
-        std::unique_ptr<vulkan_textured_quad_pipeline_t>    _instanced_bloom_composite_pipeline;
+        std::unique_ptr<vulkan_textured_quad_pipeline_t>    _battle_swirl_pipeline;
+        std::unique_ptr<vulkan_textured_quad_pipeline_t>    _bloom_blur_pipeline;
+        std::unique_ptr<vulkan_textured_quad_pipeline_t>    _bloom_composite_pipeline;
         std::unique_ptr<rhi_buffer_t>                       _default_compute_storage_buffer;
         framebuffer_array_t                                 _framebuffers;
 
         // ── Per-frame GPU resources ──
         std::array<frame_resources_t, k_max_frames_in_flight>   _frames;
         std::array<std::vector<VkDescriptorSet>, k_max_frames_in_flight> _transient_compute_descriptor_sets;
+        std::array<std::unique_ptr<vulkan_upload_ring_t>, k_max_frames_in_flight> _vertex_upload_rings;
+        std::array<std::unique_ptr<vulkan_upload_ring_t>, k_max_frames_in_flight> _uniform_upload_rings;
+        std::unique_ptr<vulkan_upload_ring_t> _staging_upload_ring;
         std::vector<VkSemaphore>                                _render_finished_semaphores;
         std::vector<VkSemaphore>                                _retired_render_finished_semaphores;
 
@@ -230,6 +241,7 @@ namespace carrot::rhi::vulkan {
         bool _main_render_pass_has_contents{ false };
         bool _skip_frame{ false };
         bool _swapchain_dirty{ false };
+        bool _present_sync_enabled{ true };
 
         // ── Multi-window presentation surfaces (optional) ──
         window::window_id_t _presentation_window_id{ window::invalid_window_id };

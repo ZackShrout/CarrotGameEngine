@@ -1,8 +1,8 @@
 # Carrot Game Engine - Milestone 27
 
-**Last Updated:** April 20, 2026
+**Last Updated:** April 23, 2026
 **Title:** Canonical Quad Renderer and Runtime Performance
-**Status:** Planned
+**Status:** Completed
 **Focus:** Establish Carrot's durable 2D quad-rendering architecture, replace provisional quad execution with the canonical long-term path, formalize profiling/performance truth, and preserve future composite/offscreen growth without expanding into unrelated renderer scope.
 
 ---
@@ -59,9 +59,41 @@ The key rule is:
 
 **Milestone 27 should ship Carrot's canonical 2D quad renderer path, not attempt to complete every future renderer feature.**
 
-See also:
+## Closeout Summary
 
-* [milestone_27_canonical_renderer_implementation_plan.md](/Users/zshrout/dev/CarrotGameEngine/docs/systems/milestone_27_canonical_renderer_implementation_plan.md:1) for the concrete implementation sequencing, Vulkan-first backend transition policy, and canonical contract decisions adopted for this milestone
+Milestone 27 is complete.
+
+Carrot now has:
+
+* one clearly canonical renderer-owned quad path for the validated 2D slice
+* instanced quad execution as the default shared direction across Vulkan, Metal, and DirectX 12
+* explicit backend-owned upload-ring structure aligned around the shared `Core/Memory/Ring` primitive
+* formal render-target and offscreen routing for the current composite and transition slice
+* profiling and CSV export surfaces that separate renderer cost from broader frame/runtime cost
+* backend-facing presentation diagnostics that make profiling provenance explicit instead of inferred
+
+The most important closeout finding from the milestone is that the renderer itself is performing very well.
+Across the representative Metal and Vulkan profiling passes used during closeout, world render cost remained very low and stable, while total frame time stayed dominated by presentation cadence rather than meaningful renderer-side pressure.
+
+That means Milestone 27 successfully answered the milestone's most important truth question:
+
+**Carrot's renderer is no longer in the \"temporary but good enough\" phase; it is now a durable, measurable, performant 2D renderer worth building on.**
+
+## Closeout Notes
+
+* the profiling/tooling work proved more valuable than additional renderer-side optimization work
+* further GPU-side culling complexity for the current quad draw path was intentionally not pursued after the closeout data showed little meaningful renderer-side juice left to squeeze
+* startup-time presentation policy now lives in engine config, while runtime profiling capture remains an explicit separate concern
+* `graphics.present_sync` defaults to `true` when omitted from engine config so the engine keeps safe/predictable presentation behavior by default
+
+## Validation Snapshot
+
+Milestone 27 closeout validation established that:
+
+* Vulkan and Metal both cleanly execute the canonical milestone slice
+* DirectX 12 remained structurally aligned with the same shared renderer path during the refactor and stabilization work
+* representative profiling captures can now identify backend, requested sync policy, backend-reported presentation-mode selection, and frame-stage timing in one export
+* current renderer-facing performance questions can now be answered with measurement instead of intuition
 
 ---
 
@@ -508,10 +540,7 @@ Milestone 27 is succeeding when:
 
 That is enough for Milestone 27 to be a major renderer milestone without pretending it is the end of renderer evolution.
 
-## Implementation Plan Reference
+## Closeout Status
 
-The concrete implementation plan adopted for this milestone lives in:
-
-* [milestone_27_canonical_renderer_implementation_plan.md](/Users/zshrout/dev/CarrotGameEngine/docs/systems/milestone_27_canonical_renderer_implementation_plan.md:1)
-
-That companion note should be treated as the milestone's operational plan unless this milestone document is later amended.
+Milestone 27 should now be treated as a closed milestone record rather than an active implementation plan.
+Future renderer work should build from the resulting canonical renderer, profiling, and render-target foundations established here rather than reopening this milestone's architecture questions by default.

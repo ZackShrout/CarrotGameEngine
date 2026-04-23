@@ -16,7 +16,8 @@ namespace carrot::rhi::vulkan {
     {
     public:
         vulkan_swapchain_t(vulkan_device_t* device, VkSurfaceKHR surface, uint32_t width,
-                           uint32_t height, VkSwapchainKHR old_swapchain = VK_NULL_HANDLE);
+                           uint32_t height, VkSwapchainKHR old_swapchain = VK_NULL_HANDLE,
+                           bool present_sync_enabled = true);
         ~vulkan_swapchain_t() override;
 
         void resize(uint32_t width, uint32_t height) override;
@@ -37,6 +38,8 @@ namespace carrot::rhi::vulkan {
         [[nodiscard]] VkFormat format() const noexcept { return _format; }
         [[nodiscard]] VkExtent2D extent() const { return _extent; }
         [[nodiscard]] VkImage image(const uint32_t index) const noexcept { return _images[index]; }
+        [[nodiscard]] bool present_sync_enabled() const noexcept { return _present_sync_enabled; }
+        [[nodiscard]] VkPresentModeKHR present_mode() const noexcept { return _present_mode; }
 
     private:
         void create_or_recreate(VkSwapchainKHR old_swapchain, uint32_t width, uint32_t height);
@@ -51,5 +54,7 @@ namespace carrot::rhi::vulkan {
         VkExtent2D              _extent{ };
         uint32_t                _image_count{ 0 };
         uint32_t                _current_image_index{ 0 };
+        bool                    _present_sync_enabled{ true };
+        VkPresentModeKHR        _present_mode{ VK_PRESENT_MODE_FIFO_KHR };
     };
 } // namespace carrot::rhi::vulkan

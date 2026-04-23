@@ -76,6 +76,10 @@ namespace carrot::rhi::dx12 {
         [[nodiscard]] std::unique_ptr<rhi_compute_pipeline_t> create_compute_pipeline(
             const compute_pipeline_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_sampler_t> create_sampler(const sampler_desc_t& desc) const override;
+        [[nodiscard]] std::optional<transient_upload_allocation_t> allocate_transient_upload(
+            buffer_usage_t usage,
+            size_t size_bytes,
+            size_t alignment = alignof(std::max_align_t)) override;
 
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
         void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) override;
@@ -83,6 +87,7 @@ namespace carrot::rhi::dx12 {
         bool add_presentation_window(window::window_id_t window_id,
                                      uint32_t presentation_channel_mask = presentation_channel_gameplay) override;
         bool remove_presentation_window(window::window_id_t window_id) override;
+        [[nodiscard]] presentation_diagnostics_t get_presentation_diagnostics() const override;
 
         void wait_idle() override;
 
@@ -142,17 +147,20 @@ namespace carrot::rhi::dx12 {
         std::unique_ptr<dx12_device_t>                    _device;
         std::unique_ptr<dx12_command_queue_t>             _graphics_queue;
         std::unique_ptr<dx12_swapchain_t>                 _swapchain;
+        bool                                              _present_sync_enabled{ true };
         std::unique_ptr<dx12_upload_ring_t>               _upload_ring;
-        std::unique_ptr<dx12_textured_quad_pipeline_t>    _instanced_textured_quad_pipeline;
-        std::unique_ptr<dx12_textured_quad_pipeline_t>    _instanced_text_quad_pipeline;
-        std::unique_ptr<dx12_textured_quad_pipeline_t>    _instanced_battle_swirl_pipeline;
-        std::unique_ptr<dx12_textured_quad_pipeline_t>    _instanced_bloom_blur_pipeline;
-        std::unique_ptr<dx12_textured_quad_pipeline_t>    _instanced_bloom_composite_pipeline;
+        std::unique_ptr<dx12_textured_quad_pipeline_t>    _textured_quad_pipeline;
+        std::unique_ptr<dx12_textured_quad_pipeline_t>    _text_quad_pipeline;
+        std::unique_ptr<dx12_textured_quad_pipeline_t>    _battle_swirl_pipeline;
+        std::unique_ptr<dx12_textured_quad_pipeline_t>    _bloom_blur_pipeline;
+        std::unique_ptr<dx12_textured_quad_pipeline_t>    _bloom_composite_pipeline;
         std::unique_ptr<rhi_buffer_t>                     _default_compute_storage_buffer;
 
         // ── Per-frame GPU resources and frame progression ──
         std::array<dx12_frame_t, k_max_frames_in_flight>  _frames;
         uint32_t                                          _frame_index{ 0 };
+        std::array<std::unique_ptr<dx12_upload_ring_t>, k_max_frames_in_flight> _vertex_upload_rings;
+        std::array<std::unique_ptr<dx12_upload_ring_t>, k_max_frames_in_flight> _uniform_upload_rings;
         window::window_id_t                               _presentation_window_id{ window::invalid_window_id };
         std::vector<auxiliary_surface_t>                  _auxiliary_surfaces;
         std::vector<recorded_quad_stage_t>                _recorded_quad_stages;

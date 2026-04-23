@@ -266,6 +266,7 @@ namespace carrot::renderer {
         rhi::rhi_desc_t desc{ };
         desc.api = _config.api;
         desc.enable_debug_layers = _config.enable_debug_layers;
+        desc.present_sync_enabled = _config.present_sync_enabled;
         desc.presentation_window_id = window::has_window(_render_window_id)
                                           ? _render_window_id
                                           : window::get_main_window_id();
@@ -630,6 +631,7 @@ namespace carrot::renderer {
                                                                       const rhi::rhi_buffer_t* const instance_buffer,
                                                                       const rhi::rhi_buffer_t* const indirect_buffer,
                                                                       const std::uint32_t instance_count,
+                                                                      const std::uint32_t instance_buffer_offset_bytes,
                                                                       const std::uint32_t indirect_buffer_offset_bytes) const
     {
         return rhi::quad_draw_source_t{
@@ -638,6 +640,7 @@ namespace carrot::renderer {
             .instance_buffer = instance_buffer,
             .indirect_buffer = indirect_buffer,
             .instance_count = instance_count,
+            .instance_buffer_offset_bytes = instance_buffer_offset_bytes,
             .indirect_buffer_offset_bytes = indirect_buffer_offset_bytes,
             .kind = indirect_buffer != nullptr
                         ? rhi::quad_draw_source_kind_t::indexed_indirect
@@ -1702,22 +1705,16 @@ namespace carrot::renderer {
             .draw_params = { swirl_direction, pass.progress, 0.f, 0.f }
         };
 
-        if (!_transition_battle_swirl_instance_buffer)
+        const auto swirl_upload{
+            _rhi->allocate_transient_vertex_upload(sizeof(gpu_quad_instance_t),
+                                                   rhi::transient_upload::vertex_alignment<gpu_quad_instance_t>())
+        };
+        if (!swirl_upload || !swirl_upload->buffer || !swirl_upload->mapped_ptr)
         {
-            _transition_battle_swirl_instance_buffer = _rhi->create_buffer({
-                .size_bytes = sizeof(gpu_quad_instance_t),
-                .usage = rhi::buffer_usage_t::vertex,
-                .cpu_writable = true,
-                .initial_data = &swirl_instance
-            });
-        }
-
-        if (!_transition_battle_swirl_instance_buffer ||
-            !_transition_battle_swirl_instance_buffer->write(&swirl_instance, sizeof(gpu_quad_instance_t), 0u))
-        {
-            LOG_GRAPHICS_FATAL("Failed to prepare transition battle swirl instance buffer");
+            LOG_GRAPHICS_FATAL("Failed to prepare transition battle swirl transient upload");
             return;
         }
+        std::memcpy(swirl_upload->mapped_ptr, &swirl_instance, sizeof(gpu_quad_instance_t));
 
         const std::array<textured_quad_batch_t, 1u> swirl_batches{
             textured_quad_batch_t{
@@ -1737,9 +1734,10 @@ namespace carrot::renderer {
         static_cast<rhi::quad_draw_source_t&>(swirl_record) = build_quad_draw_source_record(
             _shared_quad_vertex_buffer.get(),
             _shared_quad_index_buffer.get(),
-            _transition_battle_swirl_instance_buffer.get(),
+            swirl_upload->buffer,
             nullptr,
-            1u);
+            1u,
+            static_cast<std::uint32_t>(swirl_upload->offset_bytes));
         swirl_record.batches = swirl_batches;
         swirl_record.shader_variant = rhi::quad_shader_variant_t::battle_swirl;
         swirl_record.capture_presentation_before_draw = true;
@@ -2335,19 +2333,23 @@ namespace carrot::renderer {
             return;
 
         ensure_shared_quad_geometry_buffers();
-        ensure_textured_quad_frame_buffers(stage_state);
-        upload_textured_quad_frame_data(stage_state);
-
-        const auto& frame_buffers{ current_frame_buffers(stage_state) };
-        if (!_shared_quad_vertex_buffer || !_shared_quad_index_buffer || !frame_buffers.instance_buffer)
+        const size_t instance_bytes{ stage_state.instance_data_cpu.size() * sizeof(gpu_quad_instance_t) };
+        const auto transient_upload{
+            _rhi->allocate_transient_vertex_upload(instance_bytes,
+                                                   rhi::transient_upload::vertex_alignment<gpu_quad_instance_t>())
+        };
+        if (!_shared_quad_vertex_buffer || !_shared_quad_index_buffer || !transient_upload || !transient_upload->buffer ||
+            !transient_upload->mapped_ptr)
             return;
+        std::memcpy(transient_upload->mapped_ptr, stage_state.instance_data_cpu.data(), instance_bytes);
 
         rhi::textured_quad_stage_record_t final_record{ record };
         static_cast<rhi::quad_draw_source_t&>(final_record) = build_quad_draw_source_record(_shared_quad_vertex_buffer.get(),
                                                                                             _shared_quad_index_buffer.get(),
-                                                                                            frame_buffers.instance_buffer.get(),
+                                                                                            transient_upload->buffer,
                                                                                             nullptr,
-                                                                                            static_cast<std::uint32_t>(stage_state.instance_data_cpu.size()));
+                                                                                            static_cast<std::uint32_t>(stage_state.instance_data_cpu.size()),
+                                                                                            static_cast<std::uint32_t>(transient_upload->offset_bytes));
         final_record.batches = stage_state.batches;
 
         if (is_text)
@@ -2591,11 +2593,6 @@ namespace carrot::renderer {
             stage_state.instances.clear();
             stage_state.instance_data_cpu.clear();
             stage_state.batches.clear();
-            for (auto& frame_buffers : stage_state.frame_buffers)
-            {
-                frame_buffers.instance_buffer.reset();
-                frame_buffers.instance_capacity = 0;
-            }
         };
 
         for (const frame_stage_plan_t& stage_plan : _frame_stage_plan)
@@ -2633,76 +2630,9 @@ namespace carrot::renderer {
         _shared_quad_index_buffer.reset();
         _bloom_source_render_target.reset();
         _bloom_blur_render_target.reset();
-        _transition_battle_swirl_instance_buffer.reset();
         _transition_battle_swirl_capture_texture.reset();
 
         _stats = { };
-    }
-
-    void renderer_t::ensure_textured_quad_frame_buffers(textured_quad_state_t& state)
-    {
-        auto& frame_buffers{ current_frame_buffers(state) };
-        const size_t required_instance_bytes{ state.instance_data_cpu.size() * sizeof(gpu_quad_instance_t) };
-
-        if (required_instance_bytes == 0)
-            return;
-
-        const bool needs_instance_realloc{
-            frame_buffers.instance_buffer != nullptr && frame_buffers.instance_capacity < required_instance_bytes
-        };
-
-        if (needs_instance_realloc &&
-            _rhi->get_graphics_api() == rhi::graphics_api::vulkan)
-        {
-            // The previous frame may still be using the current instance buffers.
-            // Wait before replacing them so Vulkan backends do not destroy in-flight buffers.
-            _rhi->wait_idle();
-        }
-
-        if (frame_buffers.instance_buffer == nullptr || frame_buffers.instance_capacity < required_instance_bytes)
-        {
-            const size_t target_instance_capacity{
-                std::max(required_instance_bytes,
-                         frame_buffers.instance_capacity > 0u
-                             ? frame_buffers.instance_capacity * 2u
-                             : required_instance_bytes)
-            };
-            rhi::buffer_create_info_t info{ };
-            info.size_bytes = target_instance_capacity;
-            info.usage = rhi::buffer_usage_t::vertex;
-            info.initial_data = nullptr;
-            info.cpu_writable = true;
-
-            frame_buffers.instance_buffer = _rhi->create_buffer(info);
-            if (!frame_buffers.instance_buffer)
-            {
-                LOG_GRAPHICS_FATAL("Failed to create textured quad frame instance buffer");
-                frame_buffers.instance_capacity = 0;
-                return;
-            }
-
-            frame_buffers.instance_capacity = target_instance_capacity;
-        }
-    }
-
-    void renderer_t::upload_textured_quad_frame_data(const textured_quad_state_t& state) const
-    {
-        const auto& frame_buffers{ current_frame_buffers(state) };
-        if (state.instance_data_cpu.empty())
-            return;
-
-        if (!frame_buffers.instance_buffer)
-        {
-            LOG_GRAPHICS_FATAL("Textured quad instance buffer is not available for upload");
-            return;
-        }
-
-        const size_t instance_bytes{ state.instance_data_cpu.size() * sizeof(gpu_quad_instance_t) };
-
-        if (!frame_buffers.instance_buffer->write(state.instance_data_cpu.data(), instance_bytes, 0))
-        {
-            LOG_GRAPHICS_FATAL("Failed to upload textured quad instance data");
-        }
     }
 
     void renderer_t::ensure_forward_plus_gpu_buffers()
@@ -2951,16 +2881,6 @@ namespace carrot::renderer {
     uint32_t renderer_t::current_textured_quad_frame_buffer_slot() const noexcept
     {
         return static_cast<uint32_t>(_frame_index % k_textured_quad_frame_buffer_count);
-    }
-
-    textured_quad_state_t::frame_buffers_t& renderer_t::current_frame_buffers(textured_quad_state_t& state) const noexcept
-    {
-        return state.frame_buffers[current_textured_quad_frame_buffer_slot()];
-    }
-
-    const textured_quad_state_t::frame_buffers_t& renderer_t::current_frame_buffers(const textured_quad_state_t& state) const noexcept
-    {
-        return state.frame_buffers[current_textured_quad_frame_buffer_slot()];
     }
 
     forward_plus_gpu_buffers_t& renderer_t::current_forward_plus_gpu_buffers() noexcept

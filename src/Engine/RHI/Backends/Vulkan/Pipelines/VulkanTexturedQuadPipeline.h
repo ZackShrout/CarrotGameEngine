@@ -27,7 +27,6 @@ namespace carrot::rhi::vulkan {
                                         std::string_view vertex_shader_path,
                                         std::string_view fragment_shader_path,
                                         std::string_view debug_name,
-                                        bool instanced = false,
                                         blend_mode_t blend_mode = blend_mode_t::alpha);
         ~vulkan_textured_quad_pipeline_t();
 

@@ -16,7 +16,7 @@ namespace carrot::rhi::dx12 {
     {
     public:
         dx12_swapchain_t(ID3D12Device* device, ID3D12CommandQueue* command_queue, HWND hwnd, uint32_t width,
-                         uint32_t height);
+                         uint32_t height, bool present_sync_enabled);
         ~dx12_swapchain_t() override;
 
         void resize(uint32_t width, uint32_t height) override;
@@ -46,5 +46,6 @@ namespace carrot::rhi::dx12 {
         uint32_t                                            _height{ 0 };
         uint32_t                                            _image_index{ 0 };
         uint32_t                                            _image_count{ k_max_frames_in_flight };
+        bool                                                _present_sync_enabled{ true };
     };
 } // namespace carrot::rhi::dx12

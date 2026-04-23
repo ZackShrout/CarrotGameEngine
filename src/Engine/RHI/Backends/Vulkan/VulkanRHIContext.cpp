@@ -17,6 +17,7 @@
 #include "VulkanRenderPass.h"
 #include "VulkanSampler.h"
 #include "VulkanTexture.h"
+#include "VulkanUploadRing.h"
 #include "Window/Window.h"
 
 #include <algorithm>
@@ -173,17 +174,21 @@ namespace carrot::rhi::vulkan {
 
         release_textured_quad_resources();
         _default_compute_storage_buffer.reset();
+        _staging_upload_ring.reset();
+        for (auto& ring : _vertex_upload_rings)
+            ring.reset();
+        for (auto& ring : _uniform_upload_rings)
+            ring.reset();
 
         _sampler_cache.clear();
         _textured_quad_pipeline.reset();
         _text_quad_pipeline.reset();
-        _instanced_textured_quad_pipeline.reset();
-        _instanced_text_quad_pipeline.reset();
-        _instanced_battle_swirl_pipeline.reset();
-        _instanced_bloom_blur_pipeline.reset();
-        _instanced_bloom_composite_pipeline.reset();
+        _battle_swirl_pipeline.reset();
+        _bloom_blur_pipeline.reset();
+        _bloom_composite_pipeline.reset();
         _render_pass.reset();
         _load_render_pass.reset();
+        _color_load_render_pass.reset();
         _offscreen_render_pass.reset();
         _offscreen_load_render_pass.reset();
         destroy_all_auxiliary_surfaces();
@@ -268,16 +273,19 @@ namespace carrot::rhi::vulkan {
             _transient_compute_descriptor_sets[_current_frame].clear();
         }
 
+        if (_vertex_upload_rings[_current_frame])
+            _vertex_upload_rings[_current_frame]->reset();
+        if (_uniform_upload_rings[_current_frame])
+            _uniform_upload_rings[_current_frame]->reset();
+
         // Hot-reload check: safe here because previous frames are done
         if (_pending_pipeline_reload)
         {
             _textured_quad_pipeline.reset();
             _text_quad_pipeline.reset();
-            _instanced_textured_quad_pipeline.reset();
-            _instanced_text_quad_pipeline.reset();
-            _instanced_battle_swirl_pipeline.reset();
-            _instanced_bloom_blur_pipeline.reset();
-            _instanced_bloom_composite_pipeline.reset();
+            _battle_swirl_pipeline.reset();
+            _bloom_blur_pipeline.reset();
+            _bloom_composite_pipeline.reset();
 
             _textured_quad_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
                 _device.get(),
@@ -293,46 +301,27 @@ namespace carrot::rhi::vulkan {
                 "engine://shaders/vulkan/text_quad.vert.spv",
                 "engine://shaders/vulkan/text_quad.frag.spv",
                 "text quad");
-            _instanced_textured_quad_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
+            _battle_swirl_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
                 _device.get(),
                 _render_pass->vk_render_pass(),
                 _shader_files,
-                "engine://shaders/vulkan/textured_quad_instanced.vert.spv",
-                "engine://shaders/vulkan/textured_quad.frag.spv",
-                "instanced textured quad",
-                true);
-            _instanced_text_quad_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
-                _device.get(),
-                _render_pass->vk_render_pass(),
-                _shader_files,
-                "engine://shaders/vulkan/text_quad_instanced.vert.spv",
-                "engine://shaders/vulkan/text_quad.frag.spv",
-                "instanced text quad",
-                true);
-            _instanced_battle_swirl_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
-                _device.get(),
-                _render_pass->vk_render_pass(),
-                _shader_files,
-                "engine://shaders/vulkan/textured_quad_instanced.vert.spv",
+                "engine://shaders/vulkan/textured_quad.vert.spv",
                 "engine://shaders/vulkan/battle_swirl_transition.frag.spv",
-                "instanced battle swirl quad",
-                true);
-            _instanced_bloom_blur_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
+                "battle swirl quad");
+            _bloom_blur_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
                 _device.get(),
                 _render_pass->vk_render_pass(),
                 _shader_files,
-                "engine://shaders/vulkan/textured_quad_instanced.vert.spv",
+                "engine://shaders/vulkan/textured_quad.vert.spv",
                 "engine://shaders/vulkan/bloom_blur.frag.spv",
-                "instanced bloom blur quad",
-                true);
-            _instanced_bloom_composite_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
+                "bloom blur quad");
+            _bloom_composite_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
                 _device.get(),
                 _render_pass->vk_render_pass(),
                 _shader_files,
-                "engine://shaders/vulkan/textured_quad_instanced.vert.spv",
+                "engine://shaders/vulkan/textured_quad.vert.spv",
                 "engine://shaders/vulkan/bloom_composite.frag.spv",
-                "instanced bloom composite quad",
-                true,
+                "bloom composite quad",
                 vulkan_textured_quad_pipeline_t::blend_mode_t::additive);
             _pending_pipeline_reload = false;
         }
@@ -856,55 +845,37 @@ namespace carrot::rhi::vulkan {
         const VkDeviceSize upload_size{ static_cast<VkDeviceSize>(info.initial_data_size) };
 
         // -------------------------------------------------------------------------
-        // 1. Create staging buffer
+        // 1. Prepare staging upload
         // -------------------------------------------------------------------------
         VkBuffer staging_buffer{ VK_NULL_HANDLE };
-        VkDeviceMemory staging_memory{ VK_NULL_HANDLE };
+        const vulkan_buffer_t* staging_upload_buffer{ nullptr };
+        std::optional<transient_upload_allocation_t> staging_upload;
 
         if (has_initial_data)
         {
-            VkBufferCreateInfo buffer_info{ };
-            buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-            buffer_info.size = upload_size;
-            buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-            buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-            if (vkCreateBuffer(device, &buffer_info, nullptr, &staging_buffer) != VK_SUCCESS)
+            if (!_staging_upload_ring || !_staging_upload_ring->ensure_capacity(*this, static_cast<size_t>(upload_size)))
             {
-                LOG_GRAPHICS_ERROR("create_texture_2d failed: could not create staging buffer");
+                LOG_GRAPHICS_ERROR("create_texture_2d failed: could not grow staging upload ring");
                 return nullptr;
             }
 
-            VkMemoryRequirements mem_requirements{ };
-            vkGetBufferMemoryRequirements(device, staging_buffer, &mem_requirements);
-
-            VkMemoryAllocateInfo alloc_info{ };
-            alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-            alloc_info.allocationSize = mem_requirements.size;
-            alloc_info.memoryTypeIndex = find_memory_type(mem_requirements.memoryTypeBits,
-                                                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                                                          VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-            if (vkAllocateMemory(device, &alloc_info, nullptr, &staging_memory) != VK_SUCCESS)
+            staging_upload = _staging_upload_ring->allocate(static_cast<size_t>(upload_size),
+                                                            transient_upload::k_staging_copy_alignment_bytes);
+            if (!staging_upload || !staging_upload->buffer || !staging_upload->mapped_ptr)
             {
-                LOG_GRAPHICS_ERROR("create_texture_2d failed: could not allocate staging buffer memory");
-                vkDestroyBuffer(device, staging_buffer, nullptr);
+                LOG_GRAPHICS_ERROR("create_texture_2d failed: could not allocate staging upload slice");
                 return nullptr;
             }
 
-            vkBindBufferMemory(device, staging_buffer, staging_memory, 0);
-
-            void* mapped{ nullptr };
-            if (vkMapMemory(device, staging_memory, 0, upload_size, 0, &mapped) != VK_SUCCESS)
+            staging_upload_buffer = dynamic_cast<const vulkan_buffer_t*>(staging_upload->buffer);
+            if (!staging_upload_buffer)
             {
-                LOG_GRAPHICS_ERROR("create_texture_2d failed: could not map staging buffer memory");
-                vkFreeMemory(device, staging_memory, nullptr);
-                vkDestroyBuffer(device, staging_buffer, nullptr);
+                LOG_GRAPHICS_ERROR("create_texture_2d failed: staging upload slice did not return a Vulkan buffer");
                 return nullptr;
             }
 
-            std::memcpy(mapped, info.initial_data, static_cast<size_t>(upload_size));
-            vkUnmapMemory(device, staging_memory);
+            staging_buffer = staging_upload_buffer->vk_buffer();
+            std::memcpy(staging_upload->mapped_ptr, info.initial_data, static_cast<size_t>(upload_size));
         }
 
         // -------------------------------------------------------------------------
@@ -932,8 +903,8 @@ namespace carrot::rhi::vulkan {
             if (vkCreateImage(device, &image_info, nullptr, &image) != VK_SUCCESS)
             {
                 LOG_GRAPHICS_ERROR("create_texture_2d failed: could not create VkImage");
-                vkFreeMemory(device, staging_memory, nullptr);
-                vkDestroyBuffer(device, staging_buffer, nullptr);
+                if (_staging_upload_ring)
+                    _staging_upload_ring->reset();
                 return nullptr;
             }
 
@@ -952,8 +923,8 @@ namespace carrot::rhi::vulkan {
             {
                 LOG_GRAPHICS_ERROR("create_texture_2d failed: could not allocate image memory");
                 vkDestroyImage(device, image, nullptr);
-                vkFreeMemory(device, staging_memory, nullptr);
-                vkDestroyBuffer(device, staging_buffer, nullptr);
+                if (_staging_upload_ring)
+                    _staging_upload_ring->reset();
                 return nullptr;
             }
 
@@ -1042,18 +1013,12 @@ namespace carrot::rhi::vulkan {
 
                 vkDestroyImage(device, image, nullptr);
                 vkFreeMemory(device, image_memory, nullptr);
-                vkFreeMemory(device, staging_memory, nullptr);
-                vkDestroyBuffer(device, staging_buffer, nullptr);
                 return nullptr;
             }
         }
 
-        // staging resources are no longer needed after upload
-        if (has_initial_data)
-        {
-            vkFreeMemory(device, staging_memory, nullptr);
-            vkDestroyBuffer(device, staging_buffer, nullptr);
-        }
+        if (has_initial_data && _staging_upload_ring)
+            _staging_upload_ring->reset();
 
         std::unique_ptr<vulkan_texture_t> texture{ std::make_unique<vulkan_texture_t>(_device.get()) };
         texture->set_width(info.width);
@@ -1148,27 +1113,12 @@ namespace carrot::rhi::vulkan {
         // Explicit CPU-writable path
         if (info.cpu_writable || buffer_usage_prefers_upload_memory(info.usage))
         {
-            VkBuffer buffer{ VK_NULL_HANDLE };
-            VkDeviceMemory memory{ VK_NULL_HANDLE };
+            auto result{ create_mapped_upload_buffer(info.usage, info.size_bytes) };
+            if (!result)
+                return nullptr;
 
-            constexpr VkMemoryPropertyFlags memory_properties{
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-            };
-
-            create_vk_buffer(size, base_usage, memory_properties, buffer, memory);
-
-            if (info.initial_data != nullptr)
-            {
-                void* mapped{ nullptr };
-                VK_CHECK_FATAL(vkMapMemory(device, memory, 0, size, 0, &mapped));
-                std::memcpy(mapped, info.initial_data, info.size_bytes);
-                vkUnmapMemory(device, memory);
-            }
-
-            auto result{ std::make_unique<vulkan_buffer_t>(device, info.size_bytes, info.usage) };
-            result->set_buffer(buffer);
-            result->set_memory(memory);
-            result->set_memory_properties(memory_properties);
+            if (info.initial_data != nullptr && result->mapped_ptr() != nullptr)
+                std::memcpy(result->mapped_ptr(), info.initial_data, info.size_bytes);
 
             return result;
         }
@@ -1201,6 +1151,7 @@ namespace carrot::rhi::vulkan {
             result->set_buffer(buffer);
             result->set_memory(memory);
             result->set_memory_properties(memory_properties);
+            result->set_mapped_ptr(nullptr);
 
             return result;
         }
@@ -1219,26 +1170,31 @@ namespace carrot::rhi::vulkan {
 
         if (info.initial_data != nullptr)
         {
-            VkBuffer staging_buffer{ VK_NULL_HANDLE };
-            VkDeviceMemory staging_memory{ VK_NULL_HANDLE };
+            if (!_staging_upload_ring || !_staging_upload_ring->ensure_capacity(*this, info.size_bytes))
+            {
+                LOG_GRAPHICS_ERROR("create_buffer failed: could not grow Vulkan staging upload ring");
+                vkDestroyBuffer(device, dst_buffer, nullptr);
+                vkFreeMemory(device, dst_memory, nullptr);
+                return nullptr;
+            }
 
-            constexpr VkMemoryPropertyFlags staging_memory_properties{
-                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+            const auto staging_upload{ _staging_upload_ring->allocate(info.size_bytes,
+                                                                      transient_upload::k_staging_copy_alignment_bytes) };
+            const auto* staging_buffer{
+                staging_upload ? dynamic_cast<const vulkan_buffer_t*>(staging_upload->buffer) : nullptr
             };
+            if (!staging_upload || !staging_upload->mapped_ptr || !staging_buffer)
+            {
+                LOG_GRAPHICS_ERROR("create_buffer failed: could not allocate Vulkan staging upload slice");
+                vkDestroyBuffer(device, dst_buffer, nullptr);
+                vkFreeMemory(device, dst_memory, nullptr);
+                return nullptr;
+            }
 
-            create_vk_buffer(size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, staging_memory_properties, staging_buffer,
-                             staging_memory);
-
-            void* mapped{ nullptr };
-            VK_CHECK_FATAL(vkMapMemory(device, staging_memory, 0, size, 0, &mapped));
-            std::memcpy(mapped, info.initial_data, info.size_bytes);
-            vkUnmapMemory(device, staging_memory);
-
-            copy_buffer(staging_buffer, dst_buffer, size);
+            std::memcpy(staging_upload->mapped_ptr, info.initial_data, info.size_bytes);
+            copy_buffer(staging_buffer->vk_buffer(), dst_buffer, size);
             VK_CHECK_FATAL(vkDeviceWaitIdle(device));
-
-            vkDestroyBuffer(device, staging_buffer, nullptr);
-            vkFreeMemory(device, staging_memory, nullptr);
+            _staging_upload_ring->reset();
         }
 
         auto result{ std::make_unique<vulkan_buffer_t>(device, info.size_bytes, info.usage) };
@@ -1289,6 +1245,33 @@ namespace carrot::rhi::vulkan {
         }
 
         return std::make_unique<vulkan_sampler_t>(_device->vk_device(), sampler, desc);
+    }
+
+    std::optional<transient_upload_allocation_t> vulkan_rhi_context_t::allocate_transient_upload(
+        const buffer_usage_t usage,
+        const size_t size_bytes,
+        const size_t alignment)
+    {
+        vulkan_upload_ring_t* ring{ nullptr };
+        switch (usage)
+        {
+            case buffer_usage_t::vertex:
+                ring = _vertex_upload_rings[_current_frame].get();
+                break;
+            case buffer_usage_t::uniform:
+                ring = _uniform_upload_rings[_current_frame].get();
+                break;
+            default:
+                return std::nullopt;
+        }
+
+        if (!ring)
+            return std::nullopt;
+
+        if (!ring->ensure_capacity(*this, size_bytes))
+            return std::nullopt;
+
+        return ring->allocate(size_bytes, alignment);
     }
 
     rhi_sampler_t* vulkan_rhi_context_t::get_or_create_sampler(const sampler_desc_t& desc)
@@ -1451,6 +1434,34 @@ namespace carrot::rhi::vulkan {
         }
     }
 
+    presentation_diagnostics_t vulkan_rhi_context_t::get_presentation_diagnostics() const
+    {
+        auto present_mode_name = [](const VkPresentModeKHR mode) -> std::string
+        {
+            switch (mode)
+            {
+                case VK_PRESENT_MODE_FIFO_KHR: return "FIFO";
+                case VK_PRESENT_MODE_MAILBOX_KHR: return "MAILBOX";
+                case VK_PRESENT_MODE_IMMEDIATE_KHR: return "IMMEDIATE";
+                case VK_PRESENT_MODE_FIFO_RELAXED_KHR: return "FIFO_RELAXED";
+                default: return "OTHER";
+            }
+        };
+
+        const VkPresentModeKHR mode{ _swapchain ? _swapchain->present_mode() : VK_PRESENT_MODE_FIFO_KHR };
+        const bool requested{ _present_sync_enabled };
+        const bool effective{
+            requested ? (mode == VK_PRESENT_MODE_FIFO_KHR || mode == VK_PRESENT_MODE_FIFO_RELAXED_KHR)
+                      : (mode != VK_PRESENT_MODE_FIFO_KHR && mode != VK_PRESENT_MODE_FIFO_RELAXED_KHR)
+        };
+
+        return presentation_diagnostics_t{
+            .present_sync_requested = requested,
+            .present_sync_request_honored = effective,
+            .mode_name = present_mode_name(mode)
+        };
+    }
+
     bool vulkan_rhi_context_t::create_surface_for_window(const window::window_id_t window_id, VkSurfaceKHR& out_surface) const
     {
         if (!window::has_window(window_id))
@@ -1510,7 +1521,12 @@ namespace carrot::rhi::vulkan {
             return false;
         }
 
-        surface.swapchain = std::make_unique<vulkan_swapchain_t>(_device.get(), surface.surface, width, height);
+        surface.swapchain = std::make_unique<vulkan_swapchain_t>(_device.get(),
+                                                                 surface.surface,
+                                                                 width,
+                                                                 height,
+                                                                 VK_NULL_HANDLE,
+                                                                 _present_sync_enabled);
         surface.framebuffers = surface.swapchain->create_framebuffers(_render_pass->vk_render_pass());
         surface.last_width = width;
         surface.last_height = height;
@@ -1723,30 +1739,14 @@ namespace carrot::rhi::vulkan {
             case quad_pipeline_kind_t::text:
                 return _text_quad_pipeline.get();
             case quad_pipeline_kind_t::battle_swirl:
+                return _battle_swirl_pipeline.get();
             case quad_pipeline_kind_t::bloom_blur:
+                return _bloom_blur_pipeline.get();
             case quad_pipeline_kind_t::bloom_composite:
-                return _textured_quad_pipeline.get();
+                return _bloom_composite_pipeline.get();
             case quad_pipeline_kind_t::textured:
             default:
                 return _textured_quad_pipeline.get();
-        }
-    }
-
-    vulkan_textured_quad_pipeline_t* vulkan_rhi_context_t::resolve_instanced_quad_pipeline(const recorded_quad_stage_t& stage) const
-    {
-        switch (stage.pipeline_kind)
-        {
-            case quad_pipeline_kind_t::text:
-                return _instanced_text_quad_pipeline.get();
-            case quad_pipeline_kind_t::battle_swirl:
-                return _instanced_battle_swirl_pipeline.get();
-            case quad_pipeline_kind_t::bloom_blur:
-                return _instanced_bloom_blur_pipeline.get();
-            case quad_pipeline_kind_t::bloom_composite:
-                return _instanced_bloom_composite_pipeline.get();
-            case quad_pipeline_kind_t::textured:
-            default:
-                return _instanced_textured_quad_pipeline.get();
         }
     }
 
@@ -1831,12 +1831,7 @@ namespace carrot::rhi::vulkan {
     void vulkan_rhi_context_t::encode_quad_stage_to_command_buffer(const VkCommandBuffer command_buffer,
                                                                    const recorded_quad_stage_t& stage)
     {
-        const bool uses_instancing{
-            stage.draw_source.instance_buffer != nullptr && stage.draw_source.instance_count > 0u
-        };
-        vulkan_textured_quad_pipeline_t* pipeline{
-            uses_instancing ? resolve_instanced_quad_pipeline(stage) : resolve_quad_pipeline(stage)
-        };
+        vulkan_textured_quad_pipeline_t* pipeline{ resolve_quad_pipeline(stage) };
 
         if (pipeline == nullptr)
         {
@@ -1850,9 +1845,9 @@ namespace carrot::rhi::vulkan {
             return;
 
         const vulkan_buffer_t* instance_buffer{ nullptr };
-        if (uses_instancing && !resolve_quad_stage_instance_buffer(stage, instance_buffer))
+        if (stage.draw_source.instance_count == 0u || !resolve_quad_stage_instance_buffer(stage, instance_buffer))
         {
-            LOG_GRAPHICS_FATAL("Instanced quad stage is missing its instance buffer");
+            LOG_GRAPHICS_FATAL("Quad stage is missing canonical instanced draw data");
             return;
         }
 
@@ -1881,20 +1876,13 @@ namespace carrot::rhi::vulkan {
             pipeline->vk_pipeline()
         );
 
-        if (uses_instancing)
-        {
-            const VkBuffer vertex_buffers[]{
-                vertex_buffer->vk_buffer(),
-                instance_buffer->vk_buffer()
-            };
-            const VkDeviceSize offsets[]{ 0u, 0u };
-            vkCmdBindVertexBuffers(command_buffer, 0, 2, vertex_buffers, offsets);
-            vkCmdBindIndexBuffer(command_buffer, index_buffer->vk_buffer(), 0, VK_INDEX_TYPE_UINT32);
-        }
-        else
-        {
-            bind_quad_stage_geometry(command_buffer, *vertex_buffer, *index_buffer);
-        }
+        const VkBuffer vertex_buffers[]{
+            vertex_buffer->vk_buffer(),
+            instance_buffer->vk_buffer()
+        };
+        const VkDeviceSize offsets[]{ 0u, stage.draw_source.instance_buffer_offset_bytes };
+        vkCmdBindVertexBuffers(command_buffer, 0, 2, vertex_buffers, offsets);
+        vkCmdBindIndexBuffer(command_buffer, index_buffer->vk_buffer(), 0, VK_INDEX_TYPE_UINT32);
 
         VkDescriptorSet camera_descriptor_set{ quad_stage_camera_descriptor_set(stage) };
 
@@ -1915,10 +1903,10 @@ namespace carrot::rhi::vulkan {
 
             vkCmdDrawIndexed(command_buffer,
                              batch.index_count,
-                             uses_instancing ? batch.instance_count : 1u,
+                             batch.instance_count,
                              batch.first_index,
                              0,
-                             uses_instancing ? batch.first_instance : 0u);
+                             batch.first_instance);
         }
     }
 
@@ -2039,7 +2027,7 @@ namespace carrot::rhi::vulkan {
 
         VkRenderPassBeginInfo rp_begin{ };
         rp_begin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        rp_begin.renderPass = _load_render_pass->vk_render_pass();
+        rp_begin.renderPass = _color_load_render_pass->vk_render_pass();
         rp_begin.framebuffer = framebuffer;
         rp_begin.renderArea.offset = { 0, 0 };
         rp_begin.renderArea.extent = extent;
@@ -2148,6 +2136,7 @@ namespace carrot::rhi::vulkan {
     // PRIVATE
     void vulkan_rhi_context_t::init(const rhi_desc_t& desc)
     {
+        _present_sync_enabled = desc.present_sync_enabled;
         const window::window_id_t presentation_window_id{
             window::has_window(desc.presentation_window_id)
                 ? desc.presentation_window_id
@@ -2355,7 +2344,12 @@ namespace carrot::rhi::vulkan {
         LOG_GRAPHICS_INFO("Created command pool, {} command buffers, and sync primitives", k_max_frames_in_flight);
 
         // ── 6. Create Swapchain ───────────────────────────────────────────────────
-        _swapchain = std::make_unique<vulkan_swapchain_t>(_device.get(), _vk_surface, desc.width, desc.height);
+        _swapchain = std::make_unique<vulkan_swapchain_t>(_device.get(),
+                                                          _vk_surface,
+                                                          desc.width,
+                                                          desc.height,
+                                                          VK_NULL_HANDLE,
+                                                          _present_sync_enabled);
 
         create_semaphore_vector(_device->vk_device(), _swapchain->get_image_count(), _render_finished_semaphores);
 
@@ -2364,6 +2358,11 @@ namespace carrot::rhi::vulkan {
         _load_render_pass = std::make_unique<vulkan_render_pass_t>(_device.get(),
                                                                    _swapchain->format(),
                                                                    VK_ATTACHMENT_LOAD_OP_LOAD,
+                                                                   VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        _color_load_render_pass = std::make_unique<vulkan_render_pass_t>(_device.get(),
+                                                                         _swapchain->format(),
+                                                                         VK_ATTACHMENT_LOAD_OP_LOAD,
+                                                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                                                                    VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
         _offscreen_render_pass = std::make_unique<vulkan_render_pass_t>(_device.get(),
                                                                         _swapchain->format(),
@@ -2391,49 +2390,36 @@ namespace carrot::rhi::vulkan {
             "engine://shaders/vulkan/text_quad.vert.spv",
             "engine://shaders/vulkan/text_quad.frag.spv",
             "text quad");
-        _instanced_textured_quad_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
+        _battle_swirl_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
             _device.get(),
             _render_pass->vk_render_pass(),
             _shader_files,
-            "engine://shaders/vulkan/textured_quad_instanced.vert.spv",
-            "engine://shaders/vulkan/textured_quad.frag.spv",
-            "instanced textured quad",
-            true);
-        _instanced_text_quad_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
-            _device.get(),
-            _render_pass->vk_render_pass(),
-            _shader_files,
-            "engine://shaders/vulkan/text_quad_instanced.vert.spv",
-            "engine://shaders/vulkan/text_quad.frag.spv",
-            "instanced text quad",
-            true);
-        _instanced_battle_swirl_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
-            _device.get(),
-            _render_pass->vk_render_pass(),
-            _shader_files,
-            "engine://shaders/vulkan/textured_quad_instanced.vert.spv",
+            "engine://shaders/vulkan/textured_quad.vert.spv",
             "engine://shaders/vulkan/battle_swirl_transition.frag.spv",
-            "instanced battle swirl quad",
-            true);
-        _instanced_bloom_blur_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
+            "battle swirl quad");
+        _bloom_blur_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
             _device.get(),
             _render_pass->vk_render_pass(),
             _shader_files,
-            "engine://shaders/vulkan/textured_quad_instanced.vert.spv",
+            "engine://shaders/vulkan/textured_quad.vert.spv",
             "engine://shaders/vulkan/bloom_blur.frag.spv",
-            "instanced bloom blur quad",
-            true);
-        _instanced_bloom_composite_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
+            "bloom blur quad");
+        _bloom_composite_pipeline = std::make_unique<vulkan_textured_quad_pipeline_t>(
             _device.get(),
             _render_pass->vk_render_pass(),
             _shader_files,
-            "engine://shaders/vulkan/textured_quad_instanced.vert.spv",
+            "engine://shaders/vulkan/textured_quad.vert.spv",
             "engine://shaders/vulkan/bloom_composite.frag.spv",
-            "instanced bloom composite quad",
-            true,
+            "bloom composite quad",
             vulkan_textured_quad_pipeline_t::blend_mode_t::additive);
 
         create_descriptor_pool();
+
+        for (auto& ring : _vertex_upload_rings)
+            ring = std::make_unique<vulkan_upload_ring_t>(buffer_usage_t::vertex, 4u * 1024u * 1024u);
+        for (auto& ring : _uniform_upload_rings)
+            ring = std::make_unique<vulkan_upload_ring_t>(buffer_usage_t::uniform, 1u * 1024u * 1024u);
+        _staging_upload_ring = std::make_unique<vulkan_upload_ring_t>(buffer_usage_t::staging, 16u * 1024u * 1024u);
 
         for (uint32_t frame_index{ 0 }; frame_index < k_max_frames_in_flight; ++frame_index)
             for (uint32_t stage_slot{ 0 }; stage_slot < k_max_textured_quad_stage_slots_per_frame; ++stage_slot)
@@ -2568,6 +2554,41 @@ namespace carrot::rhi::vulkan {
         vkBeginCommandBuffer(cmd, &begin_info);
 
         return cmd;
+    }
+
+    std::unique_ptr<vulkan_buffer_t> vulkan_rhi_context_t::create_mapped_upload_buffer(const buffer_usage_t usage,
+                                                                                        const size_t size_bytes) const
+    {
+        if (!_device || size_bytes == 0u)
+            return nullptr;
+
+        VkBuffer buffer{ VK_NULL_HANDLE };
+        VkDeviceMemory memory{ VK_NULL_HANDLE };
+        void* mapped{ nullptr };
+
+        constexpr VkMemoryPropertyFlags memory_properties{
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+        };
+
+        create_vk_buffer(static_cast<VkDeviceSize>(size_bytes),
+                         to_vk_buffer_usage(usage),
+                         memory_properties,
+                         buffer,
+                         memory);
+
+        VK_CHECK_FATAL(vkMapMemory(_device->vk_device(),
+                                   memory,
+                                   0,
+                                   static_cast<VkDeviceSize>(size_bytes),
+                                   0,
+                                   &mapped));
+
+        auto result{ std::make_unique<vulkan_buffer_t>(_device->vk_device(), size_bytes, usage) };
+        result->set_buffer(buffer);
+        result->set_memory(memory);
+        result->set_memory_properties(memory_properties);
+        result->set_mapped_ptr(mapped);
+        return result;
     }
 
     void vulkan_rhi_context_t::end_single_time_commands(VkCommandBuffer cmd) const

@@ -44,7 +44,6 @@ namespace carrot::rhi::metal {
                                                                    const std::string_view vertex_shader_path,
                                                                    const std::string_view fragment_shader_path,
                                                                    const std::string_view debug_name,
-                                                                   const bool instanced,
                                                                    const blend_mode_t blend_mode)
     {
         MTL::Device* mtl_device{ device.mtl_device() };
@@ -54,7 +53,7 @@ namespace carrot::rhi::metal {
             return;
         }
 
-        _vertex_descriptor = make_mtl_shared(create_vertex_descriptor(instanced));
+        _vertex_descriptor = make_mtl_shared(create_vertex_descriptor());
         if (!_vertex_descriptor)
         {
             LOG_GRAPHICS_FATAL("Failed to create vertex descriptor");
@@ -139,7 +138,7 @@ namespace carrot::rhi::metal {
 
     // PRIVATE
 
-    MTL::VertexDescriptor* metal_textured_quad_pipeline_t::create_vertex_descriptor(const bool instanced)
+    MTL::VertexDescriptor* metal_textured_quad_pipeline_t::create_vertex_descriptor()
     {
         MTL::VertexDescriptor* desc{ MTL::VertexDescriptor::alloc()->init() };
         if (!desc)
@@ -150,93 +149,62 @@ namespace carrot::rhi::metal {
         vertex_layout->setStepFunction(MTL::VertexStepFunctionPerVertex);
         vertex_layout->setStepRate(1);
 
-        if (instanced)
-        {
-            MTL::VertexBufferLayoutDescriptor* instance_layout{ desc->layouts()->object(1) };
-            instance_layout->setStride(sizeof(renderer::gpu_quad_instance_t));
-            instance_layout->setStepFunction(MTL::VertexStepFunctionPerInstance);
-            instance_layout->setStepRate(1);
+        MTL::VertexBufferLayoutDescriptor* instance_layout{ desc->layouts()->object(1) };
+        instance_layout->setStride(sizeof(renderer::gpu_quad_instance_t));
+        instance_layout->setStepFunction(MTL::VertexStepFunctionPerInstance);
+        instance_layout->setStepRate(1);
 
-            // Metal shaderconverter metadata reports raw input indices 0..5, but the
-            // compiled pipeline validation still refers to the semantic-driven slots
-            // used by the older working path (11..16). Advertise both mappings so the
-            // compiled library can bind whichever convention it emitted.
-            for (const NS::UInteger position_slot : { NS::UInteger(0), NS::UInteger(11) })
-            {
-                configure_attribute(desc,
-                                    position_slot,
-                                    MTL::VertexFormatFloat2,
-                                    offsetof(renderer::quad_vertex_t, x),
-                                    0);
-            }
-            for (const NS::UInteger uv_slot : { NS::UInteger(1), NS::UInteger(12) })
-            {
-                configure_attribute(desc,
-                                    uv_slot,
-                                    MTL::VertexFormatFloat2,
-                                    offsetof(renderer::quad_vertex_t, u),
-                                    0);
-            }
-            for (const NS::UInteger quad_rect_slot : { NS::UInteger(2), NS::UInteger(13) })
-            {
-                configure_attribute(desc,
-                                    quad_rect_slot,
-                                    MTL::VertexFormatFloat4,
-                                    offsetof(renderer::gpu_quad_instance_t, quad_rect_px),
-                                    1);
-            }
-            for (const NS::UInteger uv_rect_slot : { NS::UInteger(3), NS::UInteger(14) })
-            {
-                configure_attribute(desc,
-                                    uv_rect_slot,
-                                    MTL::VertexFormatFloat4,
-                                    offsetof(renderer::gpu_quad_instance_t, uv_rect),
-                                    1);
-            }
-            for (const NS::UInteger color_slot : { NS::UInteger(4), NS::UInteger(15) })
-            {
-                configure_attribute(desc,
-                                    color_slot,
-                                    MTL::VertexFormatFloat4,
-                                    offsetof(renderer::gpu_quad_instance_t, color),
-                                    1);
-            }
-            for (const NS::UInteger draw_params_slot : { NS::UInteger(5), NS::UInteger(16) })
-            {
-                configure_attribute(desc,
-                                    draw_params_slot,
-                                    MTL::VertexFormatFloat4,
-                                    offsetof(renderer::gpu_quad_instance_t, draw_params),
-                                    1);
-            }
-        }
-        else
+        // Metal shaderconverter metadata reports raw input indices 0..5, but the
+        // compiled pipeline validation still refers to the semantic-driven slots
+        // used by the older working path (11..16). Advertise both mappings so the
+        // compiled library can bind whichever convention it emitted.
+        for (const NS::UInteger position_slot : { NS::UInteger(0), NS::UInteger(11) })
         {
             configure_attribute(desc,
-                                11,
+                                position_slot,
                                 MTL::VertexFormatFloat2,
                                 offsetof(renderer::quad_vertex_t, x),
                                 0);
+        }
+        for (const NS::UInteger uv_slot : { NS::UInteger(1), NS::UInteger(12) })
+        {
             configure_attribute(desc,
-                                12,
+                                uv_slot,
                                 MTL::VertexFormatFloat2,
                                 offsetof(renderer::quad_vertex_t, u),
                                 0);
+        }
+        for (const NS::UInteger quad_rect_slot : { NS::UInteger(2), NS::UInteger(13) })
+        {
             configure_attribute(desc,
-                                13,
-                                MTL::VertexFormatUChar4Normalized,
-                                offsetof(renderer::quad_vertex_t, color),
-                                0);
+                                quad_rect_slot,
+                                MTL::VertexFormatFloat4,
+                                offsetof(renderer::gpu_quad_instance_t, quad_rect_px),
+                                1);
+        }
+        for (const NS::UInteger uv_rect_slot : { NS::UInteger(3), NS::UInteger(14) })
+        {
             configure_attribute(desc,
-                                14,
-                                MTL::VertexFormatFloat,
-                                offsetof(renderer::quad_vertex_t, effect_mode),
-                                0);
+                                uv_rect_slot,
+                                MTL::VertexFormatFloat4,
+                                offsetof(renderer::gpu_quad_instance_t, uv_rect),
+                                1);
+        }
+        for (const NS::UInteger color_slot : { NS::UInteger(4), NS::UInteger(15) })
+        {
             configure_attribute(desc,
-                                15,
-                                MTL::VertexFormatFloat,
-                                offsetof(renderer::quad_vertex_t, effect_param0),
-                                0);
+                                color_slot,
+                                MTL::VertexFormatFloat4,
+                                offsetof(renderer::gpu_quad_instance_t, color),
+                                1);
+        }
+        for (const NS::UInteger draw_params_slot : { NS::UInteger(5), NS::UInteger(16) })
+        {
+            configure_attribute(desc,
+                                draw_params_slot,
+                                MTL::VertexFormatFloat4,
+                                offsetof(renderer::gpu_quad_instance_t, draw_params),
+                                1);
         }
 
         return desc;

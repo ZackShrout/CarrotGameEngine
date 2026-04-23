@@ -116,20 +116,11 @@ namespace carrot::renderer {
 
     struct textured_quad_state_t
     {
-        struct frame_buffers_t
-        {
-            std::unique_ptr<rhi::rhi_buffer_t> instance_buffer;
-            size_t instance_capacity{ 0 };
-        };
-
         std::vector<quad_instance_t> instances;
 
         // CPU-side submission/batching for the current frame
         std::vector<gpu_quad_instance_t> instance_data_cpu;
         std::vector<textured_quad_batch_t> batches;
-
-        // Per-frame reusable geometry buffers
-        std::array<frame_buffers_t, k_textured_quad_frame_buffer_count> frame_buffers;
     };
 
     struct forward_plus_gpu_buffers_t
@@ -435,6 +426,7 @@ namespace carrot::renderer {
                                                                             const rhi::rhi_buffer_t* instance_buffer = nullptr,
                                                                             const rhi::rhi_buffer_t* indirect_buffer = nullptr,
                                                                             std::uint32_t instance_count = 0u,
+                                                                            std::uint32_t instance_buffer_offset_bytes = 0u,
                                                                             std::uint32_t indirect_buffer_offset_bytes = 0u) const;
         void extract_world_render_item(const textured_quad_draw_info_t& quad, world_material_key_t world_material);
         void submit_world_textured_quad(const textured_quad_draw_info_t& quad);
@@ -464,8 +456,6 @@ namespace carrot::renderer {
         void execute_frame_stage(const frame_stage_plan_t& stage_plan);
         void execute_frame_stages();
         void release_frame_resources();
-        void ensure_textured_quad_frame_buffers(textured_quad_state_t& state);
-        void upload_textured_quad_frame_data(const textured_quad_state_t& state) const;
         void ensure_forward_plus_gpu_buffers();
         void upload_forward_plus_gpu_data() const;
         void update_forward_plus_diagnostics() noexcept;
@@ -488,8 +478,6 @@ namespace carrot::renderer {
                                 quad_sampler_preset_t sampler_preset,
                                 uint32_t color);
         [[nodiscard]] uint32_t current_textured_quad_frame_buffer_slot() const noexcept;
-        [[nodiscard]] textured_quad_state_t::frame_buffers_t& current_frame_buffers(textured_quad_state_t& state) const noexcept;
-        [[nodiscard]] const textured_quad_state_t::frame_buffers_t& current_frame_buffers(const textured_quad_state_t& state) const noexcept;
         [[nodiscard]] forward_plus_gpu_buffers_t& current_forward_plus_gpu_buffers() noexcept;
         [[nodiscard]] const forward_plus_gpu_buffers_t& current_forward_plus_gpu_buffers() const noexcept;
         // ── External context / configuration ──────────────────────────────────────
@@ -565,7 +553,6 @@ namespace carrot::renderer {
         forward_plus_classification_output_t _world_forward_plus_output{ };
         std::unique_ptr<rhi::rhi_buffer_t> _shared_quad_vertex_buffer;
         std::unique_ptr<rhi::rhi_buffer_t> _shared_quad_index_buffer;
-        std::unique_ptr<rhi::rhi_buffer_t> _transition_battle_swirl_instance_buffer;
         std::unique_ptr<rhi::rhi_texture_t> _solid_white_texture;
         std::unique_ptr<rhi::rhi_render_target_t> _bloom_source_render_target;
         std::unique_ptr<rhi::rhi_render_target_t> _bloom_blur_render_target;

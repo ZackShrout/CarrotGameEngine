@@ -33,6 +33,7 @@ namespace carrot::rhi::dx12 {
     dx12_rhi_context_t::dx12_rhi_context_t(const rhi_desc_t& desc)
     {
         _shader_files = desc.shader_files;
+        _present_sync_enabled = desc.present_sync_enabled;
         if (core::platform::current_platform() != core::platform::platform_type::win32)
             LOG_GRAPHICS_FATAL("DX12 backend requires Win32 platform");
 
@@ -50,10 +51,15 @@ namespace carrot::rhi::dx12 {
 
         _device = std::make_unique<dx12_device_t>(desc);
         _graphics_queue = std::make_unique<dx12_command_queue_t>(_device->id3d12_device());
-        _upload_ring = std::make_unique<dx12_upload_ring_t>(_device->id3d12_device(), k_dx12_upload_ring_capacity_bytes);
+        _upload_ring = std::make_unique<dx12_upload_ring_t>(_device->id3d12_device(),
+                                                            buffer_usage_t::staging,
+                                                            k_dx12_upload_ring_capacity_bytes);
         _swapchain = std::make_unique<dx12_swapchain_t>(_device->id3d12_device(),
-                                                        _graphics_queue->id3d12_command_queue(), hwnd, desc.width,
-                                                        desc.height);
+                                                        _graphics_queue->id3d12_command_queue(),
+                                                        hwnd,
+                                                        desc.width,
+                                                        desc.height,
+                                                        _present_sync_enabled);
 
         for (uint32_t i{ 0 }; i < k_max_frames_in_flight; ++i)
         {
@@ -68,6 +74,12 @@ namespace carrot::rhi::dx12 {
             frame.command_list = std::make_unique<dx12_command_list_t>(_device->id3d12_device(), frame.allocator);
             frame.fence = std::make_unique<dx12_fence_t>(_device->id3d12_device());
             frame.fence_value = 0;
+            _vertex_upload_rings[i] = std::make_unique<dx12_upload_ring_t>(_device->id3d12_device(),
+                                                                            buffer_usage_t::vertex,
+                                                                            4u * 1024u * 1024u);
+            _uniform_upload_rings[i] = std::make_unique<dx12_upload_ring_t>(_device->id3d12_device(),
+                                                                             buffer_usage_t::uniform,
+                                                                             1u * 1024u * 1024u);
 
             buffer_create_info_t camera_buffer_info{ };
             camera_buffer_info.size_bytes = align_constant_buffer_size(sizeof(renderer::world_forward_plus_uniform_t));
@@ -89,39 +101,39 @@ namespace carrot::rhi::dx12 {
         _sampler_descriptor_stride = _device->id3d12_device()->GetDescriptorHandleIncrementSize(
             D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
 
-        _instanced_textured_quad_pipeline = std::make_unique<dx12_textured_quad_pipeline_t>(
+        _textured_quad_pipeline = std::make_unique<dx12_textured_quad_pipeline_t>(
             _device->id3d12_device(),
             *desc.shader_files,
-            "engine://shaders/dx12/textured_quad_instanced.vert.dxil",
+            "engine://shaders/dx12/textured_quad.vert.dxil",
             "engine://shaders/dx12/textured_quad.frag.dxil");
-        _instanced_text_quad_pipeline = std::make_unique<dx12_textured_quad_pipeline_t>(
+        _text_quad_pipeline = std::make_unique<dx12_textured_quad_pipeline_t>(
             _device->id3d12_device(),
             *desc.shader_files,
-            "engine://shaders/dx12/text_quad_instanced.vert.dxil",
+            "engine://shaders/dx12/text_quad.vert.dxil",
             "engine://shaders/dx12/text_quad.frag.dxil");
-        _instanced_battle_swirl_pipeline = std::make_unique<dx12_textured_quad_pipeline_t>(
+        _battle_swirl_pipeline = std::make_unique<dx12_textured_quad_pipeline_t>(
             _device->id3d12_device(),
             *desc.shader_files,
-            "engine://shaders/dx12/textured_quad_instanced.vert.dxil",
+            "engine://shaders/dx12/textured_quad.vert.dxil",
             "engine://shaders/dx12/battle_swirl_transition.frag.dxil");
-        _instanced_bloom_blur_pipeline = std::make_unique<dx12_textured_quad_pipeline_t>(
+        _bloom_blur_pipeline = std::make_unique<dx12_textured_quad_pipeline_t>(
             _device->id3d12_device(),
             *desc.shader_files,
-            "engine://shaders/dx12/textured_quad_instanced.vert.dxil",
+            "engine://shaders/dx12/textured_quad.vert.dxil",
             "engine://shaders/dx12/bloom_blur.frag.dxil");
-        _instanced_bloom_composite_pipeline = std::make_unique<dx12_textured_quad_pipeline_t>(
+        _bloom_composite_pipeline = std::make_unique<dx12_textured_quad_pipeline_t>(
             _device->id3d12_device(),
             *desc.shader_files,
-            "engine://shaders/dx12/textured_quad_instanced.vert.dxil",
+            "engine://shaders/dx12/textured_quad.vert.dxil",
             "engine://shaders/dx12/bloom_composite.frag.dxil",
             dx12_textured_quad_pipeline_t::blend_mode_t::additive);
-        if (!_instanced_textured_quad_pipeline || !_instanced_textured_quad_pipeline->is_valid() ||
-            !_instanced_text_quad_pipeline || !_instanced_text_quad_pipeline->is_valid() ||
-            !_instanced_battle_swirl_pipeline || !_instanced_battle_swirl_pipeline->is_valid() ||
-            !_instanced_bloom_blur_pipeline || !_instanced_bloom_blur_pipeline->is_valid() ||
-            !_instanced_bloom_composite_pipeline || !_instanced_bloom_composite_pipeline->is_valid())
+        if (!_textured_quad_pipeline || !_textured_quad_pipeline->is_valid() ||
+            !_text_quad_pipeline || !_text_quad_pipeline->is_valid() ||
+            !_battle_swirl_pipeline || !_battle_swirl_pipeline->is_valid() ||
+            !_bloom_blur_pipeline || !_bloom_blur_pipeline->is_valid() ||
+            !_bloom_composite_pipeline || !_bloom_composite_pipeline->is_valid())
         {
-            LOG_GRAPHICS_FATAL("Failed to create DX12 M27 instanced quad pipelines");
+            LOG_GRAPHICS_FATAL("Failed to create DX12 M27 quad pipelines");
         }
 
         const std::uint32_t zero_value{ 0u };
@@ -193,6 +205,10 @@ namespace carrot::rhi::dx12 {
         frame.transient_compute_constant_buffers.clear();
         frame.compute_descriptor_count_used = 0u;
         _recorded_quad_stages.clear();
+        if (_vertex_upload_rings[_frame_index])
+            _vertex_upload_rings[_frame_index]->reset();
+        if (_uniform_upload_rings[_frame_index])
+            _uniform_upload_rings[_frame_index]->reset();
         sync_auxiliary_surface_sizes();
 
         DX12_CHECK(frame.allocator->Reset());
@@ -702,6 +718,15 @@ namespace carrot::rhi::dx12 {
         return true;
     }
 
+    presentation_diagnostics_t dx12_rhi_context_t::get_presentation_diagnostics() const
+    {
+        return presentation_diagnostics_t{
+            .present_sync_requested = _present_sync_enabled,
+            .present_sync_request_honored = _present_sync_enabled,
+            .mode_name = _present_sync_enabled ? "sync_interval_1" : "sync_interval_0"
+        };
+    }
+
     std::unique_ptr<rhi_texture_t> dx12_rhi_context_t::create_texture_2d(const texture_create_info_t& info)
     {
         if (info.width == 0 || info.height == 0)
@@ -766,6 +791,12 @@ namespace carrot::rhi::dx12 {
 
         UINT64 upload_buffer_size{ 0 };
         device->GetCopyableFootprints(&texture_desc, 0, 1, 0, nullptr, nullptr, nullptr, &upload_buffer_size);
+        if (_upload_ring && !_upload_ring->ensure_capacity(device, static_cast<size_t>(upload_buffer_size)))
+        {
+            LOG_GRAPHICS_ERROR("DX12 upload ring could not grow to {} bytes for texture upload", upload_buffer_size);
+            texture->Release();
+            return nullptr;
+        }
 
         const auto upload_allocation{
             _upload_ring ? _upload_ring->allocate(static_cast<size_t>(upload_buffer_size),
@@ -795,6 +826,13 @@ namespace carrot::rhi::dx12 {
                         src_bytes + row * info.initial_data_stride_bytes,
                         info.initial_data_stride_bytes);
         }
+        const auto* upload_buffer{ dynamic_cast<const dx12_buffer_t*>(upload_allocation->buffer) };
+        if (!upload_buffer || !upload_buffer->resource())
+        {
+            LOG_GRAPHICS_ERROR("DX12 upload ring returned invalid texture upload buffer");
+            texture->Release();
+            return nullptr;
+        }
 
         ID3D12CommandAllocator* allocator{ nullptr };
         ID3D12GraphicsCommandList* cmd{ nullptr };
@@ -815,7 +853,7 @@ namespace carrot::rhi::dx12 {
         dst.SubresourceIndex = 0;
 
         D3D12_TEXTURE_COPY_LOCATION src{ };
-        src.pResource = upload_allocation->resource;
+        src.pResource = upload_buffer->resource();
         src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
         src.PlacedFootprint = footprint;
 
@@ -955,6 +993,12 @@ namespace carrot::rhi::dx12 {
             .cpu_writable = info.cpu_writable
         }) };
 
+        if (_upload_ring && !_upload_ring->ensure_capacity(device, info.size_bytes))
+        {
+            LOG_GRAPHICS_ERROR("DX12 upload ring could not grow to {} bytes for buffer upload", info.size_bytes);
+            return nullptr;
+        }
+
         const auto upload_allocation{
             _upload_ring ? _upload_ring->allocate(info.size_bytes, 16u) : std::nullopt
         };
@@ -964,6 +1008,12 @@ namespace carrot::rhi::dx12 {
             return nullptr;
         }
         std::memcpy(upload_allocation->mapped_ptr, info.initial_data, info.size_bytes);
+        const auto* upload_buffer{ dynamic_cast<const dx12_buffer_t*>(upload_allocation->buffer) };
+        if (!upload_buffer || !upload_buffer->resource())
+        {
+            LOG_GRAPHICS_ERROR("DX12 upload ring returned invalid buffer upload resource");
+            return nullptr;
+        }
 
         ID3D12CommandAllocator* allocator{ nullptr };
         ID3D12GraphicsCommandList* cmd{ nullptr };
@@ -989,7 +1039,7 @@ namespace carrot::rhi::dx12 {
 
         cmd->CopyBufferRegion(gpu_buffer->resource(),
                               0u,
-                              upload_allocation->resource,
+                              upload_buffer->resource(),
                               upload_allocation->offset_bytes,
                               info.size_bytes);
 
@@ -1031,6 +1081,42 @@ namespace carrot::rhi::dx12 {
     std::unique_ptr<rhi_sampler_t> dx12_rhi_context_t::create_sampler(const sampler_desc_t& desc) const
     {
         return std::make_unique<dx12_sampler_t>(_device->id3d12_device(), desc);
+    }
+
+    std::optional<transient_upload_allocation_t> dx12_rhi_context_t::allocate_transient_upload(
+        const buffer_usage_t usage,
+        const size_t size_bytes,
+        const size_t alignment)
+    {
+        dx12_upload_ring_t* ring{ nullptr };
+        switch (usage)
+        {
+            case buffer_usage_t::vertex:
+                ring = _vertex_upload_rings[_frame_index].get();
+                break;
+            case buffer_usage_t::uniform:
+                ring = _uniform_upload_rings[_frame_index].get();
+                break;
+            default:
+                return std::nullopt;
+        }
+
+        if (!ring || !_device)
+            return std::nullopt;
+
+        if (!ring->ensure_capacity(_device->id3d12_device(), size_bytes))
+            return std::nullopt;
+
+        const auto allocation{ ring->allocate(size_bytes, alignment) };
+        if (!allocation)
+            return std::nullopt;
+
+        return transient_upload_allocation_t{
+            .buffer = allocation->buffer,
+            .mapped_ptr = allocation->mapped_ptr,
+            .offset_bytes = allocation->offset_bytes,
+            .size_bytes = allocation->size_bytes
+        };
     }
 
     rhi_sampler_t* dx12_rhi_context_t::get_or_create_sampler(const sampler_desc_t& desc)
@@ -1168,25 +1254,29 @@ namespace carrot::rhi::dx12 {
                     pipeline->info().max_constant_size_bytes))
             };
 
-            buffer_create_info_t constant_buffer_info{ };
-            constant_buffer_info.size_bytes = constant_buffer_size;
-            constant_buffer_info.usage = buffer_usage_t::uniform;
-            constant_buffer_info.cpu_writable = true;
-
-            auto constant_buffer{
-                std::make_unique<dx12_buffer_t>(_device->id3d12_device(), constant_buffer_info)
+            const auto constant_upload{
+                allocate_transient_uniform_upload(constant_buffer_size,
+                                                  D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT)
             };
-
-            if (!record.constants.empty() &&
-                !constant_buffer->write(record.constants.data(), record.constants.size(), 0u))
+            if (!constant_upload || !constant_upload->buffer || !constant_upload->mapped_ptr)
             {
-                LOG_GRAPHICS_ERROR("Failed to upload DX12 compute constants");
+                LOG_GRAPHICS_ERROR("Failed to allocate DX12 transient compute constants");
+                return;
+            }
+            std::memset(constant_upload->mapped_ptr, 0, constant_buffer_size);
+            if (!record.constants.empty())
+                std::memcpy(constant_upload->mapped_ptr, record.constants.data(), record.constants.size());
+
+            const auto* constant_buffer{ dynamic_cast<const dx12_buffer_t*>(constant_upload->buffer) };
+            if (!constant_buffer || !constant_buffer->resource())
+            {
+                LOG_GRAPHICS_ERROR("DX12 transient compute constants returned invalid buffer");
                 return;
             }
 
             cmd->SetComputeRootConstantBufferView(k_max_compute_buffer_bindings * 2u,
-                                                 constant_buffer->resource()->GetGPUVirtualAddress());
-            frame.transient_compute_constant_buffers.push_back(std::move(constant_buffer));
+                                                  constant_buffer->resource()->GetGPUVirtualAddress() +
+                                                      constant_upload->offset_bytes);
         }
 
         cmd->Dispatch(record.group_count_x, record.group_count_y, record.group_count_z);
@@ -1291,7 +1381,8 @@ namespace carrot::rhi::dx12 {
                                                                 _graphics_queue->id3d12_command_queue(),
                                                                 hwnd,
                                                                 width,
-                                                                height);
+                                                                height,
+                                                                _present_sync_enabled);
         _auxiliary_surfaces.push_back(std::move(surface));
         return true;
     }
@@ -1309,12 +1400,12 @@ namespace carrot::rhi::dx12 {
     {
         switch (pipeline_kind)
         {
-            case quad_pipeline_kind_t::text: return _instanced_text_quad_pipeline.get();
-            case quad_pipeline_kind_t::battle_swirl: return _instanced_battle_swirl_pipeline.get();
-            case quad_pipeline_kind_t::bloom_blur: return _instanced_bloom_blur_pipeline.get();
-            case quad_pipeline_kind_t::bloom_composite: return _instanced_bloom_composite_pipeline.get();
+            case quad_pipeline_kind_t::text: return _text_quad_pipeline.get();
+            case quad_pipeline_kind_t::battle_swirl: return _battle_swirl_pipeline.get();
+            case quad_pipeline_kind_t::bloom_blur: return _bloom_blur_pipeline.get();
+            case quad_pipeline_kind_t::bloom_composite: return _bloom_composite_pipeline.get();
             case quad_pipeline_kind_t::textured:
-            default: return _instanced_textured_quad_pipeline.get();
+            default: return _textured_quad_pipeline.get();
         }
     }
 

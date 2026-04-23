@@ -37,12 +37,48 @@ namespace carrot::rhi::vulkan {
 
             return formats.front();
         }
+
+        [[nodiscard]] VkPresentModeKHR choose_present_mode(const VkPhysicalDevice physical_device,
+                                                           const VkSurfaceKHR surface,
+                                                           const bool present_sync_enabled)
+        {
+            uint32_t present_mode_count{ 0 };
+            VK_CHECK_FATAL(vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device,
+                                                                     surface,
+                                                                     &present_mode_count,
+                                                                     nullptr));
+
+            CE_ASSERT(present_mode_count > 0 && "Surface must advertise at least one present mode");
+
+            std::vector<VkPresentModeKHR> present_modes(present_mode_count);
+            VK_CHECK_FATAL(vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device,
+                                                                     surface,
+                                                                     &present_mode_count,
+                                                                     present_modes.data()));
+
+            const auto supports = [&present_modes](const VkPresentModeKHR mode) noexcept
+            {
+                return std::ranges::find(present_modes, mode) != present_modes.end();
+            };
+
+            if (present_sync_enabled)
+                return VK_PRESENT_MODE_FIFO_KHR;
+
+            if (supports(VK_PRESENT_MODE_IMMEDIATE_KHR))
+                return VK_PRESENT_MODE_IMMEDIATE_KHR;
+
+            if (supports(VK_PRESENT_MODE_MAILBOX_KHR))
+                return VK_PRESENT_MODE_MAILBOX_KHR;
+
+            return VK_PRESENT_MODE_FIFO_KHR;
+        }
     } // anonymous namespace
 
     vulkan_swapchain_t::vulkan_swapchain_t(vulkan_device_t* device, VkSurfaceKHR surface,
                                            const uint32_t width, const uint32_t height,
-                                           VkSwapchainKHR old_swapchain/* = VK_NULL_HANDLE*/)
-        : _device{ device }, _surface{ surface }
+                                           VkSwapchainKHR old_swapchain/* = VK_NULL_HANDLE*/,
+                                           const bool present_sync_enabled)
+        : _device{ device }, _surface{ surface }, _present_sync_enabled{ present_sync_enabled }
     {
         create_or_recreate(old_swapchain, width, height);
     }
@@ -179,6 +215,7 @@ namespace carrot::rhi::vulkan {
         VkDevice device = _device->vk_device();
         VkPhysicalDevice phys = _device->physical_device();
         const VkSurfaceFormatKHR surface_format{ choose_surface_format(phys, _surface) };
+        const VkPresentModeKHR present_mode{ choose_present_mode(phys, _surface, _present_sync_enabled) };
 
         VkSurfaceCapabilitiesKHR caps{ };
         VK_CHECK_FATAL(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(phys, _surface, &caps));
@@ -212,7 +249,7 @@ namespace carrot::rhi::vulkan {
         info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
         info.preTransform = caps.currentTransform;
         info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-        info.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+        info.presentMode = present_mode;
         info.clipped = VK_TRUE;
         info.oldSwapchain = old_swapchain;
 
@@ -258,10 +295,20 @@ namespace carrot::rhi::vulkan {
         _format = surface_format.format;
         _extent = extent;
         _image_count = image_count;
+        _present_mode = present_mode;
 
-        LOG_GRAPHICS_INFO("Swapchain created with an image count of {} and extent {}x{}.",
+        const char* present_mode_name{
+            present_mode == VK_PRESENT_MODE_FIFO_KHR ? "FIFO"
+            : (present_mode == VK_PRESENT_MODE_MAILBOX_KHR ? "MAILBOX"
+                                                           : (present_mode == VK_PRESENT_MODE_IMMEDIATE_KHR ? "IMMEDIATE"
+                                                                                                            : "OTHER"))
+        };
+
+        LOG_GRAPHICS_INFO("Swapchain created with an image count of {} and extent {}x{} (present mode: {}, present sync: {}).",
                           _image_count,
                           _extent.width,
-                          _extent.height);
+                          _extent.height,
+                          present_mode_name,
+                          _present_sync_enabled ? "enabled" : "disabled");
     }
 } // namespace carrot::rhi::vulkan

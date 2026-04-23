@@ -7,6 +7,7 @@
 
 #include "MetalCommon.h"
 #include "MetalRenderEncoder.h"
+#include "MetalUploadRing.h"
 #include "RHI/RHI.h"
 #include "Window/Window.h"
 
@@ -53,6 +54,10 @@ namespace carrot::rhi::metal {
         [[nodiscard]] std::unique_ptr<rhi_compute_pipeline_t> create_compute_pipeline(
             const compute_pipeline_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_sampler_t> create_sampler(const sampler_desc_t& desc) const override;
+        [[nodiscard]] std::optional<transient_upload_allocation_t> allocate_transient_upload(
+            buffer_usage_t usage,
+            size_t size_bytes,
+            size_t alignment = alignof(std::max_align_t)) override;
 
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
         void bind_textured_quad_resources([[maybe_unused]] const rhi_texture_t& texture,
@@ -61,6 +66,7 @@ namespace carrot::rhi::metal {
         bool add_presentation_window(window::window_id_t window_id,
                                      uint32_t presentation_channel_mask = presentation_channel_gameplay) override;
         bool remove_presentation_window(window::window_id_t window_id) override;
+        [[nodiscard]] presentation_diagnostics_t get_presentation_diagnostics() const override;
 
         void wait_idle() override;
 
@@ -147,19 +153,21 @@ namespace carrot::rhi::metal {
         std::unique_ptr<metal_command_queue_t>          _command_queue;
         std::unique_ptr<metal_textured_quad_pipeline_t> _textured_quad_pipeline;
         std::unique_ptr<metal_textured_quad_pipeline_t> _text_quad_pipeline;
-        std::unique_ptr<metal_textured_quad_pipeline_t> _instanced_textured_quad_pipeline;
-        std::unique_ptr<metal_textured_quad_pipeline_t> _instanced_text_quad_pipeline;
-        std::unique_ptr<metal_textured_quad_pipeline_t> _instanced_battle_swirl_pipeline;
-        std::unique_ptr<metal_textured_quad_pipeline_t> _instanced_bloom_blur_pipeline;
-        std::unique_ptr<metal_textured_quad_pipeline_t> _instanced_bloom_composite_pipeline;
+        std::unique_ptr<metal_textured_quad_pipeline_t> _battle_swirl_pipeline;
+        std::unique_ptr<metal_textured_quad_pipeline_t> _bloom_blur_pipeline;
+        std::unique_ptr<metal_textured_quad_pipeline_t> _bloom_composite_pipeline;
         std::unique_ptr<rhi_buffer_t>                   _default_compute_storage_buffer;
 
         // ── Per-frame / active submission state ──
         metal_render_encoder_t                          _render_encoder;
         MTL::CommandBuffer*                             _active_command_buffer{ nullptr };
         const CA::MetalDrawable*                        _active_drawable{ nullptr };
+        uint32_t                                        _frame_index{ 0u };
         std::vector<auxiliary_surface_t>                _auxiliary_surfaces;
         std::vector<recorded_quad_stage_t>              _recorded_quad_stages;
+        std::array<std::unique_ptr<metal_upload_ring_t>, 3> _vertex_upload_rings;
+        std::array<std::unique_ptr<metal_upload_ring_t>, 3> _uniform_upload_rings;
+        bool                                            _present_sync_enabled{ true };
 
         std::array<std::unique_ptr<metal_buffer_t>, k_max_textured_quad_stage_slots_per_frame>
                                                       _textured_quad_camera_uniform_buffers;

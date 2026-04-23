@@ -12,8 +12,9 @@
 
 namespace carrot::rhi::dx12 {
     dx12_swapchain_t::dx12_swapchain_t(ID3D12Device* device, ID3D12CommandQueue* command_queue, HWND hwnd,
-                                       const uint32_t width, const uint32_t height)
-        : _device{ device }, _width{ width }, _height{ height }
+                                       const uint32_t width, const uint32_t height,
+                                       const bool present_sync_enabled)
+        : _device{ device }, _width{ width }, _height{ height }, _present_sync_enabled{ present_sync_enabled }
     {
         IDXGIFactory6* factory{ nullptr };
         DX12_CHECK(CreateDXGIFactory2(0, IID_PPV_ARGS(&factory)));
@@ -188,7 +189,7 @@ namespace carrot::rhi::dx12 {
 
     void dx12_swapchain_t::present([[maybe_unused]] rhi_semaphore_t* wait_semaphore)
     {
-        DX12_CHECK(_swapchain->Present(1, 0));
+        DX12_CHECK(_swapchain->Present(_present_sync_enabled ? 1u : 0u, 0));
     }
 
     rhi_texture_t* dx12_swapchain_t::get_current_backbuffer() const

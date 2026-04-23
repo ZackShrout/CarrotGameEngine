@@ -76,6 +76,10 @@ namespace carrot::rhi::null {
         [[nodiscard]] std::unique_ptr<rhi_compute_pipeline_t> create_compute_pipeline(
             const compute_pipeline_create_info_t& info) override;
         [[nodiscard]] std::unique_ptr<rhi_sampler_t> create_sampler(const sampler_desc_t& desc) const override;
+        [[nodiscard]] std::optional<transient_upload_allocation_t> allocate_transient_upload(
+            buffer_usage_t usage,
+            size_t size_bytes,
+            size_t alignment = alignof(std::max_align_t)) override;
 
         [[nodiscard]] rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) override;
         void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) override;
@@ -84,6 +88,7 @@ namespace carrot::rhi::null {
         bool add_presentation_window(window::window_id_t window_id,
                                      uint32_t presentation_channel_mask = presentation_channel_gameplay) override;
         bool remove_presentation_window(window::window_id_t window_id) override;
+        [[nodiscard]] presentation_diagnostics_t get_presentation_diagnostics() const override;
 
         void wait_idle() override;
 
@@ -140,6 +145,7 @@ namespace carrot::rhi::null {
         public:
             explicit null_buffer_t(const buffer_create_info_t& info) noexcept;
             [[nodiscard]] bool write(const void* data, size_t size_bytes, size_t offset_bytes = 0) override;
+            [[nodiscard]] std::byte* data() noexcept { return _storage.data(); }
 
         private:
             std::vector<std::byte> _storage;
@@ -223,6 +229,7 @@ namespace carrot::rhi::null {
         std::vector<recorded_indirect_stage_t> _recorded_indirect_textured_stages;
         std::vector<recorded_stage_t> _recorded_text_stages;
         std::vector<recorded_compute_dispatch_t> _recorded_compute_dispatches;
+        std::vector<std::unique_ptr<null_buffer_t>> _transient_upload_buffers;
         std::vector<presentation_window_record_t> _presentation_windows;
     };
 } // namespace carrot::rhi::null

@@ -2,7 +2,8 @@
   "version": 1,
   "graphics": {
     "api": "default",
-    "debug_layers": "default"
+    "debug_layers": "default",
+    "present_sync": true
   },
   "audio": {
     "sample_rate": 48000,

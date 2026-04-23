@@ -32,42 +32,7 @@ namespace carrot::rhi::vulkan {
             return binding;
         }
 
-        [[nodiscard]] std::array<VkVertexInputAttributeDescription, 5> make_vertex_attribute_descriptions() noexcept
-        {
-            std::array<VkVertexInputAttributeDescription, 5> attributes{ };
-
-            // float x, y
-            attributes[0].location = 0;
-            attributes[0].binding = 0;
-            attributes[0].format = VK_FORMAT_R32G32_SFLOAT;
-            attributes[0].offset = offsetof(renderer::quad_vertex_t, x);
-
-            // float u, v
-            attributes[1].location = 1;
-            attributes[1].binding = 0;
-            attributes[1].format = VK_FORMAT_R32G32_SFLOAT;
-            attributes[1].offset = offsetof(renderer::quad_vertex_t, u);
-
-            // packed ABGR color
-            attributes[2].location = 2;
-            attributes[2].binding = 0;
-            attributes[2].format = VK_FORMAT_R8G8B8A8_UNORM;
-            attributes[2].offset = offsetof(renderer::quad_vertex_t, color);
-
-            attributes[3].location = 3;
-            attributes[3].binding = 0;
-            attributes[3].format = VK_FORMAT_R32_SFLOAT;
-            attributes[3].offset = offsetof(renderer::quad_vertex_t, effect_mode);
-
-            attributes[4].location = 4;
-            attributes[4].binding = 0;
-            attributes[4].format = VK_FORMAT_R32_SFLOAT;
-            attributes[4].offset = offsetof(renderer::quad_vertex_t, effect_param0);
-
-            return attributes;
-        }
-
-        [[nodiscard]] std::array<VkVertexInputAttributeDescription, 6> make_instanced_vertex_attribute_descriptions() noexcept
+        [[nodiscard]] std::array<VkVertexInputAttributeDescription, 6> make_vertex_attribute_descriptions() noexcept
         {
             std::array<VkVertexInputAttributeDescription, 6> attributes{ };
 
@@ -111,7 +76,6 @@ namespace carrot::rhi::vulkan {
                                                                      const std::string_view vertex_shader_path,
                                                                      const std::string_view fragment_shader_path,
                                                                      const std::string_view debug_name,
-                                                                     const bool instanced,
                                                                      const blend_mode_t blend_mode) : _device{ device }
     {
         const auto vert_path{ shader_files->resolve(vertex_shader_path) };
@@ -142,8 +106,7 @@ namespace carrot::rhi::vulkan {
 
         const VkVertexInputBindingDescription binding_desc{ make_vertex_binding_description() };
         const VkVertexInputBindingDescription instance_binding_desc{ make_instance_binding_description() };
-        const auto direct_attribute_descs{ make_vertex_attribute_descriptions() };
-        const auto instanced_attribute_descs{ make_instanced_vertex_attribute_descriptions() };
+        const auto attribute_descs{ make_vertex_attribute_descriptions() };
         const std::array<VkVertexInputBindingDescription, 2> binding_descs{
             binding_desc,
             instance_binding_desc
@@ -151,20 +114,10 @@ namespace carrot::rhi::vulkan {
 
         VkPipelineVertexInputStateCreateInfo vertex_input{ };
         vertex_input.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        if (instanced)
-        {
-            vertex_input.vertexBindingDescriptionCount = static_cast<uint32_t>(binding_descs.size());
-            vertex_input.pVertexBindingDescriptions = binding_descs.data();
-            vertex_input.vertexAttributeDescriptionCount = static_cast<uint32_t>(instanced_attribute_descs.size());
-            vertex_input.pVertexAttributeDescriptions = instanced_attribute_descs.data();
-        }
-        else
-        {
-            vertex_input.vertexBindingDescriptionCount = 1;
-            vertex_input.pVertexBindingDescriptions = &binding_desc;
-            vertex_input.vertexAttributeDescriptionCount = static_cast<uint32_t>(direct_attribute_descs.size());
-            vertex_input.pVertexAttributeDescriptions = direct_attribute_descs.data();
-        }
+        vertex_input.vertexBindingDescriptionCount = static_cast<uint32_t>(binding_descs.size());
+        vertex_input.pVertexBindingDescriptions = binding_descs.data();
+        vertex_input.vertexAttributeDescriptionCount = static_cast<uint32_t>(attribute_descs.size());
+        vertex_input.pVertexAttributeDescriptions = attribute_descs.data();
 
         VkPipelineInputAssemblyStateCreateInfo input_assembly{ };
         input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;

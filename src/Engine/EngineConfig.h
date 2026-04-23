@@ -16,6 +16,7 @@ namespace carrot {
     {
         rhi::graphics_api api;
         bool enable_debug_layers;
+        bool present_sync_enabled;
     };
 
     struct engine_audio_config_t

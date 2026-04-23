@@ -15,7 +15,9 @@
 
 #include <chlm/CarrotHLM.h>
 #include <memory>
+#include <optional>
 #include <span>
+#include <string>
 #include <string_view>
 
 namespace carrot::assets {
@@ -85,9 +87,37 @@ namespace carrot::rhi {
         const rhi_buffer_t* instance_buffer{ nullptr };
         const rhi_buffer_t* indirect_buffer{ nullptr };
         std::uint32_t instance_count{ 0u };
+        std::uint32_t instance_buffer_offset_bytes{ 0u };
         std::uint32_t indirect_buffer_offset_bytes{ 0u };
         quad_draw_source_kind_t kind{ quad_draw_source_kind_t::direct };
     };
+
+    struct transient_upload_allocation_t
+    {
+        const rhi_buffer_t* buffer{ nullptr };
+        std::byte* mapped_ptr{ nullptr };
+        size_t offset_bytes{ 0u };
+        size_t size_bytes{ 0u };
+    };
+
+    struct presentation_diagnostics_t
+    {
+        bool present_sync_requested{ true };
+        bool present_sync_request_honored{ true };
+        std::string mode_name{ "unknown" };
+    };
+
+    namespace transient_upload {
+        // Shared semantic alignments for the current transient upload contract.
+        constexpr size_t k_uniform_alignment_bytes{ 16u };
+        constexpr size_t k_staging_copy_alignment_bytes{ 16u };
+
+        template <typename T>
+        [[nodiscard]] constexpr size_t vertex_alignment() noexcept
+        {
+            return alignof(T);
+        }
+    } // namespace transient_upload
 
     struct textured_quad_stage_record_t : quad_stage_common_t, quad_draw_source_t
     {
@@ -156,6 +186,7 @@ namespace carrot::rhi {
         uint32_t width{ 1280 };
         uint32_t height{ 720 };
         bool enable_debug_layers{ true };
+        bool present_sync_enabled{ true };
         assets::shader_file_provider_t* shader_files{ nullptr };
     };
 
@@ -200,6 +231,22 @@ namespace carrot::rhi {
         [[nodiscard]] virtual std::unique_ptr<rhi_compute_pipeline_t> create_compute_pipeline(
             const compute_pipeline_create_info_t& info) = 0;
         [[nodiscard]] virtual std::unique_ptr<rhi_sampler_t> create_sampler(const sampler_desc_t& desc) const = 0;
+        [[nodiscard]] virtual std::optional<transient_upload_allocation_t> allocate_transient_upload(
+            buffer_usage_t usage,
+            size_t size_bytes,
+            size_t alignment = alignof(std::max_align_t)) = 0;
+        [[nodiscard]] std::optional<transient_upload_allocation_t> allocate_transient_vertex_upload(
+            const size_t size_bytes,
+            const size_t alignment = alignof(std::max_align_t))
+        {
+            return allocate_transient_upload(buffer_usage_t::vertex, size_bytes, alignment);
+        }
+        [[nodiscard]] std::optional<transient_upload_allocation_t> allocate_transient_uniform_upload(
+            const size_t size_bytes,
+            const size_t alignment = transient_upload::k_uniform_alignment_bytes)
+        {
+            return allocate_transient_upload(buffer_usage_t::uniform, size_bytes, alignment);
+        }
 
         [[nodiscard]] virtual rhi_sampler_t* get_or_create_sampler(const sampler_desc_t& desc) = 0;
         virtual void bind_textured_quad_resources(const rhi_texture_t& texture, const rhi_sampler_t& sampler) = 0;
@@ -218,6 +265,10 @@ namespace carrot::rhi {
             return false;
         }
         virtual bool remove_presentation_window([[maybe_unused]] window::window_id_t window_id) { return false; }
+        [[nodiscard]] virtual presentation_diagnostics_t get_presentation_diagnostics() const
+        {
+            return presentation_diagnostics_t{};
+        }
 
         virtual void wait_idle() = 0;
     };

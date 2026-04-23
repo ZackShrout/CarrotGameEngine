@@ -19,15 +19,18 @@ namespace carrot::rhi::vulkan {
 
         [[nodiscard]] VkBuffer vk_buffer() const noexcept { return _buffer; }
         [[nodiscard]] VkDeviceMemory vk_memory() const noexcept { return _memory; }
+        [[nodiscard]] void* mapped_ptr() const noexcept { return _mapped_ptr; }
 
         void set_buffer(VkBuffer buffer) noexcept { _buffer = buffer; }
         void set_memory(VkDeviceMemory memory) noexcept { _memory = memory; }
         void set_memory_properties(const VkMemoryPropertyFlags properties) noexcept { _memory_properties = properties; }
+        void set_mapped_ptr(void* mapped_ptr) noexcept { _mapped_ptr = mapped_ptr; }
 
     private:
         VkDevice _device{ VK_NULL_HANDLE };
         VkBuffer _buffer{ VK_NULL_HANDLE };
         VkDeviceMemory _memory{ VK_NULL_HANDLE };
         VkMemoryPropertyFlags _memory_properties{ 0 };
+        void* _mapped_ptr{ nullptr };
     };
 } // namespace carrot::rhi::vulkan

@@ -32,6 +32,8 @@
 #include "Utils/MulticastDelegate.h"
 #include "Window/Window.h"
 
+#include <fstream>
+
 namespace carrot {
     namespace {
         uint64_t _last_tick_time{ 0 };
@@ -39,6 +41,12 @@ namespace carrot {
         float _fps_timer{ 0.f };
         bool _debug_overlay_initialized{ false };
         core::ce_application_t* _application{ nullptr };
+
+        [[nodiscard]] float elapsed_ms(const std::chrono::steady_clock::time_point start,
+                                       const std::chrono::steady_clock::time_point end) noexcept
+        {
+            return std::chrono::duration<float, std::milli>(end - start).count();
+        }
 
         void ensure_debug_overlay_initialized(renderer::renderer_t* renderer,
                                               const io::virtual_file_system_t& vfs) noexcept
@@ -266,39 +274,89 @@ namespace carrot {
 
         while (!_should_quit && !window::should_close(main_window_id))
         {
+            engine_profiling_snapshot_t profiling{ };
+            const auto frame_start{ std::chrono::steady_clock::now() };
+
+            const auto poll_start{ frame_start };
             window::poll_events();
             destroy_closed_auxiliary_windows();
+            const auto poll_end{ std::chrono::steady_clock::now() };
+            profiling.platform_poll_ms = elapsed_ms(poll_start, poll_end);
 
             if (_should_quit || window::should_close(main_window_id))
                 break;
 
+            const auto runtime_iteration_start{ std::chrono::steady_clock::now() };
             hot_reload::shader_watcher_t::poll();
             if (_asset_manager)
                 _asset_manager->poll_runtime_iteration_changes();
-            tick();
+            const auto runtime_iteration_end{ std::chrono::steady_clock::now() };
+            profiling.runtime_iteration_ms = elapsed_ms(runtime_iteration_start, runtime_iteration_end);
+            tick(profiling);
 
             if (!_application_started && advance_boot_pipeline())
                 start_application(*_application, game, main_window_id);
 
-            if (window::is_minimized(main_window_id)) continue;
+            if (window::is_minimized(main_window_id))
+            {
+                profiling.frame_total_ms = elapsed_ms(frame_start, std::chrono::steady_clock::now());
+                accumulate_profiling_snapshot(profiling);
+                continue;
+            }
 
+            const auto render_start{ std::chrono::steady_clock::now() };
+            const auto begin_frame_start{ render_start };
             _renderer->begin_frame();
+            const auto begin_frame_end{ std::chrono::steady_clock::now() };
+            profiling.begin_frame_ms = elapsed_ms(begin_frame_start, begin_frame_end);
             if (_application_started)
             {
+                const auto world_render_start{ std::chrono::steady_clock::now() };
                 render_world();
+                const auto world_render_end{ std::chrono::steady_clock::now() };
+                profiling.world_render_ms = elapsed_ms(world_render_start, world_render_end);
+
+                const auto ui_render_start{ std::chrono::steady_clock::now() };
                 render_ui();
+                const auto ui_render_end{ std::chrono::steady_clock::now() };
+                profiling.ui_render_ms = elapsed_ms(ui_render_start, ui_render_end);
+
                 ensure_debug_overlay_initialized(_renderer.get(), _vfs);
                 if (_application)
+                {
+                    const auto overlay_render_start{ std::chrono::steady_clock::now() };
                     _application->on_render_overlay();
+                    const auto overlay_render_end{ std::chrono::steady_clock::now() };
+                    profiling.debug_render_ms += elapsed_ms(overlay_render_start, overlay_render_end);
+                }
                 if (_application && _application->show_debug_overlay())
+                {
+                    const auto debug_render_start{ std::chrono::steady_clock::now() };
                     render_debug();
+                    const auto debug_render_end{ std::chrono::steady_clock::now() };
+                    profiling.debug_render_ms += elapsed_ms(debug_render_start, debug_render_end);
+                }
             }
             else
             {
+                const auto boot_render_start{ std::chrono::steady_clock::now() };
                 render_boot_overlay();
+                const auto boot_render_end{ std::chrono::steady_clock::now() };
+                profiling.debug_render_ms += elapsed_ms(boot_render_start, boot_render_end);
             }
+
+            const auto log_console_render_start{ std::chrono::steady_clock::now() };
             render_log_console();
+            const auto log_console_render_end{ std::chrono::steady_clock::now() };
+            profiling.log_console_render_ms = elapsed_ms(log_console_render_start, log_console_render_end);
+
+            const auto end_frame_start{ std::chrono::steady_clock::now() };
             _renderer->end_frame();
+            const auto end_frame_end{ std::chrono::steady_clock::now() };
+            profiling.end_frame_ms = elapsed_ms(end_frame_start, end_frame_end);
+            profiling.render_total_ms = elapsed_ms(render_start, end_frame_end);
+            profiling.frame_total_ms = elapsed_ms(frame_start, end_frame_end);
+            accumulate_profiling_snapshot(profiling);
         }
 
         _running = false;
@@ -562,8 +620,9 @@ namespace carrot {
         return _boot_pipeline.stage == boot_stage_t::complete;
     }
 
-    void engine_t::tick()
+    void engine_t::tick(engine_profiling_snapshot_t& profiling)
     {
+        const auto update_start{ std::chrono::steady_clock::now() };
         const long long now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now().time_since_epoch()).count();
 
@@ -581,15 +640,36 @@ namespace carrot {
         }
 
         if (_audio_module)
+        {
+            const auto audio_update_start{ std::chrono::steady_clock::now() };
             _audio_module->update(_delta_time);
+            const auto audio_update_end{ std::chrono::steady_clock::now() };
+            profiling.audio_update_ms = elapsed_ms(audio_update_start, audio_update_end);
+        }
 
         if (_ui_module)
+        {
+            const auto ui_update_start{ std::chrono::steady_clock::now() };
             _ui_module->update(_delta_time);
+            const auto ui_update_end{ std::chrono::steady_clock::now() };
+            profiling.ui_update_ms = elapsed_ms(ui_update_start, ui_update_end);
+        }
 
+        const auto input_update_start{ std::chrono::steady_clock::now() };
         _controller_manager.update(_delta_time);
-        _world.update(_delta_time);
+        const auto input_update_end{ std::chrono::steady_clock::now() };
+        profiling.input_update_ms = elapsed_ms(input_update_start, input_update_end);
 
+        const auto world_update_start{ std::chrono::steady_clock::now() };
+        _world.update(_delta_time);
+        const auto world_update_end{ std::chrono::steady_clock::now() };
+        profiling.world_update_ms = elapsed_ms(world_update_start, world_update_end);
+
+        const auto game_tick_start{ std::chrono::steady_clock::now() };
         _on_tick.broadcast(_delta_time);
+        const auto game_tick_end{ std::chrono::steady_clock::now() };
+        profiling.game_tick_ms = elapsed_ms(game_tick_start, game_tick_end);
+        profiling.update_total_ms = elapsed_ms(update_start, game_tick_end);
     }
 
     void engine_t::render_world()
@@ -712,38 +792,59 @@ namespace carrot {
         const renderer::renderer_stats_t& stats{ _renderer->get_last_completed_stats() };
         const renderer::resolved_camera_2d_t resolved_camera{ _renderer->resolve_camera_2d() };
         const input::controller_debug_snapshot_t controller_snapshot{ _controller_manager.debug_snapshot() };
+        const engine_profiling_snapshot_t& profiling{ get_smoothed_profiling_snapshot() };
+        const char* profiling_mode_label{ profiling_mode_enabled() ? "ON" : "OFF" };
 
         debug::text(16.f,
                     16.f,
-                    "Backend: %s | FPS: %u | Frame: %llu",
+                    "Backend: %s | FPS: %u | Frame: %llu | Profiling: %s | Samples: %zu",
                     rhi::graphics_api_to_string(_renderer->get_graphics_api()).data(),
                     _current_fps,
-                    static_cast<unsigned long long>(_renderer->get_frame_index()));
+                    static_cast<unsigned long long>(_renderer->get_frame_index()),
+                    profiling_mode_label,
+                    profiling_sample_count());
         debug::text(16.f,
                     44.f,
+                    "Frame: %.2f ms | Update: %.2f ms | Render: %.2f ms | Present: %.2f ms",
+                    profiling.frame_total_ms,
+                    profiling.update_total_ms,
+                    profiling.render_total_ms,
+                    profiling.end_frame_ms);
+        debug::text(16.f,
+                    72.f,
+                    "Draws: %u | Batches: %u | World Items: %u | World Batches: %u",
+                    stats.draw_calls,
+                    stats.textured_quad_batch_count,
+                    stats.world_render_item_count,
+                    stats.world_textured_batch_count);
+        debug::text(16.f,
+                    100.f,
                     "World Lights: %u | Dropped Lights: %u | F+ Tiles: %u",
                     stats.world_point_light_count,
                     stats.dropped_world_point_light_count,
                     stats.forward_plus_tile_count);
         debug::text(16.f,
-                    72.f,
+                    128.f,
                     "Tile Light Refs: %u | F+ Dropped Refs: %u | Tile Size: %u px",
                     stats.forward_plus_light_index_count,
                     stats.forward_plus_dropped_light_references,
                     static_cast<unsigned>(renderer::k_forward_plus_tile_size_px));
         debug::text(16.f,
-                    100.f,
+                    156.f,
                     "Controllers: %u connected | Active Slot: %s | South: %s",
                     controller_snapshot.connected_gamepad_count,
                     controller_snapshot.active_gamepad_index.has_value()
                         ? std::to_string(*controller_snapshot.active_gamepad_index).c_str()
                         : "None",
                     controller_snapshot.active_gamepad.is_pressed(input::gamepad_button_t::south) ? "Down" : "Up");
+        debug::text(16.f,
+                    184.f,
+                    "F8 Profiling Mode | F9 Export Capture");
 
         const world::world_presentation_t& presentation{ _world.presentation() };
         const world::collision_debug_view_t& debug_view{ _world.collision_debug_view() };
         const float viewport_height{ static_cast<float>(resolved_camera.viewport_rect_px.size.y) };
-        const float legend_y_start{ std::max(128.f, viewport_height - 100.f) };
+        const float legend_y_start{ std::max(212.f, viewport_height - 100.f) };
         const uint32_t object_legend_color{ 0xFF00FFFFu };
 
         debug::text_colored(16.f,
@@ -969,6 +1070,186 @@ namespace carrot {
         }
     }
 
+    void engine_t::accumulate_profiling_snapshot(const engine_profiling_snapshot_t& frame_snapshot) noexcept
+    {
+        _last_profiling_snapshot = frame_snapshot;
+
+        constexpr float smoothing_alpha{ 0.15f };
+        const auto smooth = [](float& smoothed, const float current) noexcept
+        {
+            smoothed += (current - smoothed) * smoothing_alpha;
+        };
+
+        smooth(_smoothed_profiling_snapshot.frame_total_ms, frame_snapshot.frame_total_ms);
+        smooth(_smoothed_profiling_snapshot.platform_poll_ms, frame_snapshot.platform_poll_ms);
+        smooth(_smoothed_profiling_snapshot.runtime_iteration_ms, frame_snapshot.runtime_iteration_ms);
+        smooth(_smoothed_profiling_snapshot.update_total_ms, frame_snapshot.update_total_ms);
+        smooth(_smoothed_profiling_snapshot.audio_update_ms, frame_snapshot.audio_update_ms);
+        smooth(_smoothed_profiling_snapshot.ui_update_ms, frame_snapshot.ui_update_ms);
+        smooth(_smoothed_profiling_snapshot.input_update_ms, frame_snapshot.input_update_ms);
+        smooth(_smoothed_profiling_snapshot.world_update_ms, frame_snapshot.world_update_ms);
+        smooth(_smoothed_profiling_snapshot.game_tick_ms, frame_snapshot.game_tick_ms);
+        smooth(_smoothed_profiling_snapshot.render_total_ms, frame_snapshot.render_total_ms);
+        smooth(_smoothed_profiling_snapshot.begin_frame_ms, frame_snapshot.begin_frame_ms);
+        smooth(_smoothed_profiling_snapshot.world_render_ms, frame_snapshot.world_render_ms);
+        smooth(_smoothed_profiling_snapshot.ui_render_ms, frame_snapshot.ui_render_ms);
+        smooth(_smoothed_profiling_snapshot.debug_render_ms, frame_snapshot.debug_render_ms);
+        smooth(_smoothed_profiling_snapshot.log_console_render_ms, frame_snapshot.log_console_render_ms);
+        smooth(_smoothed_profiling_snapshot.end_frame_ms, frame_snapshot.end_frame_ms);
+
+        if (_profiling_mode_enabled && _renderer)
+        {
+            constexpr std::size_t k_max_profile_samples{ 8192u };
+            if (_profiling_capture_samples.size() >= k_max_profile_samples)
+                _profiling_capture_samples.erase(_profiling_capture_samples.begin());
+
+            _profiling_capture_samples.push_back(engine_profile_sample_t{
+                .frame_index = _renderer->get_frame_index(),
+                .fps = _current_fps,
+                .timing = frame_snapshot,
+                .renderer_stats = _renderer->get_last_completed_stats()
+            });
+        }
+    }
+
+    void engine_t::toggle_profiling_mode() noexcept
+    {
+        _profiling_mode_enabled = !_profiling_mode_enabled;
+        clear_profiling_capture();
+        LOG_CORE_INFO("Profiling mode {}", _profiling_mode_enabled ? "enabled" : "disabled");
+    }
+
+    void engine_t::clear_profiling_capture() noexcept
+    {
+        _profiling_capture_samples.clear();
+    }
+
+    bool engine_t::export_profiling_capture() const noexcept
+    {
+        if (!_save_root)
+        {
+            LOG_CORE_WARN("Profiling capture export skipped because no save root was configured");
+            return false;
+        }
+
+        if (_profiling_capture_samples.empty())
+        {
+            LOG_CORE_WARN("Profiling capture export skipped because no samples were recorded");
+            return false;
+        }
+
+        const auto now{ std::chrono::system_clock::now() };
+        const std::time_t now_time{ std::chrono::system_clock::to_time_t(now) };
+        std::tm local_time{ };
+#if defined(_WIN32)
+        localtime_s(&local_time, &now_time);
+#else
+        localtime_r(&now_time, &local_time);
+#endif
+
+        char timestamp[32]{ };
+        if (std::strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", &local_time) == 0u)
+        {
+            std::snprintf(timestamp, sizeof(timestamp), "profile");
+        }
+
+        const std::filesystem::path profile_dir{ *_save_root / "profiles" };
+        std::error_code ec;
+        std::filesystem::create_directories(profile_dir, ec);
+
+        const std::filesystem::path output_path{
+            profile_dir / std::format("renderer_profile_{}.csv", timestamp)
+        };
+
+        std::ofstream out{ output_path, std::ios::out | std::ios::trunc };
+        if (!out.is_open())
+        {
+            LOG_CORE_ERROR("Failed to open profiling capture export '{}'",
+                           utils::file::to_log_string(output_path));
+            return false;
+        }
+
+        const rhi::presentation_diagnostics_t presentation_diagnostics{
+            _renderer && _renderer->get_rhi()
+                ? _renderer->get_rhi()->get_presentation_diagnostics()
+                : rhi::presentation_diagnostics_t{}
+        };
+        const std::string backend_name{
+            _renderer && _renderer->get_rhi()
+                ? std::string(rhi::graphics_api_to_string(_renderer->get_rhi()->get_graphics_api()))
+                : std::string("Unknown")
+        };
+
+        out << "frame_index,fps,frame_total_ms,platform_poll_ms,runtime_iteration_ms,update_total_ms,"
+               "audio_update_ms,ui_update_ms,input_update_ms,world_update_ms,game_tick_ms,render_total_ms,"
+               "begin_frame_ms,world_render_ms,ui_render_ms,debug_render_ms,log_console_render_ms,end_frame_ms,"
+               "graphics_backend,present_sync_requested,present_sync_request_honored,presentation_mode,"
+               "draw_calls,textured_quad_count,textured_quad_batch_count,bloom_source_pass_count,post_effect_pass_count,"
+               "bloom_pass_count,world_render_item_count,world_textured_batch_count,active_visibility_tag_count,"
+               "visible_layer_count,hidden_layer_count,vertex_count,index_count,world_point_light_count,"
+               "dropped_world_point_light_count,forward_plus_tile_count,forward_plus_light_index_count,"
+               "forward_plus_dropped_light_references\n";
+
+        for (const engine_profile_sample_t& sample : _profiling_capture_samples)
+        {
+            const renderer::renderer_stats_t& stats{ sample.renderer_stats };
+            const engine_profiling_snapshot_t& timing{ sample.timing };
+            out << sample.frame_index << ','
+                << sample.fps << ','
+                << timing.frame_total_ms << ','
+                << timing.platform_poll_ms << ','
+                << timing.runtime_iteration_ms << ','
+                << timing.update_total_ms << ','
+                << timing.audio_update_ms << ','
+                << timing.ui_update_ms << ','
+                << timing.input_update_ms << ','
+                << timing.world_update_ms << ','
+                << timing.game_tick_ms << ','
+                << timing.render_total_ms << ','
+                << timing.begin_frame_ms << ','
+                << timing.world_render_ms << ','
+                << timing.ui_render_ms << ','
+                << timing.debug_render_ms << ','
+                << timing.log_console_render_ms << ','
+                << timing.end_frame_ms << ','
+                << backend_name << ','
+                << (presentation_diagnostics.present_sync_requested ? "true" : "false") << ','
+                << (presentation_diagnostics.present_sync_request_honored ? "true" : "false") << ','
+                << presentation_diagnostics.mode_name << ','
+                << stats.draw_calls << ','
+                << stats.textured_quad_count << ','
+                << stats.textured_quad_batch_count << ','
+                << stats.bloom_source_pass_count << ','
+                << stats.post_effect_pass_count << ','
+                << stats.bloom_pass_count << ','
+                << stats.world_render_item_count << ','
+                << stats.world_textured_batch_count << ','
+                << stats.active_visibility_tag_count << ','
+                << stats.visible_layer_count << ','
+                << stats.hidden_layer_count << ','
+                << stats.vertex_count << ','
+                << stats.index_count << ','
+                << stats.world_point_light_count << ','
+                << stats.dropped_world_point_light_count << ','
+                << stats.forward_plus_tile_count << ','
+                << stats.forward_plus_light_index_count << ','
+                << stats.forward_plus_dropped_light_references
+                << '\n';
+        }
+
+        if (!out.good())
+        {
+            LOG_CORE_ERROR("Profiling capture export failed while writing '{}'",
+                           utils::file::to_log_string(output_path));
+            return false;
+        }
+
+        LOG_CORE_INFO("Exported {} profiling sample(s) to '{}'",
+                      _profiling_capture_samples.size(),
+                      utils::file::to_log_string(output_path));
+        return true;
+    }
+
     std::vector<engine_runtime_window_spec_t> engine_t::build_runtime_window_specs(const uint32_t width,
                                                                                     const uint32_t height) const
     {
@@ -1028,6 +1309,19 @@ namespace carrot {
 
         runtime_window->_on_window_closed += BIND_MEMBER(_application, on_window_closed);
         runtime_window->_on_window_focus_changed += BIND_MEMBER(_application, on_window_focus_changed);
+        runtime_window->_on_key += BIND_LAMBDA([this](const events::key_event_t& e) {
+            if (e._action != events::key_action::press || e._repeat)
+                return;
+
+            if (e._key == input::key_code::f8)
+            {
+                toggle_profiling_mode();
+                return;
+            }
+
+            if (e._key == input::key_code::f9)
+                (void)export_profiling_capture();
+        });
         runtime_window->_on_key += BIND_MEMBER(_application, on_key);
 
         const auto receives_gameplay_input{
@@ -1135,6 +1429,8 @@ namespace carrot {
 
     void engine_t::configure_paths(const core::engine_paths_t& paths)
     {
+        _save_root = paths.save_root;
+
         LOG_CORE_INFO("Configuring engine paths...");
         LOG_CORE_INFO("Engine Root: {}", utils::file::to_log_string(paths.engine_root.value_or("Not set")));
         LOG_CORE_INFO("Engine Source: {}", utils::file::to_log_string(paths.engine_src.value_or("Not set")));

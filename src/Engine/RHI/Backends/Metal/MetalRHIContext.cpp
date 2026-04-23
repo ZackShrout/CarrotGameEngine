@@ -15,6 +15,7 @@
 #include "MetalSampler.h"
 #include "MetalSwapchain.h"
 #include "MetalTexture.h"
+#include "MetalUploadRing.h"
 #include "Pipelines/MetalComputePipeline.h"
 #include "Pipelines/MetalTexturedQuadPipeline.h"
 #include "RHI/SamplerPresets.h"
@@ -132,6 +133,7 @@ namespace carrot::rhi::metal {
     metal_rhi_context_t::metal_rhi_context_t(const rhi_desc_t& desc)
     {
         _shader_files = desc.shader_files;
+        _present_sync_enabled = desc.present_sync_enabled;
         const window::window_id_t presentation_window_id{
             window::has_window(desc.presentation_window_id)
                 ? desc.presentation_window_id
@@ -148,6 +150,8 @@ namespace carrot::rhi::metal {
         }
 
         metal_set_layer_pixel_format_srgb(_metal_layer);
+        metal_set_layer_display_sync_enabled(_metal_layer, _present_sync_enabled);
+        LOG_GRAPHICS_INFO("Metal present sync {}", _present_sync_enabled ? "enabled" : "disabled");
 
         MTL::Device* mtl_device{ MTL::CreateSystemDefaultDevice() };
         if (!mtl_device)
@@ -175,7 +179,6 @@ namespace carrot::rhi::metal {
             "engine://shaders/metal/textured_quad.vert.metallib",
             "engine://shaders/metal/textured_quad.frag.metallib",
             "textured quad");
-
         _text_quad_pipeline = std::make_unique<metal_textured_quad_pipeline_t>(
             *_device,
             *desc.shader_files,
@@ -183,46 +186,27 @@ namespace carrot::rhi::metal {
             "engine://shaders/metal/text_quad.vert.metallib",
             "engine://shaders/metal/text_quad.frag.metallib",
             "text quad");
-        _instanced_textured_quad_pipeline = std::make_unique<metal_textured_quad_pipeline_t>(
+        _battle_swirl_pipeline = std::make_unique<metal_textured_quad_pipeline_t>(
             *_device,
             *desc.shader_files,
             MTL::PixelFormatBGRA8Unorm_sRGB,
-            "engine://shaders/metal/textured_quad_instanced.vert.metallib",
-            "engine://shaders/metal/textured_quad.frag.metallib",
-            "instanced textured quad",
-            true);
-        _instanced_text_quad_pipeline = std::make_unique<metal_textured_quad_pipeline_t>(
-            *_device,
-            *desc.shader_files,
-            MTL::PixelFormatBGRA8Unorm_sRGB,
-            "engine://shaders/metal/text_quad_instanced.vert.metallib",
-            "engine://shaders/metal/text_quad.frag.metallib",
-            "instanced text quad",
-            true);
-        _instanced_battle_swirl_pipeline = std::make_unique<metal_textured_quad_pipeline_t>(
-            *_device,
-            *desc.shader_files,
-            MTL::PixelFormatBGRA8Unorm_sRGB,
-            "engine://shaders/metal/textured_quad_instanced.vert.metallib",
+            "engine://shaders/metal/textured_quad.vert.metallib",
             "engine://shaders/metal/battle_swirl_transition.frag.metallib",
-            "instanced battle swirl quad",
-            true);
-        _instanced_bloom_blur_pipeline = std::make_unique<metal_textured_quad_pipeline_t>(
+            "battle swirl quad");
+        _bloom_blur_pipeline = std::make_unique<metal_textured_quad_pipeline_t>(
             *_device,
             *desc.shader_files,
             MTL::PixelFormatBGRA8Unorm_sRGB,
-            "engine://shaders/metal/textured_quad_instanced.vert.metallib",
+            "engine://shaders/metal/textured_quad.vert.metallib",
             "engine://shaders/metal/bloom_blur.frag.metallib",
-            "instanced bloom blur quad",
-            true);
-        _instanced_bloom_composite_pipeline = std::make_unique<metal_textured_quad_pipeline_t>(
+            "bloom blur quad");
+        _bloom_composite_pipeline = std::make_unique<metal_textured_quad_pipeline_t>(
             *_device,
             *desc.shader_files,
             MTL::PixelFormatBGRA8Unorm_sRGB,
-            "engine://shaders/metal/textured_quad_instanced.vert.metallib",
+            "engine://shaders/metal/textured_quad.vert.metallib",
             "engine://shaders/metal/bloom_composite.frag.metallib",
-            "instanced bloom composite quad",
-            true,
+            "bloom composite quad",
             metal_textured_quad_pipeline_t::blend_mode_t::additive);
 
         if (!_textured_quad_pipeline || !_textured_quad_pipeline->is_valid())
@@ -235,13 +219,11 @@ namespace carrot::rhi::metal {
             LOG_GRAPHICS_FATAL("Failed to create Metal text quad pipeline");
             return;
         }
-        if (!_instanced_textured_quad_pipeline || !_instanced_textured_quad_pipeline->is_valid() ||
-            !_instanced_text_quad_pipeline || !_instanced_text_quad_pipeline->is_valid() ||
-            !_instanced_battle_swirl_pipeline || !_instanced_battle_swirl_pipeline->is_valid() ||
-            !_instanced_bloom_blur_pipeline || !_instanced_bloom_blur_pipeline->is_valid() ||
-            !_instanced_bloom_composite_pipeline || !_instanced_bloom_composite_pipeline->is_valid())
+        if (!_battle_swirl_pipeline || !_battle_swirl_pipeline->is_valid() ||
+            !_bloom_blur_pipeline || !_bloom_blur_pipeline->is_valid() ||
+            !_bloom_composite_pipeline || !_bloom_composite_pipeline->is_valid())
         {
-            LOG_GRAPHICS_FATAL("Failed to create Metal M27 instanced quad pipelines");
+            LOG_GRAPHICS_FATAL("Failed to create Metal M27 quad pipelines");
             return;
         }
 
@@ -284,6 +266,11 @@ namespace carrot::rhi::metal {
             return;
         }
 
+        for (auto& ring : _vertex_upload_rings)
+            ring = std::make_unique<metal_upload_ring_t>(buffer_usage_t::vertex, 4u * 1024u * 1024u);
+        for (auto& ring : _uniform_upload_rings)
+            ring = std::make_unique<metal_upload_ring_t>(buffer_usage_t::uniform, 1u * 1024u * 1024u);
+
         LOG_GRAPHICS_INFO("Metal RHI initialized successfully");
     }
 
@@ -313,6 +300,10 @@ namespace carrot::rhi::metal {
         dispatch_semaphore_wait(_frame_semaphore, DISPATCH_TIME_FOREVER);
         _recorded_quad_stages.clear();
         _transient_compute_buffers.clear();
+        if (_vertex_upload_rings[_frame_index])
+            _vertex_upload_rings[_frame_index]->reset();
+        if (_uniform_upload_rings[_frame_index])
+            _uniform_upload_rings[_frame_index]->reset();
 
         _swapchain->acquire_next_image(nullptr);
         _active_drawable = static_cast<const CA::MetalDrawable*>(_swapchain->get_current_drawable());
@@ -628,6 +619,7 @@ namespace carrot::rhi::metal {
         _active_command_buffer->commit();
         _active_command_buffer->release();
         _active_command_buffer = nullptr;
+        _frame_index = (_frame_index + 1u) % static_cast<uint32_t>(_vertex_upload_rings.size());
 
         _active_drawable = nullptr;
         release_auxiliary_drawables();
@@ -893,6 +885,33 @@ namespace carrot::rhi::metal {
         return std::make_unique<metal_sampler_t>(sampler, desc);
     }
 
+    std::optional<transient_upload_allocation_t> metal_rhi_context_t::allocate_transient_upload(
+        const buffer_usage_t usage,
+        const size_t size_bytes,
+        const size_t alignment)
+    {
+        metal_upload_ring_t* ring{ nullptr };
+        switch (usage)
+        {
+            case buffer_usage_t::vertex:
+                ring = _vertex_upload_rings[_frame_index].get();
+                break;
+            case buffer_usage_t::uniform:
+                ring = _uniform_upload_rings[_frame_index].get();
+                break;
+            default:
+                return std::nullopt;
+        }
+
+        if (!ring || !_device || !_device->mtl_device())
+            return std::nullopt;
+
+        if (!ring->ensure_capacity(_device->mtl_device(), size_bytes))
+            return std::nullopt;
+
+        return ring->allocate(size_bytes, alignment);
+    }
+
     rhi_sampler_t* metal_rhi_context_t::get_or_create_sampler(const sampler_desc_t& desc)
     {
         if (const auto it{ _sampler_cache.find(desc) }; it != _sampler_cache.end())
@@ -947,33 +966,35 @@ namespace carrot::rhi::metal {
 
         encoder->setComputePipelineState(pipeline->state());
 
-        auto srv_descriptor_table = std::make_unique<metal_buffer_t>(
-            _device->mtl_device()->newBuffer(sizeof(descriptor_table_entry_t) * k_max_compute_buffer_bindings,
-                                             MTL::ResourceStorageModeShared),
-            sizeof(descriptor_table_entry_t) * k_max_compute_buffer_bindings,
-            buffer_usage_t::uniform
-        );
-        auto uav_descriptor_table = std::make_unique<metal_buffer_t>(
-            _device->mtl_device()->newBuffer(sizeof(descriptor_table_entry_t) * k_max_compute_buffer_bindings,
-                                             MTL::ResourceStorageModeShared),
-            sizeof(descriptor_table_entry_t) * k_max_compute_buffer_bindings,
-            buffer_usage_t::uniform
-        );
-        if (!srv_descriptor_table || !srv_descriptor_table->mtl_buffer() ||
-            !uav_descriptor_table || !uav_descriptor_table->mtl_buffer())
+        const size_t descriptor_table_size{ sizeof(descriptor_table_entry_t) * k_max_compute_buffer_bindings };
+        const auto srv_descriptor_table{
+            allocate_transient_uniform_upload(descriptor_table_size,
+                                              alignof(descriptor_table_entry_t))
+        };
+        const auto uav_descriptor_table{
+            allocate_transient_uniform_upload(descriptor_table_size,
+                                              alignof(descriptor_table_entry_t))
+        };
+        if (!srv_descriptor_table || !uav_descriptor_table || !srv_descriptor_table->buffer || !uav_descriptor_table->buffer ||
+            !srv_descriptor_table->mapped_ptr || !uav_descriptor_table->mapped_ptr)
         {
             LOG_GRAPHICS_ERROR("Failed to allocate Metal compute descriptor tables");
             encoder->endEncoding();
             return;
         }
-        std::memset(srv_descriptor_table->mtl_buffer()->contents(),
-                    0,
-                    sizeof(descriptor_table_entry_t) * k_max_compute_buffer_bindings);
-        std::memset(uav_descriptor_table->mtl_buffer()->contents(),
-                    0,
-                    sizeof(descriptor_table_entry_t) * k_max_compute_buffer_bindings);
-        auto* srv_entries = reinterpret_cast<descriptor_table_entry_t*>(srv_descriptor_table->mtl_buffer()->contents());
-        auto* uav_entries = reinterpret_cast<descriptor_table_entry_t*>(uav_descriptor_table->mtl_buffer()->contents());
+        const auto* srv_descriptor_buffer{ dynamic_cast<const metal_buffer_t*>(srv_descriptor_table->buffer) };
+        const auto* uav_descriptor_buffer{ dynamic_cast<const metal_buffer_t*>(uav_descriptor_table->buffer) };
+        if (!srv_descriptor_buffer || !uav_descriptor_buffer || !srv_descriptor_buffer->mtl_buffer() ||
+            !uav_descriptor_buffer->mtl_buffer())
+        {
+            LOG_GRAPHICS_ERROR("Metal transient compute descriptor tables returned invalid buffers");
+            encoder->endEncoding();
+            return;
+        }
+        std::memset(srv_descriptor_table->mapped_ptr, 0, descriptor_table_size);
+        std::memset(uav_descriptor_table->mapped_ptr, 0, descriptor_table_size);
+        auto* srv_entries = reinterpret_cast<descriptor_table_entry_t*>(srv_descriptor_table->mapped_ptr);
+        auto* uav_entries = reinterpret_cast<descriptor_table_entry_t*>(uav_descriptor_table->mapped_ptr);
 
         for (std::uint32_t slot{ 0u }; slot < k_max_compute_buffer_bindings; ++slot)
         {
@@ -1030,37 +1051,44 @@ namespace carrot::rhi::metal {
         }
 
         compute_root_argument_buffer_t root_argument_buffer{ };
-        root_argument_buffer.srv_table_gpu_address = metal_buffer_gpu_address(srv_descriptor_table->mtl_buffer());
-        root_argument_buffer.uav_table_gpu_address = metal_buffer_gpu_address(uav_descriptor_table->mtl_buffer());
-        encoder->useResource(srv_descriptor_table->mtl_buffer(), MTL::ResourceUsageRead);
-        encoder->useResource(uav_descriptor_table->mtl_buffer(), MTL::ResourceUsageRead);
+        root_argument_buffer.srv_table_gpu_address = metal_buffer_gpu_address(srv_descriptor_buffer->mtl_buffer()) +
+                                                     srv_descriptor_table->offset_bytes;
+        root_argument_buffer.uav_table_gpu_address = metal_buffer_gpu_address(uav_descriptor_buffer->mtl_buffer()) +
+                                                     uav_descriptor_table->offset_bytes;
+        encoder->useResource(srv_descriptor_buffer->mtl_buffer(), MTL::ResourceUsageRead);
+        encoder->useResource(uav_descriptor_buffer->mtl_buffer(), MTL::ResourceUsageRead);
 
         if (!record.constants.empty())
         {
-            auto constant_buffer = std::make_unique<metal_buffer_t>(
-                _device->mtl_device()->newBuffer(std::max<std::size_t>(record.constants.size(), 16u),
-                                                 MTL::ResourceStorageModeShared),
-                std::max<std::size_t>(record.constants.size(), 16u),
-                buffer_usage_t::uniform
-            );
-            if (!constant_buffer || !constant_buffer->mtl_buffer() ||
-                !constant_buffer->write(record.constants.data(), record.constants.size(), 0u))
+            const size_t constant_buffer_size{ std::max<std::size_t>(record.constants.size(), 16u) };
+            const auto constant_buffer{
+                allocate_transient_uniform_upload(constant_buffer_size,
+                                                 transient_upload::k_uniform_alignment_bytes)
+            };
+            if (!constant_buffer || !constant_buffer->buffer || !constant_buffer->mapped_ptr)
             {
                 LOG_GRAPHICS_ERROR("Failed to upload Metal compute constants");
                 encoder->endEncoding();
                 return;
             }
+            std::memset(constant_buffer->mapped_ptr, 0, constant_buffer_size);
+            std::memcpy(constant_buffer->mapped_ptr, record.constants.data(), record.constants.size());
+            const auto* constant_buffer_impl{ dynamic_cast<const metal_buffer_t*>(constant_buffer->buffer) };
+            if (!constant_buffer_impl || !constant_buffer_impl->mtl_buffer())
+            {
+                LOG_GRAPHICS_ERROR("Metal transient compute constants returned invalid buffer");
+                encoder->endEncoding();
+                return;
+            }
 
-            root_argument_buffer.cbv_root_gpu_address = metal_buffer_gpu_address(constant_buffer->mtl_buffer());
-            encoder->useResource(constant_buffer->mtl_buffer(), MTL::ResourceUsageRead);
-            _transient_compute_buffers.push_back(std::move(constant_buffer));
+            root_argument_buffer.cbv_root_gpu_address = metal_buffer_gpu_address(constant_buffer_impl->mtl_buffer()) +
+                                                        constant_buffer->offset_bytes;
+            encoder->useResource(constant_buffer_impl->mtl_buffer(), MTL::ResourceUsageRead);
         }
 
         encoder->setBytes(&root_argument_buffer,
                           static_cast<NS::UInteger>(sizeof(root_argument_buffer)),
                           k_compute_root_argument_buffer_index);
-        _transient_compute_buffers.push_back(std::move(srv_descriptor_table));
-        _transient_compute_buffers.push_back(std::move(uav_descriptor_table));
 
         const MTL::Size threads_per_threadgroup{
             pipeline->info().threadgroup_size_x,
@@ -1083,6 +1111,15 @@ namespace carrot::rhi::metal {
 
         if (_command_queue)
             _command_queue->wait_idle();
+    }
+
+    presentation_diagnostics_t metal_rhi_context_t::get_presentation_diagnostics() const
+    {
+        return presentation_diagnostics_t{
+            .present_sync_requested = _present_sync_enabled,
+            .present_sync_request_honored = _present_sync_enabled,
+            .mode_name = _present_sync_enabled ? "display_sync_enabled" : "display_sync_disabled"
+        };
     }
 
     bool metal_rhi_context_t::is_frame_active() const noexcept
@@ -1115,6 +1152,7 @@ namespace carrot::rhi::metal {
 
         // Keep auxiliary window render-target format consistent with the primary pipeline target.
         metal_set_layer_pixel_format_srgb(handle.cocoa_t.metal_layer);
+        metal_set_layer_display_sync_enabled(handle.cocoa_t.metal_layer, _present_sync_enabled);
 
         _auxiliary_surfaces.push_back(auxiliary_surface_t{
             .id = window_id,
@@ -1170,35 +1208,25 @@ namespace carrot::rhi::metal {
                                                 const uint32_t stage_slot,
                                                 const quad_pipeline_kind_t pipeline_kind)
     {
-        const bool uses_instancing{
-            stage.instance_buffer != nullptr && stage.instance_count > 0u
-        };
         metal_textured_quad_pipeline_t* pipeline{ nullptr };
-        if (uses_instancing)
+        switch (pipeline_kind)
         {
-            switch (pipeline_kind)
-            {
-                case quad_pipeline_kind_t::text:
-                    pipeline = _instanced_text_quad_pipeline.get();
-                    break;
-                case quad_pipeline_kind_t::battle_swirl:
-                    pipeline = _instanced_battle_swirl_pipeline.get();
-                    break;
-                case quad_pipeline_kind_t::bloom_blur:
-                    pipeline = _instanced_bloom_blur_pipeline.get();
-                    break;
-                case quad_pipeline_kind_t::bloom_composite:
-                    pipeline = _instanced_bloom_composite_pipeline.get();
-                    break;
-                case quad_pipeline_kind_t::textured:
-                default:
-                    pipeline = _instanced_textured_quad_pipeline.get();
-                    break;
-            }
-        }
-        else
-        {
-            pipeline = pipeline_kind == quad_pipeline_kind_t::text ? _text_quad_pipeline.get() : _textured_quad_pipeline.get();
+            case quad_pipeline_kind_t::text:
+                pipeline = _text_quad_pipeline.get();
+                break;
+            case quad_pipeline_kind_t::battle_swirl:
+                pipeline = _battle_swirl_pipeline.get();
+                break;
+            case quad_pipeline_kind_t::bloom_blur:
+                pipeline = _bloom_blur_pipeline.get();
+                break;
+            case quad_pipeline_kind_t::bloom_composite:
+                pipeline = _bloom_composite_pipeline.get();
+                break;
+            case quad_pipeline_kind_t::textured:
+            default:
+                pipeline = _textured_quad_pipeline.get();
+                break;
         }
 
         if (!encoder || !pipeline || !pipeline->is_valid())
@@ -1207,7 +1235,7 @@ namespace carrot::rhi::metal {
         const metal_buffer_t* vertex_buffer{ dynamic_cast<const metal_buffer_t*>(stage.vertex_buffer) };
         const metal_buffer_t* index_buffer{ dynamic_cast<const metal_buffer_t*>(stage.index_buffer) };
         const metal_buffer_t* instance_buffer{ dynamic_cast<const metal_buffer_t*>(stage.instance_buffer) };
-        if (!vertex_buffer || !index_buffer || stage.batches.empty() || (uses_instancing && !instance_buffer))
+        if (!vertex_buffer || !index_buffer || !instance_buffer || stage.instance_count == 0u || stage.batches.empty())
             return;
 
         if (stage_slot >= k_max_textured_quad_stage_slots_per_frame)
@@ -1243,8 +1271,9 @@ namespace carrot::rhi::metal {
 
         encoder->setRenderPipelineState(pipeline->state());
         encoder->setVertexBuffer(vertex_buffer->mtl_buffer(), 0, 0);
-        if (uses_instancing)
-            encoder->setVertexBuffer(instance_buffer->mtl_buffer(), 0, 1);
+        encoder->setVertexBuffer(instance_buffer->mtl_buffer(),
+                                 static_cast<NS::UInteger>(stage.instance_buffer_offset_bytes),
+                                 1);
 
         const renderer::world_forward_plus_uniform_t world_uniform{
             renderer::pack_world_forward_plus_uniform(stage.view_projection,
@@ -1325,24 +1354,17 @@ namespace carrot::rhi::metal {
 
             encoder->useResource(texture->mtl_texture(), MTL::ResourceUsageRead, MTL::RenderStageFragment);
 
-            if (uses_instancing)
-            {
-                encoder->setVertexBuffer(instance_buffer->mtl_buffer(),
-                                         static_cast<NS::UInteger>(batch.first_instance * sizeof(renderer::gpu_quad_instance_t)),
-                                         1);
-                encoder->drawIndexedPrimitives(MTL::PrimitiveTypeTriangle,
-                                               batch.index_count,
-                                               MTL::IndexTypeUInt32,
-                                               index_buffer->mtl_buffer(),
-                                               static_cast<NS::UInteger>(batch.first_index * sizeof(uint32_t)),
-                                               batch.instance_count);
-            }
-            else
-            {
-                encoder->drawIndexedPrimitives(MTL::PrimitiveTypeTriangle, batch.index_count, MTL::IndexTypeUInt32,
-                                               index_buffer->mtl_buffer(),
-                                               batch.first_index * sizeof(uint32_t));
-            }
+            encoder->setVertexBuffer(instance_buffer->mtl_buffer(),
+                                     static_cast<NS::UInteger>(
+                                         stage.instance_buffer_offset_bytes +
+                                         batch.first_instance * sizeof(renderer::gpu_quad_instance_t)),
+                                     1);
+            encoder->drawIndexedPrimitives(MTL::PrimitiveTypeTriangle,
+                                           batch.index_count,
+                                           MTL::IndexTypeUInt32,
+                                           index_buffer->mtl_buffer(),
+                                           static_cast<NS::UInteger>(batch.first_index * sizeof(uint32_t)),
+                                           batch.instance_count);
         }
     }
 

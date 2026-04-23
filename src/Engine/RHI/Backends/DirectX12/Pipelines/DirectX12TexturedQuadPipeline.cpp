@@ -329,8 +329,10 @@ namespace carrot::rhi::dx12 {
         vbv.StrideInBytes = sizeof(renderer::quad_vertex_t);
 
         D3D12_VERTEX_BUFFER_VIEW instance_vbv{ };
-        instance_vbv.BufferLocation = dx_instance_buffer->resource()->GetGPUVirtualAddress();
-        instance_vbv.SizeInBytes = static_cast<UINT>(dx_instance_buffer->size_bytes());
+        instance_vbv.BufferLocation =
+            dx_instance_buffer->resource()->GetGPUVirtualAddress() + draw_context.stage.instance_buffer_offset_bytes;
+        instance_vbv.SizeInBytes = static_cast<UINT>(dx_instance_buffer->size_bytes() -
+                                                     draw_context.stage.instance_buffer_offset_bytes);
         instance_vbv.StrideInBytes = sizeof(renderer::gpu_quad_instance_t);
 
         D3D12_INDEX_BUFFER_VIEW ibv{ };

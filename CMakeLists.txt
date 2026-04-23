@@ -188,6 +188,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/RHI/Backends/Vulkan/VulkanPipeline.h
         src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.cpp
         src/Engine/RHI/Backends/Vulkan/VulkanRHIContext.h
+        src/Engine/RHI/Backends/Vulkan/VulkanUploadRing.cpp
+        src/Engine/RHI/Backends/Vulkan/VulkanUploadRing.h
         src/Engine/RHI/Backends/Vulkan/VulkanRenderPass.cpp
         src/Engine/RHI/Backends/Vulkan/VulkanRenderPass.h
         src/Engine/RHI/Backends/Vulkan/VulkanSampler.h
@@ -454,6 +456,8 @@ if (APPLE)
             src/Engine/RHI/Backends/Metal/MetalDevice.h
             src/Engine/RHI/Backends/Metal/MetalCommandQueue.cpp
             src/Engine/RHI/Backends/Metal/MetalCommandQueue.h
+            src/Engine/RHI/Backends/Metal/MetalUploadRing.cpp
+            src/Engine/RHI/Backends/Metal/MetalUploadRing.h
             src/Engine/RHI/Backends/Metal/MetalLayerBridge.mm
             src/Engine/RHI/Backends/Metal/MetalLayerBridge.h
             src/Engine/RHI/Backends/Metal/MetalSwapchain.cpp

@@ -429,6 +429,46 @@ Current / planned native backends:
 
 The long-term goal is practical backend parity where the higher-level engine can rely on a coherent set of rendering behaviors.
 
+### Current Transient Upload Direction
+
+Carrot's current transient upload model now has an intentionally **implicit split** inside the RHI/backend implementation:
+
+* **direct transient upload**
+* used for per-frame vertex and uniform data that the backend can bind directly for the current frame
+* currently exposed through renderer-facing helpers such as `allocate_transient_vertex_upload(...)` and `allocate_transient_uniform_upload(...)`
+* **staging-copy upload**
+* used for CPU-written upload data whose purpose is to copy into other GPU resources rather than be bound directly as the final draw source
+* currently remains primarily a backend-internal concern, especially in Vulkan
+
+This split is real in the implementation, but it is **not yet modeled as two explicit public RHI upload classes**.
+
+That is intentional.
+
+Current reasoning:
+
+* renderer callers generally do not yet need to choose between those two upload behaviors directly
+* keeping the split implicit avoids pushing backend-flavored plumbing upward into ordinary renderer code
+* the current public API is still clearer when it speaks in terms of renderer intent such as transient vertex or uniform upload
+
+Current honesty rule:
+
+* Carrot should keep this split implicit only while the distinction remains mostly backend-internal and the caller does not need to choose for correctness, performance, or lifetime reasons
+
+Trigger for making the split explicit:
+
+* when a non-backend caller must choose between **direct frame-bound upload** and **staging-copy upload** in a way that materially affects correctness, performance, or ownership semantics
+* especially if resource streaming, explicit GPU upload workflows, partial device-local updates, or other higher-level systems begin depending on staging-copy semantics directly
+
+When that trigger is crossed, the preferred direction is to expose the distinction in **semantic engine terms**, not backend terms.
+
+Examples of the desired style:
+
+* `allocate_transient_vertex_upload(...)`
+* `allocate_transient_uniform_upload(...)`
+* future `allocate_staging_upload(...)`
+
+That keeps Carrot explicit without forcing renderer or gameplay-adjacent code to think in Vulkan-, Metal-, or DirectX-specific upload vocabulary.
+
 ---
 
 ## 7. Renderer Direction

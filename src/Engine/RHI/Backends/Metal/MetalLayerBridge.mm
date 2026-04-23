@@ -45,6 +45,17 @@ void metal_set_layer_pixel_format_srgb(void* layer)
     metal_layer.pixelFormat = MTLPixelFormatBGRA8Unorm_sRGB;
 }
 
+void metal_set_layer_display_sync_enabled(void* layer, const bool enabled) noexcept
+{
+    CAMetalLayer* metal_layer{ static_cast<CAMetalLayer*>(layer) };
+
+    if (!metal_layer)
+        return;
+
+    if ([metal_layer respondsToSelector:@selector(setDisplaySyncEnabled:)])
+        metal_layer.displaySyncEnabled = enabled ? YES : NO;
+}
+
 void metal_destroy_layer(void* layer)
 {
     CAMetalLayer* metal_layer{ static_cast<CAMetalLayer*>(layer) };

@@ -76,6 +76,7 @@ namespace carrot::rhi::null {
         _recorded_indirect_textured_stages.clear();
         _recorded_text_stages.clear();
         _recorded_compute_dispatches.clear();
+        _transient_upload_buffers.clear();
     }
 
     void null_rhi_context_t::record_textured_quad_stage(const textured_quad_stage_record_t& stage)
@@ -164,6 +165,31 @@ namespace carrot::rhi::null {
         return std::make_unique<null_sampler_t>(desc);
     }
 
+    std::optional<transient_upload_allocation_t> null_rhi_context_t::allocate_transient_upload(
+        const buffer_usage_t usage,
+        const size_t size_bytes,
+        [[maybe_unused]] const size_t alignment)
+    {
+        auto buffer{ std::make_unique<null_buffer_t>(buffer_create_info_t{
+            .size_bytes = size_bytes,
+            .usage = usage,
+            .initial_data = nullptr,
+            .cpu_writable = true
+        }) };
+        if (!buffer)
+            return std::nullopt;
+
+        auto* mapped_ptr = buffer->data();
+        auto* buffer_ptr = buffer.get();
+        _transient_upload_buffers.push_back(std::move(buffer));
+        return transient_upload_allocation_t{
+            .buffer = buffer_ptr,
+            .mapped_ptr = mapped_ptr,
+            .offset_bytes = 0u,
+            .size_bytes = size_bytes
+        };
+    }
+
     rhi_sampler_t* null_rhi_context_t::get_or_create_sampler(const sampler_desc_t& desc)
     {
         const auto [it, inserted]{
@@ -234,6 +260,15 @@ namespace carrot::rhi::null {
 
         _presentation_windows.erase(existing);
         return true;
+    }
+
+    presentation_diagnostics_t null_rhi_context_t::get_presentation_diagnostics() const
+    {
+        return presentation_diagnostics_t{
+            .present_sync_requested = true,
+            .present_sync_request_honored = true,
+            .mode_name = "null"
+        };
     }
 
     void null_rhi_context_t::wait_idle()

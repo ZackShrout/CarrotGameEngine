@@ -43,6 +43,19 @@ namespace carrot::assets {
         std::string_view visibility_zone_id;
     };
 
+    struct typed_npc_object_t
+    {
+        std::string_view name;
+        std::string_view patrol_path;
+        std::optional<float> move_speed;
+        std::string_view sprite_id;
+    };
+
+    struct typed_patrol_path_object_t
+    {
+        std::string_view name;
+    };
+
     enum class typed_light_kind_t : uint8_t
     {
         ambient = 0,
@@ -77,6 +90,10 @@ namespace carrot::assets {
     [[nodiscard]] std::optional<typed_trigger_object_t> as_typed_trigger(const world::world_object_t& object) noexcept;
     [[nodiscard]] std::optional<typed_visibility_zone_object_t> as_typed_visibility_zone(const tilemap_object_t& object) noexcept;
     [[nodiscard]] std::optional<typed_visibility_zone_object_t> as_typed_visibility_zone(const world::world_object_t& object) noexcept;
+    [[nodiscard]] std::optional<typed_npc_object_t> as_typed_npc(const tilemap_object_t& object) noexcept;
+    [[nodiscard]] std::optional<typed_npc_object_t> as_typed_npc(const world::world_object_t& object) noexcept;
+    [[nodiscard]] std::optional<typed_patrol_path_object_t> as_typed_patrol_path(const tilemap_object_t& object) noexcept;
+    [[nodiscard]] std::optional<typed_patrol_path_object_t> as_typed_patrol_path(const world::world_object_t& object) noexcept;
     [[nodiscard]] std::optional<typed_light_object_t> as_typed_light(const tilemap_object_t& object) noexcept;
     [[nodiscard]] std::optional<typed_light_object_t> as_typed_light(const world::world_object_t& object) noexcept;
 } // namespace carrot::assets

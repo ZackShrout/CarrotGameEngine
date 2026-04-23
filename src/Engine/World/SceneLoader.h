@@ -97,6 +97,7 @@ namespace carrot::world {
         const assets::scene_asset_record_t* _scene_record{ nullptr };
         const assets::loaded_tilemap_asset_t* _tilemap{ nullptr };
         const assets::loaded_sprite_asset_t* _player_sprite{ nullptr };
+        const assets::loaded_sprite_asset_t* _npc_proof_sprite{ nullptr };
         import::prepared_tilemap_world_data_t _prepared_tilemap_world_data;
         std::shared_ptr<background_prepare_state_t> _background_prepare_state;
         std::optional<std::jthread> _background_prepare_thread;

@@ -244,7 +244,7 @@ namespace sandbox {
             return;
 
         _input.on_focus_lost();
-        _player_controller.clear_movement_input();
+        _player_controller.clear_movement_intent();
     }
 
     void gameplay_state_t::on_key(const carrot::events::key_event_t& e)

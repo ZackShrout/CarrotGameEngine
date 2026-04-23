@@ -1,6 +1,6 @@
 # Carrot Tiled Authored Data Contract
 
-**Last Updated:** April 17, 2026
+**Last Updated:** April 23, 2026
 
 This document defines the current authored-data contract between Tiled exports and Carrot.
 
@@ -104,6 +104,15 @@ Carrot currently treats these Tiled object types as first-class authored convent
   * required: `trigger_kind`
 * `VisibilityZone`
   * required: `visibility_zone_id`
+* `NPC`
+  * required: `name`
+  * must be authored as a point object
+  * optional: `patrol_path`
+  * optional: `move_speed`
+* `PatrolPath`
+  * required: `name`
+  * must be authored as a polyline object
+  * must have at least 2 points
 * `Light`
   * currently supported `kind` values:
     * `ambient`
@@ -127,15 +136,66 @@ Carrot is trying to support the object types that are both:
 
 That means the engine should not try to predefine every possible gameplay object type up front.
 
+### Current `NPC` and `PatrolPath` Contract
+
+Carrot now treats `type = NPC` and `type = PatrolPath` as engine-owned authored motion conventions for the Milestone 28 proof slice.
+
+These conventions are intentionally narrow:
+
+* they exist to prove authored NPC patrol behavior through the shared movement architecture
+* they should stay small until more than one gameplay use case pressures them to grow
+
+#### `NPC`
+
+Author an `NPC` like this:
+
+* set `type = NPC`
+* author it as a Tiled point object
+* add a non-empty `name` property
+* optionally add `patrol_path = <PatrolPath name>`
+* optionally add `move_speed = <float>`
+
+Current contract notes:
+
+* `patrol_path` is optional
+* if `patrol_path` is omitted, authored intent is that the NPC does not use patrol locomotion
+* if `patrol_path` is present, it must resolve to a `PatrolPath` object by matching the `name` property
+* current proof content uses `sprite.kelvara` as the runtime sprite for authored patrol NPCs
+
+#### `PatrolPath`
+
+Author a `PatrolPath` like this:
+
+* set `type = PatrolPath`
+* author it as a Tiled polyline object
+* add a non-empty `name` property
+* place polyline points in traversal order
+
+Current contract notes:
+
+* a patrol path must contain at least 2 points
+* polyline geometry is preserved as authored object geometry and consumed by the patrol proof runtime path
+* object name alone is not the patrol identity contract surface; the custom `name` property is
+
+#### Validation Rules
+
+Current first-pass validation intentionally behaves like this:
+
+* `NPC` missing `name` is a validation issue
+* `NPC` authored as a non-point object is a validation issue
+* `NPC` without `patrol_path` is valid
+* `NPC` with `patrol_path` that does not resolve to a named `PatrolPath` is a validation issue
+* `PatrolPath` missing `name` is a validation issue
+* `PatrolPath` authored as a non-polyline object is a validation issue
+* `PatrolPath` with fewer than 2 points is a validation issue
+
 ### Likely Future Engine-Owned Typed Objects
 
 The next most likely object types to become first-class engine conventions are:
 
 * `SpawnPoint`
-* `NPC`
 * `Pickup`
 * `Switch`
-* `PatrolPath`
 
 These are documented here as likely future candidates, not as supported built-ins yet.
 
@@ -485,6 +545,12 @@ Current examples:
 * `type = Trigger`
   * requires `trigger_id`
   * requires `trigger_kind`
+* `type = NPC`
+  * requires `name`
+  * may optionally reference `patrol_path`
+* `type = PatrolPath`
+  * requires `name`
+  * requires polyline geometry with at least 2 points
 
 For project-specific object types, it is fine to define a custom `type` and custom properties as long as game-side code owns the meaning.
 
@@ -501,6 +567,12 @@ Current first-pass validation now checks for cases such as:
 * layers that bind to visibility zone ids with no matching `VisibilityZone`
 * conflicting front-policy flags on the same layer
 * conflicting explicit/inherited visibility-zone bindings on the same layer
+* `NPC` objects missing `name`
+* `NPC` objects authored as non-point geometry
+* `NPC` objects whose optional `patrol_path` does not resolve
+* `PatrolPath` objects missing `name`
+* `PatrolPath` objects authored as non-polyline geometry
+* `PatrolPath` objects with fewer than 2 points
 
 These issues are currently stored on imported tilemap assets and also logged during import.
 
@@ -523,7 +595,8 @@ Current practical runtime usage is still narrower than the imported metadata:
 
 * point objects work well for authored markers and spawn points
 * rectangle objects remain the current primary shape for triggers and visibility zones
-* polygon/polyline/ellipse geometry is preserved as object metadata for future runtime use, validation, and tooling
+* polyline objects are now also used directly by `PatrolPath` authored patrol routes
+* polygon/ellipse geometry is preserved as object metadata for future runtime use, validation, and tooling
 * text objects are still not treated as a supported gameplay/runtime feature
 
 This is intentional.

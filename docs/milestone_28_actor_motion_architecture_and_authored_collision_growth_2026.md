@@ -1,6 +1,6 @@
 # Carrot Game Engine - Milestone 28
 
-**Last Updated:** April 20, 2026
+**Last Updated:** April 23, 2026
 **Title:** Actor Motion Architecture and Authored Collision Growth
 **Status:** Planned
 **Focus:** Separate controller intent from movement execution, grow Carrot's gameplay-first collision architecture beyond narrow AABB-only assumptions, bake authored Tiled collision into runtime-friendly static world data, and prove the result with authored NPC patrol behavior.
@@ -239,6 +239,25 @@ Add the narrow AI patrol proof slice:
 * runtime import of that authored data
 * AI controller producing intent
 * motor-driven movement and appropriate animation/facing updates
+
+First-pass authored contract for the proof slice:
+
+* `NPC`
+  * author as a point object
+  * require a non-empty `name` property
+  * optional `patrol_path` property means "this NPC uses patrol locomotion"
+  * omitted `patrol_path` means "this NPC does not patrol"
+* `PatrolPath`
+  * author as a polyline object
+  * require a non-empty `name` property
+  * polyline points define patrol traversal order
+
+First-pass validation rules for the proof slice:
+
+* unresolved `NPC.patrol_path` references are validation issues
+* `NPC` without `patrol_path` is valid
+* `NPC` should validate as a point object
+* `PatrolPath` should validate as a polyline with at least 2 points
 
 #### Acceptance Criteria
 

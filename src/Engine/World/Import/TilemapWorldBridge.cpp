@@ -147,6 +147,11 @@ namespace carrot::world::import {
                         tilemap_origin_world.x + world_units_t::pixels_to_world(object.x),
                         tilemap_origin_world.y + world_units_t::pixels_to_world(object.y)
                     }
+                },
+                .authored_geometry = authored_geometry_component_t{
+                    .kind = object.geometry_kind,
+                    .size_source_px = { object.width, object.height },
+                    .points_source_px = object.geometry_points
                 }
             };
 
@@ -304,6 +309,7 @@ namespace carrot::world::import {
             world_object.properties = prepared_object.properties;
             world_object.transform = prepared_object.transform;
             world_object.collision = prepared_object.collision;
+            world_object.authored_geometry = prepared_object.authored_geometry;
             world_object.trigger = prepared_object.trigger;
             world_object.visibility_region = prepared_object.visibility_region;
 

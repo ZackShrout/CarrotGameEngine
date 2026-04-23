@@ -1,11 +1,10 @@
 //
-// Created by Zack Shrout on 4/2/26.
-// Copyright (c) 2026 BunnySoft. All rights reserved.
+// Created by Zack Shrout on 4/23/26.
 //
 
 #include "Core/Pch.h"
 
-#include "PlayerController.h"
+#include "PatrolNpcController.h"
 
 namespace carrot::world {
     namespace {
@@ -14,6 +13,11 @@ namespace carrot::world {
         [[nodiscard]] bool has_meaningful_direction(const chlm::float2 movement) noexcept
         {
             return std::fabs(movement.x) > k_movement_epsilon || std::fabs(movement.y) > k_movement_epsilon;
+        }
+
+        [[nodiscard]] float vector_length(const chlm::float2 value) noexcept
+        {
+            return std::sqrt((value.x * value.x) + (value.y * value.y));
         }
 
         [[nodiscard]] facing_direction_t facing_from_movement(const chlm::float2 movement,
@@ -57,26 +61,7 @@ namespace carrot::world {
         }
     } // namespace
 
-    void player_controller_t::clear_movement_intent() noexcept
-    {
-        _movement_intent = movement_intent_t{ };
-    }
-
-    void player_controller_t::set_animation_set(player_controller_animation_set_t animation_set)
-    {
-        _animation_set = std::move(animation_set);
-        _current_animation = _animation_set.idle_down;
-    }
-
-    void player_controller_t::set_facing_direction(const facing_direction_t direction)
-    {
-        _facing_direction = direction;
-
-        if (_controlled_object)
-            apply_animation(*_controlled_object, _facing_direction, false);
-    }
-
-    void player_controller_t::set_controlled_object(world_object_t* object) noexcept
+    void patrol_npc_controller_t::set_controlled_object(world_object_t* object) noexcept
     {
         _controlled_object = object;
         _movement_body.bind(_controlled_object);
@@ -84,13 +69,52 @@ namespace carrot::world {
         _current_animation = _animation_set.idle_down;
     }
 
-    void player_controller_t::update([[maybe_unused]] core::game_context_t& game, const float delta_time)
+    void patrol_npc_controller_t::set_animation_set(player_controller_animation_set_t animation_set)
     {
-        _last_move_result = update(game.world, delta_time);
+        _animation_set = std::move(animation_set);
+        _current_animation = _animation_set.idle_down;
     }
 
-    player_move_result_t player_controller_t::update(world_t& world, const float delta_time)
+    void patrol_npc_controller_t::set_route_points(std::vector<chlm::float2> route_points_world)
     {
+        _route_points_world = std::move(route_points_world);
+        _target_index = 0u;
+    }
+
+    void patrol_npc_controller_t::update(world_t& world, const float delta_time)
+    {
+        _movement_intent = movement_intent_t{ };
+
+        if (!_controlled_object || !_controlled_object->transform || _route_points_world.empty())
+        {
+            if (_controlled_object)
+                apply_animation(*_controlled_object, _facing_direction, false);
+            return;
+        }
+
+        while (!_route_points_world.empty())
+        {
+            const chlm::float2 current_position{ _controlled_object->transform->position };
+            const chlm::float2 target{ _route_points_world[_target_index] };
+            const chlm::float2 to_target{ target - current_position };
+            if (vector_length(to_target) > _waypoint_reached_distance)
+                break;
+
+            _target_index = (_target_index + 1u) % _route_points_world.size();
+            if (_route_points_world.size() == 1u)
+                break;
+        }
+
+        if (!_route_points_world.empty())
+        {
+            const chlm::float2 to_target{
+                _route_points_world[_target_index] - _controlled_object->transform->position
+            };
+            const float distance{ vector_length(to_target) };
+            if (distance > _waypoint_reached_distance && distance > k_movement_epsilon)
+                _movement_intent.move_direction = to_target / distance;
+        }
+
         _last_move_result = _movement_motor.update(world,
                                                    _movement_body,
                                                    movement_step_t{
@@ -99,32 +123,12 @@ namespace carrot::world {
                                                        .delta_time = delta_time
                                                    });
         _facing_direction = facing_from_movement(_last_move_result.requested_direction, _facing_direction);
-
-        if (_controlled_object)
-            apply_animation(*_controlled_object, _facing_direction, _last_move_result.moved());
-
-        return _last_move_result;
+        apply_animation(*_controlled_object, _facing_direction, _last_move_result.moved());
     }
 
-    player_move_result_t player_controller_t::move(world_t& world, const chlm::float2 delta)
-    {
-        _last_move_result = _movement_motor.move(world, _movement_body, delta);
-        return _last_move_result;
-    }
-
-    collision::collision_aabb_t player_controller_t::collision_bounds_at(const chlm::float2 position) const noexcept
-    {
-        return _movement_body.collision_bounds_at(position);
-    }
-
-    collision::collision_aabb_t player_controller_t::current_collision_bounds() const noexcept
-    {
-        return _movement_body.current_collision_bounds();
-    }
-
-    void player_controller_t::apply_animation(world_object_t& object,
-                                              const facing_direction_t facing,
-                                              const bool moving)
+    void patrol_npc_controller_t::apply_animation(world_object_t& object,
+                                                  const facing_direction_t facing,
+                                                  const bool moving)
     {
         if (!object.sprite_animator || !object.sprite)
             return;

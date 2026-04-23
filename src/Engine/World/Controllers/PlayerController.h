@@ -6,7 +6,7 @@
 #pragma once
 
 #include "Core/GameContext.h"
-#include "Collision/CollisionWorld.h"
+#include "World/Motion.h"
 #include "World/WorldObject.h"
 
 #include <cstdint>
@@ -33,14 +33,7 @@ namespace carrot::world {
         std::string walk_right{ "walk_right" };
     };
 
-    struct player_move_result_t
-    {
-        chlm::float2 requested_delta{ 0.f, 0.f };
-        chlm::float2 actual_delta{ 0.f, 0.f };
-        bool blocked_x{ false };
-        bool blocked_y{ false };
-        bool started_overlapping{ false };
-    };
+    using player_move_result_t = movement_result_t;
 
     class player_controller_t
     {
@@ -52,11 +45,13 @@ namespace carrot::world {
         [[nodiscard]] world_object_t* controlled_object() noexcept { return _controlled_object; }
         [[nodiscard]] const world_object_t* controlled_object() const noexcept { return _controlled_object; }
         [[nodiscard]] bool has_controlled_object() const noexcept { return _controlled_object != nullptr; }
+        [[nodiscard]] const movement_body_t& movement_body() const noexcept { return _movement_body; }
 
-        void set_move_input(bool up, bool down, bool left, bool right) noexcept;
-        void set_move_intent(chlm::float2 intent) noexcept { _move_intent = intent; }
-        [[nodiscard]] chlm::float2 move_intent() const noexcept { return _move_intent; }
-        void clear_movement_input() noexcept;
+        void set_movement_intent(movement_intent_t intent) noexcept { _movement_intent = intent; }
+        void set_move_intent(chlm::float2 intent) noexcept { set_movement_intent(movement_intent_t{ .move_direction = intent }); }
+        [[nodiscard]] const movement_intent_t& movement_intent() const noexcept { return _movement_intent; }
+        [[nodiscard]] chlm::float2 move_intent() const noexcept { return _movement_intent.move_direction; }
+        void clear_movement_intent() noexcept;
 
         void set_move_speed(float units_per_second) noexcept { _move_speed = units_per_second; }
         [[nodiscard]] float move_speed() const noexcept { return _move_speed; }
@@ -80,16 +75,13 @@ namespace carrot::world {
     private:
         world_object_t* _controlled_object{ nullptr };
 
-        bool _move_up{ false };
-        bool _move_down{ false };
-        bool _move_left{ false };
-        bool _move_right{ false };
-        chlm::float2 _move_intent{ 0.f, 0.f };
-
+        movement_intent_t _movement_intent{ };
         float _move_speed{ 4.0f };
         facing_direction_t _facing_direction{ facing_direction_t::down };
         std::string _current_animation{ "idle_down" };
         player_controller_animation_set_t _animation_set{ };
+        movement_body_t _movement_body{ };
+        top_down_movement_motor_t _movement_motor{ };
         player_move_result_t _last_move_result{ };
     };
 } // namespace carrot::world

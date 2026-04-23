@@ -322,9 +322,13 @@ namespace carrot::assets {
 
             if (object_json.has("polyline"))
             {
-                diagnostics.add_unsupported(std::format("layer '{}' object {} uses polyline geometry which is not yet supported",
-                                                        layer_name,
-                                                        object_id));
+                const std::string_view object_type{ object_json.get_string_or("type", "") };
+                if (object_type != "PatrolPath")
+                {
+                    diagnostics.add_unsupported(std::format("layer '{}' object {} uses polyline geometry which is not yet supported",
+                                                            layer_name,
+                                                            object_id));
+                }
             }
 
             if (object_json.has("text"))

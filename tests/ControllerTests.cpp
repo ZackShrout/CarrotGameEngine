@@ -77,7 +77,7 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(!actions.is_pressed("interact"));
         }
 
-        void test_player_controller_uses_move_intent_when_present()
+        void test_player_controller_uses_explicit_movement_intent()
         {
             world::world_t world;
             world::world_object_t player;
@@ -89,8 +89,9 @@ namespace carrot::tests {
             world::player_controller_t controller;
             controller.set_controlled_object(&player);
             controller.set_move_speed(1.f);
-            controller.set_move_input(true, false, false, false);
-            controller.set_move_intent({ 3.f, 4.f });
+            controller.set_movement_intent(world::movement_intent_t{
+                .move_direction = { 3.f, 4.f }
+            });
 
             const world::player_move_result_t result{ controller.update(world, 1.f) };
 
@@ -98,7 +99,7 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(std::fabs(result.actual_delta.y - 0.8f) < 1.0e-4f);
         }
 
-        void test_player_controller_falls_back_to_boolean_move_input_without_move_intent()
+        void test_player_controller_respects_directional_intent()
         {
             world::world_t world;
             world::world_object_t player;
@@ -110,8 +111,9 @@ namespace carrot::tests {
             world::player_controller_t controller;
             controller.set_controlled_object(&player);
             controller.set_move_speed(1.f);
-            controller.set_move_input(true, false, false, false);
-            controller.set_move_intent({ 0.f, 0.f });
+            controller.set_movement_intent(world::movement_intent_t{
+                .move_direction = { 0.f, -1.f }
+            });
 
             const world::player_move_result_t result{ controller.update(world, 1.f) };
 
@@ -119,13 +121,14 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(std::fabs(result.actual_delta.y + 1.f) < 1.0e-4f);
         }
 
-        void test_player_controller_clear_movement_input_resets_intent_and_digital_state()
+        void test_player_controller_clear_movement_intent_resets_controller_intent()
         {
             world::player_controller_t controller;
-            controller.set_move_input(true, false, true, false);
-            controller.set_move_intent({ 1.f, -1.f });
+            controller.set_movement_intent(world::movement_intent_t{
+                .move_direction = { 1.f, -1.f }
+            });
 
-            controller.clear_movement_input();
+            controller.clear_movement_intent();
 
             const chlm::float2 intent{ controller.move_intent() };
             CARROT_TEST_REQUIRE(intent.x == 0.f);
@@ -213,12 +216,12 @@ namespace carrot::tests {
                            test_controller_manager_default_snapshot_has_no_active_gamepad);
         tests.emplace_back("action map keeps action pressed while gamepad binding remains active",
                            test_action_map_keeps_action_pressed_while_gamepad_binding_remains_active);
-        tests.emplace_back("player controller uses move intent when present",
-                           test_player_controller_uses_move_intent_when_present);
-        tests.emplace_back("player controller falls back to boolean move input without move intent",
-                           test_player_controller_falls_back_to_boolean_move_input_without_move_intent);
-        tests.emplace_back("player controller clear movement input resets intent and digital state",
-                           test_player_controller_clear_movement_input_resets_intent_and_digital_state);
+        tests.emplace_back("player controller uses explicit movement intent",
+                           test_player_controller_uses_explicit_movement_intent);
+        tests.emplace_back("player controller respects directional intent",
+                           test_player_controller_respects_directional_intent);
+        tests.emplace_back("player controller clear movement intent resets controller intent",
+                           test_player_controller_clear_movement_intent_resets_controller_intent);
         tests.emplace_back("interaction controller attempt result reports missing actor and candidate",
                            test_interaction_controller_attempt_result_reports_missing_actor_and_candidate);
         tests.emplace_back("gameplay input router fixed multiplayer helper assigns expected defaults",

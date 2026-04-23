@@ -515,8 +515,8 @@
                  "type":"Light",
                  "visible":true,
                  "width":0,
-                 "x":1199.22536916001,
-                 "y":817.235536189785
+                 "x":1199.23,
+                 "y":817.236
                 }, 
                 {
                  "height":0,
@@ -548,8 +548,8 @@
                  "type":"Light",
                  "visible":true,
                  "width":0,
-                 "x":1041.39433551198,
-                 "y":816.751391914791
+                 "x":1041.39,
+                 "y":816.751
                 }, 
                 {
                  "height":0,
@@ -581,8 +581,8 @@
                  "type":"Light",
                  "visible":true,
                  "width":0,
-                 "x":1114.50012103607,
-                 "y":885.015734688937
+                 "x":1114.5,
+                 "y":885.016
                 }, 
                 {
                  "height":0,
@@ -609,8 +609,8 @@
                  "type":"Light",
                  "visible":true,
                  "width":0,
-                 "x":945.533769063181,
-                 "y":610.505930767369
+                 "x":945.534,
+                 "y":610.506
                 }, 
                 {
                  "height":0,
@@ -685,8 +685,65 @@
                  "type":"Light",
                  "visible":true,
                  "width":0,
-                 "x":738.155184252689,
-                 "y":605.40169375143
+                 "x":738.155,
+                 "y":605.402
+                }, 
+                {
+                 "height":0,
+                 "id":25,
+                 "name":"NPC1Spawn",
+                 "point":true,
+                 "properties":[
+                        {
+                         "name":"name",
+                         "type":"string",
+                         "value":"townsfolk_1"
+                        }, 
+                        {
+                         "name":"patrol_path",
+                         "type":"string",
+                         "value":"townsfolk_1_route"
+                        }],
+                 "rotation":0,
+                 "type":"NPC",
+                 "visible":true,
+                 "width":0,
+                 "x":814.100185528757,
+                 "y":688.682745825603
+                }, 
+                {
+                 "height":0,
+                 "id":27,
+                 "name":"NPC1Route",
+                 "polyline":[
+                        {
+                         "x":0,
+                         "y":0
+                        }, 
+                        {
+                         "x":218.181818181818,
+                         "y":-2.2263450834879
+                        }, 
+                        {
+                         "x":218.181818181818,
+                         "y":-65.3061224489795
+                        }, 
+                        {
+                         "x":0,
+                         "y":-63.0797773654916
+                        }],
+                 "properties":[
+                        {
+                         "name":"name",
+                         "type":"string",
+                         "value":"townsfolk_1_route"
+                        }],
+                 "rotation":0,
+                 "type":"PatrolPath",
+                 "visible":true,
+                 "width":0,
+                 "x":820.779220779221,
+                 "y":687.940630797774
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -1851,7 +1908,7 @@
          "y":0
         }],
  "nextlayerid":42,
- "nextobjectid":25,
+ "nextobjectid":28,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.11.0",

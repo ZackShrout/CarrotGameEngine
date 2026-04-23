@@ -1194,6 +1194,8 @@ namespace carrot::tests {
             const assets::tilemap_object_t* visibility_zone{ tilemap->find_object_by_name("InnRoofTrigger1") };
             const assets::tilemap_object_t* ambient_light{ tilemap->find_object_by_name("AmbientLight") };
             const assets::tilemap_object_t* follow_light{ tilemap->find_object_by_name("FollowLight") };
+            const assets::tilemap_object_t* npc_spawn{ tilemap->find_object_by_name("NPC1Spawn") };
+            const assets::tilemap_object_t* patrol_path{ tilemap->find_object_by_name("NPC1Route") };
             CARROT_TEST_REQUIRE(sign != nullptr);
             CARROT_TEST_REQUIRE(chest != nullptr);
             CARROT_TEST_REQUIRE(door != nullptr);
@@ -1201,12 +1203,16 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(visibility_zone != nullptr);
             CARROT_TEST_REQUIRE(ambient_light != nullptr);
             CARROT_TEST_REQUIRE(follow_light != nullptr);
+            CARROT_TEST_REQUIRE(npc_spawn != nullptr);
+            CARROT_TEST_REQUIRE(patrol_path != nullptr);
 
             const auto typed_sign{ assets::as_typed_sign(*sign) };
             const auto typed_container{ assets::as_typed_container(*chest) };
             const auto typed_door{ assets::as_typed_door(*door) };
             const auto typed_trigger{ assets::as_typed_trigger(*trigger) };
             const auto typed_visibility_zone{ assets::as_typed_visibility_zone(*visibility_zone) };
+            const auto typed_npc{ assets::as_typed_npc(*npc_spawn) };
+            const auto typed_patrol_path{ assets::as_typed_patrol_path(*patrol_path) };
             const auto typed_ambient_light{ assets::as_typed_light(*ambient_light) };
             const auto typed_follow_light{ assets::as_typed_light(*follow_light) };
             CARROT_TEST_REQUIRE(typed_sign.has_value());
@@ -1214,6 +1220,8 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(typed_door.has_value());
             CARROT_TEST_REQUIRE(typed_trigger.has_value());
             CARROT_TEST_REQUIRE(typed_visibility_zone.has_value());
+            CARROT_TEST_REQUIRE(typed_npc.has_value());
+            CARROT_TEST_REQUIRE(typed_patrol_path.has_value());
             CARROT_TEST_REQUIRE(typed_ambient_light.has_value());
             CARROT_TEST_REQUIRE(typed_follow_light.has_value());
             CARROT_TEST_REQUIRE(typed_sign->message_id == "sign.welcome");
@@ -1223,6 +1231,9 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(typed_trigger->trigger_id == "inn_trigger_1");
             CARROT_TEST_REQUIRE(typed_trigger->trigger_kind == "unlock_quest");
             CARROT_TEST_REQUIRE(typed_visibility_zone->visibility_zone_id == "inn_roof");
+            CARROT_TEST_REQUIRE(typed_npc->name == "townsfolk_1");
+            CARROT_TEST_REQUIRE(typed_npc->patrol_path == "townsfolk_1_route");
+            CARROT_TEST_REQUIRE(typed_patrol_path->name == "townsfolk_1_route");
             CARROT_TEST_REQUIRE(typed_ambient_light->kind == assets::typed_light_kind_t::ambient);
             CARROT_TEST_REQUIRE(typed_ambient_light->behavior == assets::typed_light_behavior_t::stationary);
             CARROT_TEST_REQUIRE(typed_ambient_light->color_hex == "#5C6170");
@@ -1294,6 +1305,30 @@ namespace carrot::tests {
             unknown_object.type = "MysteryThing";
             markers_layer.objects.push_back(std::move(unknown_object));
 
+            assets::tilemap_object_t bad_npc{ };
+            bad_npc.name = "BadNpc";
+            bad_npc.type = "NPC";
+            bad_npc.properties.push_back({
+                .name = "name",
+                .value = std::string{ "npc.bad" }
+            });
+            bad_npc.properties.push_back({
+                .name = "patrol_path",
+                .value = std::string{ "missing_route" }
+            });
+            markers_layer.objects.push_back(std::move(bad_npc));
+
+            assets::tilemap_object_t bad_patrol_path{ };
+            bad_patrol_path.name = "BadPath";
+            bad_patrol_path.type = "PatrolPath";
+            bad_patrol_path.properties.push_back({
+                .name = "name",
+                .value = std::string{ "bad_path" }
+            });
+            bad_patrol_path.geometry_kind = assets::tilemap_object_t::geometry_kind_t::polyline;
+            bad_patrol_path.geometry_points.push_back(chlm::float2{ 0.f, 0.f });
+            markers_layer.objects.push_back(std::move(bad_patrol_path));
+
             tilemap.add_layer(std::move(markers_layer));
 
             const auto issues{ assets::validate_tiled_authored_data(tilemap) };
@@ -1308,6 +1343,9 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(has_issue_code("tiled.object.door.invalid_target"));
             CARROT_TEST_REQUIRE(has_issue_code("tiled.object.door.mixed_target_modes"));
             CARROT_TEST_REQUIRE(has_issue_code("tiled.object.trigger.missing_fields"));
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.object.npc.missing_patrol_path"));
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.object.npc.non_point"));
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.object.patrol_path.too_few_points"));
             CARROT_TEST_REQUIRE(has_issue_code("tiled.object.unknown_type"));
         }
 
@@ -1507,6 +1545,14 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(world.find_object_by_name("DoorToItemShop") != nullptr);
             CARROT_TEST_REQUIRE(world.find_object_by_name("InnExteriorSpawn") != nullptr);
             CARROT_TEST_REQUIRE(world.find_object_by_name("ItemShopExteriorSpawn") != nullptr);
+            const world::world_object_t* npc{ world.find_object_by_name("townsfolk_1") };
+            CARROT_TEST_REQUIRE(npc != nullptr);
+            CARROT_TEST_REQUIRE(npc->type == "NPC");
+            CARROT_TEST_REQUIRE(npc->sprite.has_value());
+            CARROT_TEST_REQUIRE(npc->sprite_animator.has_value());
+            CARROT_TEST_REQUIRE(npc->sprite->sprite == assets.sprites().get("sprite.kelvara"));
+            CARROT_TEST_REQUIRE(!world.patrol_npc_controllers().empty());
+            CARROT_TEST_REQUIRE(world.find_object_by_name("NPC1Route") != nullptr);
 
             const assets::scene_asset_record_t* scene{ assets.scenes().registry().find("scene.sandbox.town") };
             CARROT_TEST_REQUIRE(scene != nullptr);
@@ -2243,8 +2289,8 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(summary.diagnostics.visible);
             CARROT_TEST_REQUIRE(summary.diagnostics.request_kind == carrot::scene::scene_change_request_kind_t::load);
             CARROT_TEST_REQUIRE(summary.diagnostics.outcome == carrot::scene::scene_change_outcome_t::succeeded);
-            CARROT_TEST_REQUIRE(summary.diagnostics.transition_effect == carrot::scene::scene_transition_effect_t::fade);
-            CARROT_TEST_REQUIRE(summary.diagnostics.overlay_style == carrot::scene::scene_transition_overlay_style_t::fade);
+            CARROT_TEST_REQUIRE(summary.diagnostics.transition_effect == carrot::scene::scene_transition_effect_t::none);
+            CARROT_TEST_REQUIRE(summary.diagnostics.overlay_style == carrot::scene::scene_transition_overlay_style_t::none);
             CARROT_TEST_REQUIRE(summary.diagnostics.overlay_opacity == 0.f);
             CARROT_TEST_REQUIRE(!summary.diagnostics.show_loading_text);
             CARROT_TEST_REQUIRE(summary.diagnostics.target_scene_id == "scene.sandbox.town");
@@ -2888,7 +2934,7 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(textured_stages[0].viewport.rect_px.position.y == 0u);
             CARROT_TEST_REQUIRE(textured_stages[0].viewport.rect_px.size.x == render_target_size.x);
             CARROT_TEST_REQUIRE(textured_stages[0].viewport.rect_px.size.y == render_target_size.y);
-            CARROT_TEST_REQUIRE(stats.post_effect_pass_count == 1u);
+            CARROT_TEST_REQUIRE(stats.post_effect_pass_count == 0u);
 
             gfx.begin_frame();
             CARROT_TEST_REQUIRE(gfx.pending_post_effect_pass_count() == 0u);
@@ -3234,7 +3280,7 @@ namespace carrot::tests {
             gfx.end_frame();
 
             CARROT_TEST_REQUIRE(null_rhi->recorded_textured_stages().empty());
-            CARROT_TEST_REQUIRE(!null_rhi->recorded_indirect_textured_stages().empty());
+            CARROT_TEST_REQUIRE(gfx.get_last_completed_stats().world_render_item_count == 1u);
 
             gfx.begin_frame();
             CARROT_TEST_REQUIRE(gfx.pending_world_render_item_count() == 0u);
@@ -3270,7 +3316,7 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(chunks[2].occupied_cell_indices.size() == 1u);
         }
 
-        void test_renderer_dispatches_world_item_cull_compute_for_world_items()
+        void test_renderer_dispatches_forward_plus_classify_for_world_items()
         {
             io::virtual_file_system_t vfs;
             const engine_graphics_config_t graphics_config{
@@ -3297,18 +3343,18 @@ namespace carrot::tests {
                              dispatches.end(),
                              [](const rhi::null::null_rhi_context_t::recorded_compute_dispatch_t& dispatch)
                              {
-                                 return dispatch.debug_name == "world item cull";
+                                 return dispatch.debug_name == "forward plus classify";
                              })
             };
 
             CARROT_TEST_REQUIRE(cull_it != dispatches.end());
             CARROT_TEST_REQUIRE(cull_it->read_only_buffer_count == 2u);
-            CARROT_TEST_REQUIRE(cull_it->storage_buffer_count == 2u);
+            CARROT_TEST_REQUIRE(cull_it->storage_buffer_count == 1u);
             CARROT_TEST_REQUIRE(cull_it->constant_size_bytes == 0u);
             CARROT_TEST_REQUIRE(cull_it->group_count_x == 1u);
         }
 
-        void test_renderer_records_indirect_world_stage_for_world_items()
+        void test_renderer_records_world_render_stats_for_world_items()
         {
             io::virtual_file_system_t vfs;
             const engine_graphics_config_t graphics_config{
@@ -3331,8 +3377,7 @@ namespace carrot::tests {
             gfx.end_frame();
 
             CARROT_TEST_REQUIRE(null_rhi->recorded_textured_stages().empty());
-            CARROT_TEST_REQUIRE(null_rhi->recorded_indirect_textured_stages().size() == 1u);
-            CARROT_TEST_REQUIRE(null_rhi->recorded_indirect_textured_stages()[0].point_light_count == 0u);
+            CARROT_TEST_REQUIRE(gfx.get_last_completed_stats().world_render_item_count == 1u);
         }
 
         void test_interaction_outcome_dispatch_routes_scene_transition_and_container()
@@ -4709,10 +4754,10 @@ namespace carrot::tests {
                            test_renderer_extracts_world_render_items_before_world_execution);
         tests.emplace_back("loaded tilemap asset builds sparse render chunks for tile layers",
                            test_loaded_tilemap_asset_builds_sparse_render_chunks_for_tile_layers);
-        tests.emplace_back("renderer dispatches world item cull compute for world items",
-                           test_renderer_dispatches_world_item_cull_compute_for_world_items);
-        tests.emplace_back("renderer records indirect world stage for world items",
-                           test_renderer_records_indirect_world_stage_for_world_items);
+        tests.emplace_back("renderer dispatches forward plus classify for world items",
+                           test_renderer_dispatches_forward_plus_classify_for_world_items);
+        tests.emplace_back("renderer records world render stats for world items",
+                           test_renderer_records_world_render_stats_for_world_items);
         tests.emplace_back("interaction outcome dispatch routes scene transition and container",
                            test_interaction_outcome_dispatch_routes_scene_transition_and_container);
             tests.emplace_back("scene runtime rejects overlapping load requests",

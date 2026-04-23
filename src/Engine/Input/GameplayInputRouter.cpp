@@ -512,7 +512,9 @@ namespace carrot::input {
                                                         const core::game_context_t& game,
                                                         const gameplay_input_profile_t& profile) const noexcept
     {
-        controller.set_move_intent(movement_intent(0u, game, profile));
+        controller.set_movement_intent(world::movement_intent_t{
+            .move_direction = movement_intent(0u, game, profile)
+        });
     }
 
     void gameplay_input_router_t::apply_player_movement(const size_t player_index,
@@ -520,7 +522,9 @@ namespace carrot::input {
                                                         const core::game_context_t& game,
                                                         const gameplay_input_profile_t& profile) const noexcept
     {
-        controller.set_move_intent(movement_intent(player_index, game, profile));
+        controller.set_movement_intent(world::movement_intent_t{
+            .move_direction = movement_intent(player_index, game, profile)
+        });
     }
 
     bool gameplay_input_router_t::dispatch_interaction_if_triggered(world::interaction_controller_t& controller,

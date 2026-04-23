@@ -179,6 +179,7 @@ namespace carrot::world {
     {
         _next_id = 1;
         _objects.clear();
+        _patrol_npc_controllers.clear();
         _presentation = world_presentation_t{ };
         _collision_world.clear();
         _lighting = world_lighting_state_t{ };
@@ -186,6 +187,9 @@ namespace carrot::world {
 
     void world_t::update(const float delta_time) noexcept
     {
+        for (patrol_npc_controller_t& controller : _patrol_npc_controllers)
+            controller.update(*this, delta_time);
+
         for (world_object_t& object : _objects)
         {
             if (object.sprite_animator)

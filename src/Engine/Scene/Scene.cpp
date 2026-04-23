@@ -1161,7 +1161,7 @@ namespace carrot::scene {
             summary.player_controller.bound = true;
             summary.player_controller.facing_direction = std::string{ to_string(_player_controller->facing_direction()) };
             summary.player_controller.move_speed = _player_controller->move_speed();
-            summary.player_controller.move_intent = _player_controller->move_intent();
+            summary.player_controller.move_intent = _player_controller->movement_intent().move_direction;
             const world::player_move_result_t& last_move{ _player_controller->last_move_result() };
             summary.player_controller.last_requested_delta = last_move.requested_delta;
             summary.player_controller.last_actual_delta = last_move.actual_delta;

@@ -47,6 +47,8 @@ namespace carrot::assets {
     {
         std::vector<tilemap_validation_issue_t> issues;
         std::unordered_set<std::string> visibility_zone_ids;
+        std::unordered_set<std::string> patrol_path_names;
+        std::vector<std::pair<std::string, std::string>> npc_patrol_refs;
         size_t ambient_light_count{ 0u };
 
         for (const tilemap_layer_t& layer : tilemap.layers())
@@ -162,6 +164,74 @@ namespace carrot::assets {
                               std::format("Object '{}' in layer '{}' uses type 'Trigger' but is missing required 'trigger_id' or 'trigger_kind'.",
                                           object.name.empty() ? "<unnamed>" : object.name,
                                           layer.name.empty() ? "<unnamed>" : layer.name));
+                }
+
+                if (object.type == "NPC")
+                {
+                    const auto npc_name{ object.get_string_property("name") };
+                    if (!npc_name || npc_name->empty())
+                    {
+                        add_issue(issues,
+                                  tilemap_validation_issue_severity_t::warning,
+                                  "tiled.object.npc.missing_name",
+                                  std::format("Object '{}' in layer '{}' uses type 'NPC' but is missing required 'name'.",
+                                              object.name.empty() ? "<unnamed>" : object.name,
+                                              layer.name.empty() ? "<unnamed>" : layer.name));
+                    }
+
+                    if (object.geometry_kind != tilemap_object_t::geometry_kind_t::point)
+                    {
+                        add_issue(issues,
+                                  tilemap_validation_issue_severity_t::warning,
+                                  "tiled.object.npc.non_point",
+                                  std::format("Object '{}' in layer '{}' uses type 'NPC' but is not authored as a point object.",
+                                              object.name.empty() ? "<unnamed>" : object.name,
+                                              layer.name.empty() ? "<unnamed>" : layer.name));
+                    }
+
+                    if (const auto patrol_path{ object.get_string_property("patrol_path") };
+                        patrol_path && !patrol_path->empty())
+                    {
+                        npc_patrol_refs.emplace_back(object.name.empty() ? std::string{ "<unnamed>" } : object.name,
+                                                     std::string{ *patrol_path });
+                    }
+                }
+
+                if (object.type == "PatrolPath")
+                {
+                    const auto patrol_name{ object.get_string_property("name") };
+                    if (!patrol_name || patrol_name->empty())
+                    {
+                        add_issue(issues,
+                                  tilemap_validation_issue_severity_t::warning,
+                                  "tiled.object.patrol_path.missing_name",
+                                  std::format("Object '{}' in layer '{}' uses type 'PatrolPath' but is missing required 'name'.",
+                                              object.name.empty() ? "<unnamed>" : object.name,
+                                              layer.name.empty() ? "<unnamed>" : layer.name));
+                    }
+                    else
+                    {
+                        patrol_path_names.emplace(*patrol_name);
+                    }
+
+                    if (object.geometry_kind != tilemap_object_t::geometry_kind_t::polyline)
+                    {
+                        add_issue(issues,
+                                  tilemap_validation_issue_severity_t::warning,
+                                  "tiled.object.patrol_path.non_polyline",
+                                  std::format("Object '{}' in layer '{}' uses type 'PatrolPath' but is not authored as a polyline object.",
+                                              object.name.empty() ? "<unnamed>" : object.name,
+                                              layer.name.empty() ? "<unnamed>" : layer.name));
+                    }
+                    else if (object.geometry_points.size() < 2u)
+                    {
+                        add_issue(issues,
+                                  tilemap_validation_issue_severity_t::warning,
+                                  "tiled.object.patrol_path.too_few_points",
+                                  std::format("Object '{}' in layer '{}' uses type 'PatrolPath' but has fewer than 2 polyline points.",
+                                              object.name.empty() ? "<unnamed>" : object.name,
+                                              layer.name.empty() ? "<unnamed>" : layer.name));
+                    }
                 }
 
                 if (object.type == "Light")
@@ -338,6 +408,19 @@ namespace carrot::assets {
                                           object.type));
                 }
             }
+        }
+
+        for (const auto& [npc_object_name, patrol_path_name] : npc_patrol_refs)
+        {
+            if (patrol_path_names.contains(patrol_path_name))
+                continue;
+
+            add_issue(issues,
+                      tilemap_validation_issue_severity_t::warning,
+                      "tiled.object.npc.missing_patrol_path",
+                      std::format("Object '{}' uses type 'NPC' and references patrol_path '{}' but no matching 'PatrolPath' object was found.",
+                                  npc_object_name,
+                                  patrol_path_name));
         }
 
         if (ambient_light_count > 1u)

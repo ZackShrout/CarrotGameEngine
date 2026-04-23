@@ -7,6 +7,7 @@
 
 #include "Collision/CollisionWorld.h"
 #include "World/Components/CollisionComponent.h"
+#include "World/Components/AuthoredGeometryComponent.h"
 #include "World/Components/TileObjectComponent.h"
 #include "World/Components/TransformComponent.h"
 #include "World/Components/TriggerComponent.h"
@@ -48,6 +49,7 @@ namespace carrot::world::import {
         std::vector<assets::tilemap_property_t> properties;
         std::optional<transform_component_t> transform;
         std::optional<collision_component_t> collision;
+        std::optional<authored_geometry_component_t> authored_geometry;
         std::optional<trigger_component_t> trigger;
         std::optional<prepared_tile_object_component_t> tile_object;
         std::optional<visibility_region_component_t> visibility_region;

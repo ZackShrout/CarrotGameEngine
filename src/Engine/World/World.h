@@ -6,6 +6,7 @@
 #pragma once
 
 #include "Collision/CollisionWorld.h"
+#include "Controllers/PatrolNpcController.h"
 #include "WorldObject.h"
 #include "WorldUnits.h"
 
@@ -105,6 +106,11 @@ namespace carrot::world {
                                                                         float max_distance) const noexcept;
         [[nodiscard]] const std::vector<world_object_t>& objects() const noexcept { return _objects; }
         [[nodiscard]] std::vector<world_object_t>& objects() noexcept { return _objects; }
+        [[nodiscard]] std::vector<patrol_npc_controller_t>& patrol_npc_controllers() noexcept { return _patrol_npc_controllers; }
+        [[nodiscard]] const std::vector<patrol_npc_controller_t>& patrol_npc_controllers() const noexcept
+        {
+            return _patrol_npc_controllers;
+        }
         void clear() noexcept;
         void update(float delta_time) noexcept;
         void refresh_bound_lights() noexcept;
@@ -137,6 +143,7 @@ namespace carrot::world {
 
         world_object_id_t _next_id{ 1 };
         std::vector<world_object_t> _objects;
+        std::vector<patrol_npc_controller_t> _patrol_npc_controllers;
         world_presentation_t _presentation{ };
         collision::collision_world_t _collision_world{ };
         collision_debug_view_t _collision_debug_view{ };

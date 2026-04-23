@@ -123,6 +123,7 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Scene/Scene.h
         src/Engine/World/AuthoredInteractions.cpp
         src/Engine/World/AuthoredInteractions.h
+        src/Engine/World/Components/AuthoredGeometryComponent.h
         src/Engine/World/Components/CollisionComponent.h
         src/Engine/World/Components/SpriteComponent.h
         src/Engine/World/Components/SpriteAnimatorComponent.h
@@ -133,10 +134,19 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/World/Components/VisibilityRegionComponent.h
         src/Engine/World/Controllers/InteractionController.cpp
         src/Engine/World/Controllers/InteractionController.h
+        src/Engine/World/Controllers/PatrolNpcController.cpp
+        src/Engine/World/Controllers/PatrolNpcController.h
         src/Engine/World/Controllers/PlayerController.cpp
         src/Engine/World/Controllers/PlayerController.h
         src/Engine/World/Import/TilemapWorldBridge.cpp
         src/Engine/World/Import/TilemapWorldBridge.h
+        src/Engine/World/Motion/MovementBody.cpp
+        src/Engine/World/Motion/MovementBody.h
+        src/Engine/World/Motion/MovementMotor.h
+        src/Engine/World/Motion/MotionTypes.h
+        src/Engine/World/Motion/TopDownMovementMotor.cpp
+        src/Engine/World/Motion/TopDownMovementMotor.h
+        src/Engine/World/Motion.h
         src/Engine/World/SceneContinuity.cpp
         src/Engine/World/SceneContinuity.h
         src/Engine/World/SceneLoader.cpp

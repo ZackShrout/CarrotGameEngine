@@ -13,6 +13,7 @@
 #include "Assets/Tilemap/LoadedTilemapAsset.h"
 #include "Assets/Tilemap/TypedObjectConventions.h"
 #include "Core/GameContext.h"
+#include "World/Controllers/PatrolNpcController.h"
 #include "World/Import/TilemapWorldBridge.h"
 #include "World/World.h"
 #include "World/WorldUnits.h"
@@ -147,6 +148,127 @@ namespace carrot::world {
                 .sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp,
                 .color = 0xFFFFFFFFu
             };
+        }
+
+        [[nodiscard]] player_controller_animation_set_t kelvara_proof_animation_set() noexcept
+        {
+            return player_controller_animation_set_t{
+                .idle_down = "idle_down",
+                .idle_up = "idle_up",
+                .idle_left = "idle_left",
+                .idle_right = "idle_right",
+                .walk_down = "run_down",
+                .walk_up = "run_up",
+                .walk_left = "run_left",
+                .walk_right = "run_right"
+            };
+        }
+
+        void create_authored_npc_actor(world_object_t& object,
+                                       const assets::loaded_sprite_asset_t& sprite,
+                                       const player_controller_animation_set_t& animation_set)
+        {
+            const assets::sprite_frame_t* first_frame{ sprite.sprite().frame_at(0) };
+            if (!first_frame)
+                return;
+
+            object.collision = collision_component_t{
+                .half_extents = { 0.3f, 0.2f },
+                .offset = { 0.f, -0.2f },
+                .debug_display = collision_debug_display_t{
+                    .filled = false,
+                    .outline_thickness = 2.f,
+                    .color = 0xFFFFAA44u
+                }
+            };
+            object.sprite = sprite_component_t{
+                .sprite = &sprite,
+                .frame = first_frame,
+                .use_custom_pivot = true,
+                .pivot = { 0.5f, 1.f },
+                .layer = renderer::render_layer_t::actors,
+                .order_mode = renderer::render_order_mode_t::anchor_bottom_y,
+                .order_in_layer = 0,
+                .color = 0xFFFFFFFFu,
+                .sampler_preset = renderer::quad_sampler_preset_t::pixel_clamp
+            };
+            object.sprite_animator = sprite_animator_component_t{ };
+            object.sprite_animator->animator.set_sprite(&sprite);
+            object.sprite_animator->animator.play(animation_set.idle_down);
+        }
+
+        [[nodiscard]] std::vector<chlm::float2> patrol_points_world_for(const world_object_t& patrol_path_object) noexcept
+        {
+            std::vector<chlm::float2> points_world;
+            if (!patrol_path_object.transform || !patrol_path_object.authored_geometry)
+                return points_world;
+
+            const authored_geometry_component_t& geometry{ *patrol_path_object.authored_geometry };
+            if (geometry.kind != assets::tilemap_object_t::geometry_kind_t::polyline)
+                return points_world;
+
+            points_world.reserve(geometry.points_source_px.size());
+            for (const chlm::float2& point_px : geometry.points_source_px)
+            {
+                points_world.push_back(chlm::float2{
+                    patrol_path_object.transform->position.x + world_units_t::pixels_to_world(point_px.x),
+                    patrol_path_object.transform->position.y + world_units_t::pixels_to_world(point_px.y)
+                });
+            }
+
+            return points_world;
+        }
+
+        void setup_authored_npcs(const std::string_view scene_id,
+                                 world_t& world,
+                                 const assets::loaded_sprite_asset_t& npc_sprite)
+        {
+            const player_controller_animation_set_t animation_set{ kelvara_proof_animation_set() };
+            std::unordered_map<std::string, std::vector<chlm::float2>> patrol_routes_by_name;
+
+            for (const world_object_t* object : world.find_objects_by_type("PatrolPath"))
+            {
+                if (!object)
+                    continue;
+
+                const auto patrol_path{ assets::as_typed_patrol_path(*object) };
+                if (!patrol_path)
+                    continue;
+
+                patrol_routes_by_name.emplace(std::string{ patrol_path->name }, patrol_points_world_for(*object));
+            }
+
+            for (world_object_t* object : world.find_objects_by_type("NPC"))
+            {
+                if (!object || !object->transform)
+                    continue;
+
+                const auto npc{ assets::as_typed_npc(*object) };
+                if (!npc)
+                    continue;
+
+                object->name = std::string{ npc->name };
+                create_authored_npc_actor(*object, npc_sprite, animation_set);
+
+                if (npc->patrol_path.empty())
+                    continue;
+
+                const auto route_it{ patrol_routes_by_name.find(std::string{ npc->patrol_path }) };
+                if (route_it == patrol_routes_by_name.end() || route_it->second.size() < 2u)
+                {
+                    LOG_ASSET_WARN("Scene '{}' could not resolve patrol route '{}' for NPC '{}'",
+                                   scene_id,
+                                   npc->patrol_path,
+                                   npc->name);
+                    continue;
+                }
+
+                patrol_npc_controller_t& controller{ world.patrol_npc_controllers().emplace_back() };
+                controller.set_controlled_object(object);
+                controller.set_animation_set(animation_set);
+                controller.set_move_speed(npc->move_speed.value_or(2.0f));
+                controller.set_route_points(route_it->second);
+            }
         }
 
         void import_authored_lighting(const std::string_view scene_id,
@@ -308,6 +430,16 @@ namespace carrot::world {
                     return false;
                 }
 
+                _npc_proof_sprite = assets.sprites().get("sprite.kelvara");
+                if (!_npc_proof_sprite || !_npc_proof_sprite->valid())
+                {
+                    LOG_ASSET_ERROR("Scene '{}' failed to load milestone NPC proof sprite '{}'",
+                                    _scene_id,
+                                    "sprite.kelvara");
+                    fail();
+                    return false;
+                }
+
                 _phase = phase_t::initialize_world;
                 return true;
             }
@@ -379,6 +511,8 @@ namespace carrot::world {
                                                               _prepared_tilemap_world_data)
                 };
                 import_authored_lighting(_scene_id, _staged_world, _scene_record->scene, *_tilemap);
+                if (_npc_proof_sprite)
+                    setup_authored_npcs(_scene_id, _staged_world, *_npc_proof_sprite);
                 LOG_ASSET_INFO("Scene '{}': imported {} marker object(s), {} tile object(s), {} static collider(s), {} trigger(s)",
                                _scene_id,
                                bridge_result.markers_created,

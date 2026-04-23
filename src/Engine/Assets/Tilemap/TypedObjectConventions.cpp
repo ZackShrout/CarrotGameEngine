@@ -98,6 +98,44 @@ namespace carrot::assets {
             };
         }
 
+        template <typename TObject>
+        [[nodiscard]] std::optional<typed_npc_object_t> parse_npc(const TObject& object) noexcept
+        {
+            if (object.type != "NPC")
+                return std::nullopt;
+
+            const auto name{ object.get_string_property("name") };
+            if (!name || name->empty())
+                return std::nullopt;
+
+            return typed_npc_object_t{
+                .name = *name,
+                .patrol_path = object.get_string_property("patrol_path").value_or(std::string_view{}),
+                .move_speed = [&]() -> std::optional<float>
+                {
+                    if (const auto move_speed{ object.get_number_property("move_speed") })
+                        return static_cast<float>(*move_speed);
+                    return std::nullopt;
+                }(),
+                .sprite_id = object.get_string_property("sprite").value_or(std::string_view{})
+            };
+        }
+
+        template <typename TObject>
+        [[nodiscard]] std::optional<typed_patrol_path_object_t> parse_patrol_path(const TObject& object) noexcept
+        {
+            if (object.type != "PatrolPath")
+                return std::nullopt;
+
+            const auto name{ object.get_string_property("name") };
+            if (!name || name->empty())
+                return std::nullopt;
+
+            return typed_patrol_path_object_t{
+                .name = *name
+            };
+        }
+
         [[nodiscard]] std::optional<typed_light_kind_t> parse_light_kind(const std::string_view kind) noexcept
         {
             if (kind == "ambient")
@@ -169,6 +207,8 @@ namespace carrot::assets {
                type == "Container" ||
                type == "Trigger" ||
                type == "VisibilityZone" ||
+               type == "NPC" ||
+               type == "PatrolPath" ||
                type == "Light";
     }
 
@@ -182,6 +222,10 @@ namespace carrot::assets {
     std::optional<typed_trigger_object_t> as_typed_trigger(const world::world_object_t& object) noexcept { return parse_trigger(object); }
     std::optional<typed_visibility_zone_object_t> as_typed_visibility_zone(const tilemap_object_t& object) noexcept { return parse_visibility_zone(object); }
     std::optional<typed_visibility_zone_object_t> as_typed_visibility_zone(const world::world_object_t& object) noexcept { return parse_visibility_zone(object); }
+    std::optional<typed_npc_object_t> as_typed_npc(const tilemap_object_t& object) noexcept { return parse_npc(object); }
+    std::optional<typed_npc_object_t> as_typed_npc(const world::world_object_t& object) noexcept { return parse_npc(object); }
+    std::optional<typed_patrol_path_object_t> as_typed_patrol_path(const tilemap_object_t& object) noexcept { return parse_patrol_path(object); }
+    std::optional<typed_patrol_path_object_t> as_typed_patrol_path(const world::world_object_t& object) noexcept { return parse_patrol_path(object); }
     std::optional<typed_light_object_t> as_typed_light(const tilemap_object_t& object) noexcept { return parse_light(object); }
     std::optional<typed_light_object_t> as_typed_light(const world::world_object_t& object) noexcept { return parse_light(object); }
 } // namespace carrot::assets

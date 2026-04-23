@@ -10,6 +10,7 @@
 #include "DirectX12Core.h"
 #include "DirectX12Sampler.h"
 #include "DirectX12Texture.h"
+#include "DirectX12UploadRing.h"
 #include "Pipelines/DirectX12ComputePipeline.h"
 #include "Pipelines/DirectX12TexturedQuadPipeline.h"
 #include "RHI/RHI.h"
@@ -41,9 +42,7 @@ namespace carrot::rhi::dx12 {
 
         std::array<ID3D12DescriptorHeap*, k_max_textured_quad_stage_slots_per_frame> textured_quad_srv_heaps{ };
         std::array<ID3D12DescriptorHeap*, k_max_textured_quad_stage_slots_per_frame> textured_quad_sampler_heaps{ };
-        std::array<ID3D12DescriptorHeap*, k_max_textured_quad_stage_slots_per_frame> indirect_textured_quad_srv_heaps{ };
-        std::array<ID3D12DescriptorHeap*, k_max_textured_quad_stage_slots_per_frame> indirect_textured_quad_sampler_heaps{ };
-        uint32_t textured_quad_descriptor_capacity{ 0 };
+        std::array<uint32_t, k_max_textured_quad_stage_slots_per_frame> textured_quad_descriptor_capacities{ };
         ID3D12DescriptorHeap* compute_uav_heap{ nullptr };
         uint32_t compute_descriptor_capacity{ 0 };
         uint32_t compute_descriptor_count_used{ 0 };
@@ -91,7 +90,10 @@ namespace carrot::rhi::dx12 {
         enum class quad_pipeline_kind_t : uint8_t
         {
             textured = 0,
-            text
+            text,
+            battle_swirl,
+            bloom_blur,
+            bloom_composite
         };
 
         enum class recorded_quad_stage_kind_t : uint8_t
@@ -115,6 +117,7 @@ namespace carrot::rhi::dx12 {
             uint32_t stage_slot{ 0 };
             textured_quad_stage_record_t direct_stage;
             indirect_textured_quad_stage_record_t indirect_stage;
+            std::vector<renderer::textured_quad_batch_t> owned_direct_batches;
             quad_pipeline_kind_t pipeline_kind{ quad_pipeline_kind_t::textured };
         };
 
@@ -126,23 +129,25 @@ namespace carrot::rhi::dx12 {
                                                                  quad_pipeline_kind_t pipeline_kind,
                                                                  ID3D12Resource* render_target,
                                                                  const D3D12_CPU_DESCRIPTOR_HANDLE& rtv);
-        void record_indirect_textured_quad_stage_to_active_target(const indirect_textured_quad_stage_record_t& stage,
-                                                                  uint32_t stage_slot);
         void sync_auxiliary_surface_sizes();
         bool create_auxiliary_surface(window::window_id_t window_id, uint32_t presentation_channel_mask);
         void destroy_auxiliary_surface(auxiliary_surface_t& surface) noexcept;
 
-        void ensure_textured_quad_descriptor_capacity(uint32_t required_capacity);
-        void ensure_indirect_textured_quad_descriptor_capacity(uint32_t required_capacity);
+        void ensure_textured_quad_descriptor_capacity(uint32_t stage_slot, uint32_t required_capacity);
         void ensure_compute_descriptor_capacity(uint32_t required_capacity);
+        [[nodiscard]] dx12_textured_quad_pipeline_t* resolve_quad_pipeline(quad_pipeline_kind_t pipeline_kind) const noexcept;
 
         // ── Backend-owned services and persistent objects ──
         assets::shader_file_provider_t*                _shader_files{ nullptr };
         std::unique_ptr<dx12_device_t>                    _device;
         std::unique_ptr<dx12_command_queue_t>             _graphics_queue;
         std::unique_ptr<dx12_swapchain_t>                 _swapchain;
-        std::unique_ptr<dx12_textured_quad_pipeline_t>    _textured_quad_pipeline;
-        std::unique_ptr<dx12_textured_quad_pipeline_t>    _text_quad_pipeline;
+        std::unique_ptr<dx12_upload_ring_t>               _upload_ring;
+        std::unique_ptr<dx12_textured_quad_pipeline_t>    _instanced_textured_quad_pipeline;
+        std::unique_ptr<dx12_textured_quad_pipeline_t>    _instanced_text_quad_pipeline;
+        std::unique_ptr<dx12_textured_quad_pipeline_t>    _instanced_battle_swirl_pipeline;
+        std::unique_ptr<dx12_textured_quad_pipeline_t>    _instanced_bloom_blur_pipeline;
+        std::unique_ptr<dx12_textured_quad_pipeline_t>    _instanced_bloom_composite_pipeline;
         std::unique_ptr<rhi_buffer_t>                     _default_compute_storage_buffer;
 
         // ── Per-frame GPU resources and frame progression ──
@@ -158,8 +163,6 @@ namespace carrot::rhi::dx12 {
         // ── Dynamic per-batch descriptor state ──
         uint32_t                                          _srv_descriptor_stride{ 0 };
         uint32_t                                          _sampler_descriptor_stride{ 0 };
-        ID3D12CommandSignature*                           _draw_indexed_indirect_signature{ nullptr };
-
         // ── Sampler caching ──
         std::unordered_map<sampler_desc_t, std::unique_ptr<dx12_sampler_t>, sampler_desc_hash_t> _sampler_cache;
     };

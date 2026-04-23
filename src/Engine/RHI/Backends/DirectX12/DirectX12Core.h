@@ -49,6 +49,17 @@ namespace carrot::rhi::dx12 {
         return DXGI_FORMAT_R8G8B8A8_UNORM;
     }
 
+    [[nodiscard]] inline DXGI_FORMAT dx12_texture_rtv_format(const texture_format_t format) noexcept
+    {
+        switch (format)
+        {
+            case texture_format_t::rgba8_unorm: return DXGI_FORMAT_R8G8B8A8_UNORM;
+            case texture_format_t::rgba8_srgb: return DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+        }
+
+        return DXGI_FORMAT_R8G8B8A8_UNORM;
+    }
+
     [[nodiscard]] inline D3D12_FILTER dx12_filter(const sampler_desc_t& desc) noexcept
     {
         const bool min_linear{ desc.min_filter == sampler_filter_t::linear };

@@ -2661,8 +2661,14 @@ namespace carrot::renderer {
 
         if (frame_buffers.instance_buffer == nullptr || frame_buffers.instance_capacity < required_instance_bytes)
         {
+            const size_t target_instance_capacity{
+                std::max(required_instance_bytes,
+                         frame_buffers.instance_capacity > 0u
+                             ? frame_buffers.instance_capacity * 2u
+                             : required_instance_bytes)
+            };
             rhi::buffer_create_info_t info{ };
-            info.size_bytes = required_instance_bytes;
+            info.size_bytes = target_instance_capacity;
             info.usage = rhi::buffer_usage_t::vertex;
             info.initial_data = nullptr;
             info.cpu_writable = true;
@@ -2675,7 +2681,7 @@ namespace carrot::renderer {
                 return;
             }
 
-            frame_buffers.instance_capacity = required_instance_bytes;
+            frame_buffers.instance_capacity = target_instance_capacity;
         }
     }
 

@@ -59,6 +59,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Core/Logger.h
         src/Engine/Core/Memory/Arena.cpp
         src/Engine/Core/Memory/Arena.h
+        src/Engine/Core/Memory/Ring.cpp
+        src/Engine/Core/Memory/Ring.h
         src/Engine/Core/Module.h
         src/Engine/Core/Platform/Platform.h
         src/Engine/Core/Platform/Window.h
@@ -501,6 +503,8 @@ elseif (WIN32)
             src/Engine/RHI/Backends/DirectX12/DirectX12Fence.cpp
             src/Engine/RHI/Backends/DirectX12/DirectX12Fence.h
             src/Engine/RHI/Backends/DirectX12/DirectX12Sampler.h
+            src/Engine/RHI/Backends/DirectX12/DirectX12UploadRing.cpp
+            src/Engine/RHI/Backends/DirectX12/DirectX12UploadRing.h
             src/Engine/RHI/Backends/DirectX12/DirectX12Buffer.cpp
             src/Engine/RHI/Backends/DirectX12/DirectX12Buffer.h
             src/Engine/RHI/Backends/DirectX12/DirectX12Texture.h

@@ -13,6 +13,7 @@
 #include "RHI/Backends/DirectX12/DirectX12Sampler.h"
 #include "RHI/Backends/DirectX12/DirectX12Texture.h"
 #include "RHI/SamplerPresets.h"
+#include "Renderer/Draw/QuadInstanceData.h"
 #include "Renderer/Primitives/QuadVertex.h"
 #include "Utils/File/FileUtils.h"
 
@@ -61,7 +62,9 @@ namespace carrot::rhi::dx12 {
     dx12_textured_quad_pipeline_t::dx12_textured_quad_pipeline_t(ID3D12Device* device,
                                                                  assets::shader_file_provider_t& shader_files,
                                                                  const std::string_view vertex_shader_path,
-                                                                 const std::string_view fragment_shader_path)
+                                                                 const std::string_view fragment_shader_path,
+                                                                 const blend_mode_t blend_mode,
+                                                                 const DXGI_FORMAT render_target_format)
         : _device{ device }
     {
         if (!_device)
@@ -176,12 +179,13 @@ namespace carrot::rhi::dx12 {
         ps_bc.pShaderBytecode = ps_bytes->data();
         ps_bc.BytecodeLength = ps_bytes->size();
 
-        constexpr D3D12_INPUT_ELEMENT_DESC input_layout[]{
+        constexpr D3D12_INPUT_ELEMENT_DESC instanced_input_layout[]{
             { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
             { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 8, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-            { "COLOR", 0, DXGI_FORMAT_R8G8B8A8_UNORM, 0, 16, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-            { "TEXCOORD", 1, DXGI_FORMAT_R32_FLOAT, 0, 20, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-            { "TEXCOORD", 2, DXGI_FORMAT_R32_FLOAT, 0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+            { "TEXCOORD", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 0, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
+            { "TEXCOORD", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 16, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
+            { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 32, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
+            { "TEXCOORD", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 48, D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1 },
         };
 
         D3D12_RASTERIZER_DESC rasterizer{ };
@@ -204,11 +208,11 @@ namespace carrot::rhi::dx12 {
         D3D12_RENDER_TARGET_BLEND_DESC& rt0{ blend.RenderTarget[0] };
         rt0.BlendEnable = TRUE;
         rt0.LogicOpEnable = FALSE;
-        rt0.SrcBlend = D3D12_BLEND_SRC_ALPHA;
-        rt0.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+        rt0.SrcBlend = blend_mode == blend_mode_t::additive ? D3D12_BLEND_ONE : D3D12_BLEND_SRC_ALPHA;
+        rt0.DestBlend = blend_mode == blend_mode_t::additive ? D3D12_BLEND_ONE : D3D12_BLEND_INV_SRC_ALPHA;
         rt0.BlendOp = D3D12_BLEND_OP_ADD;
         rt0.SrcBlendAlpha = D3D12_BLEND_ONE;
-        rt0.DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
+        rt0.DestBlendAlpha = blend_mode == blend_mode_t::additive ? D3D12_BLEND_ONE : D3D12_BLEND_INV_SRC_ALPHA;
         rt0.BlendOpAlpha = D3D12_BLEND_OP_ADD;
         rt0.LogicOp = D3D12_LOGIC_OP_NOOP;
         rt0.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
@@ -227,11 +231,11 @@ namespace carrot::rhi::dx12 {
         pso_desc.SampleMask = UINT_MAX;
         pso_desc.RasterizerState = rasterizer;
         pso_desc.DepthStencilState = depth_stencil;
-        pso_desc.InputLayout = { input_layout, _countof(input_layout) };
+        pso_desc.InputLayout = D3D12_INPUT_LAYOUT_DESC{ instanced_input_layout, _countof(instanced_input_layout) };
         pso_desc.IBStripCutValue = D3D12_INDEX_BUFFER_STRIP_CUT_VALUE_DISABLED;
         pso_desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
         pso_desc.NumRenderTargets = 1;
-        pso_desc.RTVFormats[0] = dx12_backbuffer_rtv_format();
+        pso_desc.RTVFormats[0] = render_target_format;
         pso_desc.SampleDesc.Count = 1;
         pso_desc.SampleDesc.Quality = 0;
 
@@ -273,6 +277,12 @@ namespace carrot::rhi::dx12 {
 
         const dx12_buffer_t& dx_vertex_buffer{ dynamic_cast<const dx12_buffer_t&>(*draw_context.vertex_buffer) };
         const dx12_buffer_t& dx_index_buffer{ dynamic_cast<const dx12_buffer_t&>(*draw_context.index_buffer) };
+        const dx12_buffer_t* dx_instance_buffer{ dynamic_cast<const dx12_buffer_t*>(draw_context.instance_buffer) };
+        if (!dx_instance_buffer)
+        {
+            LOG_GRAPHICS_FATAL("DX12 textured quad pipeline requires an instance buffer");
+            return;
+        }
         const dx12_buffer_t* light_input_buffer{
             dynamic_cast<const dx12_buffer_t*>(descriptor_context.forward_plus_light_input_buffer)
         };
@@ -318,6 +328,11 @@ namespace carrot::rhi::dx12 {
         vbv.SizeInBytes = static_cast<UINT>(dx_vertex_buffer.size_bytes());
         vbv.StrideInBytes = sizeof(renderer::quad_vertex_t);
 
+        D3D12_VERTEX_BUFFER_VIEW instance_vbv{ };
+        instance_vbv.BufferLocation = dx_instance_buffer->resource()->GetGPUVirtualAddress();
+        instance_vbv.SizeInBytes = static_cast<UINT>(dx_instance_buffer->size_bytes());
+        instance_vbv.StrideInBytes = sizeof(renderer::gpu_quad_instance_t);
+
         D3D12_INDEX_BUFFER_VIEW ibv{ };
         ibv.BufferLocation = dx_index_buffer.resource()->GetGPUVirtualAddress();
         ibv.SizeInBytes = static_cast<UINT>(dx_index_buffer.size_bytes());
@@ -334,7 +349,8 @@ namespace carrot::rhi::dx12 {
         cmd->RSSetViewports(1, &viewport);
         cmd->RSSetScissorRects(1, &scissor);
         cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        cmd->IASetVertexBuffers(0, 1, &vbv);
+        const D3D12_VERTEX_BUFFER_VIEW vertex_views[]{ vbv, instance_vbv };
+        cmd->IASetVertexBuffers(0, _countof(vertex_views), vertex_views);
         cmd->IASetIndexBuffer(&ibv);
         cmd->SetGraphicsRootDescriptorTable(0, descriptor_context.tables.camera_cbv_handle);
 
@@ -349,6 +365,18 @@ namespace carrot::rhi::dx12 {
         for (uint32_t i{ 0 }; i < static_cast<uint32_t>(draw_context.batches.size()); ++i)
         {
             const auto& batch{ draw_context.batches[i] };
+            const auto* dx_texture{ dynamic_cast<const dx12_texture_t*>(batch.texture) };
+            if (!dx_texture)
+            {
+                LOG_GRAPHICS_FATAL("DX12 textured quad batch texture is not a dx12_texture_t");
+                return;
+            }
+
+            if (!dx_texture->transition_to(cmd, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE))
+            {
+                LOG_GRAPHICS_FATAL("DX12 textured quad pipeline failed to transition batch texture to shader-read state");
+                return;
+            }
 
             write_batch_descriptors(i, batch, descriptor_context);
 
@@ -363,7 +391,11 @@ namespace carrot::rhi::dx12 {
 
             cmd->SetGraphicsRootDescriptorTable(1, srv_handle);
             cmd->SetGraphicsRootDescriptorTable(2, sampler_handle);
-            cmd->DrawIndexedInstanced(batch.index_count, 1, batch.first_index, 0, 0);
+            cmd->DrawIndexedInstanced(batch.index_count,
+                                      batch.instance_count,
+                                      batch.first_index,
+                                      0,
+                                      batch.first_instance);
         }
     }
 
@@ -454,6 +486,17 @@ namespace carrot::rhi::dx12 {
         cmd->IASetVertexBuffers(0, 1, &vbv);
         cmd->IASetIndexBuffer(&ibv);
         cmd->SetGraphicsRootDescriptorTable(0, descriptor_context.tables.camera_cbv_handle);
+        const auto* dx_texture{ dynamic_cast<const dx12_texture_t*>(draw_context.texture) };
+        if (!dx_texture)
+        {
+            LOG_GRAPHICS_FATAL("DX12 indirect textured quad texture is not a dx12_texture_t");
+            return;
+        }
+        if (!dx_texture->transition_to(cmd, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE))
+        {
+            LOG_GRAPHICS_FATAL("DX12 indirect textured quad failed to transition texture to shader-read state");
+            return;
+        }
         write_indirect_descriptors(*draw_context.texture, *draw_context.sampler, descriptor_context);
 
         const D3D12_GPU_DESCRIPTOR_HANDLE srv_heap_start{

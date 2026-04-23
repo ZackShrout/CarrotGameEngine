@@ -6,6 +6,7 @@
 #pragma once
 
 #include "RHI/Backends/DirectX12/DirectX12Common.h"
+#include "RHI/Backends/DirectX12/DirectX12Core.h"
 #include "RHI/RHI.h"
 #include "RHI/Sampler.h"
 #include "Renderer/Draw/TexturedQuadBatch.h"
@@ -39,6 +40,7 @@ namespace carrot::rhi::dx12 {
 
         const rhi_buffer_t* vertex_buffer{ nullptr };
         const rhi_buffer_t* index_buffer{ nullptr };
+        const rhi_buffer_t* instance_buffer{ nullptr };
 
         std::span<const renderer::textured_quad_batch_t> batches{ };
     };
@@ -84,9 +86,17 @@ namespace carrot::rhi::dx12 {
     class dx12_textured_quad_pipeline_t final
     {
     public:
+        enum class blend_mode_t : std::uint8_t
+        {
+            alpha = 0,
+            additive
+        };
+
         dx12_textured_quad_pipeline_t(ID3D12Device* device, assets::shader_file_provider_t& shader_files,
                                       std::string_view vertex_shader_path,
-                                      std::string_view fragment_shader_path);
+                                      std::string_view fragment_shader_path,
+                                      blend_mode_t blend_mode = blend_mode_t::alpha,
+                                      DXGI_FORMAT render_target_format = dx12_backbuffer_rtv_format());
         ~dx12_textured_quad_pipeline_t();
 
         [[nodiscard]] bool is_valid() const noexcept

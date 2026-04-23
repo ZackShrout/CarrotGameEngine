@@ -1233,7 +1233,12 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(typed_visibility_zone->visibility_zone_id == "inn_roof");
             CARROT_TEST_REQUIRE(typed_npc->name == "townsfolk_1");
             CARROT_TEST_REQUIRE(typed_npc->patrol_path == "townsfolk_1_route");
+            CARROT_TEST_REQUIRE(typed_npc->move_speed.has_value());
+            CARROT_TEST_REQUIRE(*typed_npc->move_speed == 4.0f);
             CARROT_TEST_REQUIRE(typed_patrol_path->name == "townsfolk_1_route");
+            CARROT_TEST_REQUIRE(!typed_patrol_path->loop);
+            CARROT_TEST_REQUIRE(typed_patrol_path->ping_pong);
+            CARROT_TEST_REQUIRE(typed_patrol_path->pause_time == 1.0f);
             CARROT_TEST_REQUIRE(typed_ambient_light->kind == assets::typed_light_kind_t::ambient);
             CARROT_TEST_REQUIRE(typed_ambient_light->behavior == assets::typed_light_behavior_t::stationary);
             CARROT_TEST_REQUIRE(typed_ambient_light->color_hex == "#5C6170");
@@ -1245,6 +1250,90 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(typed_follow_light->color_hex == "#FFD194");
             CARROT_TEST_REQUIRE(typed_follow_light->radius_world.has_value());
             CARROT_TEST_REQUIRE(*typed_follow_light->radius_world == 3.25f);
+        }
+
+        void test_typed_object_conventions_parse_authored_patrol_tuning_properties()
+        {
+            assets::tilemap_object_t npc{ };
+            npc.type = "NPC";
+            npc.geometry_kind = assets::tilemap_object_t::geometry_kind_t::point;
+            npc.properties.push_back({
+                .name = "name",
+                .value = std::string{ "npc.patrol" }
+            });
+            npc.properties.push_back({
+                .name = "patrol_path",
+                .value = std::string{ "route.a" }
+            });
+            npc.properties.push_back({
+                .name = "move_speed",
+                .value = 3.5
+            });
+
+            assets::tilemap_object_t patrol_path{ };
+            patrol_path.type = "PatrolPath";
+            patrol_path.geometry_kind = assets::tilemap_object_t::geometry_kind_t::polyline;
+            patrol_path.properties.push_back({
+                .name = "name",
+                .value = std::string{ "route.a" }
+            });
+            patrol_path.properties.push_back({
+                .name = "loop",
+                .value = false
+            });
+            patrol_path.properties.push_back({
+                .name = "ping_pong",
+                .value = true
+            });
+            patrol_path.properties.push_back({
+                .name = "pause_time",
+                .value = 0.75
+            });
+
+            const auto typed_npc{ assets::as_typed_npc(npc) };
+            const auto typed_patrol_path{ assets::as_typed_patrol_path(patrol_path) };
+            CARROT_TEST_REQUIRE(typed_npc.has_value());
+            CARROT_TEST_REQUIRE(typed_patrol_path.has_value());
+            CARROT_TEST_REQUIRE(typed_npc->move_speed.has_value());
+            CARROT_TEST_REQUIRE(*typed_npc->move_speed == 3.5f);
+            CARROT_TEST_REQUIRE(!typed_patrol_path->loop);
+            CARROT_TEST_REQUIRE(typed_patrol_path->ping_pong);
+            CARROT_TEST_REQUIRE(typed_patrol_path->pause_time == 0.75f);
+        }
+
+        void test_typed_object_conventions_clamp_negative_patrol_tuning_properties()
+        {
+            assets::tilemap_object_t npc{ };
+            npc.type = "NPC";
+            npc.geometry_kind = assets::tilemap_object_t::geometry_kind_t::point;
+            npc.properties.push_back({
+                .name = "name",
+                .value = std::string{ "npc.negative" }
+            });
+            npc.properties.push_back({
+                .name = "move_speed",
+                .value = -2.0
+            });
+
+            assets::tilemap_object_t patrol_path{ };
+            patrol_path.type = "PatrolPath";
+            patrol_path.geometry_kind = assets::tilemap_object_t::geometry_kind_t::polyline;
+            patrol_path.properties.push_back({
+                .name = "name",
+                .value = std::string{ "route.negative" }
+            });
+            patrol_path.properties.push_back({
+                .name = "pause_time",
+                .value = -1.25
+            });
+
+            const auto typed_npc{ assets::as_typed_npc(npc) };
+            const auto typed_patrol_path{ assets::as_typed_patrol_path(patrol_path) };
+            CARROT_TEST_REQUIRE(typed_npc.has_value());
+            CARROT_TEST_REQUIRE(typed_patrol_path.has_value());
+            CARROT_TEST_REQUIRE(typed_npc->move_speed.has_value());
+            CARROT_TEST_REQUIRE(*typed_npc->move_speed == 0.0f);
+            CARROT_TEST_REQUIRE(typed_patrol_path->pause_time == 0.0f);
         }
 
         void test_tiled_authored_data_validation_reports_typed_object_contract_issues()
@@ -1316,6 +1405,10 @@ namespace carrot::tests {
                 .name = "patrol_path",
                 .value = std::string{ "missing_route" }
             });
+            bad_npc.properties.push_back({
+                .name = "move_speed",
+                .value = -1.0
+            });
             markers_layer.objects.push_back(std::move(bad_npc));
 
             assets::tilemap_object_t bad_patrol_path{ };
@@ -1327,6 +1420,18 @@ namespace carrot::tests {
             });
             bad_patrol_path.geometry_kind = assets::tilemap_object_t::geometry_kind_t::polyline;
             bad_patrol_path.geometry_points.push_back(chlm::float2{ 0.f, 0.f });
+            bad_patrol_path.properties.push_back({
+                .name = "loop",
+                .value = true
+            });
+            bad_patrol_path.properties.push_back({
+                .name = "ping_pong",
+                .value = true
+            });
+            bad_patrol_path.properties.push_back({
+                .name = "pause_time",
+                .value = -0.5
+            });
             markers_layer.objects.push_back(std::move(bad_patrol_path));
 
             tilemap.add_layer(std::move(markers_layer));
@@ -1345,7 +1450,10 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(has_issue_code("tiled.object.trigger.missing_fields"));
             CARROT_TEST_REQUIRE(has_issue_code("tiled.object.npc.missing_patrol_path"));
             CARROT_TEST_REQUIRE(has_issue_code("tiled.object.npc.non_point"));
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.object.npc.negative_move_speed"));
             CARROT_TEST_REQUIRE(has_issue_code("tiled.object.patrol_path.too_few_points"));
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.object.patrol_path.conflicting_traversal_mode"));
+            CARROT_TEST_REQUIRE(has_issue_code("tiled.object.patrol_path.negative_pause_time"));
             CARROT_TEST_REQUIRE(has_issue_code("tiled.object.unknown_type"));
         }
 
@@ -1552,6 +1660,8 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(npc->sprite_animator.has_value());
             CARROT_TEST_REQUIRE(npc->sprite->sprite == assets.sprites().get("sprite.kelvara"));
             CARROT_TEST_REQUIRE(!world.patrol_npc_controllers().empty());
+            CARROT_TEST_REQUIRE(world.patrol_npc_controllers()[0].move_speed() == 4.0f);
+            CARROT_TEST_REQUIRE(world.patrol_npc_controllers()[0].pause_duration() == 1.0f);
             CARROT_TEST_REQUIRE(world.find_object_by_name("NPC1Route") != nullptr);
 
             const assets::scene_asset_record_t* scene{ assets.scenes().registry().find("scene.sandbox.town") };
@@ -4632,6 +4742,10 @@ namespace carrot::tests {
                            test_tiled_polygon_geometry_parses_into_object_metadata);
         tests.emplace_back("typed object conventions parse current sandbox objects",
                            test_typed_object_conventions_parse_current_sandbox_objects);
+        tests.emplace_back("typed object conventions parse authored patrol tuning properties",
+                           test_typed_object_conventions_parse_authored_patrol_tuning_properties);
+        tests.emplace_back("typed object conventions clamp negative patrol tuning properties",
+                           test_typed_object_conventions_clamp_negative_patrol_tuning_properties);
         tests.emplace_back("tiled authored data validation reports typed object contract issues",
                            test_tiled_authored_data_validation_reports_typed_object_contract_issues);
         tests.emplace_back("tiled authored data validation reports light contract issues",

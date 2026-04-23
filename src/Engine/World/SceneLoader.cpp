@@ -219,12 +219,28 @@ namespace carrot::world {
             return points_world;
         }
 
+        [[nodiscard]] patrol_npc_controller_t::route_mode_t route_mode_for(
+            const assets::typed_patrol_path_object_t& patrol_path) noexcept
+        {
+            if (patrol_path.ping_pong)
+                return patrol_npc_controller_t::route_mode_t::ping_pong;
+            if (!patrol_path.loop)
+                return patrol_npc_controller_t::route_mode_t::once;
+            return patrol_npc_controller_t::route_mode_t::loop;
+        }
+
         void setup_authored_npcs(const std::string_view scene_id,
                                  world_t& world,
                                  const assets::loaded_sprite_asset_t& npc_sprite)
         {
             const player_controller_animation_set_t animation_set{ kelvara_proof_animation_set() };
-            std::unordered_map<std::string, std::vector<chlm::float2>> patrol_routes_by_name;
+            struct authored_patrol_route_t
+            {
+                std::vector<chlm::float2> points_world;
+                patrol_npc_controller_t::route_mode_t mode{ patrol_npc_controller_t::route_mode_t::loop };
+                float pause_duration{ 0.f };
+            };
+            std::unordered_map<std::string, authored_patrol_route_t> patrol_routes_by_name;
 
             for (const world_object_t* object : world.find_objects_by_type("PatrolPath"))
             {
@@ -235,7 +251,12 @@ namespace carrot::world {
                 if (!patrol_path)
                     continue;
 
-                patrol_routes_by_name.emplace(std::string{ patrol_path->name }, patrol_points_world_for(*object));
+                patrol_routes_by_name.emplace(std::string{ patrol_path->name },
+                                              authored_patrol_route_t{
+                                                  .points_world = patrol_points_world_for(*object),
+                                                  .mode = route_mode_for(*patrol_path),
+                                                  .pause_duration = patrol_path->pause_time
+                                              });
             }
 
             for (world_object_t* object : world.find_objects_by_type("NPC"))
@@ -254,7 +275,7 @@ namespace carrot::world {
                     continue;
 
                 const auto route_it{ patrol_routes_by_name.find(std::string{ npc->patrol_path }) };
-                if (route_it == patrol_routes_by_name.end() || route_it->second.size() < 2u)
+                if (route_it == patrol_routes_by_name.end() || route_it->second.points_world.size() < 2u)
                 {
                     LOG_ASSET_WARN("Scene '{}' could not resolve patrol route '{}' for NPC '{}'",
                                    scene_id,
@@ -267,7 +288,9 @@ namespace carrot::world {
                 controller.set_controlled_object(object);
                 controller.set_animation_set(animation_set);
                 controller.set_move_speed(npc->move_speed.value_or(2.0f));
-                controller.set_route_points(route_it->second);
+                controller.set_pause_duration(route_it->second.pause_duration);
+                controller.set_route_mode(route_it->second.mode);
+                controller.set_route_points(route_it->second.points_world);
             }
         }
 

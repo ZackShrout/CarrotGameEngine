@@ -114,7 +114,7 @@ namespace carrot::assets {
                 .move_speed = [&]() -> std::optional<float>
                 {
                     if (const auto move_speed{ object.get_number_property("move_speed") })
-                        return static_cast<float>(*move_speed);
+                        return std::max(0.f, static_cast<float>(*move_speed));
                     return std::nullopt;
                 }(),
                 .sprite_id = object.get_string_property("sprite").value_or(std::string_view{})
@@ -131,8 +131,14 @@ namespace carrot::assets {
             if (!name || name->empty())
                 return std::nullopt;
 
+            const bool ping_pong{ object.get_bool_property("ping_pong").value_or(false) };
+            const bool loop{ object.get_bool_property("loop").value_or(!ping_pong) };
+
             return typed_patrol_path_object_t{
-                .name = *name
+                .name = *name,
+                .loop = loop,
+                .ping_pong = ping_pong,
+                .pause_time = std::max(0.f, static_cast<float>(object.get_number_property("pause_time").value_or(0.0)))
             };
         }
 

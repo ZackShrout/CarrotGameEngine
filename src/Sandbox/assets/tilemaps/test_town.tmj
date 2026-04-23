@@ -695,6 +695,11 @@
                  "point":true,
                  "properties":[
                         {
+                         "name":"move_speed",
+                         "type":"float",
+                         "value":4
+                        }, 
+                        {
                          "name":"name",
                          "type":"string",
                          "value":"townsfolk_1"
@@ -737,6 +742,16 @@
                          "name":"name",
                          "type":"string",
                          "value":"townsfolk_1_route"
+                        }, 
+                        {
+                         "name":"pause_time",
+                         "type":"float",
+                         "value":1
+                        }, 
+                        {
+                         "name":"ping_pong",
+                         "type":"bool",
+                         "value":true
                         }],
                  "rotation":0,
                  "type":"PatrolPath",

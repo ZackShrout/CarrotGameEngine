@@ -113,6 +113,9 @@ Carrot currently treats these Tiled object types as first-class authored convent
   * required: `name`
   * must be authored as a polyline object
   * must have at least 2 points
+  * optional: `loop`
+  * optional: `ping_pong`
+  * optional: `pause_time`
 * `Light`
   * currently supported `kind` values:
     * `ambient`
@@ -160,6 +163,8 @@ Current contract notes:
 * `patrol_path` is optional
 * if `patrol_path` is omitted, authored intent is that the NPC does not use patrol locomotion
 * if `patrol_path` is present, it must resolve to a `PatrolPath` object by matching the `name` property
+* `move_speed` defaults to `2.0`
+* negative `move_speed` is diagnosed as a validation warning and clamped to `0.0`
 * current proof content uses `sprite.kelvara` as the runtime sprite for authored patrol NPCs
 
 #### `PatrolPath`
@@ -170,12 +175,23 @@ Author a `PatrolPath` like this:
 * author it as a Tiled polyline object
 * add a non-empty `name` property
 * place polyline points in traversal order
+* optionally add `loop = true|false`
+* optionally add `ping_pong = true|false`
+* optionally add `pause_time = <float seconds>`
 
 Current contract notes:
 
 * a patrol path must contain at least 2 points
 * polyline geometry is preserved as authored object geometry and consumed by the patrol proof runtime path
 * object name alone is not the patrol identity contract surface; the custom `name` property is
+* `loop` defaults to `true`
+* `ping_pong` defaults to `false`
+* `pause_time` defaults to `0.0`
+* `loop = false` and `ping_pong = false` means walk the path once and stop at the final point
+* `ping_pong = true` means reverse direction at endpoints
+* `pause_time` applies when the NPC reaches a waypoint within the route tolerance
+* negative `pause_time` is diagnosed as a validation warning and clamped to `0.0`
+* `loop = true` and `ping_pong = true` together are treated as an ambiguous authored contract and should not be used
 
 #### Validation Rules
 
@@ -185,9 +201,12 @@ Current first-pass validation intentionally behaves like this:
 * `NPC` authored as a non-point object is a validation issue
 * `NPC` without `patrol_path` is valid
 * `NPC` with `patrol_path` that does not resolve to a named `PatrolPath` is a validation issue
+* `NPC` with negative `move_speed` is a validation issue
 * `PatrolPath` missing `name` is a validation issue
 * `PatrolPath` authored as a non-polyline object is a validation issue
 * `PatrolPath` with fewer than 2 points is a validation issue
+* `PatrolPath` with both `loop` and `ping_pong` set to `true` is a validation issue
+* `PatrolPath` with negative `pause_time` is a validation issue
 
 ### Likely Future Engine-Owned Typed Objects
 

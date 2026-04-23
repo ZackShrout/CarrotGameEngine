@@ -247,10 +247,17 @@ First-pass authored contract for the proof slice:
   * require a non-empty `name` property
   * optional `patrol_path` property means "this NPC uses patrol locomotion"
   * omitted `patrol_path` means "this NPC does not patrol"
+  * optional `move_speed` defaults to `2.0`
 * `PatrolPath`
   * author as a polyline object
   * require a non-empty `name` property
   * polyline points define patrol traversal order
+  * optional `loop` property defaults to `true`
+  * optional `ping_pong` property defaults to `false`
+  * optional `pause_time` property defaults to `0.0`
+  * `loop = false` and `ping_pong = false` means the NPC stops at the final point
+  * `ping_pong = true` means the NPC reverses at endpoints
+  * `pause_time` applies when the NPC reaches a waypoint within route tolerance
 
 First-pass validation rules for the proof slice:
 
@@ -258,6 +265,7 @@ First-pass validation rules for the proof slice:
 * `NPC` without `patrol_path` is valid
 * `NPC` should validate as a point object
 * `PatrolPath` should validate as a polyline with at least 2 points
+* `PatrolPath` should not set both `loop` and `ping_pong` to `true`
 
 #### Acceptance Criteria
 

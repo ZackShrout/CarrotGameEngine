@@ -16,6 +16,7 @@
 #include "RHI/RHI.h"
 #include "Window/Window.h"
 #include "World/Controllers/InteractionController.h"
+#include "World/Controllers/PatrolNpcController.h"
 #include "World/Controllers/PlayerController.h"
 #include "World/World.h"
 
@@ -135,6 +136,102 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(intent.y == 0.f);
         }
 
+        void test_patrol_npc_controller_ping_pongs_between_route_endpoints()
+        {
+            world::world_t world;
+            world::world_object_t npc;
+            npc.transform = world::transform_component_t{
+                .position = { 0.f, 0.f },
+                .scale = { 1.f, 1.f }
+            };
+
+            world::patrol_npc_controller_t controller;
+            controller.set_controlled_object(&npc);
+            controller.set_move_speed(1.f);
+            controller.set_route_mode(world::patrol_npc_controller_t::route_mode_t::ping_pong);
+            controller.set_route_points(std::vector<chlm::float2>{
+                chlm::float2{ 0.f, 0.f },
+                chlm::float2{ 1.f, 0.f },
+                chlm::float2{ 2.f, 0.f }
+            });
+
+            controller.update(world, 1.f);
+            CARROT_TEST_REQUIRE(std::fabs(npc.transform->position.x - 1.f) < 1.0e-4f);
+
+            controller.update(world, 1.f);
+            CARROT_TEST_REQUIRE(std::fabs(npc.transform->position.x - 2.f) < 1.0e-4f);
+
+            controller.update(world, 1.f);
+            CARROT_TEST_REQUIRE(std::fabs(npc.transform->position.x - 1.f) < 1.0e-4f);
+
+            controller.update(world, 1.f);
+            CARROT_TEST_REQUIRE(std::fabs(npc.transform->position.x - 0.f) < 1.0e-4f);
+        }
+
+        void test_patrol_npc_controller_once_route_stops_at_last_point()
+        {
+            world::world_t world;
+            world::world_object_t npc;
+            npc.transform = world::transform_component_t{
+                .position = { 0.f, 0.f },
+                .scale = { 1.f, 1.f }
+            };
+
+            world::patrol_npc_controller_t controller;
+            controller.set_controlled_object(&npc);
+            controller.set_move_speed(1.f);
+            controller.set_route_mode(world::patrol_npc_controller_t::route_mode_t::once);
+            controller.set_route_points(std::vector<chlm::float2>{
+                chlm::float2{ 0.f, 0.f },
+                chlm::float2{ 1.f, 0.f }
+            });
+
+            controller.update(world, 1.f);
+            CARROT_TEST_REQUIRE(std::fabs(npc.transform->position.x - 1.f) < 1.0e-4f);
+
+            controller.update(world, 1.f);
+            CARROT_TEST_REQUIRE(std::fabs(npc.transform->position.x - 1.f) < 1.0e-4f);
+            CARROT_TEST_REQUIRE(std::fabs(controller.movement_intent().move_direction.x) < 1.0e-4f);
+            CARROT_TEST_REQUIRE(std::fabs(controller.movement_intent().move_direction.y) < 1.0e-4f);
+        }
+
+        void test_patrol_npc_controller_pauses_after_reaching_waypoint()
+        {
+            world::world_t world;
+            world::world_object_t npc;
+            npc.transform = world::transform_component_t{
+                .position = { 0.f, 0.f },
+                .scale = { 1.f, 1.f }
+            };
+
+            world::patrol_npc_controller_t controller;
+            controller.set_controlled_object(&npc);
+            controller.set_move_speed(1.f);
+            controller.set_pause_duration(0.5f);
+            controller.set_route_mode(world::patrol_npc_controller_t::route_mode_t::loop);
+            controller.set_route_points(std::vector<chlm::float2>{
+                chlm::float2{ 0.f, 0.f },
+                chlm::float2{ 1.f, 0.f },
+                chlm::float2{ 2.f, 0.f }
+            });
+
+            controller.update(world, 1.f);
+            CARROT_TEST_REQUIRE(std::fabs(npc.transform->position.x - 1.f) < 1.0e-4f);
+
+            controller.update(world, 0.25f);
+            CARROT_TEST_REQUIRE(std::fabs(npc.transform->position.x - 1.f) < 1.0e-4f);
+            CARROT_TEST_REQUIRE(std::fabs(controller.movement_intent().move_direction.x) < 1.0e-4f);
+
+            controller.update(world, 0.30f);
+            CARROT_TEST_REQUIRE(std::fabs(npc.transform->position.x - 1.f) < 1.0e-4f);
+
+            controller.update(world, 0.5f);
+            CARROT_TEST_REQUIRE(std::fabs(npc.transform->position.x - 1.5f) < 1.0e-4f);
+
+            controller.update(world, 0.5f);
+            CARROT_TEST_REQUIRE(std::fabs(npc.transform->position.x - 2.f) < 1.0e-4f);
+        }
+
         void test_interaction_controller_attempt_result_reports_missing_actor_and_candidate()
         {
             io::virtual_file_system_t vfs;
@@ -222,6 +319,12 @@ namespace carrot::tests {
                            test_player_controller_respects_directional_intent);
         tests.emplace_back("player controller clear movement intent resets controller intent",
                            test_player_controller_clear_movement_intent_resets_controller_intent);
+        tests.emplace_back("patrol npc controller ping pongs between route endpoints",
+                           test_patrol_npc_controller_ping_pongs_between_route_endpoints);
+        tests.emplace_back("patrol npc controller once route stops at last point",
+                           test_patrol_npc_controller_once_route_stops_at_last_point);
+        tests.emplace_back("patrol npc controller pauses after reaching waypoint",
+                           test_patrol_npc_controller_pauses_after_reaching_waypoint);
         tests.emplace_back("interaction controller attempt result reports missing actor and candidate",
                            test_interaction_controller_attempt_result_reports_missing_actor_and_candidate);
         tests.emplace_back("gameplay input router fixed multiplayer helper assigns expected defaults",

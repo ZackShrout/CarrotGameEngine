@@ -59,6 +59,7 @@ namespace carrot::world {
 
             return animation_set.walk_down;
         }
+
     } // namespace
 
     void patrol_npc_controller_t::set_controlled_object(world_object_t* object) noexcept
@@ -75,10 +76,29 @@ namespace carrot::world {
         _current_animation = _animation_set.idle_down;
     }
 
+    void patrol_npc_controller_t::set_pause_duration(const float seconds) noexcept
+    {
+        _pause_duration = std::max(seconds, 0.f);
+        _pause_remaining = std::min(_pause_remaining, _pause_duration);
+    }
+
+    void patrol_npc_controller_t::set_route_mode(const route_mode_t mode) noexcept
+    {
+        _route_mode = mode;
+        _route_direction = 1;
+        _route_finished = false;
+        _pause_remaining = 0.f;
+        _skip_next_pause = true;
+    }
+
     void patrol_npc_controller_t::set_route_points(std::vector<chlm::float2> route_points_world)
     {
         _route_points_world = std::move(route_points_world);
         _target_index = 0u;
+        _route_direction = 1;
+        _route_finished = false;
+        _pause_remaining = 0.f;
+        _skip_next_pause = true;
     }
 
     void patrol_npc_controller_t::update(world_t& world, const float delta_time)
@@ -92,7 +112,15 @@ namespace carrot::world {
             return;
         }
 
-        while (!_route_points_world.empty())
+        if (_pause_remaining > 0.f)
+        {
+            _pause_remaining = std::max(0.f, _pause_remaining - delta_time);
+            _last_move_result = movement_result_t{ };
+            apply_animation(*_controlled_object, _facing_direction, false);
+            return;
+        }
+
+        while (!_route_points_world.empty() && !_route_finished)
         {
             const chlm::float2 current_position{ _controlled_object->transform->position };
             const chlm::float2 target{ _route_points_world[_target_index] };
@@ -100,12 +128,20 @@ namespace carrot::world {
             if (vector_length(to_target) > _waypoint_reached_distance)
                 break;
 
-            _target_index = (_target_index + 1u) % _route_points_world.size();
-            if (_route_points_world.size() == 1u)
+            advance_route_target();
+            if (_pause_remaining > 0.f)
                 break;
         }
 
-        if (!_route_points_world.empty())
+        if (_pause_remaining > 0.f)
+        {
+            _pause_remaining = std::max(0.f, _pause_remaining - delta_time);
+            _last_move_result = movement_result_t{ };
+            apply_animation(*_controlled_object, _facing_direction, false);
+            return;
+        }
+
+        if (!_route_points_world.empty() && !_route_finished)
         {
             const chlm::float2 to_target{
                 _route_points_world[_target_index] - _controlled_object->transform->position
@@ -159,6 +195,67 @@ namespace carrot::world {
         {
             animator.play(*desired_animation);
             _current_animation = *desired_animation;
+        }
+    }
+
+    void patrol_npc_controller_t::advance_route_target() noexcept
+    {
+        const size_t route_size{ _route_points_world.size() };
+        if (route_size <= 1u)
+        {
+            _route_finished = true;
+            return;
+        }
+
+        if (_skip_next_pause)
+        {
+            _skip_next_pause = false;
+        }
+        else
+        {
+            _pause_remaining = _pause_duration;
+        }
+
+        switch (_route_mode)
+        {
+            case route_mode_t::loop:
+                _target_index = (_target_index + 1u) % route_size;
+                return;
+
+            case route_mode_t::once:
+                if ((_target_index + 1u) < route_size)
+                {
+                    ++_target_index;
+                }
+                else
+                {
+                    _route_finished = true;
+                }
+                return;
+
+            case route_mode_t::ping_pong:
+                if (_route_direction >= 0)
+                {
+                    if ((_target_index + 1u) < route_size)
+                    {
+                        ++_target_index;
+                    }
+                    else
+                    {
+                        _route_direction = -1;
+                        _target_index = route_size - 2u;
+                    }
+                }
+                else if (_target_index > 0u)
+                {
+                    --_target_index;
+                }
+                else
+                {
+                    _route_direction = 1;
+                    _target_index = 1u;
+                }
+                return;
         }
     }
 } // namespace carrot::world

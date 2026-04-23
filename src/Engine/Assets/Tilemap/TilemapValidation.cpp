@@ -169,6 +169,7 @@ namespace carrot::assets {
                 if (object.type == "NPC")
                 {
                     const auto npc_name{ object.get_string_property("name") };
+                    const auto move_speed{ object.get_number_property("move_speed") };
                     if (!npc_name || npc_name->empty())
                     {
                         add_issue(issues,
@@ -195,11 +196,25 @@ namespace carrot::assets {
                         npc_patrol_refs.emplace_back(object.name.empty() ? std::string{ "<unnamed>" } : object.name,
                                                      std::string{ *patrol_path });
                     }
+
+                    if (move_speed && *move_speed < 0.0)
+                    {
+                        add_issue(issues,
+                                  tilemap_validation_issue_severity_t::warning,
+                                  "tiled.object.npc.negative_move_speed",
+                                  std::format("Object '{}' in layer '{}' uses type 'NPC' and sets negative 'move_speed' {}. Carrot clamps negative move_speed to 0.0.",
+                                              object.name.empty() ? "<unnamed>" : object.name,
+                                              layer.name.empty() ? "<unnamed>" : layer.name,
+                                              *move_speed));
+                    }
                 }
 
                 if (object.type == "PatrolPath")
                 {
                     const auto patrol_name{ object.get_string_property("name") };
+                    const auto explicit_loop{ object.get_bool_property("loop") };
+                    const auto explicit_ping_pong{ object.get_bool_property("ping_pong") };
+                    const auto pause_time{ object.get_number_property("pause_time") };
                     if (!patrol_name || patrol_name->empty())
                     {
                         add_issue(issues,
@@ -231,6 +246,27 @@ namespace carrot::assets {
                                   std::format("Object '{}' in layer '{}' uses type 'PatrolPath' but has fewer than 2 polyline points.",
                                               object.name.empty() ? "<unnamed>" : object.name,
                                               layer.name.empty() ? "<unnamed>" : layer.name));
+                    }
+
+                    if (explicit_loop.value_or(false) && explicit_ping_pong.value_or(false))
+                    {
+                        add_issue(issues,
+                                  tilemap_validation_issue_severity_t::warning,
+                                  "tiled.object.patrol_path.conflicting_traversal_mode",
+                                  std::format("Object '{}' in layer '{}' uses type 'PatrolPath' and sets both 'loop' and 'ping_pong'. Use only one patrol traversal mode override.",
+                                              object.name.empty() ? "<unnamed>" : object.name,
+                                              layer.name.empty() ? "<unnamed>" : layer.name));
+                    }
+
+                    if (pause_time && *pause_time < 0.0)
+                    {
+                        add_issue(issues,
+                                  tilemap_validation_issue_severity_t::warning,
+                                  "tiled.object.patrol_path.negative_pause_time",
+                                  std::format("Object '{}' in layer '{}' uses type 'PatrolPath' and sets negative 'pause_time' {}. Carrot clamps negative pause_time to 0.0.",
+                                              object.name.empty() ? "<unnamed>" : object.name,
+                                              layer.name.empty() ? "<unnamed>" : layer.name,
+                                              *pause_time));
                     }
                 }
 

@@ -54,6 +54,9 @@ namespace carrot::assets {
     struct typed_patrol_path_object_t
     {
         std::string_view name;
+        bool loop{ true };
+        bool ping_pong{ false };
+        float pause_time{ 0.f };
     };
 
     enum class typed_light_kind_t : uint8_t

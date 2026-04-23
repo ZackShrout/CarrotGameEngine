@@ -398,6 +398,26 @@ namespace carrot::renderer {
         _rhi->end_frame();
     }
 
+    void renderer_t::resize_render_target(const uint32_t width, const uint32_t height)
+    {
+        if (!_rhi)
+            return;
+
+        // Vulkan defers swapchain recreation until the next frame begin, so renderer-owned
+        // offscreen resources from the previous extent may still be referenced by in-flight
+        // work when a resize arrives. Synchronize before dropping them.
+        _rhi->wait_idle();
+        _rhi->resize(width, height);
+
+        // Resize recreates the swapchain-backed presentation extent. Any lazily-created
+        // offscreen textures that mirror that extent must be discarded so they are
+        // rebuilt against the new dimensions on the next frame.
+        _bloom_source_render_target.reset();
+        _bloom_blur_render_target.reset();
+        _transition_battle_swirl_capture_texture.reset();
+        refresh_composite_targets();
+    }
+
     bool renderer_t::add_presentation_window(const window::window_id_t window_id,
                                              const uint32_t presentation_channel_mask)
     {

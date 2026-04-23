@@ -223,6 +223,7 @@ namespace carrot {
         on_tick_t                                           _on_tick;
         renderer::renderer_stats_t                          _last_logged_renderer_stats;
         boot_pipeline_t                                     _boot_pipeline;
+        std::optional<chlm::uint2>                          _pending_main_window_resize;
 
         world::world_t                                      _world;
     };

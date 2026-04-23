@@ -41,6 +41,7 @@ namespace carrot::rhi::dx12 {
         const rhi_buffer_t* vertex_buffer{ nullptr };
         const rhi_buffer_t* index_buffer{ nullptr };
         const rhi_buffer_t* instance_buffer{ nullptr };
+        std::uint32_t instance_buffer_offset_bytes{ 0u };
 
         std::span<const renderer::textured_quad_batch_t> batches{ };
     };

@@ -309,6 +309,7 @@ namespace carrot::rhi::dx12 {
                 .vertex_buffer = stage.vertex_buffer,
                 .index_buffer = stage.index_buffer,
                 .instance_buffer = stage.instance_buffer,
+                .instance_buffer_offset_bytes = stage.instance_buffer_offset_bytes,
                 .batches = stage.batches
             };
 

@@ -316,6 +316,12 @@ namespace carrot {
 
             const auto render_start{ std::chrono::steady_clock::now() };
             const auto begin_frame_start{ render_start };
+            if (_pending_main_window_resize && _renderer)
+            {
+                _renderer->resize_render_target(_pending_main_window_resize->x,
+                                                _pending_main_window_resize->y);
+                _pending_main_window_resize.reset();
+            }
             _renderer->begin_frame();
             const auto begin_frame_end{ std::chrono::steady_clock::now() };
             profiling.begin_frame_ms = elapsed_ms(begin_frame_start, begin_frame_end);
@@ -1323,7 +1329,10 @@ namespace carrot {
         if (window_id == main_window_id)
         {
             runtime_window->_on_window_resized += BIND_LAMBDA([this](const events::window_resized_t& e) {
-                _renderer->get_rhi()->resize(e._width, e._height);
+                chlm::uint2 pending_resize{ };
+                pending_resize.x = e._width;
+                pending_resize.y = e._height;
+                _pending_main_window_resize = pending_resize;
                 });
         }
 

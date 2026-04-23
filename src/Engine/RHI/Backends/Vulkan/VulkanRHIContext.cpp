@@ -990,6 +990,39 @@ namespace carrot::rhi::vulkan {
             end_single_time_commands(cmd);
             VK_CHECK_FATAL(vkDeviceWaitIdle(device));
         }
+        else if (texture_usage_includes(info.usage_mask, texture_usage_sampled))
+        {
+            VkCommandBuffer cmd{ begin_single_time_commands() };
+
+            VkImageMemoryBarrier to_shader_read{ };
+            to_shader_read.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+            to_shader_read.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            to_shader_read.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            to_shader_read.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            to_shader_read.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            to_shader_read.image = image;
+            to_shader_read.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            to_shader_read.subresourceRange.baseMipLevel = 0;
+            to_shader_read.subresourceRange.levelCount = 1;
+            to_shader_read.subresourceRange.baseArrayLayer = 0;
+            to_shader_read.subresourceRange.layerCount = 1;
+            to_shader_read.srcAccessMask = 0;
+            to_shader_read.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+            vkCmdPipelineBarrier(cmd,
+                                 VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                 0,
+                                 0,
+                                 nullptr,
+                                 0,
+                                 nullptr,
+                                 1,
+                                 &to_shader_read);
+
+            end_single_time_commands(cmd);
+            VK_CHECK_FATAL(vkDeviceWaitIdle(device));
+        }
 
         // -------------------------------------------------------------------------
         // 4. Create image view
@@ -1028,7 +1061,9 @@ namespace carrot::rhi::vulkan {
         texture->set_memory(image_memory);
         texture->set_view(image_view);
         texture->set_has_initial_data(has_initial_data);
-        texture->set_layout(has_initial_data ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_UNDEFINED);
+        texture->set_layout(texture_usage_includes(info.usage_mask, texture_usage_sampled)
+                                ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                : VK_IMAGE_LAYOUT_UNDEFINED);
         texture->set_usage_mask(info.usage_mask);
 
         LOG_GRAPHICS_INFO("Created Vulkan texture: {}x{}", info.width, info.height);

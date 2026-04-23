@@ -258,6 +258,7 @@ namespace carrot::renderer {
         // Main loop integration
         void begin_frame();
         void end_frame();
+        void resize_render_target(uint32_t width, uint32_t height);
         bool add_presentation_window(window::window_id_t window_id,
                                      uint32_t presentation_channel_mask = rhi::presentation_channel_gameplay);
         bool remove_presentation_window(window::window_id_t window_id);

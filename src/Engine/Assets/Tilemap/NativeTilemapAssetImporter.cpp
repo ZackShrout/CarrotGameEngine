@@ -198,7 +198,39 @@ namespace carrot::assets {
                             }
                         }
 
-                        if (!tile_collision.collision_rects.empty())
+                        if (tile_json.has("collision_polygons"))
+                        {
+                            const utils::json::json_array_view_t polygons{ tile_json.get_array("collision_polygons") };
+                            for (const auto polygon_value : polygons)
+                            {
+                                if (!polygon_value.is_object())
+                                    continue;
+
+                                const utils::json::json_object_view_t polygon_json{ polygon_value.as_object() };
+                                if (!polygon_json.has("points"))
+                                    continue;
+
+                                tilemap_tileset_t::collision_polygon_t polygon{ };
+                                const utils::json::json_array_view_t points{ polygon_json.get_array("points") };
+                                polygon.points.reserve(points.size());
+                                for (const auto point_value : points)
+                                {
+                                    if (!point_value.is_object())
+                                        continue;
+
+                                    const utils::json::json_object_view_t point_json{ point_value.as_object() };
+                                    polygon.points.emplace_back(chlm::float2{
+                                        static_cast<float>(point_json.get_number_or("x", 0.0)),
+                                        static_cast<float>(point_json.get_number_or("y", 0.0))
+                                    });
+                                }
+
+                                if (polygon.points.size() >= 3u)
+                                    tile_collision.collision_polygons.emplace_back(std::move(polygon));
+                            }
+                        }
+
+                        if (!tile_collision.empty())
                             tileset.tile_collisions.emplace_back(std::move(tile_collision));
                     }
                 }

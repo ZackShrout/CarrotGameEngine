@@ -53,10 +53,21 @@ namespace carrot::collision {
 
     struct static_collider_t
     {
+        enum class shape_t : uint8_t
+        {
+            aabb = 0,
+            convex_polygon
+        };
+
         uint64_t id{ 0 };
+        shape_t shape{ shape_t::aabb };
         collision_aabb_t bounds{ };
+        std::vector<chlm::float2> polygon_points;
         collision_layer_t layer{ make_collision_layer(0u) };
         collision_mask_t mask{ k_collision_mask_all };
+
+        [[nodiscard]] bool is_aabb() const noexcept { return shape == shape_t::aabb; }
+        [[nodiscard]] bool is_convex_polygon() const noexcept { return shape == shape_t::convex_polygon; }
     };
 
     struct tile_collision_cell_t

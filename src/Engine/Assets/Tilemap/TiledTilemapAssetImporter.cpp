@@ -12,6 +12,88 @@
 
 namespace carrot::assets {
     namespace {
+        [[nodiscard]] std::vector<chlm::float2> parse_point_array(const utils::json::json_object_view_t& object_json,
+                                                                  const std::string_view key)
+        {
+            std::vector<chlm::float2> points;
+            if (!object_json.has(key))
+                return points;
+
+            const utils::json::json_array_view_t point_array{ object_json.get_array(key) };
+            points.reserve(point_array.size());
+
+            for (const auto point_value : point_array)
+            {
+                if (!point_value.is_object())
+                    continue;
+
+                const utils::json::json_object_view_t point_json{ point_value.as_object() };
+                points.emplace_back(chlm::float2{
+                    static_cast<float>(point_json.get_number_or("x", 0.0)),
+                    static_cast<float>(point_json.get_number_or("y", 0.0))
+                });
+            }
+
+            return points;
+        }
+
+        [[nodiscard]] bool is_convex_polygon(const std::vector<chlm::float2>& points) noexcept
+        {
+            if (points.size() < 3u)
+                return false;
+
+            float sign{ 0.f };
+            for (size_t i{ 0u }; i < points.size(); ++i)
+            {
+                const chlm::float2 a{ points[i] };
+                const chlm::float2 b{ points[(i + 1u) % points.size()] };
+                const chlm::float2 c{ points[(i + 2u) % points.size()] };
+                const chlm::float2 ab{ b - a };
+                const chlm::float2 bc{ c - b };
+                const float cross{ (ab.x * bc.y) - (ab.y * bc.x) };
+                if (std::fabs(cross) <= 1.0e-5f)
+                    continue;
+
+                if (sign == 0.f)
+                {
+                    sign = cross;
+                    continue;
+                }
+
+                if ((cross > 0.f) != (sign > 0.f))
+                    return false;
+            }
+
+            return sign != 0.f;
+        }
+
+        [[nodiscard]] std::vector<chlm::float2> approximate_ellipse_points(const float x,
+                                                                            const float y,
+                                                                            const float width,
+                                                                            const float height) noexcept
+        {
+            constexpr size_t k_segments{ 12u };
+            constexpr float k_pi{ 3.14159265358979323846f };
+            std::vector<chlm::float2> points;
+            points.reserve(k_segments);
+
+            const chlm::float2 center{ x + (width * 0.5f), y + (height * 0.5f) };
+            const float radius_x{ width * 0.5f };
+            const float radius_y{ height * 0.5f };
+            for (size_t i{ 0u }; i < k_segments; ++i)
+            {
+                const float angle{
+                    (static_cast<float>(i) / static_cast<float>(k_segments)) * k_pi * 2.f
+                };
+                points.emplace_back(chlm::float2{
+                    center.x + (std::cos(angle) * radius_x),
+                    center.y + (std::sin(angle) * radius_y)
+                });
+            }
+
+            return points;
+        }
+
         void merge_inherited_properties(std::vector<tilemap_property_t>& target,
                                         const std::vector<tilemap_property_t>& inherited_properties)
         {
@@ -156,18 +238,21 @@ namespace carrot::assets {
                                                                    const uint32_t tile_id,
                                                                    tiled_import_diagnostics_t& diagnostics)
         {
-            if (object_json.has("ellipse"))
-            {
-                diagnostics.add_unsupported(std::format("tileset '{}' tile {} uses ellipse collision geometry which is not yet supported",
-                                                        tileset_name,
-                                                        tile_id));
-            }
-
             if (object_json.has("polygon"))
             {
-                diagnostics.add_unsupported(std::format("tileset '{}' tile {} uses polygon collision geometry which is not yet supported",
-                                                        tileset_name,
-                                                        tile_id));
+                const auto points{ parse_point_array(object_json, "polygon") };
+                if (points.size() < 3u)
+                {
+                    diagnostics.add_unsupported(std::format("tileset '{}' tile {} uses polygon collision geometry with fewer than 3 points",
+                                                            tileset_name,
+                                                            tile_id));
+                }
+                else if (!is_convex_polygon(points))
+                {
+                    diagnostics.add_unsupported(std::format("tileset '{}' tile {} uses concave polygon collision geometry which is not yet supported",
+                                                            tileset_name,
+                                                            tile_id));
+                }
             }
 
             if (object_json.has("polyline"))
@@ -193,7 +278,8 @@ namespace carrot::assets {
 
             const float width{ static_cast<float>(object_json.get_number_or("width", 0.0)) };
             const float height{ static_cast<float>(object_json.get_number_or("height", 0.0)) };
-            if (width <= 0.f || height <= 0.f)
+            if ((object_json.has("ellipse") || !object_json.has("polygon")) &&
+                (width <= 0.f || height <= 0.f))
             {
                 diagnostics.add_unsupported(std::format("tileset '{}' tile {} uses zero-size collision geometry which is not yet supported",
                                                         tileset_name,
@@ -227,29 +313,56 @@ namespace carrot::assets {
                 const utils::json::json_object_view_t object_json{ object_value.as_object() };
                 collect_unsupported_tileset_collision_object_features(object_json, tileset_name, tile_id, diagnostics);
 
-                if (object_json.has("ellipse") ||
-                    object_json.has("polygon") ||
-                    object_json.has("polyline") ||
+                const float width{ static_cast<float>(object_json.get_number_or("width", 0.0)) };
+                const float height{ static_cast<float>(object_json.get_number_or("height", 0.0)) };
+                const float x{ static_cast<float>(object_json.get_number_or("x", 0.0)) };
+                const float y{ static_cast<float>(object_json.get_number_or("y", 0.0)) };
+
+                if (object_json.has("polyline") ||
                     object_json.has("text") ||
                     (object_json.has("point") && object_json.get_bool_or("point", false)))
                 {
                     continue;
                 }
 
-                const float width{ static_cast<float>(object_json.get_number_or("width", 0.0)) };
-                const float height{ static_cast<float>(object_json.get_number_or("height", 0.0)) };
+                if (object_json.has("ellipse"))
+                {
+                    if (width <= 0.f || height <= 0.f)
+                        continue;
+
+                    tile_collision.collision_polygons.emplace_back(tilemap_tileset_t::collision_polygon_t{
+                        .points = approximate_ellipse_points(x, y, width, height)
+                    });
+                    continue;
+                }
+
+                if (object_json.has("polygon"))
+                {
+                    std::vector<chlm::float2> points{ parse_point_array(object_json, "polygon") };
+                    if (points.size() < 3u || !is_convex_polygon(points))
+                        continue;
+
+                    for (chlm::float2& point : points)
+                        point += chlm::float2{ x, y };
+
+                    tile_collision.collision_polygons.emplace_back(tilemap_tileset_t::collision_polygon_t{
+                        .points = std::move(points)
+                    });
+                    continue;
+                }
+
                 if (width <= 0.f || height <= 0.f)
                     continue;
 
                 tile_collision.collision_rects.emplace_back(tilemap_tileset_t::collision_rect_t{
-                    .x = static_cast<float>(object_json.get_number_or("x", 0.0)),
-                    .y = static_cast<float>(object_json.get_number_or("y", 0.0)),
+                    .x = x,
+                    .y = y,
                     .width = width,
                     .height = height
                 });
             }
 
-            if (!tile_collision.collision_rects.empty())
+            if (!tile_collision.empty())
                 tileset.tile_collisions.emplace_back(std::move(tile_collision));
         }
 

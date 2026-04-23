@@ -29,6 +29,294 @@ namespace carrot::collision {
             return std::fabs(lhs - rhs) <= k_fraction_epsilon;
         }
 
+        [[nodiscard]] chlm::float2 normalize_or_zero(const chlm::float2 value) noexcept
+        {
+            const float length_sq{ (value.x * value.x) + (value.y * value.y) };
+            if (length_sq <= 1.0e-12f)
+                return { 0.f, 0.f };
+
+            const float length{ std::sqrt(length_sq) };
+            return value / length;
+        }
+
+        [[nodiscard]] collision_aabb_t bounds_for_points(const std::vector<chlm::float2>& points) noexcept
+        {
+            if (points.empty())
+                return {};
+
+            chlm::float2 min{ points.front() };
+            chlm::float2 max{ points.front() };
+            for (const chlm::float2 point : points)
+            {
+                min.x = std::min(min.x, point.x);
+                min.y = std::min(min.y, point.y);
+                max.x = std::max(max.x, point.x);
+                max.y = std::max(max.y, point.y);
+            }
+
+            return collision_aabb_t{ .min = min, .max = max };
+        }
+
+        [[nodiscard]] bool interval_overlaps_strictly(const float min_a,
+                                                      const float max_a,
+                                                      const float min_b,
+                                                      const float max_b) noexcept
+        {
+            return min_a < max_b && max_a > min_b;
+        }
+
+        [[nodiscard]] bool point_in_polygon(const chlm::float2 point,
+                                            const std::vector<chlm::float2>& polygon_points) noexcept
+        {
+            if (polygon_points.size() < 3u)
+                return false;
+
+            bool inside{ false };
+            for (size_t i{ 0u }, j{ polygon_points.size() - 1u }; i < polygon_points.size(); j = i++)
+            {
+                const chlm::float2 a{ polygon_points[i] };
+                const chlm::float2 b{ polygon_points[j] };
+                const bool intersects{
+                    ((a.y > point.y) != (b.y > point.y)) &&
+                    (point.x < ((b.x - a.x) * (point.y - a.y) / ((b.y - a.y) + 1.0e-12f)) + a.x)
+                };
+                if (intersects)
+                    inside = !inside;
+            }
+
+            return inside;
+        }
+
+        struct projection_interval_t
+        {
+            float min{ 0.f };
+            float max{ 0.f };
+        };
+
+        [[nodiscard]] projection_interval_t project_polygon(const std::vector<chlm::float2>& points,
+                                                            const chlm::float2 axis) noexcept
+        {
+            const float first{ (points.front().x * axis.x) + (points.front().y * axis.y) };
+            projection_interval_t projection{ .min = first, .max = first };
+            for (size_t i{ 1u }; i < points.size(); ++i)
+            {
+                const float projected{ (points[i].x * axis.x) + (points[i].y * axis.y) };
+                projection.min = std::min(projection.min, projected);
+                projection.max = std::max(projection.max, projected);
+            }
+            return projection;
+        }
+
+        [[nodiscard]] projection_interval_t project_aabb(const chlm::float2 center,
+                                                         const chlm::float2 extents,
+                                                         const chlm::float2 axis) noexcept
+        {
+            const float projected_center{ (center.x * axis.x) + (center.y * axis.y) };
+            const float projected_radius{ (std::fabs(axis.x) * extents.x) + (std::fabs(axis.y) * extents.y) };
+            return projection_interval_t{
+                .min = projected_center - projected_radius,
+                .max = projected_center + projected_radius
+            };
+        }
+
+        [[nodiscard]] std::vector<chlm::float2> polygon_axes(const std::vector<chlm::float2>& points)
+        {
+            std::vector<chlm::float2> axes;
+            axes.reserve(points.size() + 2u);
+            axes.push_back(chlm::float2{ 1.f, 0.f });
+            axes.push_back(chlm::float2{ 0.f, 1.f });
+            for (size_t i{ 0u }; i < points.size(); ++i)
+            {
+                const chlm::float2 edge{ points[(i + 1u) % points.size()] - points[i] };
+                const chlm::float2 axis{ normalize_or_zero(chlm::float2{ -edge.y, edge.x }) };
+                if (std::fabs(axis.x) <= 1.0e-6f && std::fabs(axis.y) <= 1.0e-6f)
+                    continue;
+                axes.push_back(axis);
+            }
+            return axes;
+        }
+
+        [[nodiscard]] bool aabb_overlaps_polygon(const collision_aabb_t& bounds,
+                                                 const std::vector<chlm::float2>& polygon_points) noexcept
+        {
+            if (polygon_points.size() < 3u)
+                return false;
+
+            const chlm::float2 center{ bounds.center() };
+            const chlm::float2 extents{ bounds.extents() };
+            for (const chlm::float2 axis : polygon_axes(polygon_points))
+            {
+                const projection_interval_t aabb_projection{ project_aabb(center, extents, axis) };
+                const projection_interval_t polygon_projection{ project_polygon(polygon_points, axis) };
+                if (!interval_overlaps_strictly(aabb_projection.min,
+                                                aabb_projection.max,
+                                                polygon_projection.min,
+                                                polygon_projection.max))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        [[nodiscard]] raycast_hit_t make_polygon_raycast_hit(const collision_hit_ref_t& hit_ref,
+                                                             const chlm::float2 origin,
+                                                             const chlm::float2 delta,
+                                                             const float fraction,
+                                                             const chlm::float2 normal) noexcept
+        {
+            return raycast_hit_t{
+                .hit = hit_ref,
+                .position = origin + (delta * fraction),
+                .normal = normal,
+                .fraction = fraction,
+                .distance = vector_length(delta) * fraction,
+                .started_overlapping = false
+            };
+        }
+
+        [[nodiscard]] std::optional<raycast_hit_t> raycast_against_polygon(
+            const collision_hit_ref_t& hit_ref,
+            const chlm::float2 origin,
+            const chlm::float2 delta) noexcept
+        {
+            if (!hit_ref.collider || hit_ref.collider->polygon_points.size() < 3u)
+                return std::nullopt;
+
+            if (point_in_polygon(origin, hit_ref.collider->polygon_points))
+            {
+                return raycast_hit_t{
+                    .hit = hit_ref,
+                    .position = origin,
+                    .normal = chlm::float2{ 0.f, 0.f },
+                    .fraction = 0.f,
+                    .distance = 0.f,
+                    .started_overlapping = true
+                };
+            }
+
+            const collision_aabb_t point_bounds{ collision_aabb_t::from_center_extents(origin, chlm::float2{ 0.f, 0.f }) };
+            const chlm::float2 center{ point_bounds.center() };
+            const chlm::float2 extents{ point_bounds.extents() };
+
+            float t_entry{ 0.f };
+            float t_exit{ 1.f };
+            chlm::float2 hit_normal{ 0.f, 0.f };
+
+            for (const chlm::float2 axis : polygon_axes(hit_ref.collider->polygon_points))
+            {
+                const projection_interval_t moving_projection{ project_aabb(center, extents, axis) };
+                const projection_interval_t static_projection{ project_polygon(hit_ref.collider->polygon_points, axis) };
+                const float velocity{ (delta.x * axis.x) + (delta.y * axis.y) };
+
+                if (std::fabs(velocity) <= 1.0e-6f)
+                {
+                    if (!interval_overlaps_strictly(moving_projection.min,
+                                                    moving_projection.max,
+                                                    static_projection.min,
+                                                    static_projection.max))
+                    {
+                        return std::nullopt;
+                    }
+                    continue;
+                }
+
+                const float t1{ (static_projection.min - moving_projection.max) / velocity };
+                const float t2{ (static_projection.max - moving_projection.min) / velocity };
+                const float axis_entry{ std::min(t1, t2) };
+                const float axis_exit{ std::max(t1, t2) };
+
+                if (axis_entry > t_entry)
+                {
+                    t_entry = axis_entry;
+                    hit_normal = velocity > 0.f ? chlm::float2{ -axis.x, -axis.y } : axis;
+                }
+                t_exit = std::min(t_exit, axis_exit);
+                if (t_entry > t_exit)
+                    return std::nullopt;
+            }
+
+            if (t_entry < 0.f || t_entry > 1.f)
+                return std::nullopt;
+
+            return make_polygon_raycast_hit(hit_ref, origin, delta, t_entry, hit_normal);
+        }
+
+        [[nodiscard]] std::optional<sweep_hit_t> sweep_aabb_against_polygon(
+            const collision_hit_ref_t& hit_ref,
+            const collision_aabb_t& moving_bounds,
+            const chlm::float2 delta) noexcept
+        {
+            if (!hit_ref.collider || hit_ref.collider->polygon_points.size() < 3u)
+                return std::nullopt;
+
+            if (aabb_overlaps_polygon(moving_bounds, hit_ref.collider->polygon_points))
+            {
+                return sweep_hit_t{
+                    .hit = hit_ref,
+                    .position = moving_bounds.center(),
+                    .normal = chlm::float2{ 0.f, 0.f },
+                    .fraction = 0.f,
+                    .distance = 0.f,
+                    .started_overlapping = true
+                };
+            }
+
+            const chlm::float2 center{ moving_bounds.center() };
+            const chlm::float2 extents{ moving_bounds.extents() };
+            const float sweep_length{ vector_length(delta) };
+
+            float t_entry{ 0.f };
+            float t_exit{ 1.f };
+            chlm::float2 hit_normal{ 0.f, 0.f };
+
+            for (const chlm::float2 axis : polygon_axes(hit_ref.collider->polygon_points))
+            {
+                const projection_interval_t moving_projection{ project_aabb(center, extents, axis) };
+                const projection_interval_t static_projection{ project_polygon(hit_ref.collider->polygon_points, axis) };
+                const float velocity{ (delta.x * axis.x) + (delta.y * axis.y) };
+
+                if (std::fabs(velocity) <= 1.0e-6f)
+                {
+                    if (!interval_overlaps_strictly(moving_projection.min,
+                                                    moving_projection.max,
+                                                    static_projection.min,
+                                                    static_projection.max))
+                    {
+                        return std::nullopt;
+                    }
+                    continue;
+                }
+
+                const float t1{ (static_projection.min - moving_projection.max) / velocity };
+                const float t2{ (static_projection.max - moving_projection.min) / velocity };
+                const float axis_entry{ std::min(t1, t2) };
+                const float axis_exit{ std::max(t1, t2) };
+
+                if (axis_entry > t_entry)
+                {
+                    t_entry = axis_entry;
+                    hit_normal = velocity > 0.f ? chlm::float2{ -axis.x, -axis.y } : axis;
+                }
+                t_exit = std::min(t_exit, axis_exit);
+                if (t_entry > t_exit)
+                    return std::nullopt;
+            }
+
+            if (t_entry < 0.f || t_entry > 1.f)
+                return std::nullopt;
+
+            return sweep_hit_t{
+                .hit = hit_ref,
+                .position = center + (delta * t_entry),
+                .normal = hit_normal,
+                .fraction = t_entry,
+                .distance = sweep_length * t_entry,
+                .started_overlapping = false
+            };
+        }
+
         [[nodiscard]] bool collision_aabb_strictly_contains_point(const collision_aabb_t& bounds,
                                                                   const chlm::float2 point) noexcept
         {
@@ -189,6 +477,8 @@ namespace carrot::collision {
 
     const static_collider_t& collision_world_t::add_static_collider(static_collider_t collider)
     {
+        if (collider.is_convex_polygon())
+            collider.bounds = bounds_for_points(collider.polygon_points);
         collider.id = _next_static_collider_id++;
         return _static_colliders.emplace_back(std::move(collider));
     }
@@ -213,7 +503,12 @@ namespace carrot::collision {
             if (!collision_layers_match(collider.layer, collider.mask, filter))
                 continue;
 
-            if (collision_aabb_contains_point(collider.bounds, point))
+            if (collider.is_convex_polygon())
+            {
+                if (point_in_polygon(point, collider.polygon_points))
+                    hits.push_back(make_hit_ref(collider));
+            }
+            else if (collision_aabb_contains_point(collider.bounds, point))
                 hits.push_back(make_hit_ref(collider));
         }
 
@@ -247,8 +542,11 @@ namespace carrot::collision {
             if (!collision_layers_match(collider.layer, collider.mask, filter))
                 continue;
 
-            if (collision_aabb_overlaps(collider.bounds, bounds))
+            if ((collider.is_convex_polygon() && aabb_overlaps_polygon(bounds, collider.polygon_points)) ||
+                (collider.is_aabb() && collision_aabb_overlaps(collider.bounds, bounds)))
+            {
                 hits.push_back(make_hit_ref(collider));
+            }
         }
 
         for (const tile_collision_field_t& field : _tile_fields)
@@ -279,26 +577,35 @@ namespace carrot::collision {
         const float ray_length{ vector_length(delta) };
 
         const auto consider_hit = [&](const collision_hit_ref_t& hit_ref) {
-            const ray_vs_aabb_result_t result{ raycast_against_aabb(origin, delta, hit_ref.bounds) };
-            if (!result.hit)
+            std::optional<raycast_hit_t> hit;
+            if (hit_ref.collider && hit_ref.collider->is_convex_polygon())
+                hit = raycast_against_polygon(hit_ref, origin, delta);
+            else
+            {
+                const ray_vs_aabb_result_t result{ raycast_against_aabb(origin, delta, hit_ref.bounds) };
+                if (!result.hit)
+                    return;
+
+                hit = raycast_hit_t{
+                    .hit = hit_ref,
+                    .position = origin + (delta * result.fraction),
+                    .normal = result.normal,
+                    .fraction = result.fraction,
+                    .distance = ray_length * result.fraction,
+                    .started_overlapping = result.started_overlapping
+                };
+            }
+
+            if (!hit)
                 return;
 
-            raycast_hit_t hit{
-                .hit = hit_ref,
-                .position = origin + (delta * result.fraction),
-                .normal = result.normal,
-                .fraction = result.fraction,
-                .distance = ray_length * result.fraction,
-                .started_overlapping = result.started_overlapping
-            };
-
             if (!nearest_hit
-                || hit.fraction < nearest_hit->fraction
-                || (nearly_equal_fraction(hit.fraction, nearest_hit->fraction)
-                    && hit.started_overlapping
+                || hit->fraction < nearest_hit->fraction
+                || (nearly_equal_fraction(hit->fraction, nearest_hit->fraction)
+                    && hit->started_overlapping
                     && !nearest_hit->started_overlapping))
             {
-                nearest_hit = hit;
+                nearest_hit = *hit;
             }
         };
 
@@ -338,6 +645,22 @@ namespace carrot::collision {
         const float sweep_length{ vector_length(delta) };
 
         const auto consider_hit = [&](const collision_hit_ref_t& hit_ref) {
+            if (hit_ref.collider && hit_ref.collider->is_convex_polygon())
+            {
+                const auto hit{ sweep_aabb_against_polygon(hit_ref, moving_bounds, delta) };
+                if (!hit)
+                    return;
+                if (!nearest_hit
+                    || hit->fraction < nearest_hit->fraction
+                    || (nearly_equal_fraction(hit->fraction, nearest_hit->fraction)
+                        && hit->started_overlapping
+                        && !nearest_hit->started_overlapping))
+                {
+                    nearest_hit = *hit;
+                }
+                return;
+            }
+
             if (collision_aabb_overlaps(moving_bounds, hit_ref.bounds))
             {
                 sweep_hit_t hit{

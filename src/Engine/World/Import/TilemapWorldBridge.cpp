@@ -14,6 +14,10 @@
 
 namespace carrot::world::import {
     namespace {
+        constexpr float k_collision_bake_weld_tolerance_world{ world_units_t::pixels_to_world(1.0f) };
+        constexpr float k_collision_bake_collinear_tolerance_world{ world_units_t::pixels_to_world(0.5f) };
+        constexpr float k_collision_bake_area_tolerance_world_sq{ world_units_t::pixels_to_world(2.0f) * world_units_t::pixels_to_world(2.0f) };
+
         [[nodiscard]] std::optional<collision_debug_display_t> make_object_collision_debug_display(
             const assets::tilemap_object_t& object,
             const uint32_t default_color,
@@ -49,6 +53,323 @@ namespace carrot::world::import {
             return static_cast<size_t>(-1);
         }
 
+        [[nodiscard]] float distance_between_points(const chlm::float2 a, const chlm::float2 b) noexcept
+        {
+            const chlm::float2 delta{ a - b };
+            return std::sqrt((delta.x * delta.x) + (delta.y * delta.y));
+        }
+
+        [[nodiscard]] bool nearly_same_point(const chlm::float2 a,
+                                             const chlm::float2 b,
+                                             const float tolerance = k_collision_bake_weld_tolerance_world) noexcept
+        {
+            return distance_between_points(a, b) <= tolerance;
+        }
+
+        [[nodiscard]] std::vector<chlm::float2> rectangle_points_world(const collision::collision_aabb_t& bounds)
+        {
+            return {
+                chlm::float2{ bounds.min.x, bounds.min.y },
+                chlm::float2{ bounds.max.x, bounds.min.y },
+                chlm::float2{ bounds.max.x, bounds.max.y },
+                chlm::float2{ bounds.min.x, bounds.max.y }
+            };
+        }
+
+        [[nodiscard]] float signed_polygon_area(const std::vector<chlm::float2>& points) noexcept
+        {
+            if (points.size() < 3u)
+                return 0.f;
+
+            float twice_area{ 0.f };
+            for (size_t i{ 0u }; i < points.size(); ++i)
+            {
+                const chlm::float2 a{ points[i] };
+                const chlm::float2 b{ points[(i + 1u) % points.size()] };
+                twice_area += (a.x * b.y) - (a.y * b.x);
+            }
+
+            return twice_area * 0.5f;
+        }
+
+        [[nodiscard]] float polygon_area(const std::vector<chlm::float2>& points) noexcept
+        {
+            return std::fabs(signed_polygon_area(points));
+        }
+
+        [[nodiscard]] chlm::float2 cross_product_2d(const chlm::float2 a, const chlm::float2 b) noexcept
+        {
+            return chlm::float2{ 0.f, (a.x * b.y) - (a.y * b.x) };
+        }
+
+        [[nodiscard]] bool nearly_collinear(const chlm::float2 a,
+                                            const chlm::float2 b,
+                                            const chlm::float2 c,
+                                            const float tolerance = k_collision_bake_collinear_tolerance_world) noexcept
+        {
+            const chlm::float2 ab{ b - a };
+            const chlm::float2 bc{ c - b };
+            return std::fabs(cross_product_2d(ab, bc).y) <= tolerance;
+        }
+
+        void remove_duplicate_consecutive_points(std::vector<chlm::float2>& points) noexcept
+        {
+            if (points.empty())
+                return;
+
+            std::vector<chlm::float2> compacted;
+            compacted.reserve(points.size());
+            compacted.push_back(points.front());
+            for (size_t i{ 1u }; i < points.size(); ++i)
+            {
+                if (!nearly_same_point(points[i], compacted.back()))
+                    compacted.push_back(points[i]);
+            }
+
+            if (compacted.size() >= 2u && nearly_same_point(compacted.front(), compacted.back()))
+                compacted.pop_back();
+
+            points = std::move(compacted);
+        }
+
+        void simplify_polygon_points(std::vector<chlm::float2>& points) noexcept
+        {
+            remove_duplicate_consecutive_points(points);
+            if (points.size() < 3u)
+                return;
+
+            bool changed{ true };
+            while (changed && points.size() >= 3u)
+            {
+                changed = false;
+                for (size_t i{ 0u }; i < points.size(); ++i)
+                {
+                    const chlm::float2 prev{ points[(i + points.size() - 1u) % points.size()] };
+                    const chlm::float2 curr{ points[i] };
+                    const chlm::float2 next{ points[(i + 1u) % points.size()] };
+                    if (nearly_same_point(prev, curr) ||
+                        nearly_same_point(curr, next) ||
+                        nearly_collinear(prev, curr, next))
+                    {
+                        points.erase(points.begin() + static_cast<std::ptrdiff_t>(i));
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        [[nodiscard]] std::vector<chlm::float2> convex_hull(std::vector<chlm::float2> points)
+        {
+            remove_duplicate_consecutive_points(points);
+            if (points.size() < 3u)
+                return points;
+
+            std::sort(points.begin(), points.end(), [](const chlm::float2& lhs, const chlm::float2& rhs) {
+                if (lhs.x != rhs.x)
+                    return lhs.x < rhs.x;
+                return lhs.y < rhs.y;
+            });
+
+            std::vector<chlm::float2> lower;
+            for (const chlm::float2 point : points)
+            {
+                while (lower.size() >= 2u)
+                {
+                    const chlm::float2 a{ lower[lower.size() - 2u] };
+                    const chlm::float2 b{ lower[lower.size() - 1u] };
+                    const float cross{ ((b.x - a.x) * (point.y - a.y)) - ((b.y - a.y) * (point.x - a.x)) };
+                    if (cross > 1.0e-6f)
+                        break;
+                    lower.pop_back();
+                }
+                lower.push_back(point);
+            }
+
+            std::vector<chlm::float2> upper;
+            for (auto it{ points.rbegin() }; it != points.rend(); ++it)
+            {
+                while (upper.size() >= 2u)
+                {
+                    const chlm::float2 a{ upper[upper.size() - 2u] };
+                    const chlm::float2 b{ upper[upper.size() - 1u] };
+                    const float cross{ ((b.x - a.x) * (it->y - a.y)) - ((b.y - a.y) * (it->x - a.x)) };
+                    if (cross > 1.0e-6f)
+                        break;
+                    upper.pop_back();
+                }
+                upper.push_back(*it);
+            }
+
+            lower.pop_back();
+            upper.pop_back();
+            lower.insert(lower.end(), upper.begin(), upper.end());
+            return lower;
+        }
+
+        [[nodiscard]] bool is_axis_aligned_rectangle(const std::vector<chlm::float2>& points) noexcept
+        {
+            if (points.size() != 4u)
+                return false;
+
+            const collision::collision_aabb_t bounds{
+                .min = {
+                    std::min({ points[0].x, points[1].x, points[2].x, points[3].x }),
+                    std::min({ points[0].y, points[1].y, points[2].y, points[3].y })
+                },
+                .max = {
+                    std::max({ points[0].x, points[1].x, points[2].x, points[3].x }),
+                    std::max({ points[0].y, points[1].y, points[2].y, points[3].y })
+                }
+            };
+
+            const std::vector<chlm::float2> rect{ rectangle_points_world(bounds) };
+            for (const chlm::float2 point : points)
+            {
+                bool matched{ false };
+                for (const chlm::float2 corner : rect)
+                {
+                    if (nearly_same_point(point, corner))
+                    {
+                        matched = true;
+                        break;
+                    }
+                }
+                if (!matched)
+                    return false;
+            }
+
+            return true;
+        }
+
+        [[nodiscard]] collision::static_collider_t collider_from_polygon(std::vector<chlm::float2> points,
+                                                                         const collision::collision_layer_t layer,
+                                                                         const collision::collision_mask_t mask)
+        {
+            simplify_polygon_points(points);
+            if (is_axis_aligned_rectangle(points))
+            {
+                collision::collision_aabb_t bounds{
+                    .min = {
+                        std::min({ points[0].x, points[1].x, points[2].x, points[3].x }),
+                        std::min({ points[0].y, points[1].y, points[2].y, points[3].y })
+                    },
+                    .max = {
+                        std::max({ points[0].x, points[1].x, points[2].x, points[3].x }),
+                        std::max({ points[0].y, points[1].y, points[2].y, points[3].y })
+                    }
+                };
+                return collision::static_collider_t{
+                    .bounds = bounds,
+                    .layer = layer,
+                    .mask = mask
+                };
+            }
+
+            return collision::static_collider_t{
+                .shape = collision::static_collider_t::shape_t::convex_polygon,
+                .polygon_points = std::move(points),
+                .layer = layer,
+                .mask = mask
+            };
+        }
+
+        [[nodiscard]] std::vector<chlm::float2> collider_points(const collision::static_collider_t& collider)
+        {
+            return collider.is_convex_polygon() ? collider.polygon_points : rectangle_points_world(collider.bounds);
+        }
+
+        [[nodiscard]] chlm::float2 weld_point(const chlm::float2 point,
+                                              std::vector<chlm::float2>& representatives,
+                                              const float tolerance = k_collision_bake_weld_tolerance_world)
+        {
+            for (const chlm::float2 representative : representatives)
+            {
+                if (nearly_same_point(point, representative, tolerance))
+                    return representative;
+            }
+
+            representatives.push_back(point);
+            return point;
+        }
+
+        void normalize_static_collider_points(std::vector<collision::static_collider_t>& static_colliders)
+        {
+            std::vector<chlm::float2> representatives;
+            for (collision::static_collider_t& collider : static_colliders)
+            {
+                std::vector<chlm::float2> points{ collider_points(collider) };
+                for (chlm::float2& point : points)
+                    point = weld_point(point, representatives);
+
+                collider = collider_from_polygon(std::move(points), collider.layer, collider.mask);
+            }
+        }
+
+        [[nodiscard]] bool try_merge_colliders(const collision::static_collider_t& lhs,
+                                               const collision::static_collider_t& rhs,
+                                               collision::static_collider_t& merged_out)
+        {
+            if (lhs.layer != rhs.layer || lhs.mask != rhs.mask)
+                return false;
+
+            std::vector<chlm::float2> merged_points{ collider_points(lhs) };
+            for (const chlm::float2 point : collider_points(rhs))
+            {
+                bool exists{ false };
+                for (const chlm::float2 existing : merged_points)
+                {
+                    if (nearly_same_point(point, existing))
+                    {
+                        exists = true;
+                        break;
+                    }
+                }
+                if (!exists)
+                    merged_points.push_back(point);
+            }
+
+            const std::vector<chlm::float2> hull{ convex_hull(merged_points) };
+            if (hull.size() < 3u)
+                return false;
+
+            const float merged_area{ polygon_area(hull) };
+            const float original_area{ polygon_area(collider_points(lhs)) + polygon_area(collider_points(rhs)) };
+            if (std::fabs(merged_area - original_area) > k_collision_bake_area_tolerance_world_sq)
+                return false;
+
+            merged_out = collider_from_polygon(hull, lhs.layer, lhs.mask);
+            return true;
+        }
+
+        void bake_static_colliders(std::vector<collision::static_collider_t>& static_colliders)
+        {
+            if (static_colliders.size() < 2u)
+                return;
+
+            normalize_static_collider_points(static_colliders);
+
+            bool merged_any{ true };
+            while (merged_any)
+            {
+                merged_any = false;
+                for (size_t i{ 0u }; i < static_colliders.size() && !merged_any; ++i)
+                {
+                    for (size_t j{ i + 1u }; j < static_colliders.size(); ++j)
+                    {
+                        collision::static_collider_t merged;
+                        if (!try_merge_colliders(static_colliders[i], static_colliders[j], merged))
+                            continue;
+
+                        static_colliders[i] = std::move(merged);
+                        static_colliders.erase(static_colliders.begin() + static_cast<std::ptrdiff_t>(j));
+                        merged_any = true;
+                        break;
+                    }
+                }
+            }
+        }
+
         void collect_tileset_collision(std::vector<collision::static_collider_t>& static_colliders,
                                        const assets::tilemap_tileset_t& tileset,
                                        const uint32_t gid,
@@ -76,6 +397,27 @@ namespace carrot::world::import {
                 static_colliders.push_back(collision::static_collider_t{
                     .bounds = collision::collision_aabb_t::from_min_size(rect_origin, rect_size)
                 });
+            }
+
+            for (const assets::tilemap_tileset_t::collision_polygon_t& polygon : tile_collision->collision_polygons)
+            {
+                std::vector<chlm::float2> points_world;
+                points_world.reserve(polygon.points.size());
+                for (const chlm::float2 point_px : polygon.points)
+                {
+                    points_world.push_back(chlm::float2{
+                        instance_origin_world.x + (world_units_t::pixels_to_world(point_px.x) * scale.x),
+                        instance_origin_world.y + (world_units_t::pixels_to_world(point_px.y) * scale.y)
+                    });
+                }
+
+                if (points_world.size() >= 3u)
+                {
+                    static_colliders.push_back(collision::static_collider_t{
+                        .shape = collision::static_collider_t::shape_t::convex_polygon,
+                        .polygon_points = std::move(points_world)
+                    });
+                }
             }
         }
 
@@ -284,6 +626,8 @@ namespace carrot::world::import {
                                                                      prepared.static_colliders));
             }
         }
+
+        bake_static_colliders(prepared.static_colliders);
 
         return prepared;
     }

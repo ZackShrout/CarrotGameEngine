@@ -24,6 +24,8 @@ Carrot currently supports these Tiled-backed foundations:
 * tileset texture/image metadata
 * tileset-defined animated tiles
 * tileset rectangle collision import
+* tileset convex polygon collision import
+* tileset ellipse collision import as convex approximations
 * object-layer placed tile objects
 * object-layer markers and typed gameplay objects
 * point objects as first-class authored marker geometry
@@ -40,9 +42,8 @@ Current intentionally unsupported or only partially supported examples include:
 
 * infinite maps
 * non-orthogonal map orientations
-* polygon collision import
-* ellipse collision import
 * polyline collision import
+* concave polygon collision import
 * text objects as runtime-authored features
 
 Unsupported features remain non-fatal when practical, but they should still be diagnosed intentionally.
@@ -615,7 +616,9 @@ Current practical runtime usage is still narrower than the imported metadata:
 * point objects work well for authored markers and spawn points
 * rectangle objects remain the current primary shape for triggers and visibility zones
 * polyline objects are now also used directly by `PatrolPath` authored patrol routes
-* polygon/ellipse geometry is preserved as object metadata for future runtime use, validation, and tooling
+* tileset-authored convex polygon collision now imports into static world collision
+* tileset-authored ellipse collision now imports as convex polygon approximations for static world collision
+* concave polygon and collision polyline geometry are still preserved as object metadata for future runtime use, validation, and tooling
 * text objects are still not treated as a supported gameplay/runtime feature
 
 This is intentional.

@@ -648,6 +648,135 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(!overlaps.empty());
         }
 
+        void test_tilemap_world_bridge_imports_convex_polygon_tileset_collision_as_static_collider()
+        {
+            assets::tilemap_asset_record_t record{ };
+            record.logical_id = "tilemap.test.convex_collision";
+
+            assets::tilemap_asset_t map;
+            map.set_orientation(assets::tilemap_orientation_t::orthogonal);
+            map.set_size(1u, 1u);
+            map.set_tile_size(32u, 32u);
+
+            assets::tilemap_tileset_t tileset{ };
+            tileset.name = "test_tileset";
+            tileset.first_gid = 1u;
+            tileset.tile_width = 32u;
+            tileset.tile_height = 32u;
+            tileset.tile_count = 1u;
+            tileset.columns = 1u;
+            tileset.tile_collisions.push_back(assets::tilemap_tileset_t::tile_collision_t{
+                .tile_id = 0u,
+                .collision_polygons = {
+                    assets::tilemap_tileset_t::collision_polygon_t{
+                        .points = {
+                            chlm::float2{ 0.f, 16.f },
+                            chlm::float2{ 16.f, 0.f },
+                            chlm::float2{ 32.f, 16.f },
+                            chlm::float2{ 16.f, 32.f }
+                        }
+                    }
+                }
+            });
+            map.add_tileset(std::move(tileset));
+
+            assets::tilemap_layer_t layer{
+                .kind = assets::tilemap_layer_kind_t::tile,
+                .name = "Ground",
+                .width = 1u,
+                .height = 1u,
+                .visible = true
+            };
+            layer.gids.push_back(1u);
+            map.add_layer(std::move(layer));
+
+            assets::loaded_tilemap_asset_t tilemap{ std::move(map), &record };
+
+            world::world_t world;
+            const world::import::tilemap_world_bridge_result_t result{
+                world::import::import_tilemap_objects(world, tilemap)
+            };
+
+            CARROT_TEST_REQUIRE(result.static_colliders_created == 1u);
+            CARROT_TEST_REQUIRE(world.collision_world().static_colliders().size() == 1u);
+            const auto& collider{ world.collision_world().static_colliders().front() };
+            CARROT_TEST_REQUIRE(collider.is_convex_polygon());
+
+            const auto point_hits{ world.collision_world().point_query(chlm::float2{
+                world::world_units_t::pixels_to_world(16.f),
+                world::world_units_t::pixels_to_world(16.f)
+            }) };
+            CARROT_TEST_REQUIRE(!point_hits.empty());
+        }
+
+        void test_tilemap_world_bridge_bakes_nearly_aligned_convex_collision_into_one_collider()
+        {
+            assets::tilemap_asset_record_t record{ };
+            record.logical_id = "tilemap.test.baked_collision_merge";
+
+            assets::tilemap_asset_t map;
+            map.set_orientation(assets::tilemap_orientation_t::orthogonal);
+            map.set_size(2u, 1u);
+            map.set_tile_size(32u, 32u);
+
+            assets::tilemap_tileset_t tileset{ };
+            tileset.name = "test_tileset";
+            tileset.first_gid = 1u;
+            tileset.tile_width = 32u;
+            tileset.tile_height = 32u;
+            tileset.tile_count = 2u;
+            tileset.columns = 2u;
+            tileset.tile_collisions.push_back(assets::tilemap_tileset_t::tile_collision_t{
+                .tile_id = 0u,
+                .collision_polygons = {
+                    assets::tilemap_tileset_t::collision_polygon_t{
+                        .points = {
+                            chlm::float2{ 0.f, 32.f },
+                            chlm::float2{ 0.f, 16.f },
+                            chlm::float2{ 32.f, 16.4f },
+                            chlm::float2{ 32.f, 32.f }
+                        }
+                    }
+                }
+            });
+            tileset.tile_collisions.push_back(assets::tilemap_tileset_t::tile_collision_t{
+                .tile_id = 1u,
+                .collision_polygons = {
+                    assets::tilemap_tileset_t::collision_polygon_t{
+                        .points = {
+                            chlm::float2{ 0.f, 15.8f },
+                            chlm::float2{ 0.f, 32.f },
+                            chlm::float2{ 32.f, 32.f },
+                            chlm::float2{ 32.f, 16.f }
+                        }
+                    }
+                }
+            });
+            map.add_tileset(std::move(tileset));
+
+            assets::tilemap_layer_t layer{
+                .kind = assets::tilemap_layer_kind_t::tile,
+                .name = "Ground",
+                .width = 2u,
+                .height = 1u,
+                .visible = true
+            };
+            layer.gids.push_back(1u);
+            layer.gids.push_back(2u);
+            map.add_layer(std::move(layer));
+
+            assets::loaded_tilemap_asset_t tilemap{ std::move(map), &record };
+
+            const world::import::prepared_tilemap_world_data_t prepared{
+                world::import::prepare_tilemap_world_data(tilemap)
+            };
+
+            CARROT_TEST_REQUIRE(prepared.static_colliders.size() == 1u);
+            const auto& collider{ prepared.static_colliders.front() };
+            CARROT_TEST_REQUIRE(std::fabs(collider.bounds.min.x - 0.f) < 1.0e-4f);
+            CARROT_TEST_REQUIRE(std::fabs(collider.bounds.max.x - world::world_units_t::pixels_to_world(64.f)) < 1.0e-4f);
+        }
+
         void test_tilemap_world_bridge_imports_authored_triggers()
         {
             io::virtual_file_system_t vfs;
@@ -4712,6 +4841,10 @@ namespace carrot::tests {
                            test_tilemap_world_bridge_imports_tileset_collision_as_static_colliders);
         tests.emplace_back("tilemap world bridge imports object layer tile collision as static collider",
                            test_tilemap_world_bridge_imports_object_layer_tile_collision_as_static_collider);
+        tests.emplace_back("tilemap world bridge imports convex polygon tileset collision as static collider",
+                           test_tilemap_world_bridge_imports_convex_polygon_tileset_collision_as_static_collider);
+        tests.emplace_back("tilemap world bridge bakes nearly aligned convex collision into one collider",
+                           test_tilemap_world_bridge_bakes_nearly_aligned_convex_collision_into_one_collider);
         tests.emplace_back("tilemap world bridge imports authored triggers",
                            test_tilemap_world_bridge_imports_authored_triggers);
         tests.emplace_back("tilemap world bridge imports visibility regions",

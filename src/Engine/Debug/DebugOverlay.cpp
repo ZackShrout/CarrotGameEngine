@@ -256,4 +256,35 @@ namespace carrot::debug {
         const chlm::float2 size{ bounds.size() };
         world_rect(bounds.min.x, bounds.min.y, size.x, size.y, style);
     }
+
+    void world_polygon(const std::span<const chlm::float2> points, const world_rect_style_t style) noexcept
+    {
+        if (!has_renderer() || points.size() < 2u)
+            return;
+
+        const auto submit_segment = [&](const chlm::float2 a, const chlm::float2 b, const uint32_t color) {
+            const chlm::float2 delta{ b - a };
+            const float length{ std::sqrt((delta.x * delta.x) + (delta.y * delta.y)) };
+            if (length <= 1.0e-6f)
+                return;
+
+            const float thickness{ std::max(1.0e-4f, style.outline_thickness) };
+            const std::uint32_t step_count{
+                std::max<std::uint32_t>(1u, static_cast<std::uint32_t>(std::ceil(length / thickness)))
+            };
+            for (std::uint32_t step{ 0u }; step <= step_count; ++step)
+            {
+                const float t{ static_cast<float>(step) / static_cast<float>(step_count) };
+                const chlm::float2 point{ a + (delta * t) };
+                submit_world_solid_quad(point.x - (thickness * 0.5f),
+                                        point.y - (thickness * 0.5f),
+                                        thickness,
+                                        thickness,
+                                        color);
+            }
+        };
+
+        for (size_t i{ 0u }; i < points.size(); ++i)
+            submit_segment(points[i], points[(i + 1u) % points.size()], style.color);
+    }
 } // namespace carrot::debug

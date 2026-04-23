@@ -290,6 +290,12 @@ Support non-rect authored static collision from Tiled for the milestone slice:
 * runtime representation suitable for static world blocking/query behavior
 * collision debug rendering that shows actual imported shape truth
 
+Current validated implementation slice:
+
+* tileset-authored convex polygon collision imports into static world collision
+* tileset-authored ellipse collision imports as convex polygon approximations
+* collision polylines and concave polygons remain out of scope for this milestone slice
+
 #### Acceptance Criteria
 
 * the validated slice supports non-rect static world collision from Tiled

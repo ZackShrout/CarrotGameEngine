@@ -93,10 +93,21 @@ namespace carrot::assets {
             float height{ 0.f };
         };
 
+        struct collision_polygon_t
+        {
+            std::vector<chlm::float2> points;
+        };
+
         struct tile_collision_t
         {
             uint32_t tile_id{ 0 };
             std::vector<collision_rect_t> collision_rects;
+            std::vector<collision_polygon_t> collision_polygons;
+
+            [[nodiscard]] bool empty() const noexcept
+            {
+                return collision_rects.empty() && collision_polygons.empty();
+            }
         };
 
         std::string name;

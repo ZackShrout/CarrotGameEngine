@@ -80,6 +80,16 @@ namespace carrot {
             );
         }
 
+        [[nodiscard]] std::vector<chlm::float2> presentation_points(const std::vector<chlm::float2>& points,
+                                                                    const world::world_presentation_t& presentation)
+        {
+            std::vector<chlm::float2> output;
+            output.reserve(points.size());
+            for (const chlm::float2 point : points)
+                output.push_back(presentation.world_position_to_pixels(point));
+            return output;
+        }
+
         void append_unique(std::vector<std::string>& values, std::string_view value)
         {
             if (value.empty())
@@ -872,7 +882,17 @@ namespace carrot {
             };
 
             for (const collision::static_collider_t& collider: _world.collision_world().static_colliders())
-                debug::world_aabb(presentation_aabb(collider.bounds, presentation), map_style);
+            {
+                if (collider.is_convex_polygon())
+                {
+                    const std::vector<chlm::float2> points_px{ presentation_points(collider.polygon_points, presentation) };
+                    debug::world_polygon(points_px, map_style);
+                }
+                else
+                {
+                    debug::world_aabb(presentation_aabb(collider.bounds, presentation), map_style);
+                }
+            }
         }
 
         if (debug_view.show_object_colliders)

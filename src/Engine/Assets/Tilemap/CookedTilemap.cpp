@@ -16,7 +16,7 @@ namespace carrot::assets {
         constexpr std::array<std::uint8_t, 8> cmap_magic{
             'C', 'M', 'A', 'P', 0, 0, 0, 0
         };
-        constexpr std::uint32_t cooked_tilemap_supported_version{ 1u };
+        constexpr std::uint32_t cooked_tilemap_supported_version{ 2u };
 
         [[nodiscard]] bool read_u8(std::span<const std::uint8_t> bytes,
                                    size_t& cursor,
@@ -259,6 +259,20 @@ namespace carrot::assets {
                     [[maybe_unused]] const size_t rect_width_offset{ writer.write_f32(rect.width) };
                     [[maybe_unused]] const size_t rect_height_offset{ writer.write_f32(rect.height) };
                 }
+                [[maybe_unused]] const size_t polygon_count_offset{
+                    writer.write_u32(static_cast<std::uint32_t>(collision.collision_polygons.size()))
+                };
+                for (const auto& polygon : collision.collision_polygons)
+                {
+                    [[maybe_unused]] const size_t point_count_offset{
+                        writer.write_u32(static_cast<std::uint32_t>(polygon.points.size()))
+                    };
+                    for (const auto& point : polygon.points)
+                    {
+                        [[maybe_unused]] const size_t point_x_offset{ writer.write_f32(point.x) };
+                        [[maybe_unused]] const size_t point_y_offset{ writer.write_f32(point.y) };
+                    }
+                }
             }
         }
 
@@ -437,6 +451,27 @@ namespace carrot::assets {
                     if (!read_f32(bytes, cursor, rect.height)) return std::nullopt;
                     collision.collision_rects.emplace_back(rect);
                 }
+
+                std::uint32_t polygon_count{ 0u };
+                if (!read_u32(bytes, cursor, polygon_count)) return std::nullopt;
+                collision.collision_polygons.reserve(polygon_count);
+                for (std::uint32_t polygon_i{ 0u }; polygon_i < polygon_count; ++polygon_i)
+                {
+                    tilemap_tileset_t::collision_polygon_t polygon;
+                    std::uint32_t point_count{ 0u };
+                    if (!read_u32(bytes, cursor, point_count)) return std::nullopt;
+                    polygon.points.reserve(point_count);
+                    for (std::uint32_t point_i{ 0u }; point_i < point_count; ++point_i)
+                    {
+                        float point_x{ 0.f };
+                        float point_y{ 0.f };
+                        if (!read_f32(bytes, cursor, point_x)) return std::nullopt;
+                        if (!read_f32(bytes, cursor, point_y)) return std::nullopt;
+                        polygon.points.emplace_back(chlm::float2{ point_x, point_y });
+                    }
+                    collision.collision_polygons.emplace_back(std::move(polygon));
+                }
+
                 tileset.tile_collisions.emplace_back(std::move(collision));
             }
 

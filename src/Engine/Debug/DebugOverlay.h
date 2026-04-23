@@ -8,6 +8,7 @@
 #include "Collision/CollisionWorld.h"
 
 #include <cstdint>
+#include <span>
 
 namespace carrot::io {
     class virtual_file_system_t;
@@ -40,4 +41,5 @@ namespace carrot::debug {
     void log_console_text_colored(float x, float y, uint32_t color, const char* fmt, ...) noexcept;
     void world_rect(float x, float y, float width, float height, world_rect_style_t style = {}) noexcept;
     void world_aabb(const collision::collision_aabb_t& bounds, world_rect_style_t style = {}) noexcept;
+    void world_polygon(std::span<const chlm::float2> points, world_rect_style_t style = {}) noexcept;
 } // namespace carrot::debug

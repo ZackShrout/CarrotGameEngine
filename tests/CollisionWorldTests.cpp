@@ -24,6 +24,21 @@ namespace carrot::tests {
             return collision::collision_aabb_t::from_min_size(chlm::float2{ x, y }, chlm::float2{ 1.f, 1.f });
         }
 
+        [[nodiscard]] collision::static_collider_t diamond_collider() noexcept
+        {
+            return collision::static_collider_t{
+                .shape = collision::static_collider_t::shape_t::convex_polygon,
+                .polygon_points = {
+                    chlm::float2{ 2.f, 1.f },
+                    chlm::float2{ 3.f, 0.f },
+                    chlm::float2{ 4.f, 1.f },
+                    chlm::float2{ 3.f, 2.f }
+                },
+                .layer = collision::make_collision_layer(0u),
+                .mask = collision::k_collision_mask_all
+            };
+        }
+
         void test_collision_world_point_query_respects_filters()
         {
             collision::collision_world_t world;
@@ -150,6 +165,37 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(nearly_equal(hit->distance, 0.f));
         }
 
+        void test_collision_world_point_query_hits_convex_polygon()
+        {
+            collision::collision_world_t world;
+            (void)world.add_static_collider(diamond_collider());
+
+            const auto hits{ world.point_query(chlm::float2{ 3.f, 1.f }) };
+            CARROT_TEST_REQUIRE(hits.size() == 1u);
+            CARROT_TEST_REQUIRE(hits.front().is_static_collider());
+            CARROT_TEST_REQUIRE(hits.front().collider->is_convex_polygon());
+        }
+
+        void test_collision_world_sweep_hits_convex_polygon()
+        {
+            collision::collision_world_t world;
+            (void)world.add_static_collider(diamond_collider());
+
+            const collision::collision_aabb_t moving{
+                collision::collision_aabb_t::from_min_size(chlm::float2{ 0.f, 0.5f }, chlm::float2{ 1.f, 1.f })
+            };
+
+            const auto hit{ world.sweep_aabb(moving, chlm::float2{ 3.f, 0.f }) };
+            CARROT_TEST_REQUIRE(hit.has_value());
+            CARROT_TEST_REQUIRE(hit->hit.is_static_collider());
+            CARROT_TEST_REQUIRE(hit->hit.collider->is_convex_polygon());
+            CARROT_TEST_REQUIRE(!hit->started_overlapping);
+            CARROT_TEST_REQUIRE(nearly_equal(hit->fraction, 1.f / 3.f));
+            CARROT_TEST_REQUIRE(nearly_equal(hit->distance, 1.f));
+            CARROT_TEST_REQUIRE(nearly_equal(hit->normal.x, -1.f));
+            CARROT_TEST_REQUIRE(nearly_equal(hit->normal.y, 0.f));
+        }
+
         void test_collision_world_sweep_allows_separating_from_touching_contact()
         {
             collision::collision_world_t world;
@@ -192,6 +238,10 @@ namespace carrot::tests {
         tests.emplace_back("collision world sweep hits tiles and reports contact fraction",
                            test_collision_world_sweep_hits_tiles_and_reports_contact_fraction);
         tests.emplace_back("collision world sweep reports initial overlap", test_collision_world_sweep_reports_initial_overlap);
+        tests.emplace_back("collision world point query hits convex polygon",
+                           test_collision_world_point_query_hits_convex_polygon);
+        tests.emplace_back("collision world sweep hits convex polygon",
+                           test_collision_world_sweep_hits_convex_polygon);
         tests.emplace_back("collision world sweep allows separating from touching contact",
                            test_collision_world_sweep_allows_separating_from_touching_contact);
         tests.emplace_back("world clear resets collision world", test_world_clear_resets_collision_world);

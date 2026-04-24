@@ -1,0 +1,14 @@
+{ "columns":30,
+ "image":"imges\/FL_Houses_int_sidesOfTheHouses.png",
+ "imageheight":736,
+ "imagewidth":960,
+ "margin":0,
+ "name":"FL_Houses_int_sidesOfTheHouses",
+ "spacing":0,
+ "tilecount":690,
+ "tiledversion":"1.11.0",
+ "tileheight":32,
+ "tilewidth":32,
+ "type":"tileset",
+ "version":"1.10"
+}

@@ -16,13 +16,24 @@
 
 namespace carrot::assets {
     namespace {
-        constexpr std::uint32_t tilemap_importer_version{ 3u };
+        constexpr std::uint32_t tilemap_importer_version{ 4u };
 
         [[nodiscard]] std::filesystem::path normalize_tileset_image_path(std::string_view raw_path)
         {
             std::string normalized{ raw_path };
             std::replace(normalized.begin(), normalized.end(), '\\', '/');
             return std::filesystem::path{ normalized };
+        }
+
+        [[nodiscard]] std::optional<std::filesystem::path> resolve_tileset_base_path(
+            const tilemap_asset_record_t& record,
+            const tilemap_tileset_t& tileset,
+            const io::virtual_file_system_t& vfs) noexcept
+        {
+            if (!tileset.source_uri.empty())
+                return vfs.resolve_native_path(tileset.source_uri);
+
+            return vfs.resolve_native_path(record.source_uri);
         }
 
         template<typename T>
@@ -145,12 +156,6 @@ namespace carrot::assets {
         if (!result.success())
             return { .asset = { }, .error = result.error };
 
-        const auto source_path{ vfs.resolve_native_path(working_record.source_uri) };
-        if (!source_path)
-        {
-            return { .asset = { }, .error = tilemap_asset_load_error_t::resolve_failed };
-        }
-
         prepared_tilemap_asset_t prepared;
         prepared.tilemap = result.asset.tilemap();
         prepared.record = &record;
@@ -167,9 +172,15 @@ namespace carrot::assets {
                 continue;
             }
 
+            const std::optional<std::filesystem::path> base_path{
+                resolve_tileset_base_path(working_record, tileset, vfs)
+            };
+            if (!base_path)
+                return { .asset = { }, .error = tilemap_asset_load_error_t::resolve_failed };
+
             std::filesystem::path image_path{ normalize_tileset_image_path(tileset.image_source_uri) };
             if (!image_path.is_absolute())
-                image_path = source_path->parent_path() / image_path;
+                image_path = base_path->parent_path() / image_path;
 
             image_path = image_path.lexically_normal();
 

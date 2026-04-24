@@ -1,6 +1,6 @@
 # Carrot World Layering
 
-**Last Updated:** April 5, 2026
+**Last Updated:** April 24, 2026
 
 This document defines the current authored/runtime layering contract between Tiled exports and Carrot.
 
@@ -72,6 +72,16 @@ These defaults are only a fallback. Explicit authored properties should be prefe
 For Tiled layer metadata, Carrot reads the exported layer `class` field as the layer's authored type.
 
 ## Tiled Authoring API
+
+Important:
+
+* if your map depends on shared external tileset metadata, save the external tileset as `TSJ`, not `TSX`
+* Tiled may default to XML external tilesets (`.tsx`)
+* Carrot's supported shared external tileset workflow uses JSON tilesets (`.tsj`)
+* shared external `TSJ` tilesets are recommended for reusable layering metadata across many maps
+* embedded tilesets are still allowed, but repeated embedded copies can drift over time
+
+For the fuller setup guidance, including recommended `tilemaps/worlds`, `tilemaps/maps`, and `tilemaps/tilesets` layout, see [tiled_authored_data.md](/Users/zshrout/dev/CarrotGameEngine/docs/systems/tiled_authored_data.md).
 
 ### `VisibilityZone` Objects
 
@@ -275,6 +285,7 @@ If content truly needs split front/back behavior, it is usually better authored 
 * Do not mix unrelated roof sets that need different zone ids on the same roof layer/group.
 * Do not put bridge floors and bridge rails on the same conditional layer if the floor should always stay below actors.
 * Do not author a single Tiled object when the art really wants split base/front layering.
+* Do not assume `.world` composition changes runtime layering behavior automatically; `.world` support is currently authored-data preparation, not streamed runtime world behavior.
 
 ## Current First-Pass Coverage
 

@@ -94,7 +94,7 @@ namespace carrot::assets {
 
         if (ends_with(source, ".tmj"))
         {
-            const bool imported{ tiled_tilemap_asset_importer_t::import(imported_doc, registry, id, source) };
+            const bool imported{ tiled_tilemap_asset_importer_t::import(imported_doc, registry, id, source, native_path) };
             if (!imported)
                 return false;
         }

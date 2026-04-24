@@ -21,10 +21,12 @@ namespace carrot::tests {
     void register_rhi_buffer_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
     void register_rhi_compute_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
     void register_scene_loading_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
+    void register_tiled_world_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
     void register_ui_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
     void register_ui_layout_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
     void register_ui_navigation_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
     void register_window_system_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
+    void register_world_composition_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
 }
 
 int main()
@@ -42,10 +44,12 @@ int main()
     carrot::tests::register_rhi_buffer_tests(tests);
     carrot::tests::register_rhi_compute_tests(tests);
     carrot::tests::register_scene_loading_tests(tests);
+    carrot::tests::register_tiled_world_tests(tests);
     carrot::tests::register_ui_tests(tests);
     carrot::tests::register_ui_layout_tests(tests);
     carrot::tests::register_ui_navigation_tests(tests);
     carrot::tests::register_window_system_tests(tests);
+    carrot::tests::register_world_composition_tests(tests);
 
     size_t passed{ 0 };
 

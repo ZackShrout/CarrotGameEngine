@@ -1,0 +1,14 @@
+{ "columns":32,
+ "image":"imges\/ground.png",
+ "imageheight":1056,
+ "imagewidth":1024,
+ "margin":0,
+ "name":"ground1",
+ "spacing":0,
+ "tilecount":1056,
+ "tiledversion":"1.11.0",
+ "tileheight":32,
+ "tilewidth":32,
+ "type":"tileset",
+ "version":"1.10"
+}

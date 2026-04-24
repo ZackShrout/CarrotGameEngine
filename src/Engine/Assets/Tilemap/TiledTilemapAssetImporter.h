@@ -8,6 +8,9 @@
 #include "TilemapAssetRegistry.h"
 #include "Utils/JSON/Public/JsonDocument.h"
 
+#include <filesystem>
+#include <optional>
+
 namespace carrot::assets {
     class tiled_tilemap_asset_importer_t
     {
@@ -15,6 +18,7 @@ namespace carrot::assets {
         [[nodiscard]] static bool import(const utils::json::json_document_t& doc,
                                          tilemap_asset_registry_t& registry,
                                          std::string_view logical_id,
-                                         std::string_view source_uri);
+                                         std::string_view source_uri,
+                                         std::optional<std::filesystem::path> native_source_path = std::nullopt);
     };
 } // namespace carrot::assets

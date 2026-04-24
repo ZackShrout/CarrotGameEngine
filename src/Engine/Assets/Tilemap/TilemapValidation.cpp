@@ -461,6 +461,21 @@ namespace carrot::assets {
 
         for (const tilemap_tileset_t& tileset : tilemap.tilesets())
         {
+            const bool embedded_tileset{ tileset.source_uri.empty() };
+            const bool has_engine_facing_tileset_metadata{
+                !tileset.tile_animations.empty() ||
+                !tileset.tile_collisions.empty() ||
+                !tileset.tile_sort_metadata.empty()
+            };
+            if (embedded_tileset && has_engine_facing_tileset_metadata)
+            {
+                add_issue(issues,
+                          tilemap_validation_issue_severity_t::warning,
+                          "tiled.tileset.embedded_engine_metadata",
+                          std::format("Tileset '{}' is embedded in the map and carries engine-facing metadata such as collision, animation, or sort rules. This works, but shared external TSJ tilesets reduce duplication and metadata drift across maps.",
+                                      tileset.name.empty() ? "<unnamed>" : tileset.name));
+            }
+
             for (const tilemap_tileset_t::tile_sort_metadata_t& sort_metadata : tileset.tile_sort_metadata)
             {
                 if (tileset.tile_count > 0u && sort_metadata.tile_id >= tileset.tile_count)

@@ -51,6 +51,118 @@ Unsupported features remain non-fatal when practical, but they should still be d
 
 ---
 
+## External Tileset Format
+
+For shared external tilesets, Carrot expects Tiled JSON tilesets: `.tsj`.
+
+Important:
+
+* if a map references an external tileset, that external tileset should be saved as `TSJ`
+* Tiled may default to XML tilesets (`TSX`) when saving external tilesets
+* Carrot's supported shared external tileset workflow is `TMJ -> TSJ`
+* if a tileset is saved as `TSX` instead of `TSJ`, Carrot will not import that external tileset correctly
+
+Recommended rule:
+
+* use embedded tilesets if you want everything stored directly in the map
+* use external `TSJ` tilesets if you want shared reusable tilesets across many maps
+
+### Required vs Recommended vs Allowed
+
+Required today:
+
+* if a map references an external tileset, that external tileset must be saved as `TSJ` rather than `TSX`
+* if a project uses a Tiled `.world` file, that file is treated as authored world-composition data only
+* maps referenced from a `.world` should still be normal Tiled JSON maps such as `.tmj`
+
+Recommended:
+
+* prefer shared external `TSJ` tilesets for any tileset that will be reused across multiple maps
+* keep shared reusable tilesets local to the project under a common `tilemaps/tilesets/` folder
+* keep Tiled world composition files under `tilemaps/worlds/`
+* keep reusable map chunks under `tilemaps/maps/`
+* keep tileset image assets near the tilesets, typically under `tilemaps/tilesets/images/`
+
+Allowed:
+
+* embedded tilesets inside individual `.tmj` maps
+* project-specific folder layouts that differ from the recommended example
+* maps that are not part of any `.world`
+
+Tradeoff summary:
+
+* embedded tilesets are convenient and fully supported, but they increase duplication and maintenance drift risk
+* shared external `TSJ` tilesets take a little more discipline up front, but they keep collision, layering, animation, and future tile metadata consistent across maps
+
+### Recommended Project Layout
+
+Carrot does not require one exact folder structure, but this is the recommended layout for projects that want reusable maps, reusable tilesets, and future `.world` composition:
+
+```text
+assets/
+  tilemaps/
+    worlds/
+      overworld.world
+    maps/
+      overworld/
+        coast_00.tmj
+        coast_01.tmj
+      interiors/
+        inn.tmj
+        item_shop.tmj
+    tilesets/
+      terrain.tsj
+      bridges_and_fences.tsj
+      decorative_props.tsj
+      images/
+        terrain.png
+        bridges_and_fences.png
+        decorative_props.png
+```
+
+This is recommended because it mirrors the authored dependency graph directly:
+
+* `.world` files reference `.tmj` maps
+* `.tmj` maps reference shared `.tsj` tilesets
+* `.tsj` tilesets reference image files
+
+That makes the project easier to maintain and makes dependency edges much easier to reason about when content changes.
+
+### Known Footguns If You Ignore The Recommendation
+
+None of these are forbidden, but they are the main risks authors should understand:
+
+* saving external tilesets as `TSX` instead of `TSJ`
+  Carrot's shared external tileset workflow is JSON-first. If Tiled saves the tileset as `TSX`, the map will not import that external tileset correctly.
+* embedding the same logical tileset separately into many maps
+  Collision, animation, sorting, and future engine-facing tile metadata can drift from map to map because each map now owns its own snapshot.
+* scattering shared tilesets across many map-local folders
+  Reuse becomes harder to discover, and relative path maintenance gets noisier when maps or tilesets move later.
+* moving `.tmj` or `.tsj` files without re-exporting or re-saving in Tiled
+  Relative `source` and image paths may no longer line up with the new location.
+* assuming `.world` means runtime streaming already exists
+  Carrot currently parses `.world` as authored composition data and prepares runtime seams, but it does not yet implement streamed chunk loading/unloading gameplay behavior.
+
+### Migrating From `TSX` To `TSJ`
+
+If a project already has shared external `TSX` tilesets, the migration to `TSJ` is usually straightforward.
+
+Recommended migration flow:
+
+1. Open each shared tileset in Tiled and choose `File -> Save As...`.
+2. In the file type dropdown, choose the JSON tileset format: `*.tsj` / `*.json`.
+3. Save the new `TSJ` file next to the old `TSX` unless there is a specific reason to move it.
+4. Re-export each map that used the old `TSX` so the map updates its tileset `source` references to the new `TSJ` files.
+5. Once all referencing maps have been re-exported and verified, delete the old `TSX` files.
+
+Notes:
+
+* this is mainly a format migration, not a content reauthoring pass
+* if multiple maps were sharing one `TSX`, each map should be re-exported so it points at the new `TSJ`
+* once a map points at the new `TSJ`, authored tileset data should continue to work as authored
+
+---
+
 ## Core Authoring Rules
 
 ### Object `type` Matters
@@ -670,6 +782,7 @@ When adding new Tiled-backed engine features, prefer:
 * explicit documented custom properties
 * importer/runtime validation alongside the new feature
 * narrow support for high-value Tiled features before broad speculative support
+* shared reusable `TSJ` tilesets when the same authored tile contract should survive across multiple maps
 
 This keeps Tiled as a strong first-class workflow for Carrot without turning the engine contract into guesswork.
 

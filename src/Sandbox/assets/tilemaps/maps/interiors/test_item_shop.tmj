@@ -45,11 +45,11 @@
                  "type":"",
                  "visible":true,
                  "width":0,
-                 "x":262.955854126679,
-                 "y":518.618042226488
+                 "x":262.956,
+                 "y":518.618
                 }, 
                 {
-                 "height":29.5585412667946,
+                 "height":29.5585,
                  "id":2,
                  "name":"DoorToTownFromItemShop",
                  "properties":[
@@ -71,9 +71,9 @@
                  "rotation":0,
                  "type":"Door",
                  "visible":true,
-                 "width":128.214971209213,
-                 "x":210.748560460653,
-                 "y":546.641074856046
+                 "width":128.215,
+                 "x":210.749,
+                 "y":546.641
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -91,7 +91,7 @@
         {
          "columns":28,
          "firstgid":1,
-         "image":"tilesets\/imges\/FL_Houses_int_Floors.png",
+         "image":"..\/..\/tilesets\/imges\/FL_Houses_int_Floors.png",
          "imageheight":1024,
          "imagewidth":896,
          "margin":0,

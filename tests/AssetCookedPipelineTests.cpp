@@ -538,6 +538,126 @@ namespace carrot::tests {
 
             cleanup_temp_roots();
         }
+
+        void test_tilemap_asset_loader_supports_external_tsj_tilesets()
+        {
+            cleanup_temp_roots();
+
+            const std::filesystem::path source_texture{ engine_assets_root() / "images" / "carrot_engine_logo_512.png" };
+            const std::filesystem::path copied_texture{ temp_game_root() / "maps" / "tilesets" / "images" / "runtime_tiles.png" };
+            std::filesystem::create_directories(copied_texture.parent_path());
+            CARROT_TEST_REQUIRE(std::filesystem::copy_file(source_texture,
+                                                           copied_texture,
+                                                           std::filesystem::copy_options::overwrite_existing));
+
+            const std::filesystem::path tsj_path{ temp_game_root() / "maps" / "tilesets" / "runtime_tiles.tsj" };
+            const std::filesystem::path tilemap_source_path{ temp_game_root() / "maps" / "runtime_map.tmj" };
+            const std::filesystem::path tilemap_manifest_path{ temp_game_root() / "maps" / "runtime_map.tilemap.json" };
+
+            write_text_file(tsj_path,
+                            R"({
+                                "columns": 2,
+                                "image": "images/runtime_tiles.png",
+                                "imageheight": 512,
+                                "imagewidth": 512,
+                                "name": "runtime_tiles",
+                                "tilecount": 4,
+                                "tileheight": 16,
+                                "tilewidth": 16,
+                                "tiles": [
+                                    {
+                                        "id": 0,
+                                        "properties": [
+                                            { "name": "carrot_sort_span_down", "type": "int", "value": 1 }
+                                        ]
+                                    },
+                                    {
+                                        "id": 1,
+                                        "properties": [
+                                            { "name": "carrot_sort_anchor_offset_y", "type": "int", "value": 3 }
+                                        ],
+                                        "objectgroup": {
+                                            "draworder": "index",
+                                            "id": 1,
+                                            "objects": [
+                                                { "id": 1, "x": 0, "y": 8, "width": 16, "height": 8 }
+                                            ],
+                                            "opacity": 1,
+                                            "type": "objectgroup",
+                                            "visible": true,
+                                            "x": 0,
+                                            "y": 0
+                                        }
+                                    }
+                                ]
+                            })");
+
+            write_text_file(tilemap_source_path,
+                            R"({
+                                "height": 1,
+                                "width": 2,
+                                "tilewidth": 16,
+                                "tileheight": 16,
+                                "orientation": "orthogonal",
+                                "type": "map",
+                                "layers": [
+                                    {
+                                        "id": 1,
+                                        "name": "base",
+                                        "type": "tilelayer",
+                                        "width": 2,
+                                        "height": 1,
+                                        "visible": true,
+                                        "opacity": 1,
+                                        "data": [1, 2]
+                                    }
+                                ],
+                                "tilesets": [
+                                    {
+                                        "firstgid": 1,
+                                        "source": "tilesets/runtime_tiles.tsj"
+                                    }
+                                ]
+                            })");
+            write_text_file(tilemap_manifest_path,
+                            R"({
+                                "version": 1,
+                                "id": "tilemap.runtime.external_tsj",
+                                "source": "game://maps/runtime_map.tmj"
+                            })");
+
+            io::virtual_file_system_t vfs;
+            mount_all(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t asset_manager{ vfs, rhi };
+
+            utils::json::json_document_t tilemap_doc{ parse_json("game://maps/runtime_map.tilemap.json", vfs) };
+            CARROT_TEST_REQUIRE(assets::tilemap_asset_manifest_importer_t::import(
+                tilemap_doc,
+                asset_manager.tilemaps().registry(),
+                vfs,
+                "game://maps/runtime_map.tilemap.json"));
+
+            const assets::loaded_tilemap_asset_t* loaded{ asset_manager.tilemaps().get("tilemap.runtime.external_tsj") };
+            CARROT_TEST_REQUIRE(loaded != nullptr);
+            CARROT_TEST_REQUIRE(loaded->valid());
+            CARROT_TEST_REQUIRE(loaded->tilemap().tilesets().size() == 1u);
+            CARROT_TEST_REQUIRE(loaded->tileset_textures().size() == 1u);
+            CARROT_TEST_REQUIRE(loaded->tileset_textures().front() != nullptr);
+
+            const assets::tilemap_tileset_t& tileset{ loaded->tilemap().tilesets().front() };
+            CARROT_TEST_REQUIRE(tileset.name == "runtime_tiles");
+            CARROT_TEST_REQUIRE(tileset.source_uri == "game://maps/tilesets/runtime_tiles.tsj");
+            CARROT_TEST_REQUIRE(tileset.image_source_uri == "images/runtime_tiles.png");
+            CARROT_TEST_REQUIRE(tileset.tile_width == 16u);
+            CARROT_TEST_REQUIRE(tileset.tile_height == 16u);
+            CARROT_TEST_REQUIRE(tileset.sort_span_down_for_tile(0u) == 1u);
+            CARROT_TEST_REQUIRE(tileset.sort_anchor_offset_y_for_tile(1u) == 3u);
+            CARROT_TEST_REQUIRE(tileset.find_tile_collision(1u) != nullptr);
+
+            cleanup_temp_roots();
+        }
     } // namespace
 
     void register_asset_cooked_pipeline_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests)
@@ -558,5 +678,7 @@ namespace carrot::tests {
                            &test_sprite_asset_loader_generates_and_reuses_cooked_sprite);
         tests.emplace_back("tilemap asset loader generates and reuses cooked tilemap",
                            &test_tilemap_asset_loader_generates_and_reuses_cooked_tilemap);
+        tests.emplace_back("tilemap asset loader supports external tsj tilesets",
+                           &test_tilemap_asset_loader_supports_external_tsj_tilesets);
     }
 } // namespace carrot::tests

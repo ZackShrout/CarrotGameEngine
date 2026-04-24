@@ -1,0 +1,300 @@
+{
+    "maps": [
+        {
+            "fileName": "MainMap1.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 0,
+            "y": 0
+        },
+        {
+            "fileName": "MainMap2.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 1600,
+            "y": 0
+        },
+        {
+            "fileName": "MainMap3.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 3200,
+            "y": 0
+        },
+        {
+            "fileName": "MainMap4.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 4800,
+            "y": 0
+        },
+        {
+            "fileName": "MainMap5.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 6400,
+            "y": 0
+        },
+        {
+            "fileName": "MainMap6.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 8000,
+            "y": 0
+        },
+        {
+            "fileName": "MainMap7.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 9600,
+            "y": 0
+        },
+        {
+            "fileName": "MainMap8.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 0,
+            "y": 1600
+        },
+        {
+            "fileName": "MainMap9.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 1600,
+            "y": 1600
+        },
+        {
+            "fileName": "MainMap10.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 3200,
+            "y": 1600
+        },
+        {
+            "fileName": "MainMap11.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 4800,
+            "y": 1600
+        },
+        {
+            "fileName": "MainMap12.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 6400,
+            "y": 1600
+        },
+        {
+            "fileName": "MainMap13.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 8000,
+            "y": 1600
+        },
+        {
+            "fileName": "MainMap14.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 9600,
+            "y": 1600
+        },
+        {
+            "fileName": "MainMap15.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 0,
+            "y": 3200
+        },
+        {
+            "fileName": "MainMap16.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 1600,
+            "y": 3200
+        },
+        {
+            "fileName": "MainMap17.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 3200,
+            "y": 3200
+        },
+        {
+            "fileName": "MainMap18.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 4800,
+            "y": 3200
+        },
+        {
+            "fileName": "MainMap19.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 6400,
+            "y": 3200
+        },
+        {
+            "fileName": "MainMap20.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 8000,
+            "y": 3200
+        },
+        {
+            "fileName": "MainMap21.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 9600,
+            "y": 3200
+        },
+        {
+            "fileName": "MainMap22.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 0,
+            "y": 4800
+        },
+        {
+            "fileName": "MainMap23.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 1600,
+            "y": 4800
+        },
+        {
+            "fileName": "MainMap24.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 3200,
+            "y": 4800
+        },
+        {
+            "fileName": "MainMap25.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 4800,
+            "y": 4800
+        },
+        {
+            "fileName": "MainMap26.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 6400,
+            "y": 4800
+        },
+        {
+            "fileName": "MainMap27.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 8000,
+            "y": 4800
+        },
+        {
+            "fileName": "MainMap28.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 9600,
+            "y": 4800
+        },
+        {
+            "fileName": "MainMap29.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 0,
+            "y": -1600
+        },
+        {
+            "fileName": "MainMap30.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 1600,
+            "y": -1600
+        },
+        {
+            "fileName": "MainMap31.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 3200,
+            "y": -1600
+        },
+        {
+            "fileName": "MainMap32.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 4800,
+            "y": -1600
+        },
+        {
+            "fileName": "MainMap33.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 6400,
+            "y": -1600
+        },
+        {
+            "fileName": "MainMap34.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 8000,
+            "y": -1600
+        },
+        {
+            "fileName": "MainMap35.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 9600,
+            "y": -1600
+        },
+        {
+            "fileName": "MainMap36.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 0,
+            "y": 6400
+        },
+        {
+            "fileName": "MainMap37.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 1600,
+            "y": 6400
+        },
+        {
+            "fileName": "MainMap38.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 3200,
+            "y": 6400
+        },
+        {
+            "fileName": "MainMap39.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 4800,
+            "y": 6400
+        },
+        {
+            "fileName": "MainMap40.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 6400,
+            "y": 6400
+        },
+        {
+            "fileName": "MainMap41.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 8000,
+            "y": 6400
+        },
+        {
+            "fileName": "MainMap42.json",
+            "height": 1600,
+            "width": 1600,
+            "x": 9600,
+            "y": 6400
+        }
+    ],
+    "onlyShowAdjacentMaps": false,
+    "type": "world"
+}

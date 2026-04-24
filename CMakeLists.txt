@@ -151,6 +151,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/World/SceneContinuity.h
         src/Engine/World/SceneLoader.cpp
         src/Engine/World/SceneLoader.h
+        src/Engine/World/WorldComposition.cpp
+        src/Engine/World/WorldComposition.h
         src/Engine/World/TriggerQuery.cpp
         src/Engine/World/TriggerQuery.h
         src/Engine/World/World.cpp
@@ -347,6 +349,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Assets/Tilemap/NativeTilemapAssetImporter.h
         src/Engine/Assets/Tilemap/TiledTilemapAssetImporter.cpp
         src/Engine/Assets/Tilemap/TiledTilemapAssetImporter.h
+        src/Engine/Assets/Tilemap/TiledWorld.cpp
+        src/Engine/Assets/Tilemap/TiledWorld.h
         src/Engine/Assets/Tilemap/TilemapAsset.h
         src/Engine/Assets/Tilemap/TilemapAssetLoader.cpp
         src/Engine/Assets/Tilemap/TilemapAssetLoader.h
@@ -897,9 +901,11 @@ set(CARROT_TEST_SOURCES
         tests/RHIBufferTests.cpp
         tests/RHIComputeTests.cpp
         tests/SceneLoadingTests.cpp
+        tests/TiledWorldTests.cpp
         tests/UITests.cpp
         tests/UILayoutTests.cpp
         tests/UINavigationTests.cpp
+        tests/WorldCompositionTests.cpp
         src/Sandbox/GameplayRuntimeState.cpp
         tests/WindowSystemTests.cpp
 )

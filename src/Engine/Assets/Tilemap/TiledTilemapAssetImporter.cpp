@@ -116,6 +116,53 @@ namespace carrot::assets {
             }
         };
 
+        [[nodiscard]] std::filesystem::path resolve_relative_native_path(const std::filesystem::path& base_path,
+                                                                         std::string_view relative_path) noexcept
+        {
+            std::string normalized{ relative_path };
+            std::replace(normalized.begin(), normalized.end(), '\\', '/');
+            std::filesystem::path path{ normalized };
+            if (path.is_absolute())
+                return path.lexically_normal();
+
+            return (base_path.parent_path() / path).lexically_normal();
+        }
+
+        [[nodiscard]] std::string resolve_relative_vfs_uri(const std::string_view base_uri,
+                                                           const std::string_view relative_path)
+        {
+            const size_t scheme_sep{ base_uri.find("://") };
+            if (scheme_sep == std::string_view::npos)
+                return std::string{ relative_path };
+
+            const std::string_view scheme{ base_uri.substr(0u, scheme_sep + 3u) };
+            const std::filesystem::path base_path{ std::string{ base_uri.substr(scheme_sep + 3u) } };
+            std::string normalized{ relative_path };
+            std::replace(normalized.begin(), normalized.end(), '\\', '/');
+            const std::filesystem::path resolved{ (base_path.parent_path() / std::filesystem::path{ normalized }).lexically_normal() };
+            return std::string{ scheme } + resolved.generic_string();
+        }
+
+        [[nodiscard]] bool is_external_json_tileset_path(const std::string_view path)
+        {
+            std::filesystem::path fs_path{ std::string{ path } };
+            std::string extension{ fs_path.extension().string() };
+            std::ranges::transform(extension, extension.begin(), [](unsigned char c) {
+                return static_cast<char>(std::tolower(c));
+            });
+            return extension == ".tsj" || extension == ".json";
+        }
+
+        [[nodiscard]] bool is_external_xml_tileset_path(const std::string_view path)
+        {
+            std::filesystem::path fs_path{ std::string{ path } };
+            std::string extension{ fs_path.extension().string() };
+            std::ranges::transform(extension, extension.begin(), [](unsigned char c) {
+                return static_cast<char>(std::tolower(c));
+            });
+            return extension == ".tsx";
+        }
+
         [[nodiscard]] std::optional<tilemap_property_t> parse_property(const utils::json::json_object_view_t& obj)
         {
             const std::string_view name{ obj.get_string("name") };
@@ -405,9 +452,49 @@ namespace carrot::assets {
                 tileset.tile_collisions.emplace_back(std::move(tile_collision));
         }
 
+        [[nodiscard]] bool populate_tileset_from_json(const utils::json::json_object_view_t& tileset_json,
+                                                      tilemap_tileset_t& tileset,
+                                                      tiled_import_diagnostics_t& diagnostics)
+        {
+            tileset.name = std::string{ tileset_json.get_string_or("name", "") };
+            tileset.image_source_uri = std::string{ tileset_json.get_string_or("image", "") };
+            tileset.tile_width = static_cast<uint32_t>(tileset_json.get_number_or("tilewidth", 0.0));
+            tileset.tile_height = static_cast<uint32_t>(tileset_json.get_number_or("tileheight", 0.0));
+            tileset.image_width = static_cast<uint32_t>(tileset_json.get_number_or("imagewidth", 0.0));
+            tileset.image_height = static_cast<uint32_t>(tileset_json.get_number_or("imageheight", 0.0));
+            tileset.tile_count = static_cast<uint32_t>(tileset_json.get_number_or("tilecount", 0.0));
+            tileset.columns = static_cast<uint32_t>(tileset_json.get_number_or("columns", 0.0));
+
+            collect_unsupported_tileset_features(tileset_json, diagnostics);
+            if (tileset_json.has("tiles"))
+            {
+                const utils::json::json_array_view_t tiles{ tileset_json.get_array("tiles") };
+                for (const auto tile_value : tiles)
+                {
+                    if (!tile_value.is_object())
+                        continue;
+
+                    parse_tileset_tile_animation(tile_value.as_object(), tileset, diagnostics);
+                    parse_tileset_tile_collision(tile_value.as_object(), tileset.name, tileset, diagnostics);
+                    parse_tileset_tile_sort_metadata(tile_value.as_object(), tileset);
+                }
+            }
+
+            tileset.rebuild_animation_lookup();
+            tileset.rebuild_sort_metadata_lookup();
+            return true;
+        }
+
+        struct tiled_import_context_t
+        {
+            std::string_view source_uri;
+            std::optional<std::filesystem::path> native_source_path;
+        };
+
         [[nodiscard]] bool parse_tilesets(const utils::json::json_object_view_t& root,
                                           tilemap_asset_t& tilemap,
-                                          tiled_import_diagnostics_t& diagnostics)
+                                          tiled_import_diagnostics_t& diagnostics,
+                                          const tiled_import_context_t& import_context)
         {
             if (!root.has("tilesets"))
                 return true;
@@ -422,32 +509,70 @@ namespace carrot::assets {
 
                 tilemap_tileset_t tileset{ };
                 tileset.first_gid = static_cast<uint32_t>(tileset_json.get_number_or("firstgid", 0.0));
-                tileset.name = std::string{ tileset_json.get_string_or("name", "") };
-                tileset.source_uri = std::string{ tileset_json.get_string_or("source", "") };
-                tileset.image_source_uri = std::string{ tileset_json.get_string_or("image", "") };
-                tileset.tile_width = static_cast<uint32_t>(tileset_json.get_number_or("tilewidth", 0.0));
-                tileset.tile_height = static_cast<uint32_t>(tileset_json.get_number_or("tileheight", 0.0));
-                tileset.image_width = static_cast<uint32_t>(tileset_json.get_number_or("imagewidth", 0.0));
-                tileset.image_height = static_cast<uint32_t>(tileset_json.get_number_or("imageheight", 0.0));
-                tileset.tile_count = static_cast<uint32_t>(tileset_json.get_number_or("tilecount", 0.0));
-                tileset.columns = static_cast<uint32_t>(tileset_json.get_number_or("columns", 0.0));
-
-                collect_unsupported_tileset_features(tileset_json, diagnostics);
-                if (tileset_json.has("tiles"))
+                if (const std::string_view tileset_source{ tileset_json.get_string_or("source", "") };
+                    !tileset_source.empty())
                 {
-                    const utils::json::json_array_view_t tiles{ tileset_json.get_array("tiles") };
-                    for (const auto tile_value : tiles)
+                    if (is_external_xml_tileset_path(tileset_source))
                     {
-                        if (!tile_value.is_object())
-                            continue;
+                        diagnostics.add_unsupported(std::format("tilemap '{}' references external XML tileset '{}'. Carrot expects external JSON tilesets (.tsj). In Tiled, re-save the tileset as TSJ and re-export the map.",
+                                                                import_context.source_uri,
+                                                                tileset_source));
+                        continue;
+                    }
 
-                        parse_tileset_tile_animation(tile_value.as_object(), tileset, diagnostics);
-                        parse_tileset_tile_collision(tile_value.as_object(), tileset.name, tileset, diagnostics);
-                        parse_tileset_tile_sort_metadata(tile_value.as_object(), tileset);
+                    if (!is_external_json_tileset_path(tileset_source))
+                    {
+                        diagnostics.add_unsupported(std::format("tilemap '{}' references external tileset '{}' with an unsupported file type. Carrot expects external JSON tilesets (.tsj).",
+                                                                import_context.source_uri,
+                                                                tileset_source));
+                        continue;
+                    }
+
+                    if (!import_context.native_source_path)
+                    {
+                        diagnostics.add_unsupported(std::format("tilemap '{}' references external tileset '{}' but the importer has no native source path context",
+                                                                import_context.source_uri,
+                                                                tileset_source));
+                        continue;
+                    }
+
+                    const std::filesystem::path tileset_native_path{
+                        resolve_relative_native_path(*import_context.native_source_path, tileset_source)
+                    };
+                    utils::json::json_document_t external_tileset_doc;
+                    if (!external_tileset_doc.parse_from_file(tileset_native_path.string().c_str()))
+                    {
+                        diagnostics.add_unsupported(std::format("tilemap '{}' references external tileset '{}' but it could not be parsed as a JSON tileset document from '{}'",
+                                                                import_context.source_uri,
+                                                                tileset_source,
+                                                                tileset_native_path.string()));
+                        continue;
+                    }
+
+                    if (!external_tileset_doc.root().is_object())
+                    {
+                        diagnostics.add_unsupported(std::format("tilemap '{}' references external tileset '{}' but its root is not a supported JSON object",
+                                                                import_context.source_uri,
+                                                                tileset_source));
+                        continue;
+                    }
+
+                    tileset.source_uri = resolve_relative_vfs_uri(import_context.source_uri, tileset_source);
+                    if (!populate_tileset_from_json(external_tileset_doc.root().as_object(), tileset, diagnostics))
+                    {
+                        diagnostics.add_unsupported(std::format("tilemap '{}' references external tileset '{}' but it could not be imported",
+                                                                import_context.source_uri,
+                                                                tileset_source));
+                        continue;
                     }
                 }
-                tileset.rebuild_animation_lookup();
-                tileset.rebuild_sort_metadata_lookup();
+                else
+                {
+                    tileset.source_uri = std::string{ tileset_json.get_string_or("source", "") };
+                    if (!populate_tileset_from_json(tileset_json, tileset, diagnostics))
+                        continue;
+                }
+
                 tilemap.add_tileset(std::move(tileset));
             }
 
@@ -684,7 +809,8 @@ namespace carrot::assets {
     bool tiled_tilemap_asset_importer_t::import(const utils::json::json_document_t& doc,
                                                 tilemap_asset_registry_t& registry,
                                                 const std::string_view logical_id,
-                                                const std::string_view source_uri)
+                                                const std::string_view source_uri,
+                                                const std::optional<std::filesystem::path> native_source_path)
     {
         tilemap_asset_record_t record{ };
         record.id = make_asset_id(logical_id);
@@ -726,7 +852,13 @@ namespace carrot::assets {
                                                     logical_id));
         }
 
-        if (!parse_tilesets(root, record.tilemap, diagnostics))
+        if (!parse_tilesets(root,
+                            record.tilemap,
+                            diagnostics,
+                            tiled_import_context_t{
+                                .source_uri = source_uri,
+                                .native_source_path = native_source_path
+                            }))
             return false;
 
         if (root.has("layers"))

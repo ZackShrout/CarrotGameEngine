@@ -120,8 +120,8 @@ namespace carrot::assets {
         std::string name;
         uint32_t first_gid{ 0 };
 
-        // When Tiled references an external TSX, this remains populated even if
-        // the importer does not yet expand it into full engine data.
+        // When Tiled references an external JSON tileset, this remains populated
+        // so downstream systems can resolve assets relative to the tileset source.
         std::string source_uri;
         std::string image_source_uri;
 

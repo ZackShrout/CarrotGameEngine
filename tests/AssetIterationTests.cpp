@@ -120,14 +120,14 @@ namespace carrot::tests {
                                                                                    "engine://fonts/roboto_regular.font.json"));
             }
             {
-                auto doc{ parse_json("game://tilemaps/test_overworld.tilemap.json", vfs) };
+                auto doc{ parse_json("game://tilemaps/maps/overworld/test_town.tilemap.json", vfs) };
                 CARROT_TEST_REQUIRE(assets::tilemap_asset_manifest_importer_t::import(doc, asset_manager.tilemaps().registry(), vfs,
-                                                                                      "game://tilemaps/test_overworld.tilemap.json"));
+                                                                                      "game://tilemaps/maps/overworld/test_town.tilemap.json"));
             }
             {
-                auto doc{ parse_json("game://scenes/test_overworld.scene.json", vfs) };
+                auto doc{ parse_json("game://scenes/sandbox_town.scene.json", vfs) };
                 CARROT_TEST_REQUIRE(assets::scene_asset_manifest_importer_t::import(doc, asset_manager.scenes().registry(), vfs,
-                                                                                    "game://scenes/test_overworld.scene.json"));
+                                                                                    "game://scenes/sandbox_town.scene.json"));
             }
         }
 
@@ -175,14 +175,14 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(font_status->reload_policy == assets::asset_reload_policy_t::restart_or_scene_rebuild_required);
 
             const auto tilemap_status{ asset_manager.find_runtime_iteration_status(assets::asset_kind_t::tilemap,
-                                                                                   assets::make_asset_id("tilemap.test.overworld")) };
+                                                                                   assets::make_asset_id("tilemap.sandbox.town")) };
             CARROT_TEST_REQUIRE(tilemap_status.has_value());
             CARROT_TEST_REQUIRE(tilemap_status->dependency_shape == assets::asset_dependency_shape_t::scene_or_world_structure);
             CARROT_TEST_REQUIRE(tilemap_status->watch_mode == assets::asset_iteration_watch_mode_t::not_polled);
             CARROT_TEST_REQUIRE(tilemap_status->reload_policy == assets::asset_reload_policy_t::restart_or_scene_rebuild_required);
 
             const auto scene_status{ asset_manager.find_runtime_iteration_status(assets::asset_kind_t::scene,
-                                                                                 assets::make_asset_id("scene.test.overworld")) };
+                                                                                 assets::make_asset_id("scene.sandbox.town")) };
             CARROT_TEST_REQUIRE(scene_status.has_value());
             CARROT_TEST_REQUIRE(scene_status->dependency_shape == assets::asset_dependency_shape_t::scene_or_world_structure);
             CARROT_TEST_REQUIRE(scene_status->watch_mode == assets::asset_iteration_watch_mode_t::not_polled);

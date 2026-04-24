@@ -455,7 +455,7 @@ namespace carrot::tests {
             const auto manifests{ assets::asset_discovery_t::discover_supported_manifests(vfs) };
             CARROT_TEST_REQUIRE(!manifests.scenes.empty());
 
-            const auto it{ std::find(manifests.scenes.begin(), manifests.scenes.end(), "game://scenes/test_overworld.scene.json") };
+            const auto it{ std::find(manifests.scenes.begin(), manifests.scenes.end(), "game://scenes/sandbox_town.scene.json") };
             CARROT_TEST_REQUIRE(it != manifests.scenes.end());
         }
 
@@ -525,7 +525,7 @@ namespace carrot::tests {
             assets::asset_manager_t assets{ vfs, rhi };
             register_required_assets(assets, vfs);
 
-            const assets::loaded_tilemap_asset_t* tilemap{ assets.tilemaps().get("tilemap.test.overworld") };
+            const assets::loaded_tilemap_asset_t* tilemap{ assets.tilemaps().get("tilemap.sandbox.town") };
             CARROT_TEST_REQUIRE(tilemap != nullptr);
 
             world::world_t world;
@@ -1219,6 +1219,34 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(tilemap->tilemap().validation_issues().empty());
         }
 
+        void test_tiled_authored_data_validation_warns_for_embedded_engine_facing_tilesets()
+        {
+            assets::tilemap_asset_t tilemap;
+            assets::tilemap_tileset_t tileset;
+            tileset.name = "embedded_bridges";
+            tileset.tile_count = 64u;
+            tileset.tile_height = 32u;
+            tileset.tile_animations.push_back({
+                .tile_id = 1u,
+                .frames = {
+                    { .tile_id = 1u, .duration_ms = 100u }
+                }
+            });
+            tileset.tile_sort_metadata.push_back({
+                .tile_id = 26u,
+                .span_down = 1u,
+                .anchor_offset_y = 0u
+            });
+            tileset.rebuild_animation_lookup();
+            tileset.rebuild_sort_metadata_lookup();
+            tilemap.add_tileset(std::move(tileset));
+
+            const auto issues{ assets::validate_tiled_authored_data(tilemap) };
+            CARROT_TEST_REQUIRE(std::ranges::any_of(issues, [](const assets::tilemap_validation_issue_t& issue) {
+                return issue.code == "tiled.tileset.embedded_engine_metadata";
+            }));
+        }
+
         void test_tiled_point_objects_import_as_explicit_point_geometry()
         {
             io::virtual_file_system_t vfs;
@@ -1771,12 +1799,46 @@ namespace carrot::tests {
             assets::asset_manager_t assets{ vfs, rhi };
 
             const auto manifests{ assets::asset_discovery_t::discover_supported_manifests(vfs) };
-            const auto it{ std::find(manifests.tilemaps.begin(), manifests.tilemaps.end(), "game://tilemaps/test_town.tilemap.json") };
+            const auto it{ std::find(manifests.tilemaps.begin(), manifests.tilemaps.end(), "game://tilemaps/maps/overworld/test_town.tilemap.json") };
             CARROT_TEST_REQUIRE(it != manifests.tilemaps.end());
 
             utils::json::json_document_t doc{ parse_json(vfs, *it) };
             CARROT_TEST_REQUIRE(assets::tilemap_asset_manifest_importer_t::import(doc, assets.tilemaps().registry(), vfs));
             CARROT_TEST_REQUIRE(assets.tilemaps().registry().find("tilemap.sandbox.town") != nullptr);
+        }
+
+        void test_tiled_tilemap_import_rejects_external_tsx_non_fatally()
+        {
+            constexpr std::string_view json_source{ R"json(
+{
+  "height": 1,
+  "width": 1,
+  "tilewidth": 32,
+  "tileheight": 32,
+  "orientation": "orthogonal",
+  "type": "map",
+  "layers": [],
+  "tilesets": [
+    {
+      "firstgid": 1,
+      "source": "tilesets/legacy_tiles.tsx"
+    }
+  ]
+}
+)json" };
+
+            utils::json::json_document_t doc;
+            CARROT_TEST_REQUIRE(doc.parse_from_memory(json_source.data(), json_source.size()));
+
+            assets::tilemap_asset_registry_t registry;
+            CARROT_TEST_REQUIRE(assets::tiled_tilemap_asset_importer_t::import(doc,
+                                                                                registry,
+                                                                                "tilemap.test.external_tsx_unsupported",
+                                                                                "game://tilemaps/external_tsx_unsupported.tmj"));
+
+            const assets::tilemap_asset_record_t* record{ registry.find("tilemap.test.external_tsx_unsupported") };
+            CARROT_TEST_REQUIRE(record != nullptr);
+            CARROT_TEST_REQUIRE(record->tilemap.tilesets().empty());
         }
 
         void test_scene_loader_loads_scene_successfully()
@@ -1789,11 +1851,11 @@ namespace carrot::tests {
             register_required_assets(assets, vfs);
 
             world::world_t world;
-            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.test.overworld"));
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town"));
 
             const world::world_object_t* player{ world.find_object_by_name("Vraden") };
             const world::world_object_t* spawn{ world.find_object_by_name("PlayerSpawn") };
-            const world::world_object_t* map{ world.find_object_by_name("OverworldMap") };
+            const world::world_object_t* map{ world.find_object_by_name("TownMap") };
 
             CARROT_TEST_REQUIRE(player != nullptr);
             CARROT_TEST_REQUIRE(spawn != nullptr);
@@ -1801,14 +1863,14 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(player->transform.has_value());
             CARROT_TEST_REQUIRE(spawn->transform.has_value());
             CARROT_TEST_REQUIRE(map->tilemap.has_value());
-            CARROT_TEST_REQUIRE(world.find_object_by_name("WelcomeSign") != nullptr);
+            CARROT_TEST_REQUIRE(world.find_object_by_name("DoorToInn") != nullptr);
             CARROT_TEST_REQUIRE(player->transform->position.x == spawn->transform->position.x);
             CARROT_TEST_REQUIRE(player->transform->position.y == spawn->transform->position.y);
             CARROT_TEST_REQUIRE(world.presentation_pixels_per_unit() == world::world_units_t::default_pixels_per_unit);
 
-            const assets::scene_asset_record_t* scene{ assets.scenes().registry().find("scene.test.overworld") };
+            const assets::scene_asset_record_t* scene{ assets.scenes().registry().find("scene.sandbox.town") };
             CARROT_TEST_REQUIRE(scene != nullptr);
-            CARROT_TEST_REQUIRE(scene->scene.camera.zoom == 4.f);
+            CARROT_TEST_REQUIRE(scene->scene.camera.zoom == 2.f);
             CARROT_TEST_REQUIRE(scene->scene.camera.follow_mode == assets::scene_camera_follow_mode_t::player);
             CARROT_TEST_REQUIRE(scene->scene.camera.initial_target_policy ==
                                 assets::scene_camera_initial_target_policy_t::player);
@@ -1880,10 +1942,10 @@ namespace carrot::tests {
             register_required_assets(assets, vfs);
 
             world::world_t world;
-            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.test.overworld", "ExitNorth"));
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town", "InnExteriorSpawn"));
 
             const world::world_object_t* player{ world.find_object_by_name("Vraden") };
-            const world::world_object_t* marker{ world.find_object_by_name("ExitNorth") };
+            const world::world_object_t* marker{ world.find_object_by_name("InnExteriorSpawn") };
             CARROT_TEST_REQUIRE(player != nullptr);
             CARROT_TEST_REQUIRE(marker != nullptr);
             CARROT_TEST_REQUIRE(player->transform.has_value());
@@ -1924,7 +1986,7 @@ namespace carrot::tests {
             register_required_assets(assets, vfs);
 
             world::world_t world;
-            CARROT_TEST_REQUIRE(!world::scene_loader_t::load_scene(world, assets, "scene.test.overworld", "MissingMarker"));
+            CARROT_TEST_REQUIRE(!world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town", "MissingMarker"));
         }
 
         void test_scene_loader_preserves_existing_world_on_failed_spawn_override()
@@ -1937,7 +1999,7 @@ namespace carrot::tests {
             register_required_assets(assets, vfs);
 
             world::world_t world;
-            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.test.overworld"));
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town"));
 
             const size_t object_count_before_failure{ world.objects().size() };
             const world::world_object_t* player_before_failure{ world.find_object_by_name("Vraden") };
@@ -1945,7 +2007,7 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(player_before_failure->transform.has_value());
             const chlm::float2 player_position_before_failure{ player_before_failure->transform->position };
 
-            CARROT_TEST_REQUIRE(!world::scene_loader_t::load_scene(world, assets, "scene.test.overworld", "MissingMarker"));
+            CARROT_TEST_REQUIRE(!world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town", "MissingMarker"));
 
             const world::world_object_t* player_after_failure{ world.find_object_by_name("Vraden") };
             const world::world_object_t* spawn_after_failure{ world.find_object_by_name("PlayerSpawn") };
@@ -1962,7 +2024,7 @@ namespace carrot::tests {
             constexpr const char* manifest{
                 R"({
                   "id": "scene.test.camera_modes",
-                  "tilemap": "tilemap.test.overworld",
+                  "tilemap": "tilemap.sandbox.town",
                   "player_sprite": "sprite.vraden",
                   "camera": {
                     "zoom": 2.5,
@@ -1998,7 +2060,7 @@ namespace carrot::tests {
             constexpr const char* manifest{
                 R"({
                   "id": "scene.test.invalid_spawn_marker",
-                  "tilemap": "tilemap.test.overworld",
+                  "tilemap": "tilemap.sandbox.town",
                   "player_sprite": "sprite.vraden",
                   "player_spawn_marker": ""
                 })"
@@ -2045,7 +2107,7 @@ namespace carrot::tests {
             constexpr const char* manifest{
                 R"({
                   "id": "scene.test.missing_player_sprite_ref",
-                  "tilemap": "tilemap.test.overworld",
+                  "tilemap": "tilemap.sandbox.town",
                   "player_sprite": "sprite.missing"
                 })"
             };
@@ -2073,7 +2135,7 @@ namespace carrot::tests {
             constexpr const char* manifest{
                 R"({
                   "id": "scene.test.missing_music_ref",
-                  "tilemap": "tilemap.test.overworld",
+                  "tilemap": "tilemap.sandbox.town",
                   "player_sprite": "sprite.vraden",
                   "initial_music": "music.missing"
                 })"
@@ -2152,7 +2214,7 @@ namespace carrot::tests {
             door.name = "MissingMarkerDoor";
             door.type = "Door";
             door.properties = {
-                assets::tilemap_property_t{ .name = "target_scene", .value = std::string{ "scene.test.overworld" } }
+                assets::tilemap_property_t{ .name = "target_scene", .value = std::string{ "scene.sandbox.town" } }
             };
 
             CARROT_TEST_REQUIRE(!carrot::world::authored::make_scene_transition_request(assets, door).has_value());
@@ -2169,7 +2231,7 @@ namespace carrot::tests {
             register_required_assets(assets, vfs);
 
             world::world_t world;
-            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.test.overworld"));
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town"));
 
             world::world_object_t& invalid_door{ world.create_object() };
             invalid_door.name = "InjectedBadDoor";
@@ -4380,7 +4442,7 @@ namespace carrot::tests {
             assets::asset_manager_t assets{ vfs, rhi };
             register_required_assets(assets, vfs);
 
-            const assets::loaded_tilemap_asset_t* tilemap{ assets.tilemaps().get("tilemap.test.overworld") };
+            const assets::loaded_tilemap_asset_t* tilemap{ assets.tilemaps().get("tilemap.sandbox.town") };
             CARROT_TEST_REQUIRE(tilemap != nullptr);
 
             const world::import::prepared_tilemap_world_data_t prepared{
@@ -4958,6 +5020,8 @@ namespace carrot::tests {
                            test_tiled_authored_data_validation_reports_visibility_zone_contract_issues);
         tests.emplace_back("imported sandbox town has no tiled authored data validation issues",
                            test_imported_sandbox_town_has_no_tiled_authored_data_validation_issues);
+        tests.emplace_back("tiled authored data validation warns for embedded engine-facing tilesets",
+                           test_tiled_authored_data_validation_warns_for_embedded_engine_facing_tilesets);
         tests.emplace_back("tiled point objects import as explicit point geometry",
                            test_tiled_point_objects_import_as_explicit_point_geometry);
         tests.emplace_back("tiled polygon geometry parses into object metadata",
@@ -4990,6 +5054,8 @@ namespace carrot::tests {
                            test_tile_animation_resolves_expected_frame_by_elapsed_time);
         tests.emplace_back("tiled tilemap import accepts unsupported features non-fatally",
                            test_tiled_tilemap_import_accepts_unsupported_features_non_fatally);
+        tests.emplace_back("tiled tilemap import rejects external tsx non-fatally",
+                           test_tiled_tilemap_import_rejects_external_tsx_non_fatally);
         tests.emplace_back("scene loader positive path", test_scene_loader_loads_scene_successfully);
         tests.emplace_back("scene loader loads sandbox town successfully", test_scene_loader_loads_sandbox_town_successfully);
         tests.emplace_back("scene loader assigns player collision config", test_scene_loader_assigns_player_collision_config);

@@ -1,0 +1,14 @@
+{ "columns":29,
+ "image":"imges\/FL_Houses_ext_Walls.png",
+ "imageheight":960,
+ "imagewidth":928,
+ "margin":0,
+ "name":"house_ext_walls",
+ "spacing":0,
+ "tilecount":870,
+ "tiledversion":"1.11.0",
+ "tileheight":32,
+ "tilewidth":32,
+ "type":"tileset",
+ "version":"1.10"
+}

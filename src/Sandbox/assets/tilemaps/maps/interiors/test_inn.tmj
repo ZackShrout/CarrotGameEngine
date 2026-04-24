@@ -51,11 +51,11 @@
                  "type":"",
                  "visible":true,
                  "width":0,
-                 "x":54.9323478571854,
-                 "y":733.652023603743
+                 "x":54.9323,
+                 "y":733.652
                 }, 
                 {
-                 "height":12.8887833666859,
+                 "height":12.8888,
                  "id":2,
                  "name":"DoorToTownFromInn",
                  "properties":[
@@ -77,9 +77,9 @@
                  "rotation":0,
                  "type":"Door",
                  "visible":true,
-                 "width":62.7480242851813,
-                 "x":33.2394939456636,
-                 "y":754.333005460774
+                 "width":62.748,
+                 "x":33.2395,
+                 "y":754.333
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -97,7 +97,7 @@
         {
          "columns":28,
          "firstgid":1,
-         "image":"tilesets\/imges\/FL_Houses_int_Floors.png",
+         "image":"..\/..\/tilesets\/imges\/FL_Houses_int_Floors.png",
          "imageheight":1024,
          "imagewidth":896,
          "margin":0,

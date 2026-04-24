@@ -1983,55 +1983,55 @@
  "tilesets":[
         {
          "firstgid":1,
-         "source":"tilesets\/ground1.tsx"
+         "source":"..\/..\/tilesets\/ground1.tsj"
         }, 
         {
          "firstgid":1057,
-         "source":"tilesets\/water.tsx"
+         "source":"..\/..\/tilesets\/water.tsj"
         }, 
         {
          "firstgid":1295,
-         "source":"tilesets\/bridges_and_fences.tsx"
+         "source":"..\/..\/tilesets\/bridges_and_fences.tsj"
         }, 
         {
          "firstgid":1911,
-         "source":"tilesets\/hills.tsx"
+         "source":"..\/..\/tilesets\/hills.tsj"
         }, 
         {
          "firstgid":2311,
-         "source":"tilesets\/house_ext_walls.tsx"
+         "source":"..\/..\/tilesets\/house_ext_walls.tsj"
         }, 
         {
          "firstgid":3181,
-         "source":"tilesets\/houses_ext_roof1.tsx"
+         "source":"..\/..\/tilesets\/houses_ext_roof1.tsj"
         }, 
         {
          "firstgid":3965,
-         "source":"tilesets\/houses_ext_elements.tsx"
+         "source":"..\/..\/tilesets\/houses_ext_elements.tsj"
         }, 
         {
          "firstgid":5155,
-         "source":"tilesets\/houses_ext_side_roofs.tsx"
+         "source":"..\/..\/tilesets\/houses_ext_side_roofs.tsj"
         }, 
         {
          "firstgid":5851,
-         "source":"tilesets\/houses_ext_roofs2.tsx"
+         "source":"..\/..\/tilesets\/houses_ext_roofs2.tsj"
         }, 
         {
          "firstgid":6440,
-         "source":"tilesets\/decorative_props.tsx"
+         "source":"..\/..\/tilesets\/decorative_props.tsj"
         }, 
         {
          "firstgid":7484,
-         "source":"tilesets\/FL_Houses_int_WallsA1.tsx"
+         "source":"..\/..\/tilesets\/FL_Houses_int_WallsA1.tsj"
         }, 
         {
          "firstgid":8060,
-         "source":"tilesets\/FL_Houses_int_sidesOfTheHouses.tsx"
+         "source":"..\/..\/tilesets\/FL_Houses_int_sidesOfTheHouses.tsj"
         }, 
         {
          "firstgid":8750,
-         "source":"tilesets\/FL_Houses_int_Floors.tsx"
+         "source":"..\/..\/tilesets\/FL_Houses_int_Floors.tsj"
         }],
  "tilewidth":32,
  "type":"map",

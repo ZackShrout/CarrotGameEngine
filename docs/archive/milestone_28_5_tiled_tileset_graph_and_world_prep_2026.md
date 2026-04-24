@@ -2,8 +2,10 @@
 
 **Last Updated:** April 24, 2026
 **Title:** Tiled Tileset Dependency Graph and World Preparation
-**Status:** Planned
-**Focus:** Solidify Carrot's Tiled asset-graph architecture so shared external TSX tilesets become a strong supported workflow, authored dependency invalidation becomes honest, and `.world` files become an explicit architectural input for future streamed overworld work without forcing runtime streaming into this milestone.
+**Status:** Completed and archived
+**Focus:** Solidify Carrot's Tiled asset-graph architecture so shared external TSJ tilesets become a strong supported workflow, authored dependency invalidation becomes honest, and `.world` files become an explicit architectural input for future streamed overworld work without forcing runtime streaming into this milestone.
+
+Archived on **April 24, 2026** after Carrot landed first-class external `TSJ` tileset support, dependency-aware invalidation for shared Tiled authored data, clearer shared-tileset workflow guidance and warnings, engine-owned `.world` authored representation, and runtime-preparation seams for future streamed overworld chunk loading.
 
 ---
 
@@ -24,13 +26,28 @@ That progress raises the next Tiled question:
 
 Milestone 28.5 exists to move Carrot from "TMJ import works for current content" to "Carrot understands authored Tiled data as a reusable dependency graph."
 
+Important authoring note:
+
+* Carrot's supported shared external tileset workflow uses `TSJ`, not `TSX`
+* Tiled may default to XML external tilesets (`.tsx`) when saving a shared tileset
+* when authoring shared reusable tilesets for Carrot, teams should save them as JSON tilesets (`.tsj`)
+* embedded tilesets inside `.tmj` remain allowed
+
 This milestone is successful if Carrot ends with:
 
-* strong support for external `.tsx` tilesets referenced by `.tmj`
+* strong support for external `.tsj` tilesets referenced by `.tmj`
 * consistent import behavior between embedded and external tilesets for the validated feature slice
 * dependency-aware cooked invalidation for referenced Tiled-authored files
 * clear documentation that encourages shared project tilesets without hard-enforcing one project structure
 * a `.world`-aware architectural foundation that can inspect and validate authored world composition without yet committing to runtime streaming behavior
+* runtime-preparation seams that separate authored world composition from future loaded chunk state
+
+Recommended workflow closeout note:
+
+* `Required`: if a map uses external tilesets, save them as `TSJ`, not `TSX`
+* `Recommended`: keep shared reusable tilesets under a common project `tilemaps/tilesets/` folder and reuse them across maps
+* `Allowed`: embedded tilesets remain fully supported
+* `Known footgun`: embedded copies are easy to let drift apart once collision, layering, sort, or animation metadata starts changing over time
 
 This milestone is not about finishing streamed overworld loading.
 It is about making the authored asset graph clean and honest enough that streamed overworld work later has the right substrate.
@@ -42,7 +59,7 @@ It is about making the authored asset graph clean and honest enough that streame
 Milestone 28.5 is:
 
 * a Tiled asset-graph architecture milestone
-* an external TSX support milestone
+* an external TSJ support milestone
 * a dependency invalidation milestone
 * a Tiled authoring-guidance milestone
 * a `.world` preparation milestone
@@ -69,13 +86,13 @@ The engine is now reaching the point where tile metadata matters more and more:
 * sort/layering metadata is authored and imported
 * shared tileset reuse is now a genuine maintenance concern rather than a theoretical one
 
-That means the current limitation around external `.tsx` tilesets is no longer a small edge case.
+That means the current limitation around external shared tilesets is no longer a small edge case.
 It is starting to matter structurally.
 
 Today, the most useful team-facing Tiled workflow would be:
 
 * maps authored as manageable `.tmj` files
-* shared tilesets stored once under project assets as `.tsx`
+* shared tilesets stored once under project assets as `.tsj`
 * multiple maps reusing those same shared tilesets
 * later, `.world` files composing many `.tmj` into larger authored overworlds
 
@@ -98,8 +115,8 @@ Carrot should stop thinking about Tiled input as "one map file goes in, one runt
 Instead, for the validated milestone slice, Tiled-authored data should be treated as an authored dependency graph:
 
 * `.world` may reference many `.tmj`
-* `.tmj` may reference many `.tsx`
-* `.tsx` may reference image content and carry engine-facing tile metadata
+* `.tmj` may reference many `.tsj`
+* `.tsj` may reference image content and carry engine-facing tile metadata
 
 The engine should:
 
@@ -108,7 +125,7 @@ The engine should:
 * invalidate cooked artifacts honestly when dependencies change
 * keep runtime boundaries clear so later streaming work can load authored chunks without rethinking the authoring graph
 
-If the milestone adds TSX parsing but still treats dependency edges as optional bookkeeping, it has not gone far enough.
+If the milestone adds external tileset parsing but still treats dependency edges as optional bookkeeping, it has not gone far enough.
 
 ---
 
@@ -150,15 +167,15 @@ That is the clean seam.
 
 ## Primary Deliverables
 
-### 1. External TSX Expansion As A First-Class Import Path
+### 1. External TSJ Expansion As A First-Class Import Path
 
-Carrot should fully support `.tmj -> .tsx` tileset references for the validated milestone slice.
+Carrot should fully support `.tmj -> .tsj` tileset references for the validated milestone slice.
 
 Required outcomes:
 
-* external TSX resolution during TMJ import
-* tileset image path resolution relative to the TSX file location
-* consistent import of the current engine-facing tile metadata slice from TSX
+* external TSJ resolution during TMJ import
+* tileset image path resolution relative to the TSJ file location
+* consistent import of the current engine-facing tile metadata slice from TSJ
 * embedded and external tilesets behaving equivalently for the validated features
 
 ### 2. Dependency-Aware Cooked Invalidation
@@ -167,7 +184,7 @@ Cooked tilemaps should become stale when any of their real authored dependencies
 
 Required outcomes:
 
-* referenced TSX files participate in invalidation
+* referenced TSJ files participate in invalidation
 * referenced tileset image files participate in invalidation where appropriate
 * import logs/tooling can explain dependency-driven invalidation clearly
 
@@ -206,10 +223,10 @@ Required outcomes:
 
 ## Ticket Breakdown
 
-### Ticket 28.5.1 - External TSX Resolution and Expansion
+### Ticket 28.5.1 - External TSJ Resolution and Expansion
 
 **Priority:** P0
-**Outcome:** A TMJ that references external TSX tilesets imports into the same effective engine-owned tileset model as an equivalent embedded tileset.
+**Outcome:** A TMJ that references external TSJ tilesets imports into the same effective engine-owned tileset model as an equivalent embedded tileset.
 
 #### Why
 
@@ -218,12 +235,12 @@ Without it, the preferred shared-tileset workflow is not genuinely supported.
 
 #### Scope
 
-Implement the external TSX import path:
+Implement the external TSJ import path:
 
 * resolve `tileset.source` from TMJ entries
-* load and parse the referenced TSX
-* expand the TSX into the existing `tilemap_tileset_t` model
-* preserve current supported metadata from TSX:
+* load and parse the referenced TSJ
+* expand the TSJ into the existing `tilemap_tileset_t` model
+* preserve current supported metadata from TSJ:
   * image/layout data
   * tile animations
   * collision metadata
@@ -233,7 +250,7 @@ Implement the external TSX import path:
 #### Acceptance Criteria
 
 * equivalent embedded and external tilesets produce equivalent imported runtime data for the validated slice
-* TSX-relative image paths resolve correctly
+* TSJ-relative image paths resolve correctly
 * import failure modes are explicit and diagnosable
 
 ### Ticket 28.5.2 - Tiled Dependency Graph and Invalidation Truth
@@ -243,14 +260,14 @@ Implement the external TSX import path:
 
 #### Why
 
-Shared tilesets are not trustworthy if editing the TSX leaves dependent cooked maps stale.
+Shared tilesets are not trustworthy if editing the TSJ leaves dependent cooked maps stale.
 
 #### Scope
 
 Extend tilemap import/cooked invalidation reasoning to include:
 
 * TMJ source file
-* referenced TSX files
+* referenced TSJ files
 * referenced tileset image sources where required by the validated import path
 
 Also improve diagnostic clarity:
@@ -260,7 +277,7 @@ Also improve diagnostic clarity:
 
 #### Acceptance Criteria
 
-* changing a referenced TSX invalidates dependent cooked tilemaps
+* changing a referenced TSJ invalidates dependent cooked tilemaps
 * dependency-driven cache reuse and regeneration are explainable through logs/tooling
 * invalidation is honest for the validated Tiled graph slice
 
@@ -279,12 +296,12 @@ It should not pretend all allowed workflows carry the same maintenance risk.
 Document and validate the preferred workflow:
 
 * preferred project structure examples
-* why shared TSX reuse is recommended
+* why shared TSJ reuse is recommended
 * why embedded tilesets are allowed but carry duplication/drift risk
 * warnings for:
-  * unresolved external TSX
+  * unresolved external TSJ
   * duplicated embedded tileset snapshots where practical to detect
-  * unsupported TSX features
+  * unsupported TSJ features
   * risky relative-path assumptions
 
 #### Acceptance Criteria
@@ -350,7 +367,7 @@ Define the future runtime handoff boundaries:
 
 Recommended order:
 
-1. Ticket 28.5.1 - external TSX expansion
+1. Ticket 28.5.1 - external TSJ expansion
 2. Ticket 28.5.2 - dependency invalidation truth
 3. Ticket 28.5.3 - docs and warnings
 4. Ticket 28.5.4 - `.world` parsing and authored representation
@@ -374,15 +391,15 @@ Milestone 28.5 validation should include at least these test classes:
 Validate that:
 
 * one TMJ with embedded tileset data
-* one TMJ referencing an equivalent external TSX
+* one TMJ referencing an equivalent external TSJ
 
 produce equivalent imported tileset/runtime truth for the validated features.
 
-### 2. Shared TSX Reuse Across Multiple TMJs
+### 2. Shared TSJ Reuse Across Multiple TMJs
 
 Validate that:
 
-* multiple TMJs can reference one TSX
+* multiple TMJs can reference one TSJ
 * shared metadata such as collision and sort policy survives import consistently
 
 ### 3. Dependency Invalidation
@@ -390,7 +407,7 @@ Validate that:
 Validate that:
 
 * changing the TMJ invalidates the cooked map
-* changing the referenced TSX invalidates the cooked map
+* changing the referenced TSJ invalidates the cooked map
 * changing relevant tileset image dependencies invalidates as intended for the validated slice
 
 ### 4. `.world` Composition Validation
@@ -431,9 +448,9 @@ assets/
       inn.tmj
       overworld_chunk_00.tmj
     tilesets/
-      terrain.tsx
-      bridges_and_fences.tsx
-      cliffs.tsx
+      terrain.tsj
+      bridges_and_fences.tsj
+      cliffs.tsj
     tilesets/images/
       terrain.png
       bridges_and_fences.png
@@ -462,7 +479,7 @@ Those are future milestone concerns once the authored dependency graph is solid.
 
 Milestone 28.5 should close only if Carrot can honestly say:
 
-* external TSX tilesets are a strong supported workflow for the validated Tiled slice
+* external TSJ tilesets are a strong supported workflow for the validated Tiled slice
 * shared tileset reuse is now something the engine can recommend confidently
 * cooked tilemap invalidation is honest for the validated Tiled dependency graph
 * `.world` files are understood as authored composition data
@@ -473,4 +490,3 @@ That is the right closeout seam because it gives Carrot:
 * stronger real-world Tiled workflow support immediately
 * less metadata drift risk for game teams
 * the right authored substrate for a later streaming-focused world milestone
-

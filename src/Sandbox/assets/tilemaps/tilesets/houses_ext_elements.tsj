@@ -1,0 +1,14 @@
+{ "columns":35,
+ "image":"imges\/FL_Houses_ext_building elements.png",
+ "imageheight":1088,
+ "imagewidth":1120,
+ "margin":0,
+ "name":"houses_ext_elements",
+ "spacing":0,
+ "tilecount":1190,
+ "tiledversion":"1.11.0",
+ "tileheight":32,
+ "tilewidth":32,
+ "type":"tileset",
+ "version":"1.10"
+}

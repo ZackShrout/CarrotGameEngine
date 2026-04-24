@@ -266,6 +266,126 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(controller.attempt_interaction(game) == world::interaction_attempt_result_t::no_candidate);
         }
 
+        void test_interaction_controller_ignores_non_interaction_types_even_if_flagged_interactable()
+        {
+            io::virtual_file_system_t vfs;
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t renderer{ vfs, graphics_config, window::invalid_window_id };
+            assets::asset_manager_t assets{ vfs, *renderer.get_rhi() };
+            world::world_t world;
+            core::game_view_t view{ renderer };
+            input::controller_manager_t controllers;
+            core::game_context_t game{
+                .world = world,
+                .assets = assets,
+                .view = view,
+                .controllers = controllers
+            };
+
+            world::world_object_t actor;
+            actor.name = "Actor";
+            actor.transform = world::transform_component_t{
+                .position = { 0.f, 0.f },
+                .scale = { 1.f, 1.f }
+            };
+
+            world::world_object_t flagged_zone;
+            flagged_zone.name = "FlaggedZone";
+            flagged_zone.type = "VisibilityZone";
+            flagged_zone.transform = world::transform_component_t{
+                .position = { 0.5f, 0.f },
+                .scale = { 1.f, 1.f }
+            };
+            flagged_zone.properties.push_back({
+                .name = "interactable",
+                .value = true
+            });
+            flagged_zone.properties.push_back({
+                .name = "target_scene",
+                .value = std::string{ "scene.sandbox.inn" }
+            });
+            flagged_zone.properties.push_back({
+                .name = "target_marker",
+                .value = std::string{ "EntryFromTown" }
+            });
+
+            world::interaction_controller_t controller;
+            controller.set_actor(&actor);
+
+            world.create_object() = flagged_zone;
+
+            CARROT_TEST_REQUIRE(controller.attempt_interaction(game) == world::interaction_attempt_result_t::no_candidate);
+        }
+
+        void test_interaction_controller_uses_authored_rectangle_zone_for_door_candidates()
+        {
+            io::virtual_file_system_t vfs;
+            const engine_graphics_config_t graphics_config{
+                .api = rhi::graphics_api::null_backend,
+                .enable_debug_layers = false
+            };
+            renderer::renderer_t renderer{ vfs, graphics_config, window::invalid_window_id };
+            assets::asset_manager_t assets{ vfs, *renderer.get_rhi() };
+            world::world_t world;
+            core::game_view_t view{ renderer };
+            input::controller_manager_t controllers;
+            core::game_context_t game{
+                .world = world,
+                .assets = assets,
+                .view = view,
+                .controllers = controllers
+            };
+
+            world::world_object_t& actor_object{ game.world.create_object() };
+            actor_object.name = "Actor";
+            actor_object.transform = world::transform_component_t{
+                .position = { 0.f, 0.f },
+                .scale = { 1.f, 1.f }
+            };
+            actor_object.collision = world::collision_component_t{
+                .half_extents = { 0.25f, 0.25f },
+                .offset = { 0.f, 0.f }
+            };
+
+            world::world_object_t& door{ game.world.create_object() };
+            door.name = "Door";
+            door.type = "Door";
+            door.transform = world::transform_component_t{
+                .position = { 2.f, 2.f },
+                .scale = { 1.f, 1.f }
+            };
+            door.authored_geometry = world::authored_geometry_component_t{
+                .kind = assets::tilemap_object_t::geometry_kind_t::rectangle,
+                .size_source_px = { 16.f, 32.f }
+            };
+            door.properties.push_back({
+                .name = "interactable",
+                .value = true
+            });
+            door.properties.push_back({
+                .name = "target_scene",
+                .value = std::string{ "scene.sandbox.inn" }
+            });
+            door.properties.push_back({
+                .name = "target_marker",
+                .value = std::string{ "EntryFromTown" }
+            });
+
+            world::interaction_controller_t controller;
+            world::world_object_t* actor{ game.world.find_object_by_name("Actor") };
+            CARROT_TEST_REQUIRE(actor != nullptr);
+            controller.set_actor(actor);
+
+            CARROT_TEST_REQUIRE(!controller.has_candidate(game.world));
+            CARROT_TEST_REQUIRE(controller.attempt_interaction(game) == world::interaction_attempt_result_t::no_candidate);
+
+            actor->transform->position = { 2.3f, 2.6f };
+            CARROT_TEST_REQUIRE(controller.has_candidate(game.world));
+        }
+
         void test_gameplay_input_router_fixed_multiplayer_helper_assigns_expected_defaults()
         {
             const input::gameplay_input_routing_config_t config{
@@ -327,6 +447,10 @@ namespace carrot::tests {
                            test_patrol_npc_controller_pauses_after_reaching_waypoint);
         tests.emplace_back("interaction controller attempt result reports missing actor and candidate",
                            test_interaction_controller_attempt_result_reports_missing_actor_and_candidate);
+        tests.emplace_back("interaction controller ignores non interaction types even if flagged interactable",
+                           test_interaction_controller_ignores_non_interaction_types_even_if_flagged_interactable);
+        tests.emplace_back("interaction controller uses authored rectangle zone for door candidates",
+                           test_interaction_controller_uses_authored_rectangle_zone_for_door_candidates);
         tests.emplace_back("gameplay input router fixed multiplayer helper assigns expected defaults",
                            test_gameplay_input_router_fixed_multiplayer_helper_assigns_expected_defaults);
         tests.emplace_back("gameplay input router single-player auto normalizes to default context",

@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <unordered_map>
 #include <vector>
 
 namespace carrot::collision {
@@ -144,6 +145,34 @@ namespace carrot::collision {
         bool started_overlapping{ false };
     };
 
+    enum class collision_query_kind_t : uint8_t
+    {
+        none = 0,
+        point,
+        overlap,
+        raycast,
+        sweep_aabb
+    };
+
+    struct collision_query_debug_stats_t
+    {
+        collision_query_kind_t kind{ collision_query_kind_t::none };
+        uint32_t static_candidate_count{ 0u };
+        uint32_t static_tested_count{ 0u };
+        uint32_t tile_candidate_count{ 0u };
+        uint32_t tile_tested_count{ 0u };
+        uint32_t hit_count{ 0u };
+        bool found_blocking_hit{ false };
+    };
+
+    struct collision_broadphase_debug_summary_t
+    {
+        float static_cell_size_world{ 1.f };
+        uint32_t static_bucket_count{ 0u };
+        uint32_t static_indexed_entry_count{ 0u };
+        collision_query_debug_stats_t last_query;
+    };
+
     class collision_world_t
     {
     public:
@@ -159,6 +188,10 @@ namespace carrot::collision {
         [[nodiscard]] std::vector<static_collider_t>& static_colliders() noexcept { return _static_colliders; }
         [[nodiscard]] const std::vector<tile_collision_field_t>& tile_fields() const noexcept { return _tile_fields; }
         [[nodiscard]] std::vector<tile_collision_field_t>& tile_fields() noexcept { return _tile_fields; }
+        [[nodiscard]] const collision_broadphase_debug_summary_t& broadphase_debug_summary() const noexcept
+        {
+            return _broadphase_debug_summary;
+        }
 
         [[nodiscard]] std::vector<collision_hit_ref_t> point_query(chlm::float2 point,
                                                                    collision_query_filter_t filter = {}) const;
@@ -173,10 +206,34 @@ namespace carrot::collision {
                                                             collision_query_filter_t filter = {}) const;
 
     private:
+        struct static_broadphase_cell_key_t
+        {
+            int32_t x{ 0 };
+            int32_t y{ 0 };
+
+            [[nodiscard]] bool operator==(const static_broadphase_cell_key_t& other) const noexcept
+            {
+                return x == other.x && y == other.y;
+            }
+        };
+
+        struct static_broadphase_cell_key_hasher_t
+        {
+            [[nodiscard]] size_t operator()(const static_broadphase_cell_key_t& key) const noexcept;
+        };
+
+        void index_static_collider(size_t collider_index);
+        void record_query_debug_stats(collision_query_debug_stats_t stats) const noexcept;
+
         uint64_t _next_static_collider_id{ 1 };
         uint64_t _next_tile_field_id{ 1 };
         std::vector<static_collider_t> _static_colliders;
         std::vector<tile_collision_field_t> _tile_fields;
+        std::unordered_map<static_broadphase_cell_key_t,
+                           std::vector<size_t>,
+                           static_broadphase_cell_key_hasher_t> _static_broadphase;
+        uint32_t _static_broadphase_entry_count{ 0u };
+        mutable collision_broadphase_debug_summary_t _broadphase_debug_summary;
     };
 
     [[nodiscard]] bool collision_layers_match(collision_layer_t candidate_layer,

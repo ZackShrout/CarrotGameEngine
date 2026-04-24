@@ -504,6 +504,7 @@ namespace carrot::world::import {
                     world_units_t::pixels_to_world(object.height)
                 };
                 prepared.collision = collision_component_t{
+                    .participation = collision_participation_kind_t::trigger_volume,
                     .half_extents = size_world * 0.5f,
                     .offset = size_world * 0.5f,
                     .debug_display = make_object_collision_debug_display(object, 0xFFFF00FFu, true, true)

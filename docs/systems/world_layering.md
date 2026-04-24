@@ -232,6 +232,22 @@ Recommended setup:
 * base/floor/walkable tiles stay on normal non-conditional layers
 * front-facing rails or wall-front tiles go on a separate layer
 * that separate layer gets `carrot_conditional_front = true`
+* if a front tile should keep the actor behind a taller stacked front, author `carrot_sort_span_down = <tile count>` on that tile in the tileset
+
+`carrot_sort_span_down` is a tileset-tile property.
+
+Examples:
+
+* `0` or unset: sort from this tile's own bottom edge
+* `1`: sort from the bottom edge of the tile one row below
+* `2`: sort from the bottom edge two rows below
+
+Current first-pass behavior:
+
+* this only affects tile-layer content using `anchor_bottom_y` behavior such as `carrot_conditional_front`
+* the span only extends downward through occupied cells in the same column
+* if the expected continuation cell is empty, Carrot clamps the sort anchor to the last occupied row instead of extending through empty space
+* if the resolved anchor tile's visible art stops above the tile bottom, `carrot_sort_anchor_offset_y = <pixels>` may be authored on that tileset tile to lift the final sort line upward
 
 ### Pure Foreground Dressing
 

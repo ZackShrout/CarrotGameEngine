@@ -124,6 +124,7 @@ namespace carrot::scene {
             if (object.collision)
             {
                 summary.has_collision = true;
+                summary.collision.participation = object.collision->participation;
                 summary.collision.half_extents = object.collision->half_extents;
                 summary.collision.offset = object.collision->offset;
                 if (object.collision->debug_display)
@@ -1026,7 +1027,18 @@ namespace carrot::scene {
                 summary.trigger_count++;
 
             if (object.collision)
+            {
                 summary.object_collider_count++;
+                switch (object.collision->participation)
+                {
+                    case world::collision_participation_kind_t::dynamic_body:
+                        summary.dynamic_body_count++;
+                        break;
+                    case world::collision_participation_kind_t::trigger_volume:
+                        summary.trigger_volume_count++;
+                        break;
+                }
+            }
 
             if (object.visibility_region)
                 summary.visibility_region_count++;
@@ -1125,8 +1137,23 @@ namespace carrot::scene {
         };
 
         const world::collision_debug_view_t& collision_debug{ game.world.collision_debug_view() };
+        const collision::collision_broadphase_debug_summary_t& broadphase_debug{
+            game.world.collision_world().broadphase_debug_summary()
+        };
         summary.collision = scene_runtime_collision_system_summary_t{
             .static_collider_count = static_cast<uint32_t>(game.world.collision_world().static_colliders().size()),
+            .dynamic_body_count = 0u,
+            .trigger_volume_count = 0u,
+            .static_broadphase_cell_size_world = broadphase_debug.static_cell_size_world,
+            .static_broadphase_bucket_count = broadphase_debug.static_bucket_count,
+            .static_broadphase_indexed_entry_count = broadphase_debug.static_indexed_entry_count,
+            .last_query_kind = broadphase_debug.last_query.kind,
+            .last_query_static_candidate_count = broadphase_debug.last_query.static_candidate_count,
+            .last_query_static_tested_count = broadphase_debug.last_query.static_tested_count,
+            .last_query_tile_candidate_count = broadphase_debug.last_query.tile_candidate_count,
+            .last_query_tile_tested_count = broadphase_debug.last_query.tile_tested_count,
+            .last_query_hit_count = broadphase_debug.last_query.hit_count,
+            .last_query_found_blocking_hit = broadphase_debug.last_query.found_blocking_hit,
             .show_map_collision = collision_debug.show_map_collision,
             .show_object_colliders = collision_debug.show_object_colliders,
             .show_trigger_volumes = collision_debug.show_trigger_volumes,
@@ -1136,6 +1163,22 @@ namespace carrot::scene {
             .trigger_outline_thickness = collision_debug.trigger_outline_thickness,
             .trigger_filled = collision_debug.trigger_filled
         };
+
+        for (const world::world_object_t& object : game.world.objects())
+        {
+            if (!object.collision)
+                continue;
+
+            switch (object.collision->participation)
+            {
+                case world::collision_participation_kind_t::dynamic_body:
+                    summary.collision.dynamic_body_count++;
+                    break;
+                case world::collision_participation_kind_t::trigger_volume:
+                    summary.collision.trigger_volume_count++;
+                    break;
+            }
+        }
 
         const world::layering_debug_view_t& layering_debug{ game.world.layering_debug_view() };
         const world::layering_debug_snapshot_t& layering_snapshot{ game.world.layering_debug_snapshot() };

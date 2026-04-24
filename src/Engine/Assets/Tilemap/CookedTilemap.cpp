@@ -16,7 +16,7 @@ namespace carrot::assets {
         constexpr std::array<std::uint8_t, 8> cmap_magic{
             'C', 'M', 'A', 'P', 0, 0, 0, 0
         };
-        constexpr std::uint32_t cooked_tilemap_supported_version{ 2u };
+        constexpr std::uint32_t cooked_tilemap_supported_version{ 4u };
 
         [[nodiscard]] bool read_u8(std::span<const std::uint8_t> bytes,
                                    size_t& cursor,
@@ -274,6 +274,16 @@ namespace carrot::assets {
                     }
                 }
             }
+
+            [[maybe_unused]] const size_t sort_metadata_count_offset{
+                writer.write_u32(static_cast<std::uint32_t>(tileset.tile_sort_metadata.size()))
+            };
+            for (const auto& sort_metadata : tileset.tile_sort_metadata)
+            {
+                [[maybe_unused]] const size_t tile_id_offset{ writer.write_u32(sort_metadata.tile_id) };
+                [[maybe_unused]] const size_t span_down_offset{ writer.write_u32(sort_metadata.span_down) };
+                [[maybe_unused]] const size_t anchor_offset_y_offset{ writer.write_u32(sort_metadata.anchor_offset_y) };
+            }
         }
 
         [[maybe_unused]] const size_t layer_count_offset{
@@ -475,7 +485,20 @@ namespace carrot::assets {
                 tileset.tile_collisions.emplace_back(std::move(collision));
             }
 
+            std::uint32_t sort_metadata_count{ 0u };
+            if (!read_u32(bytes, cursor, sort_metadata_count)) return std::nullopt;
+            tileset.tile_sort_metadata.reserve(sort_metadata_count);
+            for (std::uint32_t sort_i{ 0u }; sort_i < sort_metadata_count; ++sort_i)
+            {
+                tilemap_tileset_t::tile_sort_metadata_t sort_metadata;
+                if (!read_u32(bytes, cursor, sort_metadata.tile_id)) return std::nullopt;
+                if (!read_u32(bytes, cursor, sort_metadata.span_down)) return std::nullopt;
+                if (!read_u32(bytes, cursor, sort_metadata.anchor_offset_y)) return std::nullopt;
+                tileset.tile_sort_metadata.emplace_back(std::move(sort_metadata));
+            }
+
             tileset.rebuild_animation_lookup();
+            tileset.rebuild_sort_metadata_lookup();
             cooked.tilemap.add_tileset(std::move(tileset));
         }
 

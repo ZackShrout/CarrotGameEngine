@@ -7,9 +7,12 @@
 
 #include "CollisionWorld.h"
 
+#include <unordered_set>
+
 namespace carrot::collision {
     namespace {
         constexpr float k_fraction_epsilon{ 1.0e-6f };
+        constexpr float k_static_broadphase_cell_size_world{ 1.0f };
 
         struct ray_vs_aabb_result_t
         {
@@ -55,6 +58,41 @@ namespace carrot::collision {
             }
 
             return collision_aabb_t{ .min = min, .max = max };
+        }
+
+        [[nodiscard]] collision_aabb_t swept_bounds(const collision_aabb_t& bounds,
+                                                    const chlm::float2 delta) noexcept
+        {
+            return collision_aabb_t{
+                .min = chlm::float2{
+                    std::min(bounds.min.x, bounds.min.x + delta.x),
+                    std::min(bounds.min.y, bounds.min.y + delta.y)
+                },
+                .max = chlm::float2{
+                    std::max(bounds.max.x, bounds.max.x + delta.x),
+                    std::max(bounds.max.y, bounds.max.y + delta.y)
+                }
+            };
+        }
+
+        [[nodiscard]] collision_aabb_t ray_bounds(const chlm::float2 origin,
+                                                  const chlm::float2 delta) noexcept
+        {
+            return collision_aabb_t{
+                .min = chlm::float2{
+                    std::min(origin.x, origin.x + delta.x),
+                    std::min(origin.y, origin.y + delta.y)
+                },
+                .max = chlm::float2{
+                    std::max(origin.x, origin.x + delta.x),
+                    std::max(origin.y, origin.y + delta.y)
+                }
+            };
+        }
+
+        [[nodiscard]] int32_t broadphase_coord(const float value) noexcept
+        {
+            return static_cast<int32_t>(std::floor(value / k_static_broadphase_cell_size_world));
         }
 
         [[nodiscard]] bool interval_overlaps_strictly(const float min_a,
@@ -352,6 +390,65 @@ namespace carrot::collision {
             };
         }
 
+        [[nodiscard]] collision_aabb_t tile_field_bounds(const tile_collision_field_t& field) noexcept
+        {
+            return collision_aabb_t::from_min_size(
+                field.origin(),
+                chlm::float2{
+                    field.cell_size().x * static_cast<float>(field.width()),
+                    field.cell_size().y * static_cast<float>(field.height())
+                });
+        }
+
+        [[nodiscard]] bool clip_query_to_tile_field(const tile_collision_field_t& field,
+                                                    const collision_aabb_t& query_bounds,
+                                                    uint32_t& min_x,
+                                                    uint32_t& min_y,
+                                                    uint32_t& max_x,
+                                                    uint32_t& max_y) noexcept
+        {
+            if (field.width() == 0u || field.height() == 0u)
+                return false;
+
+            const collision_aabb_t field_bounds{ tile_field_bounds(field) };
+            if (!collision_aabb_overlaps(field_bounds, query_bounds))
+                return false;
+
+            const float clipped_min_x{ std::max(query_bounds.min.x, field_bounds.min.x) };
+            const float clipped_min_y{ std::max(query_bounds.min.y, field_bounds.min.y) };
+            const float clipped_max_x{ std::min(query_bounds.max.x, field_bounds.max.x) };
+            const float clipped_max_y{ std::min(query_bounds.max.y, field_bounds.max.y) };
+
+            const float cell_width{ field.cell_size().x };
+            const float cell_height{ field.cell_size().y };
+            if (cell_width <= 0.f || cell_height <= 0.f)
+                return false;
+
+            const int32_t raw_min_x{ static_cast<int32_t>(std::floor((clipped_min_x - field.origin().x) / cell_width)) };
+            const int32_t raw_min_y{ static_cast<int32_t>(std::floor((clipped_min_y - field.origin().y) / cell_height)) };
+            const int32_t raw_max_x{
+                static_cast<int32_t>(std::floor(((clipped_max_x - field.origin().x) / cell_width) - 1.0e-6f))
+            };
+            const int32_t raw_max_y{
+                static_cast<int32_t>(std::floor(((clipped_max_y - field.origin().y) / cell_height) - 1.0e-6f))
+            };
+
+            const int32_t width_i{ static_cast<int32_t>(field.width()) };
+            const int32_t height_i{ static_cast<int32_t>(field.height()) };
+            const int32_t clipped_cell_min_x{ std::clamp(raw_min_x, 0, width_i - 1) };
+            const int32_t clipped_cell_min_y{ std::clamp(raw_min_y, 0, height_i - 1) };
+            const int32_t clipped_cell_max_x{ std::clamp(raw_max_x, 0, width_i - 1) };
+            const int32_t clipped_cell_max_y{ std::clamp(raw_max_y, 0, height_i - 1) };
+            if (clipped_cell_min_x > clipped_cell_max_x || clipped_cell_min_y > clipped_cell_max_y)
+                return false;
+
+            min_x = static_cast<uint32_t>(clipped_cell_min_x);
+            min_y = static_cast<uint32_t>(clipped_cell_min_y);
+            max_x = static_cast<uint32_t>(clipped_cell_max_x);
+            max_y = static_cast<uint32_t>(clipped_cell_max_y);
+            return true;
+        }
+
         [[nodiscard]] ray_vs_aabb_result_t raycast_against_aabb(const chlm::float2 origin,
                                                                 const chlm::float2 delta,
                                                                 const collision_aabb_t& bounds) noexcept
@@ -473,6 +570,11 @@ namespace carrot::collision {
         _next_tile_field_id = 1;
         _static_colliders.clear();
         _tile_fields.clear();
+        _static_broadphase.clear();
+        _static_broadphase_entry_count = 0u;
+        _broadphase_debug_summary = collision_broadphase_debug_summary_t{
+            .static_cell_size_world = k_static_broadphase_cell_size_world
+        };
     }
 
     const static_collider_t& collision_world_t::add_static_collider(static_collider_t collider)
@@ -480,7 +582,12 @@ namespace carrot::collision {
         if (collider.is_convex_polygon())
             collider.bounds = bounds_for_points(collider.polygon_points);
         collider.id = _next_static_collider_id++;
-        return _static_colliders.emplace_back(std::move(collider));
+        const static_collider_t& stored{ _static_colliders.emplace_back(std::move(collider)) };
+        index_static_collider(_static_colliders.size() - 1u);
+        _broadphase_debug_summary.static_cell_size_world = k_static_broadphase_cell_size_world;
+        _broadphase_debug_summary.static_bucket_count = static_cast<uint32_t>(_static_broadphase.size());
+        _broadphase_debug_summary.static_indexed_entry_count = _static_broadphase_entry_count;
+        return stored;
     }
 
     tile_collision_field_t& collision_world_t::create_tile_collision_field(const uint32_t width,
@@ -497,11 +604,24 @@ namespace carrot::collision {
                                                                     const collision_query_filter_t filter) const
     {
         std::vector<collision_hit_ref_t> hits;
+        collision_query_debug_stats_t stats{ .kind = collision_query_kind_t::point };
+        std::unordered_set<size_t> static_candidates;
 
-        for (const static_collider_t& collider : _static_colliders)
+        const int32_t cell_x{ broadphase_coord(point.x) };
+        const int32_t cell_y{ broadphase_coord(point.y) };
+        if (const auto it{ _static_broadphase.find(static_broadphase_cell_key_t{ .x = cell_x, .y = cell_y }) };
+            it != _static_broadphase.end())
         {
+            static_candidates.insert(it->second.begin(), it->second.end());
+        }
+        stats.static_candidate_count = static_cast<uint32_t>(static_candidates.size());
+
+        for (const size_t candidate_index : static_candidates)
+        {
+            const static_collider_t& collider{ _static_colliders[candidate_index] };
             if (!collision_layers_match(collider.layer, collider.mask, filter))
                 continue;
+            ++stats.static_tested_count;
 
             if (collider.is_convex_polygon())
             {
@@ -514,21 +634,37 @@ namespace carrot::collision {
 
         for (const tile_collision_field_t& field : _tile_fields)
         {
-            for (uint32_t y{ 0 }; y < field.height(); ++y)
-            {
-                for (uint32_t x{ 0 }; x < field.width(); ++x)
-                {
-                    const tile_collision_cell_t* cell{ field.cell_at(x, y) };
-                    if (!cell || !cell->solid || !collision_layers_match(cell->layer, cell->mask, filter))
-                        continue;
+            if (!collision_aabb_contains_point(tile_field_bounds(field), point))
+                continue;
 
-                    const collision_aabb_t bounds{ field.cell_bounds(x, y) };
-                    if (collision_aabb_contains_point(bounds, point))
-                        hits.push_back(make_hit_ref(field, x, y, *cell));
-                }
-            }
+            const float cell_width{ field.cell_size().x };
+            const float cell_height{ field.cell_size().y };
+            if (cell_width <= 0.f || cell_height <= 0.f)
+                continue;
+
+            const int32_t raw_x{ static_cast<int32_t>(std::floor((point.x - field.origin().x) / cell_width)) };
+            const int32_t raw_y{ static_cast<int32_t>(std::floor((point.y - field.origin().y) / cell_height)) };
+            if (raw_x < 0 || raw_y < 0)
+                continue;
+
+            const uint32_t x{ static_cast<uint32_t>(raw_x) };
+            const uint32_t y{ static_cast<uint32_t>(raw_y) };
+            if (!field.contains_cell(x, y))
+                continue;
+
+            ++stats.tile_candidate_count;
+            const tile_collision_cell_t* cell{ field.cell_at(x, y) };
+            if (!cell || !cell->solid || !collision_layers_match(cell->layer, cell->mask, filter))
+                continue;
+            ++stats.tile_tested_count;
+
+            const collision_aabb_t bounds{ field.cell_bounds(x, y) };
+            if (collision_aabb_contains_point(bounds, point))
+                hits.push_back(make_hit_ref(field, x, y, *cell));
         }
 
+        stats.hit_count = static_cast<uint32_t>(hits.size());
+        record_query_debug_stats(stats);
         return hits;
     }
 
@@ -536,11 +672,28 @@ namespace carrot::collision {
                                                                       const collision_query_filter_t filter) const
     {
         std::vector<collision_hit_ref_t> hits;
+        collision_query_debug_stats_t stats{ .kind = collision_query_kind_t::overlap };
+        std::unordered_set<size_t> static_candidates;
 
-        for (const static_collider_t& collider : _static_colliders)
+        for (int32_t y{ broadphase_coord(bounds.min.y) }; y <= broadphase_coord(bounds.max.y); ++y)
         {
+            for (int32_t x{ broadphase_coord(bounds.min.x) }; x <= broadphase_coord(bounds.max.x); ++x)
+            {
+                if (const auto it{ _static_broadphase.find(static_broadphase_cell_key_t{ .x = x, .y = y }) };
+                    it != _static_broadphase.end())
+                {
+                    static_candidates.insert(it->second.begin(), it->second.end());
+                }
+            }
+        }
+        stats.static_candidate_count = static_cast<uint32_t>(static_candidates.size());
+
+        for (const size_t candidate_index : static_candidates)
+        {
+            const static_collider_t& collider{ _static_colliders[candidate_index] };
             if (!collision_layers_match(collider.layer, collider.mask, filter))
                 continue;
+            ++stats.static_tested_count;
 
             if ((collider.is_convex_polygon() && aabb_overlaps_polygon(bounds, collider.polygon_points)) ||
                 (collider.is_aabb() && collision_aabb_overlaps(collider.bounds, bounds)))
@@ -551,13 +704,22 @@ namespace carrot::collision {
 
         for (const tile_collision_field_t& field : _tile_fields)
         {
-            for (uint32_t y{ 0 }; y < field.height(); ++y)
+            uint32_t min_x{ 0u };
+            uint32_t min_y{ 0u };
+            uint32_t max_x{ 0u };
+            uint32_t max_y{ 0u };
+            if (!clip_query_to_tile_field(field, bounds, min_x, min_y, max_x, max_y))
+                continue;
+
+            for (uint32_t y{ min_y }; y <= max_y; ++y)
             {
-                for (uint32_t x{ 0 }; x < field.width(); ++x)
+                for (uint32_t x{ min_x }; x <= max_x; ++x)
                 {
+                    ++stats.tile_candidate_count;
                     const tile_collision_cell_t* cell{ field.cell_at(x, y) };
                     if (!cell || !cell->solid || !collision_layers_match(cell->layer, cell->mask, filter))
                         continue;
+                    ++stats.tile_tested_count;
 
                     const collision_aabb_t cell_bounds{ field.cell_bounds(x, y) };
                     if (collision_aabb_overlaps(cell_bounds, bounds))
@@ -566,6 +728,8 @@ namespace carrot::collision {
             }
         }
 
+        stats.hit_count = static_cast<uint32_t>(hits.size());
+        record_query_debug_stats(stats);
         return hits;
     }
 
@@ -575,6 +739,22 @@ namespace carrot::collision {
     {
         std::optional<raycast_hit_t> nearest_hit;
         const float ray_length{ vector_length(delta) };
+        collision_query_debug_stats_t stats{ .kind = collision_query_kind_t::raycast };
+        std::unordered_set<size_t> static_candidates;
+        const collision_aabb_t query_bounds{ ray_bounds(origin, delta) };
+
+        for (int32_t y{ broadphase_coord(query_bounds.min.y) }; y <= broadphase_coord(query_bounds.max.y); ++y)
+        {
+            for (int32_t x{ broadphase_coord(query_bounds.min.x) }; x <= broadphase_coord(query_bounds.max.x); ++x)
+            {
+                if (const auto it{ _static_broadphase.find(static_broadphase_cell_key_t{ .x = x, .y = y }) };
+                    it != _static_broadphase.end())
+                {
+                    static_candidates.insert(it->second.begin(), it->second.end());
+                }
+            }
+        }
+        stats.static_candidate_count = static_cast<uint32_t>(static_candidates.size());
 
         const auto consider_hit = [&](const collision_hit_ref_t& hit_ref) {
             std::optional<raycast_hit_t> hit;
@@ -609,29 +789,41 @@ namespace carrot::collision {
             }
         };
 
-        for (const static_collider_t& collider : _static_colliders)
+        for (const size_t candidate_index : static_candidates)
         {
+            const static_collider_t& collider{ _static_colliders[candidate_index] };
             if (!collision_layers_match(collider.layer, collider.mask, filter))
                 continue;
-
+            ++stats.static_tested_count;
             consider_hit(make_hit_ref(collider));
         }
 
         for (const tile_collision_field_t& field : _tile_fields)
         {
-            for (uint32_t y{ 0 }; y < field.height(); ++y)
+            uint32_t min_x{ 0u };
+            uint32_t min_y{ 0u };
+            uint32_t max_x{ 0u };
+            uint32_t max_y{ 0u };
+            if (!clip_query_to_tile_field(field, query_bounds, min_x, min_y, max_x, max_y))
+                continue;
+
+            for (uint32_t y{ min_y }; y <= max_y; ++y)
             {
-                for (uint32_t x{ 0 }; x < field.width(); ++x)
+                for (uint32_t x{ min_x }; x <= max_x; ++x)
                 {
+                    ++stats.tile_candidate_count;
                     const tile_collision_cell_t* cell{ field.cell_at(x, y) };
                     if (!cell || !cell->solid || !collision_layers_match(cell->layer, cell->mask, filter))
                         continue;
-
+                    ++stats.tile_tested_count;
                     consider_hit(make_hit_ref(field, x, y, *cell));
                 }
             }
         }
 
+        stats.hit_count = nearest_hit.has_value() ? 1u : 0u;
+        stats.found_blocking_hit = nearest_hit.has_value();
+        record_query_debug_stats(stats);
         return nearest_hit;
     }
 
@@ -643,6 +835,22 @@ namespace carrot::collision {
         const chlm::float2 center{ moving_bounds.center() };
         const chlm::float2 extents{ moving_bounds.extents() };
         const float sweep_length{ vector_length(delta) };
+        collision_query_debug_stats_t stats{ .kind = collision_query_kind_t::sweep_aabb };
+        std::unordered_set<size_t> static_candidates;
+        const collision_aabb_t query_bounds{ swept_bounds(moving_bounds, delta) };
+
+        for (int32_t y{ broadphase_coord(query_bounds.min.y) }; y <= broadphase_coord(query_bounds.max.y); ++y)
+        {
+            for (int32_t x{ broadphase_coord(query_bounds.min.x) }; x <= broadphase_coord(query_bounds.max.x); ++x)
+            {
+                if (const auto it{ _static_broadphase.find(static_broadphase_cell_key_t{ .x = x, .y = y }) };
+                    it != _static_broadphase.end())
+                {
+                    static_candidates.insert(it->second.begin(), it->second.end());
+                }
+            }
+        }
+        stats.static_candidate_count = static_cast<uint32_t>(static_candidates.size());
 
         const auto consider_hit = [&](const collision_hit_ref_t& hit_ref) {
             if (hit_ref.collider && hit_ref.collider->is_convex_polygon())
@@ -714,30 +922,74 @@ namespace carrot::collision {
             }
         };
 
-        for (const static_collider_t& collider : _static_colliders)
+        for (const size_t candidate_index : static_candidates)
         {
+            const static_collider_t& collider{ _static_colliders[candidate_index] };
             if (!collision_layers_match(collider.layer, collider.mask, filter))
                 continue;
-
+            ++stats.static_tested_count;
             consider_hit(make_hit_ref(collider));
         }
 
         for (const tile_collision_field_t& field : _tile_fields)
         {
-            for (uint32_t y{ 0 }; y < field.height(); ++y)
+            uint32_t min_x{ 0u };
+            uint32_t min_y{ 0u };
+            uint32_t max_x{ 0u };
+            uint32_t max_y{ 0u };
+            if (!clip_query_to_tile_field(field, query_bounds, min_x, min_y, max_x, max_y))
+                continue;
+
+            for (uint32_t y{ min_y }; y <= max_y; ++y)
             {
-                for (uint32_t x{ 0 }; x < field.width(); ++x)
+                for (uint32_t x{ min_x }; x <= max_x; ++x)
                 {
+                    ++stats.tile_candidate_count;
                     const tile_collision_cell_t* cell{ field.cell_at(x, y) };
                     if (!cell || !cell->solid || !collision_layers_match(cell->layer, cell->mask, filter))
                         continue;
-
+                    ++stats.tile_tested_count;
                     consider_hit(make_hit_ref(field, x, y, *cell));
                 }
             }
         }
 
+        stats.hit_count = nearest_hit.has_value() ? 1u : 0u;
+        stats.found_blocking_hit = nearest_hit.has_value();
+        record_query_debug_stats(stats);
         return nearest_hit;
+    }
+
+    size_t collision_world_t::static_broadphase_cell_key_hasher_t::operator()(
+        const static_broadphase_cell_key_t& key) const noexcept
+    {
+        const uint64_t packed_x{ static_cast<uint32_t>(key.x) };
+        const uint64_t packed_y{ static_cast<uint32_t>(key.y) };
+        return static_cast<size_t>((packed_x << 32u) ^ packed_y);
+    }
+
+    void collision_world_t::index_static_collider(const size_t collider_index)
+    {
+        if (collider_index >= _static_colliders.size())
+            return;
+
+        const static_collider_t& collider{ _static_colliders[collider_index] };
+        for (int32_t y{ broadphase_coord(collider.bounds.min.y) }; y <= broadphase_coord(collider.bounds.max.y); ++y)
+        {
+            for (int32_t x{ broadphase_coord(collider.bounds.min.x) }; x <= broadphase_coord(collider.bounds.max.x); ++x)
+            {
+                _static_broadphase[static_broadphase_cell_key_t{ .x = x, .y = y }].push_back(collider_index);
+                ++_static_broadphase_entry_count;
+            }
+        }
+    }
+
+    void collision_world_t::record_query_debug_stats(collision_query_debug_stats_t stats) const noexcept
+    {
+        _broadphase_debug_summary.static_cell_size_world = k_static_broadphase_cell_size_world;
+        _broadphase_debug_summary.static_bucket_count = static_cast<uint32_t>(_static_broadphase.size());
+        _broadphase_debug_summary.static_indexed_entry_count = _static_broadphase_entry_count;
+        _broadphase_debug_summary.last_query = stats;
     }
 
     bool collision_layers_match(const collision_layer_t candidate_layer,

@@ -368,6 +368,8 @@ namespace carrot::scene {
         uint32_t world_object_count{ 0u };
         uint32_t trigger_count{ 0u };
         uint32_t object_collider_count{ 0u };
+        uint32_t dynamic_body_count{ 0u };
+        uint32_t trigger_volume_count{ 0u };
         uint32_t static_collider_count{ 0u };
         uint32_t point_light_count{ 0u };
         uint32_t visibility_region_count{ 0u };
@@ -404,6 +406,7 @@ namespace carrot::scene {
 
     struct scene_runtime_object_collision_summary_t
     {
+        world::collision_participation_kind_t participation{ world::collision_participation_kind_t::dynamic_body };
         chlm::float2 half_extents{ 0.f, 0.f };
         chlm::float2 offset{ 0.f, 0.f };
         bool has_debug_display{ false };
@@ -553,6 +556,18 @@ namespace carrot::scene {
     struct scene_runtime_collision_system_summary_t
     {
         uint32_t static_collider_count{ 0u };
+        uint32_t dynamic_body_count{ 0u };
+        uint32_t trigger_volume_count{ 0u };
+        float static_broadphase_cell_size_world{ 0.f };
+        uint32_t static_broadphase_bucket_count{ 0u };
+        uint32_t static_broadphase_indexed_entry_count{ 0u };
+        collision::collision_query_kind_t last_query_kind{ collision::collision_query_kind_t::none };
+        uint32_t last_query_static_candidate_count{ 0u };
+        uint32_t last_query_static_tested_count{ 0u };
+        uint32_t last_query_tile_candidate_count{ 0u };
+        uint32_t last_query_tile_tested_count{ 0u };
+        uint32_t last_query_hit_count{ 0u };
+        bool last_query_found_blocking_hit{ false };
         bool show_map_collision{ false };
         bool show_object_colliders{ false };
         bool show_trigger_volumes{ false };

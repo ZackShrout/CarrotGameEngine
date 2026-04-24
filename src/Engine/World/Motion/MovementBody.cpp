@@ -11,6 +11,7 @@ namespace carrot::world {
         [[nodiscard]] collision_component_t default_collision_component() noexcept
         {
             return collision_component_t{
+                .participation = collision_participation_kind_t::dynamic_body,
                 .half_extents = { 0.3f, 0.2f },
                 .offset = { 0.f, -0.2f },
                 .debug_display = std::nullopt

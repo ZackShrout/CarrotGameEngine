@@ -106,6 +106,7 @@ namespace carrot::world {
                 .scale = { 1.f, 1.f }
             };
             player.collision = collision_component_t{
+                .participation = collision_participation_kind_t::dynamic_body,
                 .half_extents = { 0.3f, 0.2f },
                 .offset = { 0.f, -0.2f },
                 .debug_display = collision_debug_display_t{
@@ -173,6 +174,7 @@ namespace carrot::world {
                 return;
 
             object.collision = collision_component_t{
+                .participation = collision_participation_kind_t::dynamic_body,
                 .half_extents = { 0.3f, 0.2f },
                 .offset = { 0.f, -0.2f },
                 .debug_display = collision_debug_display_t{

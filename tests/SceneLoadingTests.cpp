@@ -12,6 +12,7 @@
 #include "Assets/Scene/SceneAssetManifestImporter.h"
 #include "Assets/Sprite/SpriteAssetManifestImporter.h"
 #include "Assets/Texture/TextureAssetManifestImporter.h"
+#include "Assets/Tilemap/CookedTilemap.h"
 #include "Assets/Tilemap/TiledTilemapAssetImporter.h"
 #include "Assets/Tilemap/TilemapAssetManifestImporter.h"
 #include "Assets/Tilemap/TypedObjectConventions.h"
@@ -1365,8 +1366,8 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(typed_npc->move_speed.has_value());
             CARROT_TEST_REQUIRE(*typed_npc->move_speed == 4.0f);
             CARROT_TEST_REQUIRE(typed_patrol_path->name == "townsfolk_1_route");
-            CARROT_TEST_REQUIRE(!typed_patrol_path->loop);
-            CARROT_TEST_REQUIRE(typed_patrol_path->ping_pong);
+            CARROT_TEST_REQUIRE(typed_patrol_path->loop);
+            CARROT_TEST_REQUIRE(!typed_patrol_path->ping_pong);
             CARROT_TEST_REQUIRE(typed_patrol_path->pause_time == 1.0f);
             CARROT_TEST_REQUIRE(typed_ambient_light->kind == assets::typed_light_kind_t::ambient);
             CARROT_TEST_REQUIRE(typed_ambient_light->behavior == assets::typed_light_behavior_t::stationary);
@@ -1677,6 +1678,64 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(water_animation->total_duration_ms == 600u);
             CARROT_TEST_REQUIRE(water_animation->frames.front().tile_id == 95u);
             CARROT_TEST_REQUIRE(water_animation->frames.back().tile_id == 100u);
+        }
+
+        void test_tiled_tileset_sort_span_metadata_imports_from_sandbox_town()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, rhi };
+            register_required_assets(assets, vfs);
+
+            const assets::loaded_tilemap_asset_t* tilemap{ assets.tilemaps().get("tilemap.sandbox.town") };
+            CARROT_TEST_REQUIRE(tilemap != nullptr);
+
+            const auto& tilesets{ tilemap->tilemap().tilesets() };
+            const auto it{ std::ranges::find_if(tilesets, [](const assets::tilemap_tileset_t& tileset) {
+                return tileset.name == "bridges_and_fences";
+            }) };
+            CARROT_TEST_REQUIRE(it != tilesets.end());
+            CARROT_TEST_REQUIRE(it->sort_span_down_for_tile(26u) == 1u);
+            CARROT_TEST_REQUIRE(it->sort_span_down_for_tile(27u) == 0u);
+            CARROT_TEST_REQUIRE(it->sort_anchor_offset_y_for_tile(138u) == 13u);
+            CARROT_TEST_REQUIRE(it->sort_anchor_offset_y_for_tile(26u) == 0u);
+        }
+
+        void test_cooked_tilemap_round_trips_tileset_sort_span_metadata()
+        {
+            assets::cooked_tilemap_data_t cooked;
+            cooked.tilemap.set_size(1u, 1u);
+            cooked.tilemap.set_tile_size(32u, 32u);
+            cooked.tilemap.set_source_format("test");
+
+            assets::tilemap_tileset_t tileset{ };
+            tileset.name = "bridges";
+            tileset.first_gid = 1u;
+            tileset.tile_width = 32u;
+            tileset.tile_height = 32u;
+            tileset.tile_count = 64u;
+            tileset.columns = 8u;
+            tileset.tile_sort_metadata.push_back({
+                .tile_id = 26u,
+                .span_down = 1u,
+                .anchor_offset_y = 7u
+            });
+            tileset.rebuild_animation_lookup();
+            tileset.rebuild_sort_metadata_lookup();
+            cooked.tilemap.add_tileset(std::move(tileset));
+
+            const auto serialized{ assets::serialize_cooked_tilemap(cooked) };
+            CARROT_TEST_REQUIRE(serialized.has_value());
+
+            const auto deserialized{ assets::deserialize_cooked_tilemap(*serialized) };
+            CARROT_TEST_REQUIRE(deserialized.has_value());
+            CARROT_TEST_REQUIRE(deserialized->tilemap.tilesets().size() == 1u);
+            CARROT_TEST_REQUIRE(deserialized->tilemap.tilesets().front().sort_span_down_for_tile(26u) == 1u);
+            CARROT_TEST_REQUIRE(deserialized->tilemap.tilesets().front().sort_anchor_offset_y_for_tile(26u) == 7u);
+            CARROT_TEST_REQUIRE(deserialized->tilemap.tilesets().front().sort_span_down_for_tile(25u) == 0u);
+            CARROT_TEST_REQUIRE(deserialized->tilemap.tilesets().front().sort_anchor_offset_y_for_tile(25u) == 0u);
         }
 
         void test_tile_animation_resolves_expected_frame_by_elapsed_time()
@@ -2477,6 +2536,8 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(summary.world_object_count == 0u);
             CARROT_TEST_REQUIRE(summary.trigger_count == 0u);
             CARROT_TEST_REQUIRE(summary.object_collider_count == 0u);
+            CARROT_TEST_REQUIRE(summary.dynamic_body_count == 0u);
+            CARROT_TEST_REQUIRE(summary.trigger_volume_count == 0u);
             CARROT_TEST_REQUIRE(summary.static_collider_count == 0u);
             CARROT_TEST_REQUIRE(summary.point_light_count == 0u);
             CARROT_TEST_REQUIRE(summary.visibility_region_count == 0u);
@@ -2538,6 +2599,8 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(summary.world_object_count > 0u);
             CARROT_TEST_REQUIRE(summary.trigger_count > 0u);
             CARROT_TEST_REQUIRE(summary.object_collider_count > 0u);
+            CARROT_TEST_REQUIRE(summary.dynamic_body_count > 0u);
+            CARROT_TEST_REQUIRE(summary.trigger_volume_count > 0u);
             CARROT_TEST_REQUIRE(summary.static_collider_count > 0u);
             CARROT_TEST_REQUIRE(summary.has_player_object());
             CARROT_TEST_REQUIRE(!summary.player_object_name.empty());
@@ -2609,6 +2672,8 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(!player_summary->type.empty());
             CARROT_TEST_REQUIRE(player_summary->has_transform);
             CARROT_TEST_REQUIRE(player_summary->has_collision);
+            CARROT_TEST_REQUIRE(player_summary->collision.participation ==
+                                world::collision_participation_kind_t::dynamic_body);
             CARROT_TEST_REQUIRE(player_summary->has_sprite);
             CARROT_TEST_REQUIRE(player_summary->has_sprite_animator);
             CARROT_TEST_REQUIRE(player_summary->sprite.texture_id == "texture.vraden_sprite");
@@ -2633,6 +2698,9 @@ namespace carrot::tests {
             const scene::scene_runtime_object_summary_t* trigger_summary{ find_summary_by_name("Trigger") };
             CARROT_TEST_REQUIRE(trigger_summary != nullptr);
             CARROT_TEST_REQUIRE(trigger_summary->has_trigger);
+            CARROT_TEST_REQUIRE(trigger_summary->has_collision);
+            CARROT_TEST_REQUIRE(trigger_summary->collision.participation ==
+                                world::collision_participation_kind_t::trigger_volume);
             CARROT_TEST_REQUIRE(trigger_summary->has_interaction);
             CARROT_TEST_REQUIRE(trigger_summary->interaction.kind ==
                                 scene::scene_runtime_object_interaction_kind_t::trigger);
@@ -2695,6 +2763,8 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(summary.light_shafts.requires_authored_shaft_source_selection);
             CARROT_TEST_REQUIRE(summary.light_shafts.available_point_light_source_count == 0u);
             CARROT_TEST_REQUIRE(summary.collision.static_collider_count == 0u);
+            CARROT_TEST_REQUIRE(summary.collision.dynamic_body_count == 0u);
+            CARROT_TEST_REQUIRE(summary.collision.trigger_volume_count == 0u);
             CARROT_TEST_REQUIRE(!summary.collision.show_map_collision);
             CARROT_TEST_REQUIRE(!summary.collision.show_object_colliders);
             CARROT_TEST_REQUIRE(!summary.collision.show_trigger_volumes);
@@ -2801,6 +2871,12 @@ namespace carrot::tests {
                 .value = std::string{ "debug.sign" }
             });
 
+            CARROT_TEST_REQUIRE(!world.collision_world().static_colliders().empty());
+            const auto collision_probe{
+                world.collision_world().point_query(world.collision_world().static_colliders().front().bounds.center())
+            };
+            CARROT_TEST_REQUIRE(!collision_probe.empty());
+
             const scene::scene_runtime_systems_summary_t summary{ runtime.summarize_runtime_systems(game) };
 
             CARROT_TEST_REQUIRE(summary.lighting.point_light_count == 1u);
@@ -2822,6 +2898,15 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(summary.light_shafts.requires_authored_shaft_source_selection);
             CARROT_TEST_REQUIRE(summary.light_shafts.available_point_light_source_count == 1u);
             CARROT_TEST_REQUIRE(summary.collision.static_collider_count > 0u);
+            CARROT_TEST_REQUIRE(summary.collision.dynamic_body_count > 0u);
+            CARROT_TEST_REQUIRE(summary.collision.trigger_volume_count > 0u);
+            CARROT_TEST_REQUIRE(summary.collision.static_broadphase_cell_size_world > 0.f);
+            CARROT_TEST_REQUIRE(summary.collision.static_broadphase_bucket_count > 0u);
+            CARROT_TEST_REQUIRE(summary.collision.static_broadphase_indexed_entry_count >=
+                                summary.collision.static_collider_count);
+            CARROT_TEST_REQUIRE(summary.collision.last_query_kind == collision::collision_query_kind_t::point);
+            CARROT_TEST_REQUIRE(summary.collision.last_query_static_candidate_count > 0u);
+            CARROT_TEST_REQUIRE(summary.collision.last_query_hit_count > 0u);
             CARROT_TEST_REQUIRE(summary.collision.show_map_collision);
             CARROT_TEST_REQUIRE(summary.collision.show_object_colliders);
             CARROT_TEST_REQUIRE(summary.collision.show_trigger_volumes);
@@ -4735,6 +4820,7 @@ namespace carrot::tests {
                 .scale = { 1.f, 1.f }
             };
             actor.collision = world::collision_component_t{
+                .participation = world::collision_participation_kind_t::dynamic_body,
                 .half_extents = { 0.3f, 0.2f },
                 .offset = { 0.f, -0.2f }
             };
@@ -4747,6 +4833,7 @@ namespace carrot::tests {
                 .scale = { 1.f, 1.f }
             };
             trigger.collision = world::collision_component_t{
+                .participation = world::collision_participation_kind_t::trigger_volume,
                 .half_extents = { 0.5f, 1.f },
                 .offset = { 0.5f, 1.f }
             };
@@ -4786,6 +4873,7 @@ namespace carrot::tests {
                 .scale = { 1.f, 1.f }
             };
             actor.collision = world::collision_component_t{
+                .participation = world::collision_participation_kind_t::dynamic_body,
                 .half_extents = { 0.3f, 0.2f },
                 .offset = { 0.f, -0.2f }
             };
@@ -4798,6 +4886,7 @@ namespace carrot::tests {
                 .scale = { 1.f, 1.f }
             };
             trigger.collision = world::collision_component_t{
+                .participation = world::collision_participation_kind_t::trigger_volume,
                 .half_extents = { 0.5f, 1.f },
                 .offset = { 0.5f, 1.f }
             };
@@ -4893,6 +4982,10 @@ namespace carrot::tests {
                            test_game_view_camera_surface_reads_and_writes_camera_state);
         tests.emplace_back("tiled tile animation metadata imports from sandbox town",
                            test_tiled_tile_animation_metadata_imports_from_sandbox_town);
+        tests.emplace_back("tiled tileset sort span metadata imports from sandbox town",
+                           test_tiled_tileset_sort_span_metadata_imports_from_sandbox_town);
+        tests.emplace_back("cooked tilemap round trips tileset sort span metadata",
+                           test_cooked_tilemap_round_trips_tileset_sort_span_metadata);
         tests.emplace_back("tile animation resolves expected frame by elapsed time",
                            test_tile_animation_resolves_expected_frame_by_elapsed_time);
         tests.emplace_back("tiled tilemap import accepts unsupported features non-fatally",

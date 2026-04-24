@@ -2,7 +2,7 @@
 
 **BunnySoft**
 **Working system direction**
-**Last Updated: April 4, 2026**
+**Last Updated: April 24, 2026**
 
 ---
 
@@ -160,7 +160,10 @@ Carrot now has a working first-pass implementation of this direction:
 * `collision_world_t` provides layers / masks, static colliders, point queries, overlap queries, raycasts, and AABB sweeps
 * `tile_collision_field_t` exists as an engine-owned static collision representation
 * Tiled tileset rectangle collision can populate runtime static world blocking
+* baked static colliders now use a uniform-grid broadphase before narrowphase checks
+* tile-field point/overlap/raycast/sweep queries clip to relevant cells instead of polling whole fields
 * Tiled object-layer trigger rectangles can populate runtime trigger world objects
+* world-object collision participation is now explicit: dynamic actor bodies and trigger volumes are distinct roles
 * the current player path uses explicit top-down kinematic movement with sweep-and-slide resolution against static collision
 * trigger overlap changes are surfaced to gameplay as explicit enter / exit events
 * the engine now has toggleable debug visualization for map collision and object colliders, including the player
@@ -203,6 +206,12 @@ Common examples:
 * moving doors and platforms are often kinematic
 * only a smaller subset of things want actual dynamic simulation later
 
+Current Milestone 28 validated distinction:
+
+* baked map blocking lives in `collision_world_t`
+* player/NPC movement bodies are explicit dynamic actor-body participation on world objects
+* authored trigger regions are explicit trigger-volume participation on world objects
+
 This matters because Carrot should not architect the whole system around "everything is a free rigid body."
 
 ---
@@ -221,18 +230,21 @@ Recommended early shapes:
 Currently implemented:
 
 * AABB-style collision queries and sweeps
-* rectangle-authored Tiled tile collision imported into AABB static colliders
+* rectangle-authored Tiled tile collision imported into static colliders
+* convex polygon-authored Tiled tile collision imported into static world collision
+* ellipse-authored Tiled tile collision imported as convex polygon approximations
 * rectangle-authored Tiled trigger regions imported as non-blocking trigger bounds
 
 Delayed shapes:
 
-* arbitrary polygons
-* more complex convex shapes
+* concave polygons
+* more complex dynamic convex-shape combinations
 * richer compound systems beyond what actual games require
 
 Current explicit limitation:
 
-* arbitrary Tiled polygon collision is not supported yet
+* concave Tiled polygon collision is not supported yet
+* collision polylines are not supported yet
 * current debug visualization is intentionally simple and focused on inspection rather than a full tooling UI
 
 The engine should leave room for future compound colliders, but should not require them on day one.

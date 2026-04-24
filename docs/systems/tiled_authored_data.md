@@ -1,6 +1,6 @@
 # Carrot Tiled Authored Data Contract
 
-**Last Updated:** April 23, 2026
+**Last Updated:** April 24, 2026
 
 This document defines the current authored-data contract between Tiled exports and Carrot.
 
@@ -32,6 +32,7 @@ Carrot currently supports these Tiled-backed foundations:
 * imported polygon and polyline geometry metadata on Tiled objects
 * rectangle trigger regions
 * rectangle visibility regions through `type = VisibilityZone`
+* baked/normalized static collision generation from authored tileset collision
 * explicit world-layering metadata such as:
   * `visibility_zone_id`
   * `carrot_visibility_zone`
@@ -85,6 +86,8 @@ Examples already in use:
 * `carrot_visibility_zone`
 * `carrot_conditional_front`
 * `carrot_always_front`
+* `carrot_sort_span_down`
+* `carrot_sort_anchor_offset_y`
 
 If a property is part of the engine contract, it should be documented and interpreted consistently.
 
@@ -100,6 +103,8 @@ Carrot currently treats these Tiled object types as first-class authored convent
   * required: `target_marker`
   * required: one of `target_scene` or legacy `target_map`
   * if both `target_scene` and `target_map` are present, `target_scene` is preferred and the map should be cleaned up
+  * if authored as a rectangle object, interaction uses the authored rectangle as the interaction zone
+  * if authored as a point object later, interaction falls back to normal interaction-radius behavior
 * `Trigger`
   * required: `trigger_id`
   * required: `trigger_kind`
@@ -507,6 +512,36 @@ Author it in Tiled like this:
 * set `carrot_conditional_front = true` on that front layer
 
 This keeps floor surfaces from drawing over the actor while still letting the front edge behave like an authored occluder.
+
+### Multi-Tile Conditional Front Sort Anchors
+
+Use this pattern when a conditional-front tile is only the upper part of a taller stacked front and should keep sorting against a lower painted tile.
+
+Good fits include:
+
+* bridge rails authored as stacked tiles
+* wall fronts with separate trim and base rows
+* tall fence or counter fronts built from multiple painted rows
+
+Author it in Tiled like this:
+
+* open the tileset tile that represents the upper portion of the stacked front
+* add integer property `carrot_sort_span_down = <count>`
+
+Meaning:
+
+* `0` or unset: sort from this tile's own bottom edge
+* `1`: sort from one occupied row lower
+* `2`: sort from two occupied rows lower
+
+Current first-pass runtime behavior:
+
+* the property is authored on the tileset tile, not on each painted map cell
+* it only affects tile-layer content using `anchor_bottom_y` ordering such as `carrot_conditional_front`
+* the span only continues downward while the next cell in the same column is occupied
+* if the continuation cell is empty, Carrot clamps to the last occupied row instead of extending through empty space
+* if the resolved anchor tile should sort above its tile bottom because the visible art has transparent padding below it, author `carrot_sort_anchor_offset_y = <pixels>` on that anchor tile
+* `carrot_sort_anchor_offset_y` is measured in source pixels upward from the tile bottom and is clamped to the tile height
 
 ### Always-Front Tile Layers
 

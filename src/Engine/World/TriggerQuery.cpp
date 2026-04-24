@@ -116,7 +116,10 @@ namespace carrot::world {
 
         for (const world_object_t& object : world.objects())
         {
-            if (!object.trigger || object.id == actor.id)
+            if (!object.trigger || !object.collision || object.id == actor.id)
+                continue;
+
+            if (!collision_participates_in_trigger_queries(object.collision->participation))
                 continue;
 
             const std::optional<collision::collision_aabb_t> trigger_bounds{ collision_bounds_for(object) };

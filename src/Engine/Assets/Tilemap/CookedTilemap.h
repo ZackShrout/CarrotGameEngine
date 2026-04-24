@@ -16,7 +16,7 @@
 namespace carrot::assets {
     struct cooked_tilemap_data_t
     {
-        std::uint32_t cooked_format_version{ 2u };
+        std::uint32_t cooked_format_version{ 4u };
         std::uint32_t importer_version{ 1u };
         imported_asset_invalidation_t invalidation;
         tilemap_asset_t tilemap;

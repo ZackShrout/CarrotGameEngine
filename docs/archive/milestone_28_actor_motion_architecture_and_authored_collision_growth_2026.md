@@ -1,8 +1,8 @@
 # Carrot Game Engine - Milestone 28
 
-**Last Updated:** April 23, 2026
+**Last Updated:** April 24, 2026
 **Title:** Actor Motion Architecture and Authored Collision Growth
-**Status:** Planned
+**Status:** Complete
 **Focus:** Separate controller intent from movement execution, grow Carrot's gameplay-first collision architecture beyond narrow AABB-only assumptions, bake authored Tiled collision into runtime-friendly static world data, and prove the result with authored NPC patrol behavior.
 
 ---
@@ -35,6 +35,19 @@ This milestone is successful if Carrot ends with:
 * support for non-rect authored collision from Tiled in the milestone slice
 * baked static world collision data that avoids naive per-tile collider spam
 * broadphase-assisted collision/query behavior instead of brute-force world polling
+
+### Closeout Snapshot
+
+Milestone 28 closed with these validated outcomes in the live engine slice:
+
+* controller, motor, and body responsibilities are separated explicitly
+* player locomotion runs through the shared movement architecture
+* authored `NPC` and `PatrolPath` content works end to end from Tiled to runtime patrol/animation behavior
+* convex polygon and ellipse-authored static collision from Tiled participate in runtime blocking
+* static map collision is baked/normalized into cleaner runtime-friendly blocking geometry
+* static world queries use a broadphase-assisted path with candidate/test diagnostics
+* static map blocking, dynamic actor bodies, and trigger volumes are distinct runtime participation roles
+* runtime summaries expose enough collision/motion truth to inspect Milestone 28 behavior without guesswork
 
 ---
 
@@ -359,6 +372,12 @@ Add a broadphase-friendly query structure for static world collision:
 * the engine does not rely on world-sized collider polling for normal movement/query flow
 * diagnostics can show candidate counts and narrowphase counts meaningfully
 
+#### Current Validated Implementation Slice
+
+* static baked collider queries now use a uniform-grid broadphase before narrowphase shape checks
+* tile-field queries no longer poll whole fields for normal point/overlap/raycast/sweep flow and instead clip to relevant cells
+* collision runtime/system summaries expose broadphase bucket counts, indexed entry counts, and last-query candidate/test counts
+
 ### Ticket 28.7 - Static vs Dynamic Collision Participation Model
 
 **Priority:** P1
@@ -382,6 +401,13 @@ Clarify and implement the participation model for:
 * static and dynamic participation are distinct in the architecture
 * the runtime query path reflects that distinction
 * later growth toward more actors does not require unpicking the milestone's design
+
+#### Current Validated Implementation Slice
+
+* baked map blocking remains in `collision_world_t` as engine-owned static world data
+* movement bodies now identify dynamic actor-body participation explicitly on world objects
+* authored trigger volumes now identify trigger participation explicitly on world objects
+* runtime summaries and object inspection expose dynamic-body counts separately from trigger-volume counts
 
 ### Ticket 28.8 - Collision, Motion, and Query Diagnostics
 
@@ -408,6 +434,14 @@ Add diagnostics appropriate for the milestone:
 * collision growth remains understandable after the milestone
 * performance questions can be investigated without guesswork
 * authored NPC patrol and non-rect collision are both inspectable in runtime diagnostics
+
+#### Current Validated Implementation Slice
+
+* scene/runtime summaries expose static collider counts, dynamic body counts, and trigger volume counts separately
+* collision summaries expose broadphase bucket counts plus last-query candidate/test counts
+* object summaries expose collision participation roles directly
+* player and authored NPC locomotion state remain inspectable through runtime controller summaries
+* imported and baked collision truth remain visible through the existing world collision debug view
 
 ---
 

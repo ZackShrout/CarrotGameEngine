@@ -232,8 +232,22 @@ namespace carrot::assets {
 
                         if (!tile_collision.empty())
                             tileset.tile_collisions.emplace_back(std::move(tile_collision));
+
+                        const double sort_span_down{ tile_json.get_number_or("sort_span_down", 0.0) };
+                        const double sort_anchor_offset_y{ tile_json.get_number_or("sort_anchor_offset_y", 0.0) };
+                        if (sort_span_down > 0.0 || sort_anchor_offset_y > 0.0)
+                        {
+                            tileset.tile_sort_metadata.emplace_back(tilemap_tileset_t::tile_sort_metadata_t{
+                                .tile_id = static_cast<uint32_t>(tile_json.get_number_or("tile_id", 0.0)),
+                                .span_down = static_cast<uint32_t>(std::max(0.0, sort_span_down)),
+                                .anchor_offset_y = static_cast<uint32_t>(std::max(0.0, sort_anchor_offset_y))
+                            });
+                        }
                     }
                 }
+
+                tileset.rebuild_animation_lookup();
+                tileset.rebuild_sort_metadata_lookup();
 
                 record.tilemap.add_tileset(std::move(tileset));
             }

@@ -459,6 +459,35 @@ namespace carrot::assets {
                                   patrol_path_name));
         }
 
+        for (const tilemap_tileset_t& tileset : tilemap.tilesets())
+        {
+            for (const tilemap_tileset_t::tile_sort_metadata_t& sort_metadata : tileset.tile_sort_metadata)
+            {
+                if (tileset.tile_count > 0u && sort_metadata.tile_id >= tileset.tile_count)
+                {
+                    add_issue(issues,
+                              tilemap_validation_issue_severity_t::warning,
+                              "tiled.tileset.sort_span.invalid_tile_id",
+                              std::format("Tileset '{}' defines carrot_sort_span_down for tile {} but the tileset tile_count is {}.",
+                                          tileset.name.empty() ? "<unnamed>" : tileset.name,
+                                          sort_metadata.tile_id,
+                                          tileset.tile_count));
+                }
+
+                if (tileset.tile_height > 0u && sort_metadata.anchor_offset_y > tileset.tile_height)
+                {
+                    add_issue(issues,
+                              tilemap_validation_issue_severity_t::warning,
+                              "tiled.tileset.sort_anchor_offset.out_of_range",
+                              std::format("Tileset '{}' defines carrot_sort_anchor_offset_y = {} for tile {} but tile_height is {}. Carrot clamps the offset to the tile height.",
+                                          tileset.name.empty() ? "<unnamed>" : tileset.name,
+                                          sort_metadata.anchor_offset_y,
+                                          sort_metadata.tile_id,
+                                          tileset.tile_height));
+                }
+            }
+        }
+
         if (ambient_light_count > 1u)
         {
             add_issue(issues,

@@ -16,7 +16,7 @@
 
 namespace carrot::assets {
     namespace {
-        constexpr std::uint32_t tilemap_importer_version{ 1u };
+        constexpr std::uint32_t tilemap_importer_version{ 3u };
 
         [[nodiscard]] std::filesystem::path normalize_tileset_image_path(std::string_view raw_path)
         {

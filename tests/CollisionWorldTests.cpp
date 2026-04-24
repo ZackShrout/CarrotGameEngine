@@ -196,6 +196,36 @@ namespace carrot::tests {
             CARROT_TEST_REQUIRE(nearly_equal(hit->normal.y, 0.f));
         }
 
+        void test_collision_world_broadphase_reports_reduced_static_candidates()
+        {
+            collision::collision_world_t world;
+            (void)world.add_static_collider(collision::static_collider_t{
+                .bounds = unit_box_at(0.f, 0.f),
+                .layer = collision::make_collision_layer(0u),
+                .mask = collision::k_collision_mask_all
+            });
+            (void)world.add_static_collider(collision::static_collider_t{
+                .bounds = unit_box_at(20.f, 0.f),
+                .layer = collision::make_collision_layer(0u),
+                .mask = collision::k_collision_mask_all
+            });
+            (void)world.add_static_collider(collision::static_collider_t{
+                .bounds = unit_box_at(40.f, 0.f),
+                .layer = collision::make_collision_layer(0u),
+                .mask = collision::k_collision_mask_all
+            });
+
+            const auto hits{ world.point_query(chlm::float2{ 0.5f, 0.5f }) };
+            CARROT_TEST_REQUIRE(hits.size() == 1u);
+
+            const collision::collision_broadphase_debug_summary_t& debug{ world.broadphase_debug_summary() };
+            CARROT_TEST_REQUIRE(debug.static_bucket_count >= 3u);
+            CARROT_TEST_REQUIRE(debug.last_query.kind == collision::collision_query_kind_t::point);
+            CARROT_TEST_REQUIRE(debug.last_query.static_candidate_count < world.static_colliders().size());
+            CARROT_TEST_REQUIRE(debug.last_query.static_tested_count == 1u);
+            CARROT_TEST_REQUIRE(debug.last_query.hit_count == 1u);
+        }
+
         void test_collision_world_sweep_allows_separating_from_touching_contact()
         {
             collision::collision_world_t world;
@@ -242,6 +272,8 @@ namespace carrot::tests {
                            test_collision_world_point_query_hits_convex_polygon);
         tests.emplace_back("collision world sweep hits convex polygon",
                            test_collision_world_sweep_hits_convex_polygon);
+        tests.emplace_back("collision world broadphase reports reduced static candidates",
+                           test_collision_world_broadphase_reports_reduced_static_candidates);
         tests.emplace_back("collision world sweep allows separating from touching contact",
                            test_collision_world_sweep_allows_separating_from_touching_contact);
         tests.emplace_back("world clear resets collision world", test_world_clear_resets_collision_world);

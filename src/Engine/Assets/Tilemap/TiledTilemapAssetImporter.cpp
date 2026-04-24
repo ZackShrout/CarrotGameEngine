@@ -233,6 +233,45 @@ namespace carrot::assets {
                 tileset.tile_animations.emplace_back(std::move(animation));
         }
 
+        void parse_tileset_tile_sort_metadata(const utils::json::json_object_view_t& tile_json,
+                                              tilemap_tileset_t& tileset)
+        {
+            tilemap_tileset_t::tile_sort_metadata_t metadata{
+                .tile_id = static_cast<uint32_t>(tile_json.get_number_or("id", 0.0))
+            };
+            bool has_metadata{ false };
+
+            std::vector<tilemap_property_t> properties;
+            parse_properties(tile_json, properties);
+
+            const tilemap_property_t* sort_span_property{
+                find_tilemap_property(properties, "carrot_sort_span_down")
+            };
+            if (sort_span_property)
+            {
+                if (const double* span_down_value{ std::get_if<double>(&sort_span_property->value) })
+                {
+                    metadata.span_down = static_cast<uint32_t>(std::max(0.0, *span_down_value));
+                    has_metadata = has_metadata || metadata.span_down > 0u;
+                }
+            }
+
+            const tilemap_property_t* top_level_anchor_offset_property{
+                find_tilemap_property(properties, "carrot_sort_anchor_offset_y")
+            };
+            if (top_level_anchor_offset_property)
+            {
+                if (const double* offset_value{ std::get_if<double>(&top_level_anchor_offset_property->value) })
+                {
+                    metadata.anchor_offset_y = static_cast<uint32_t>(std::max(0.0, *offset_value));
+                    has_metadata = has_metadata || metadata.anchor_offset_y > 0u;
+                }
+            }
+
+            if (has_metadata)
+                tileset.tile_sort_metadata.emplace_back(metadata);
+        }
+
         void collect_unsupported_tileset_collision_object_features(const utils::json::json_object_view_t& object_json,
                                                                    const std::string_view tileset_name,
                                                                    const uint32_t tile_id,
@@ -404,9 +443,11 @@ namespace carrot::assets {
 
                         parse_tileset_tile_animation(tile_value.as_object(), tileset, diagnostics);
                         parse_tileset_tile_collision(tile_value.as_object(), tileset.name, tileset, diagnostics);
+                        parse_tileset_tile_sort_metadata(tile_value.as_object(), tileset);
                     }
                 }
                 tileset.rebuild_animation_lookup();
+                tileset.rebuild_sort_metadata_lookup();
                 tilemap.add_tileset(std::move(tileset));
             }
 

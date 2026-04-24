@@ -110,6 +110,13 @@ namespace carrot::assets {
             }
         };
 
+        struct tile_sort_metadata_t
+        {
+            uint32_t tile_id{ 0 };
+            uint32_t span_down{ 0 };
+            uint32_t anchor_offset_y{ 0 };
+        };
+
         std::string name;
         uint32_t first_gid{ 0 };
 
@@ -126,7 +133,9 @@ namespace carrot::assets {
         uint32_t columns{ 0 };
         std::vector<tile_animation_t> tile_animations;
         std::vector<tile_collision_t> tile_collisions;
+        std::vector<tile_sort_metadata_t> tile_sort_metadata;
         std::vector<int32_t> animation_lookup_by_tile_id;
+        std::vector<int32_t> sort_metadata_lookup_by_tile_id;
 
         [[nodiscard]] const tile_collision_t* find_tile_collision(const uint32_t tile_id) const noexcept
         {
@@ -167,6 +176,30 @@ namespace carrot::assets {
             return &tile_animations[static_cast<size_t>(animation_index)];
         }
 
+        [[nodiscard]] const tile_sort_metadata_t* find_tile_sort_metadata(const uint32_t tile_id) const noexcept
+        {
+            if (tile_id >= sort_metadata_lookup_by_tile_id.size())
+                return nullptr;
+
+            const int32_t metadata_index{ sort_metadata_lookup_by_tile_id[tile_id] };
+            if (metadata_index < 0 || static_cast<size_t>(metadata_index) >= tile_sort_metadata.size())
+                return nullptr;
+
+            return &tile_sort_metadata[static_cast<size_t>(metadata_index)];
+        }
+
+        [[nodiscard]] uint32_t sort_span_down_for_tile(const uint32_t tile_id) const noexcept
+        {
+            const tile_sort_metadata_t* metadata{ find_tile_sort_metadata(tile_id) };
+            return metadata ? metadata->span_down : 0u;
+        }
+
+        [[nodiscard]] uint32_t sort_anchor_offset_y_for_tile(const uint32_t tile_id) const noexcept
+        {
+            const tile_sort_metadata_t* metadata{ find_tile_sort_metadata(tile_id) };
+            return metadata ? metadata->anchor_offset_y : 0u;
+        }
+
         [[nodiscard]] uint32_t resolve_animated_tile_id(const uint32_t tile_id, const uint64_t elapsed_ms) const noexcept
         {
             const tile_animation_t* animation{ find_tile_animation(tile_id) };
@@ -184,6 +217,20 @@ namespace carrot::assets {
             }
 
             return animation->frames.back().tile_id;
+        }
+
+        void rebuild_sort_metadata_lookup() noexcept
+        {
+            sort_metadata_lookup_by_tile_id.assign(tile_count, -1);
+
+            for (size_t metadata_index{ 0 }; metadata_index < tile_sort_metadata.size(); ++metadata_index)
+            {
+                const tile_sort_metadata_t& metadata{ tile_sort_metadata[metadata_index] };
+                if (metadata.tile_id >= sort_metadata_lookup_by_tile_id.size())
+                    continue;
+
+                sort_metadata_lookup_by_tile_id[metadata.tile_id] = static_cast<int32_t>(metadata_index);
+            }
         }
     };
 

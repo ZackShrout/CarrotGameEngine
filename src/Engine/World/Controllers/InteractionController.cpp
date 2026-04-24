@@ -6,6 +6,8 @@
 #include "Core/Pch.h"
 
 #include "InteractionController.h"
+#include "World/AuthoredInteractions.h"
+#include "World/WorldUnits.h"
 
 namespace carrot::world {
     std::string_view to_string(const interaction_attempt_result_t result) noexcept
@@ -27,6 +29,61 @@ namespace carrot::world {
             const float dy{ a.y - b.y };
             return (dx * dx) + (dy * dy);
         }
+
+        [[nodiscard]] collision::collision_aabb_t world_object_collision_bounds(const world_object_t& object) noexcept
+        {
+            const collision_component_t collision{
+                object.collision.value_or(collision_component_t{
+                    .half_extents = { 0.f, 0.f },
+                    .offset = { 0.f, 0.f }
+                })
+            };
+            return collision::collision_aabb_t::from_center_extents(
+                object.transform->position + collision.offset,
+                collision.half_extents);
+        }
+
+        [[nodiscard]] std::optional<collision::collision_aabb_t> authored_rectangle_bounds(
+            const world_object_t& object) noexcept
+        {
+            if (!object.transform || !object.authored_geometry)
+                return std::nullopt;
+            if (object.authored_geometry->kind != assets::tilemap_object_t::geometry_kind_t::rectangle)
+                return std::nullopt;
+            if (object.authored_geometry->size_source_px.x <= 0.f || object.authored_geometry->size_source_px.y <= 0.f)
+                return std::nullopt;
+
+            return collision::collision_aabb_t::from_min_size(
+                object.transform->position,
+                chlm::float2{
+                    world_units_t::pixels_to_world(object.authored_geometry->size_source_px.x),
+                    world_units_t::pixels_to_world(object.authored_geometry->size_source_px.y)
+                });
+        }
+
+        [[nodiscard]] std::optional<float> interaction_distance_sq(const world_object_t& actor,
+                                                                   const world_object_t& candidate) noexcept
+        {
+            if (!actor.transform || !candidate.transform)
+                return std::nullopt;
+
+            if (const auto candidate_rect{ authored_rectangle_bounds(candidate) })
+            {
+                if (actor.collision)
+                {
+                    const collision::collision_aabb_t actor_bounds{ world_object_collision_bounds(actor) };
+                    if (collision::collision_aabb_overlaps(actor_bounds, *candidate_rect))
+                        return 0.f;
+                    return std::nullopt;
+                }
+
+                if (collision::collision_aabb_contains_point(*candidate_rect, actor.transform->position))
+                    return 0.f;
+                return std::nullopt;
+            }
+
+            return distance_sq(candidate.transform->position, actor.transform->position);
+        }
     } // namespace
 
     const world_object_t* interaction_controller_t::find_candidate(const world_t& world) const noexcept
@@ -34,7 +91,6 @@ namespace carrot::world {
         if (!_actor || !_actor->transform)
             return nullptr;
 
-        const chlm::float2 origin{ _actor->transform->position };
         const float max_distance_sq{ _interaction_radius * _interaction_radius };
 
         const world_object_t* nearest{ nullptr };
@@ -48,14 +104,17 @@ namespace carrot::world {
             if (!is_interactable_candidate(object))
                 continue;
 
-            const float candidate_distance_sq{ distance_sq(object.transform->position, origin) };
-            if (candidate_distance_sq > max_distance_sq)
+            const std::optional<float> candidate_distance_sq{ interaction_distance_sq(*_actor, object) };
+            if (!candidate_distance_sq.has_value())
                 continue;
 
-            if (!nearest || candidate_distance_sq < nearest_distance_sq)
+            if (*candidate_distance_sq > max_distance_sq)
+                continue;
+
+            if (!nearest || *candidate_distance_sq < nearest_distance_sq)
             {
                 nearest = &object;
-                nearest_distance_sq = candidate_distance_sq;
+                nearest_distance_sq = *candidate_distance_sq;
             }
         }
 
@@ -114,7 +173,10 @@ namespace carrot::world {
 
     bool interaction_controller_t::is_interactable_candidate(const world_object_t& object) const noexcept
     {
-        return object.get_bool_property("interactable").value_or(false);
+        if (!object.get_bool_property("interactable").value_or(false))
+            return false;
+
+        return authored::interaction_kind_for(object) != authored::interaction_kind_t::none;
     }
 
     void interaction_controller_t::on_interact(core::game_context_t& game, const world_object_t& object)

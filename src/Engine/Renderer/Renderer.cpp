@@ -92,6 +92,68 @@ namespace carrot::renderer {
             return lhs.submission_index < rhs.submission_index;
         }
 
+        struct tile_sort_anchor_resolution_t
+        {
+            uint32_t row{ 0u };
+            uint32_t anchor_offset_y{ 0u };
+            uint32_t anchor_tile_height{ 0u };
+        };
+
+        [[nodiscard]] tile_sort_anchor_resolution_t resolve_tile_sort_anchor(
+            const assets::tilemap_layer_t& layer,
+            const std::vector<assets::tilemap_tileset_t>& tilesets,
+            const std::function<size_t(uint32_t)>& resolve_tileset_index,
+            const assets::tilemap_tileset_t& source_tileset,
+            const uint32_t source_local_tile_id,
+            const uint32_t row,
+            const uint32_t col) noexcept
+        {
+            tile_sort_anchor_resolution_t resolution{
+                .row = row,
+                .anchor_offset_y = source_tileset.sort_anchor_offset_y_for_tile(source_local_tile_id),
+                .anchor_tile_height = source_tileset.tile_height
+            };
+            const uint32_t span_down{ source_tileset.sort_span_down_for_tile(source_local_tile_id) };
+            if (layer.width == 0u || layer.height == 0u)
+                return resolution;
+
+            for (uint32_t step{ 0u }; step < span_down; ++step)
+            {
+                const uint32_t next_row{ resolution.row + 1u };
+                if (next_row >= layer.height)
+                    break;
+
+                const size_t cell_index{
+                    static_cast<size_t>(next_row) * static_cast<size_t>(layer.width) + static_cast<size_t>(col)
+                };
+                if (cell_index >= layer.gids.size() || layer.gids[cell_index] == 0u)
+                    break;
+
+                resolution.row = next_row;
+            }
+
+            const size_t anchor_cell_index{
+                static_cast<size_t>(resolution.row) * static_cast<size_t>(layer.width) + static_cast<size_t>(col)
+            };
+            if (anchor_cell_index < layer.gids.size())
+            {
+                const uint32_t anchor_gid{ layer.gids[anchor_cell_index] };
+                if (anchor_gid != 0u)
+                {
+                    const size_t anchor_tileset_index{ resolve_tileset_index(anchor_gid) };
+                    if (anchor_tileset_index != static_cast<size_t>(-1) && anchor_tileset_index < tilesets.size())
+                    {
+                        const assets::tilemap_tileset_t& anchor_tileset{ tilesets[anchor_tileset_index] };
+                        resolution.anchor_offset_y =
+                            anchor_tileset.sort_anchor_offset_y_for_tile(anchor_gid - anchor_tileset.first_gid);
+                        resolution.anchor_tile_height = anchor_tileset.tile_height;
+                    }
+                }
+            }
+
+            return resolution;
+        }
+
         [[nodiscard]] quad_bucket_key_t quad_bucket_key(const quad_instance_t& quad) noexcept
         {
             return quad_bucket_key_t{
@@ -1006,9 +1068,31 @@ namespace carrot::renderer {
                         tile_quad.layer = layer_semantics.render_layer;
                         tile_quad.order_mode = layer_semantics.order_mode;
                         tile_quad.order_in_layer = layer_semantics.order_in_layer;
-                        tile_quad.sort_reference_y = layer_semantics.order_mode == render_order_mode_t::anchor_bottom_y
-                                                         ? (tile_quad.y + tile_quad.height)
-                                                         : info.sort_reference_y;
+                        if (layer_semantics.order_mode == render_order_mode_t::anchor_bottom_y)
+                        {
+                            const tile_sort_anchor_resolution_t anchor{
+                                resolve_tile_sort_anchor(layer,
+                                                         tilesets,
+                                                         resolve_tileset_index,
+                                                         tileset,
+                                                         local_tile_id,
+                                                         row,
+                                                         col)
+                            };
+                            const float offset_ratio{
+                                anchor.anchor_tile_height > 0u
+                                    ? static_cast<float>(std::min(anchor.anchor_offset_y, anchor.anchor_tile_height)) /
+                                          static_cast<float>(anchor.anchor_tile_height)
+                                    : 0.f
+                            };
+                            tile_quad.sort_reference_y =
+                                info.origin.y +
+                                ((static_cast<float>(anchor.row) + 1.f - offset_ratio) * render_tile_size.y * info.scale.y);
+                        }
+                        else
+                        {
+                            tile_quad.sort_reference_y = info.sort_reference_y;
+                        }
                         tile_quad.color = info.color;
                         tile_quad.sampler_preset = info.sampler_preset;
 

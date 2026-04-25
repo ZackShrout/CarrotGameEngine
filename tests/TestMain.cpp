@@ -18,8 +18,10 @@ namespace carrot::tests {
     void register_collision_world_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
     void register_font_asset_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
     void register_forward_plus_data_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
+    void register_json_writer_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
     void register_rhi_buffer_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
     void register_rhi_compute_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
+    void register_save_service_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
     void register_scene_loading_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
     void register_tiled_world_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
     void register_ui_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
@@ -29,7 +31,7 @@ namespace carrot::tests {
     void register_world_composition_tests(std::vector<std::pair<std::string_view, std::function<void()>>>& tests);
 }
 
-int main()
+int main(const int argc, char** argv)
 {
     using test_case_t = std::pair<std::string_view, std::function<void()>>;
 
@@ -41,8 +43,10 @@ int main()
     carrot::tests::register_collision_world_tests(tests);
     carrot::tests::register_font_asset_tests(tests);
     carrot::tests::register_forward_plus_data_tests(tests);
+    carrot::tests::register_json_writer_tests(tests);
     carrot::tests::register_rhi_buffer_tests(tests);
     carrot::tests::register_rhi_compute_tests(tests);
+    carrot::tests::register_save_service_tests(tests);
     carrot::tests::register_scene_loading_tests(tests);
     carrot::tests::register_tiled_world_tests(tests);
     carrot::tests::register_ui_tests(tests);
@@ -51,10 +55,16 @@ int main()
     carrot::tests::register_window_system_tests(tests);
     carrot::tests::register_world_composition_tests(tests);
 
+    const std::string_view filter{ argc > 1 && argv[1] ? std::string_view{ argv[1] } : std::string_view{} };
     size_t passed{ 0 };
+    size_t selected{ 0 };
 
     for (const auto& [name, test] : tests)
     {
+        if (!filter.empty() && name.find(filter) == std::string_view::npos)
+            continue;
+
+        ++selected;
         try
         {
             test();
@@ -66,6 +76,12 @@ int main()
             std::cerr << "[FAIL] " << name << ": " << e.what() << "\n";
             return 1;
         }
+    }
+
+    if (!filter.empty() && selected == 0u)
+    {
+        std::cerr << "[FAIL] No tests matched filter '" << filter << "'\n";
+        return 1;
     }
 
     std::cout << "Passed " << passed << " test(s)\n";

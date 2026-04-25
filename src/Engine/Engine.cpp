@@ -203,6 +203,7 @@ namespace carrot {
         _audio_module->init();
         audio::audio_service_t::provide(_audio_module.get());
 
+        _save_service = std::make_unique<save::save_service_t>(_vfs);
         _asset_manager = std::make_unique<assets::asset_manager_t>(_vfs, *_renderer->get_rhi());
         assets::asset_service_t::provide(_asset_manager.get());
 
@@ -278,7 +279,8 @@ namespace carrot {
             .world = _world,
             .assets = *_asset_manager,
             .view = game_view,
-            .controllers = _controller_manager
+            .controllers = _controller_manager,
+            .save_service = _save_service.get()
         };
         _application->start(game);
 

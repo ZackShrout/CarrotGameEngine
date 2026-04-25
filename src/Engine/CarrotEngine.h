@@ -21,6 +21,7 @@
 #include "Input/InputBindingStore.h"
 #include "Input/InputRebindSession.h"
 #include "Renderer/Renderer.h"
+#include "Save/SaveService.h"
 #include "Scene/Scene.h"
 #include "UI/UI.h"
 #include "Window/Window.h"

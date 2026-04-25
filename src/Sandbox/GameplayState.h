@@ -6,6 +6,7 @@
 #pragma once
 
 #include "GameplayRuntimeState.h"
+#include "Save/SaveService.h"
 
 #include <CarrotEngine.h>
 
@@ -30,6 +31,7 @@ namespace sandbox {
 
         void on_window_focus_changed(const carrot::events::window_focused_t& e) override;
         void on_key(const carrot::events::key_event_t& e) override;
+        void register_save_participants(carrot::save::save_participant_registry_t& registry) override;
         void before_scene_change(carrot::core::game_context_t& game,
                                  const carrot::scene::scene_runtime_context_t* current_context,
                                  std::string_view next_scene_id,
@@ -38,6 +40,32 @@ namespace sandbox {
                                 const carrot::scene::scene_runtime_context_t& current_context) override;
 
     private:
+        class gameplay_save_participant_t final : public carrot::save::isave_participant_t
+        {
+        public:
+            explicit gameplay_save_participant_t(gameplay_state_t& owner) noexcept
+                : _owner(owner) {}
+
+            [[nodiscard]] std::string_view participant_name() const noexcept override
+            {
+                return "sandbox.gameplay";
+            }
+
+            [[nodiscard]] carrot::save::save_section_owner_t owner() const noexcept override
+            {
+                return carrot::save::save_section_owner_t::gameplay;
+            }
+
+            bool capture_save_sections(const carrot::save::save_request_t& request,
+                                       carrot::save::save_section_collector_t& collector,
+                                       carrot::save::save_operation_status_t& status) override;
+            bool apply_loaded_sections(const carrot::save::loaded_save_slot_t& slot,
+                                       carrot::save::save_operation_status_t& status) override;
+
+        private:
+            gameplay_state_t& _owner;
+        };
+
         [[nodiscard]] carrot::scene::scene_runtime_bindings_t make_scene_runtime_bindings() noexcept;
         void prepare_for_scene_change(const carrot::scene::scene_runtime_context_t* current_context) noexcept;
         void finalize_scene_change(const carrot::scene::scene_runtime_context_t& current_context) noexcept;
@@ -55,5 +83,7 @@ namespace sandbox {
         carrot::scene::scene_runtime_t _scene_runtime;
         gameplay_runtime_state_t _runtime_state;
         carrot::world::trigger_monitor_t _trigger_monitor;
+        gameplay_save_participant_t _save_participant{ *this };
+        bool _applying_loaded_runtime_state{ false };
     };
 } // namespace sandbox

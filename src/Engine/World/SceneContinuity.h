@@ -8,9 +8,11 @@
 #include "WorldObject.h"
 
 #include <functional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_set>
+#include <vector>
 
 namespace carrot::world {
     class world_t;
@@ -31,9 +33,12 @@ namespace carrot::world {
         void mark(std::string_view scene_id,
                   const world_object_t& object,
                   std::string_view flag_name);
+        void mark_key(std::string key);
         [[nodiscard]] bool contains(std::string_view scene_id,
                                     const world_object_t& object,
                                     std::string_view flag_name) const;
+        [[nodiscard]] std::vector<std::string> keys() const;
+        void replace_keys(std::span<const std::string> keys);
         void clear() noexcept;
         [[nodiscard]] size_t size() const noexcept { return _flags.size(); }
 

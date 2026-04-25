@@ -69,6 +69,9 @@ namespace sandbox {
                                                [[maybe_unused]] const std::string_view next_scene_id,
                                                [[maybe_unused]] const std::string_view next_spawn_marker)
     {
+        if (_applying_loaded_runtime_state)
+            return;
+
         if (!current_context)
             return;
 
@@ -250,5 +253,89 @@ namespace sandbox {
     void gameplay_state_t::on_key(const carrot::events::key_event_t& e)
     {
         _input.apply_player_movement(_player_controller, game(), k_input_profile);
+    }
+
+    void gameplay_state_t::register_save_participants(carrot::save::save_participant_registry_t& registry)
+    {
+        registry.add(_save_participant);
+    }
+
+    bool gameplay_state_t::gameplay_save_participant_t::capture_save_sections(
+        const carrot::save::save_request_t& request,
+        carrot::save::save_section_collector_t& collector,
+        carrot::save::save_operation_status_t& status)
+    {
+        (void)request;
+
+        if (!_owner._scene_runtime.has_scene_loaded())
+        {
+            status.detail = "Sandbox gameplay save requires an active scene.";
+            return false;
+        }
+
+        capture_player_runtime_state(_owner._runtime_state, _owner._player_controller);
+
+        const gameplay_durable_state_t durable_state{
+            .scene_id = std::string{ _owner._scene_runtime.current_scene_id() },
+            .spawn_marker = std::string{ _owner._scene_runtime.current_spawn_marker() },
+            .runtime_state = _owner._runtime_state
+        };
+        std::optional<std::vector<std::uint8_t>> bytes{ serialize_durable_state(durable_state) };
+        if (!bytes.has_value())
+        {
+            status.detail = "Sandbox gameplay durable state could not be serialized.";
+            return false;
+        }
+
+        if (!collector.add_section("sandbox_gameplay_state", owner(), *bytes, status.detail))
+            return false;
+
+        status.detail = "Captured sandbox gameplay durable state.";
+        return true;
+    }
+
+    bool gameplay_state_t::gameplay_save_participant_t::apply_loaded_sections(
+        const carrot::save::loaded_save_slot_t& slot,
+        carrot::save::save_operation_status_t& status)
+    {
+        const carrot::save::save_payload_section_t* section{ slot.find_section("sandbox_gameplay_state") };
+        if (!section)
+        {
+            status.detail = "Save slot is missing the sandbox gameplay durable state section.";
+            return false;
+        }
+
+        if (section->owner != owner())
+        {
+            status.detail = "Sandbox gameplay durable state section owner mismatch.";
+            return false;
+        }
+
+        const std::optional<gameplay_durable_state_t> durable_state{ deserialize_durable_state(section->bytes) };
+        if (!durable_state.has_value())
+        {
+            status.detail = "Sandbox gameplay durable state could not be deserialized.";
+            return false;
+        }
+
+        _owner._runtime_state = durable_state->runtime_state;
+        _owner._applying_loaded_runtime_state = true;
+        const bool loaded{
+            _owner._scene_runtime.load(_owner.game(),
+                                       durable_state->scene_id,
+                                       carrot::scene::make_scene_load_options(_owner.make_scene_runtime_bindings(),
+                                                                              durable_state->spawn_marker))
+        };
+        _owner._applying_loaded_runtime_state = false;
+        if (!loaded)
+        {
+            status.detail = std::format("Sandbox gameplay durable state failed to load scene '{}' at spawn '{}'.",
+                                        durable_state->scene_id,
+                                        durable_state->spawn_marker);
+            return false;
+        }
+
+        status.detail = "Applied sandbox gameplay durable state.";
+        return true;
     }
 } // namespace sandbox

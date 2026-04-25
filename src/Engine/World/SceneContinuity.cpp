@@ -64,11 +64,35 @@ namespace carrot::world {
         _flags.emplace(make_scene_runtime_object_flag_key(scene_id, object, flag_name));
     }
 
+    void scene_runtime_flag_store_t::mark_key(std::string key)
+    {
+        if (!key.empty())
+            _flags.emplace(std::move(key));
+    }
+
     bool scene_runtime_flag_store_t::contains(const std::string_view scene_id,
                                               const world_object_t& object,
                                               const std::string_view flag_name) const
     {
         return _flags.contains(make_scene_runtime_object_flag_key(scene_id, object, flag_name));
+    }
+
+    std::vector<std::string> scene_runtime_flag_store_t::keys() const
+    {
+        std::vector<std::string> result;
+        result.reserve(_flags.size());
+        for (const std::string& key : _flags)
+            result.push_back(key);
+
+        std::ranges::sort(result);
+        return result;
+    }
+
+    void scene_runtime_flag_store_t::replace_keys(const std::span<const std::string> keys)
+    {
+        _flags.clear();
+        for (const std::string& key : keys)
+            mark_key(key);
     }
 
     void scene_runtime_flag_store_t::clear() noexcept

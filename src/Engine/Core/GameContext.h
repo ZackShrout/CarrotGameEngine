@@ -16,6 +16,10 @@ namespace carrot::world {
     class world_t;
 }
 
+namespace carrot::save {
+    class save_service_t;
+}
+
 namespace carrot::core {
     struct game_context_t
     {
@@ -23,5 +27,6 @@ namespace carrot::core {
         assets::asset_manager_t& assets;
         game_view_t& view;
         input::controller_manager_t& controllers;
+        save::save_service_t* save_service{ nullptr };
     };
 } // namespace carrot::core

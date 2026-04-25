@@ -22,10 +22,12 @@
 #include "EngineConfig.h"
 #include "Renderer/Renderer.h"
 #include "Scene/Scene.h"
+#include "GameplayState.h"
 #include "GameplayRuntimeState.h"
 #include "IO/VirtualFileSystem.h"
 #include "RHI/RHI.h"
 #include "RHI/Backends/Null/NullRHIContext.h"
+#include "Save/SaveService.h"
 #include "Utils/JSON/Public/JsonDocument.h"
 #include "World/AuthoredInteractions.h"
 #include "World/Controllers/InteractionController.h"
@@ -2403,6 +2405,121 @@ namespace carrot::tests {
 
             sandbox::apply_runtime_state_to_player(runtime_state, controller);
             CARROT_TEST_REQUIRE(controller.facing_direction() == carrot::world::facing_direction_t::left);
+        }
+
+        void test_gameplay_durable_state_round_trips_scene_spawn_facing_and_continuity()
+        {
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+
+            fake_context_t rhi;
+            assets::asset_manager_t assets{ vfs, static_cast<rhi::rhi_context_t&>(rhi) };
+            register_required_assets(assets, vfs);
+
+            world::world_t world;
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town"));
+
+            const world::world_object_t* chest{ world.find_object_by_name("StarterChest") };
+            CARROT_TEST_REQUIRE(chest != nullptr);
+
+            sandbox::gameplay_durable_state_t source{
+                .scene_id = "scene.sandbox.item_shop",
+                .spawn_marker = "EntryFromTown",
+                .runtime_state = {
+                    .player_facing = world::facing_direction_t::left
+                }
+            };
+            sandbox::mark_container_open(source.runtime_state, "scene.sandbox.town", *chest);
+
+            const std::optional<std::vector<std::uint8_t>> bytes{ sandbox::serialize_durable_state(source) };
+            CARROT_TEST_REQUIRE(bytes.has_value());
+
+            const std::optional<sandbox::gameplay_durable_state_t> restored{
+                sandbox::deserialize_durable_state(*bytes)
+            };
+            CARROT_TEST_REQUIRE(restored.has_value());
+            CARROT_TEST_REQUIRE(restored->scene_id == "scene.sandbox.item_shop");
+            CARROT_TEST_REQUIRE(restored->spawn_marker == "EntryFromTown");
+            CARROT_TEST_REQUIRE(restored->runtime_state.player_facing.has_value());
+            CARROT_TEST_REQUIRE(*restored->runtime_state.player_facing == world::facing_direction_t::left);
+            CARROT_TEST_REQUIRE(restored->runtime_state.scene_flags.keys().size() == 1u);
+
+            CARROT_TEST_REQUIRE(world::scene_loader_t::load_scene(world, assets, "scene.sandbox.town"));
+            sandbox::apply_runtime_state_to_scene("scene.sandbox.town", world, restored->runtime_state);
+            const world::world_object_t* restored_chest{ world.find_object_by_name("StarterChest") };
+            CARROT_TEST_REQUIRE(restored_chest != nullptr);
+            CARROT_TEST_REQUIRE(!restored_chest->get_bool_property("interactable").value_or(true));
+
+            carrot::world::player_controller_t controller;
+            carrot::world::world_object_t player;
+            player.transform = carrot::world::transform_component_t{
+                .position = { 0.f, 0.f },
+                .scale = { 1.f, 1.f }
+            };
+            controller.set_controlled_object(&player);
+            sandbox::apply_runtime_state_to_player(restored->runtime_state, controller);
+            CARROT_TEST_REQUIRE(controller.facing_direction() == world::facing_direction_t::left);
+        }
+
+        void test_sandbox_gameplay_save_load_restores_scene_location()
+        {
+            const std::filesystem::path save_root{
+                std::filesystem::temp_directory_path() / "carrot_scene_loading_tests" / "sandbox_gameplay_save_load"
+            };
+            std::error_code ec;
+            std::filesystem::remove_all(save_root, ec);
+            std::filesystem::create_directories(save_root, ec);
+
+            io::virtual_file_system_t vfs;
+            mount_test_asset_roots(vfs);
+            vfs.mount("save", save_root, false);
+
+            save::save_service_t save_service{ vfs };
+            sandbox::gameplay_durable_state_t durable_state{
+                .scene_id = "scene.sandbox.item_shop",
+                .spawn_marker = "EntryFromTown",
+                .runtime_state = {
+                    .player_facing = world::facing_direction_t::right
+                }
+            };
+            const std::optional<std::vector<std::uint8_t>> bytes{ sandbox::serialize_durable_state(durable_state) };
+            CARROT_TEST_REQUIRE(bytes.has_value());
+
+            std::vector<save::save_payload_section_t> sections;
+            sections.push_back(save::save_payload_section_t{
+                .section_id = "sandbox_gameplay_state",
+                .owner = save::save_section_owner_t::gameplay,
+                .bytes = *bytes
+            });
+
+            const save::save_operation_status_t save_result{
+                save_service.write_slot(save::save_request_t{
+                    .kind = save::save_request_kind_t::save_slot,
+                    .slot_id = "sandbox_restore",
+                    .scene_id = durable_state.scene_id,
+                    .spawn_marker = durable_state.spawn_marker
+                }, sections)
+            };
+            CARROT_TEST_REQUIRE(save_result.outcome == save::save_request_outcome_t::succeeded);
+
+            save::save_operation_status_t load_status;
+            const std::optional<save::loaded_save_slot_t> loaded_slot{
+                save_service.load_slot("sandbox_restore", load_status)
+            };
+            CARROT_TEST_REQUIRE(load_status.outcome == save::save_request_outcome_t::succeeded);
+            CARROT_TEST_REQUIRE(loaded_slot.has_value());
+            const save::save_payload_section_t* loaded_section{ loaded_slot->find_section("sandbox_gameplay_state") };
+            CARROT_TEST_REQUIRE(loaded_section != nullptr);
+            const std::optional<sandbox::gameplay_durable_state_t> restored{
+                sandbox::deserialize_durable_state(loaded_section->bytes)
+            };
+            CARROT_TEST_REQUIRE(restored.has_value());
+            CARROT_TEST_REQUIRE(restored->scene_id == "scene.sandbox.item_shop");
+            CARROT_TEST_REQUIRE(restored->spawn_marker == "EntryFromTown");
+            CARROT_TEST_REQUIRE(restored->runtime_state.player_facing.has_value());
+            CARROT_TEST_REQUIRE(*restored->runtime_state.player_facing == world::facing_direction_t::right);
+
+            std::filesystem::remove_all(save_root, ec);
         }
 
         void test_scene_continuity_builds_stable_object_keys_from_name_and_source()
@@ -5090,6 +5207,10 @@ namespace carrot::tests {
                            test_transition_runtime_state_preserves_opened_container_across_scene_reload);
         tests.emplace_back("transition runtime state restores player facing after rebind",
                            test_transition_runtime_state_restores_player_facing_after_rebind);
+        tests.emplace_back("gameplay durable state round trips scene spawn facing and continuity",
+                           test_gameplay_durable_state_round_trips_scene_spawn_facing_and_continuity);
+        tests.emplace_back("sandbox gameplay save load restores scene location",
+                           test_sandbox_gameplay_save_load_restores_scene_location);
         tests.emplace_back("scene continuity builds stable object keys from name and source",
                            test_scene_continuity_builds_stable_object_keys_from_name_and_source);
         tests.emplace_back("scene continuity flag store tracks named flags per scene object",

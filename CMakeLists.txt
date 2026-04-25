@@ -119,6 +119,8 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Renderer/Renderer.h
         src/Engine/Renderer/RendererService.cpp
         src/Engine/Renderer/RendererService.h
+        src/Engine/Save/SaveService.cpp
+        src/Engine/Save/SaveService.h
         src/Engine/Scene/Scene.cpp
         src/Engine/Scene/Scene.h
         src/Engine/World/AuthoredInteractions.cpp
@@ -394,10 +396,12 @@ set(CARROT_ENGINE_SOURCES
         src/Engine/Utils/JSON/Private/JsonParser.h
         src/Engine/Utils/JSON/Private/JsonToken.h
         src/Engine/Utils/JSON/Private/JsonValueView.cpp
+        src/Engine/Utils/JSON/Private/JsonWriter.cpp
         src/Engine/Utils/JSON/Public/JsonArrayView.h
         src/Engine/Utils/JSON/Public/JsonDocument.h
         src/Engine/Utils/JSON/Public/JsonObjectView.h
         src/Engine/Utils/JSON/Public/JsonValueView.h
+        src/Engine/Utils/JSON/Public/JsonWriter.h
         src/Engine/Utils/MulticastDelegate.h
         src/Engine/Utils/ShaderUtils.cpp
         src/Engine/Utils/ShaderUtils.h
@@ -898,14 +902,17 @@ set(CARROT_TEST_SOURCES
         tests/CollisionWorldTests.cpp
         tests/FontAssetTests.cpp
         tests/ForwardPlusDataTests.cpp
+        tests/JsonWriterTests.cpp
         tests/RHIBufferTests.cpp
         tests/RHIComputeTests.cpp
+        tests/SaveServiceTests.cpp
         tests/SceneLoadingTests.cpp
         tests/TiledWorldTests.cpp
         tests/UITests.cpp
         tests/UILayoutTests.cpp
         tests/UINavigationTests.cpp
         tests/WorldCompositionTests.cpp
+        src/Sandbox/GameplayState.cpp
         src/Sandbox/GameplayRuntimeState.cpp
         tests/WindowSystemTests.cpp
 )

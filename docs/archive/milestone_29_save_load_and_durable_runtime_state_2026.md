@@ -1,9 +1,37 @@
 # Carrot Game Engine - Milestone 29
 
-**Last Updated:** April 20, 2026
+**Last Updated:** April 24, 2026
 **Title:** Save, Load, and Durable Runtime State
-**Status:** Planned
+**Status:** Closed (with Ticket 29.5 deferred)
 **Focus:** Establish Carrot's real save/load architecture with binary on-disk data, explicit serialization boundaries, stable slot structure, durable runtime-state ownership, and a practical vertical slice that proves the engine can persist real game progress safely.
+
+---
+
+## Closeout
+
+Milestone 29 is functionally closed for the current codebase.
+
+Implemented during this milestone:
+
+* engine-owned save service and runtime integration boundary
+* explicit save-slot structure with separated metadata and binary payload files
+* section-based serialization ownership between engine-owned and gameplay-owned contributors
+* scene/location continuity restore through the official save system
+* runtime-facing manual, autosave, and temp/continue save flow distinctions
+* corruption, compatibility, and safer temp-write/finalize save behavior
+* focused persistence diagnostics and regression coverage
+
+Ticket 29.5 was intentionally deferred rather than dropped.
+
+Reason for deferral:
+
+* Sandbox does not yet have a sufficiently real gameplay-owned durable system such as inventory, quest progression, party state, or comparable player/system-facing progression data
+* using world continuity alone as the Ticket 29.5 slice would have blurred the line between world-state persistence and gameplay-owned persistence instead of proving a genuinely different boundary
+
+Practical milestone closeout rule:
+
+* Milestone 29 is considered complete as a persistence-foundation milestone
+* Ticket 29.5 should be revisited later when Sandbox or another game module has a real gameplay-owned system worth persisting through the existing save boundary
 
 ---
 
@@ -271,6 +299,7 @@ Persist and restore the validated durable slice for:
 
 **Priority:** P0
 **Outcome:** At least one representative gameplay-owned state payload is persisted through the official save system.
+**Closeout Note:** Deferred for now. The engine/game save boundary is in place, but Sandbox does not yet contain a sufficiently real gameplay-owned durable system to validate this ticket honestly.
 
 #### Why
 
@@ -379,7 +408,7 @@ A successful milestone validation slice should include at least:
 * load into the correct scene/location
 * restored player/world continuity state
 * restored named durable object/world flags
-* restored gameplay-owned durable state example
+* restored gameplay-owned durable state example when a real gameplay-owned system exists
 * slot listing that shows metadata without fully loading the save payload
 * a temp/autosave/manual distinction present in the runtime truth
 
@@ -434,7 +463,7 @@ Milestone 29 should not be considered complete until it validates:
 * save slot listing and metadata behavior
 * binary payload round-trip for the validated slice
 * scene/world continuity restore
-* gameplay-owned durable-state restore
+* gameplay-owned durable-state restore once a real gameplay-owned system exists to validate
 * temp/autosave/manual save distinctions
 * corruption and incompatibility behavior
 

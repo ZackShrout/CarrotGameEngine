@@ -10,30 +10,10 @@
 #include "IO/VirtualFileSystem.h"
 #include "Utils/File/FileUtils.h"
 #include "Utils/JSON/Public/JsonDocument.h"
+#include "Utils/JSON/Public/JsonWriter.h"
 
 namespace carrot::input {
     namespace {
-        [[nodiscard]] std::string escape_json_string(const std::string_view value)
-        {
-            std::string escaped;
-            escaped.reserve(value.size() + 8u);
-
-            for (const char ch : value)
-            {
-                switch (ch)
-                {
-                    case '\\': escaped += "\\\\"; break;
-                    case '"': escaped += "\\\""; break;
-                    case '\n': escaped += "\\n"; break;
-                    case '\r': escaped += "\\r"; break;
-                    case '\t': escaped += "\\t"; break;
-                    default: escaped.push_back(ch); break;
-                }
-            }
-
-            return escaped;
-        }
-
         [[nodiscard]] std::string normalize_name(std::string_view value)
         {
             std::string normalized;
@@ -212,25 +192,6 @@ namespace carrot::input {
             return std::nullopt;
         }
 
-        void append_modifier_json_values(std::string& out, const uint8_t mods)
-        {
-            bool first{ true };
-            const auto append_modifier = [&out, &first](const char* name)
-            {
-                if (!first)
-                    out += ", ";
-
-                out += '"';
-                out += name;
-                out += '"';
-                first = false;
-            };
-
-            if (has_modifier(mods, modifier::shift)) append_modifier("Shift");
-            if (has_modifier(mods, modifier::control)) append_modifier("Ctrl");
-            if (has_modifier(mods, modifier::alt)) append_modifier("Alt");
-            if (has_modifier(mods, modifier::super)) append_modifier("Super");
-        }
     } // namespace
 
     std::vector<action_binding_t> input_action_map_t::bindings_for_action(const input_action_id_t action) const
@@ -384,56 +345,54 @@ namespace carrot::input {
 
     std::string input_action_map_t::serialize_bindings_to_json() const
     {
-        std::string json;
-        json.reserve((_bindings.size() * 96u) + 32u);
-        json += "{\n  \"bindings\": [\n";
+        utils::json::json_writer_t writer;
+        writer.begin_object();
+        writer.key("bindings");
+        writer.begin_array();
 
-        for (size_t i{ 0u }; i < _bindings.size(); ++i)
+        for (const action_binding_t& binding : _bindings)
         {
-            const action_binding_t& binding{ _bindings[i] };
-            json += "    { \"action\": \"";
-            json += escape_json_string(binding.action);
-            json += '"';
+            writer.begin_object();
+            writer.key("action");
+            writer.value(binding.action);
 
             switch (binding.type)
             {
                 case action_binding_type_t::key:
-                    json += ", \"key\": \"";
-                    json += key_code_to_string(binding.key);
-                    json += '"';
+                    writer.key("key");
+                    writer.value(key_code_to_string(binding.key));
                     if (binding.required_mods != 0)
                     {
-                        json += ", \"mods\": [";
-                        append_modifier_json_values(json, binding.required_mods);
-                        json += ']';
+                        writer.key("mods");
+                        writer.begin_array();
+                        if (has_modifier(binding.required_mods, modifier::shift)) writer.value("Shift");
+                        if (has_modifier(binding.required_mods, modifier::control)) writer.value("Ctrl");
+                        if (has_modifier(binding.required_mods, modifier::alt)) writer.value("Alt");
+                        if (has_modifier(binding.required_mods, modifier::super)) writer.value("Super");
+                        writer.end_array();
                     }
                     break;
                 case action_binding_type_t::gamepad_button:
-                    json += ", \"gamepad_button\": \"";
-                    json += gamepad_button_to_string(binding.gamepad_button);
-                    json += '"';
+                    writer.key("gamepad_button");
+                    writer.value(gamepad_button_to_string(binding.gamepad_button));
                     break;
                 case action_binding_type_t::gamepad_axis:
-                {
-                    char threshold_buffer[16]{ };
-                    std::snprintf(threshold_buffer, sizeof(threshold_buffer), "%.3f", binding.gamepad_axis_threshold);
-                    json += ", \"gamepad_axis\": \"";
-                    json += gamepad_axis_to_string(binding.gamepad_axis);
-                    json += "\", \"direction\": \"";
-                    json += gamepad_axis_direction_to_string(binding.gamepad_axis_direction);
-                    json += "\", \"threshold\": ";
-                    json += threshold_buffer;
+                    writer.key("gamepad_axis");
+                    writer.value(gamepad_axis_to_string(binding.gamepad_axis));
+                    writer.key("direction");
+                    writer.value(gamepad_axis_direction_to_string(binding.gamepad_axis_direction));
+                    writer.key("threshold");
+                    writer.value(static_cast<double>(binding.gamepad_axis_threshold));
                     break;
-                }
             }
 
-            json += " }";
-            if (i + 1u < _bindings.size())
-                json += ',';
-            json += '\n';
+            writer.end_object();
         }
 
-        json += "  ]\n}\n";
+        writer.end_array();
+        writer.end_object();
+        std::string json{ writer.take() };
+        json.push_back('\n');
         return json;
     }
 

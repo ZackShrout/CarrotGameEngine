@@ -13,6 +13,7 @@
 #include "IO/VirtualFileSystem.h"
 #include "Input/ControllerManager.h"
 #include "Renderer/Renderer.h"
+#include "Save/SaveService.h"
 #include "RuntimeWindowSpecs.h"
 #include "Utils/MulticastDelegate.h"
 #include "Window/Window.h"
@@ -215,6 +216,7 @@ namespace carrot {
         std::unique_ptr<ui::ui_module_t>                    _ui_module{ nullptr };
 
         io::virtual_file_system_t                           _vfs;
+        std::unique_ptr<save::save_service_t>               _save_service{ nullptr };
         std::unique_ptr<assets::asset_manager_t>            _asset_manager{ nullptr };
         input::controller_manager_t                         _controller_manager;
         window::window_id_t                                 _gameplay_window_id{ window::invalid_window_id };

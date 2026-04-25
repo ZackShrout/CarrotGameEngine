@@ -6,6 +6,7 @@
 #pragma once
 
 #include "Events/Events.h"
+#include "Save/SaveService.h"
 
 namespace carrot::scene {
     class scene_runtime_t;
@@ -27,6 +28,7 @@ namespace carrot::core {
         virtual void render_overlay() {}
         [[nodiscard]] virtual scene::scene_runtime_t* scene_runtime() noexcept { return nullptr; }
         [[nodiscard]] virtual const scene::scene_runtime_t* scene_runtime() const noexcept { return nullptr; }
+        virtual void register_save_participants(save::save_participant_registry_t& registry) { (void)registry; }
         virtual void on_window_focus_changed(const events::window_focused_t& e) { (void)e; }
         virtual void on_key(const events::key_event_t& e) { (void)e; }
         virtual void on_mouse_moved(const events::mouse_moved_event_t& e) { (void)e; }

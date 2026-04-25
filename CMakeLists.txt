@@ -872,8 +872,13 @@ elseif(UNIX)
 endif()
 
 # ------------------------------------------------------------------------
-# Sandbox / Game Executable
+# Game executables
 # ------------------------------------------------------------------------
+function(carrot_add_game_target TARGET_NAME TARGET_INCLUDE_DIR)
+    add_executable(${TARGET_NAME} ${ARGN})
+    target_include_directories(${TARGET_NAME} PRIVATE ${TARGET_INCLUDE_DIR})
+    target_link_libraries(${TARGET_NAME} PRIVATE CarrotEngine)
+endfunction()
 set(CARROT_SANDBOX_SOURCES
         src/Sandbox/main.cpp
         src/Sandbox/Sandbox.cpp
@@ -889,9 +894,7 @@ set(CARROT_SANDBOX_SOURCES
 
 source_group(TREE ${CMAKE_SOURCE_DIR} FILES ${CARROT_SANDBOX_SOURCES})
 
-add_executable(CarrotSandbox ${CARROT_SANDBOX_SOURCES})  # Rename if you prefer "Game" or "Sandbox"
-target_include_directories(CarrotSandbox PRIVATE src/Sandbox)
-target_link_libraries(CarrotSandbox PRIVATE CarrotEngine)
+carrot_add_game_target(CarrotSandbox src/Sandbox ${CARROT_SANDBOX_SOURCES})
 
 set(CARROT_TEST_SOURCES
         tests/TestMain.cpp
@@ -952,25 +955,34 @@ include(CompileShaders.cmake)
 
 file(GLOB HLSL_SOURCES "shaders/*.vert.hlsl" "shaders/*.frag.hlsl" "shaders/*.comp.hlsl")
 set(SHADER_OUTPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders")
+add_custom_target(CarrotShaderAssets)
+
+function(carrot_attach_shared_shader_assets TARGET_NAME)
+    add_dependencies(${TARGET_NAME} CarrotShaderAssets)
+endfunction()
 
 # Platform-native shaders
 if(APPLE)
     foreach(SHADER_FILE IN LISTS HLSL_SOURCES)
         file(RELATIVE_PATH REL_SHADER "${CMAKE_CURRENT_SOURCE_DIR}" "${SHADER_FILE}")
-        compile_hlsl_to_metallib(CarrotSandbox "${REL_SHADER}" "${SHADER_OUTPUT_DIR}/metal")
+        compile_hlsl_to_metallib(CarrotShaderAssets "${REL_SHADER}" "${SHADER_OUTPUT_DIR}/metal")
     endforeach()
 elseif(WIN32)
     foreach(SHADER_FILE IN LISTS HLSL_SOURCES)
         file(RELATIVE_PATH REL_SHADER "${CMAKE_CURRENT_SOURCE_DIR}" "${SHADER_FILE}")
-        compile_hlsl_to_dxil(CarrotSandbox "${REL_SHADER}" "${SHADER_OUTPUT_DIR}/dx12")
+        compile_hlsl_to_dxil(CarrotShaderAssets "${REL_SHADER}" "${SHADER_OUTPUT_DIR}/dx12")
     endforeach ()
 endif()
 
 # Vulkan shaders for all platforms
 foreach(SHADER_FILE IN LISTS HLSL_SOURCES)
     file(RELATIVE_PATH REL_SHADER "${CMAKE_CURRENT_SOURCE_DIR}" "${SHADER_FILE}")
-    compile_hlsl_to_spirv(CarrotSandbox "${REL_SHADER}" "${SHADER_OUTPUT_DIR}/vulkan")
+    compile_hlsl_to_spirv(CarrotShaderAssets "${REL_SHADER}" "${SHADER_OUTPUT_DIR}/vulkan")
 endforeach()
+
+carrot_attach_shared_shader_assets(CarrotSandbox)
+
+include("${CMAKE_SOURCE_DIR}/PrivateGames.cmake" OPTIONAL)
 
 # ------------------------------------------------------------------------
 # Output

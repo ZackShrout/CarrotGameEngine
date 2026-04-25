@@ -214,7 +214,7 @@ This is one of the reasons Carrot leans heavily into **JSON-based authored metad
   * `ce_application_t` as the low-level application host boundary
   * `game_runtime_t` as the runtime-root shape for game-lifetime ownership
   * `igame_state_t` as the explicit active-state seam for gameplay, menus, pause, loading, and future runtime modes
-* The example game now lives honestly under `src/Sandbox/`
+* The example game lives under `src/Sandbox/`
 * Active gameplay responsibilities now live under a dedicated `gameplay_state_t` instead of hanging directly off the application adapter
 
 ### ECS / World Systems
